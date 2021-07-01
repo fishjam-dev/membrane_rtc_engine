@@ -1,0 +1,19 @@
+ 
+{
+  "name": "membrane_sfu",
+  "version": "0.1.0",
+  "description": "Client library for Membrane SFU.",
+  "license": "Apache 2.0",
+  "main": "./priv/static/membraneWebRTC.js",
+  "author": "Membrane Team",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/membraneframework/membrane_sfu.git"
+  },
+  "files": [
+    "README.md",
+    "LICENSE.md",
+    "package.json",
+    "priv/static/*"
+  ]
+}
