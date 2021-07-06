@@ -22,7 +22,7 @@ interface PeerConfig {
     relayAudio: boolean;
 }
 interface Callbacks {
-    onSendSerializedMediaEvent: (serializedMediaEvent: SerializedMediaEvent) => void;
+    onSendMediaEvent: (mediaEvent: SerializedMediaEvent) => void;
     onJoined?: (peerId: string, peersInRoom: [Peer]) => void;
     onDenied?: () => void;
     onTrackAdded?: (ctx: TrackContext) => void;
@@ -45,7 +45,7 @@ export declare class MembraneWebRTC {
     private readonly callbacks;
     constructor(config: MembraneWebRTCConfig);
     join: (peerMetadata: any) => void;
-    receiveEvent: (serializedMediaEvent: SerializedMediaEvent) => void;
+    receiveMediaEvent: (mediaEvent: SerializedMediaEvent) => void;
     addLocalTrack(track: MediaStreamTrack, stream: MediaStream, trackMetadata?: any): void;
     leave: () => void;
     cleanUp: () => void;
@@ -55,7 +55,6 @@ export declare class MembraneWebRTC {
     private onTrack;
     private onPeerJoined;
     private onPeerLeft;
-    private onSendMediaEvent;
     private addPeer;
     private removePeer;
     private generateMediaEvent;

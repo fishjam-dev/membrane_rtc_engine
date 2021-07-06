@@ -33,9 +33,7 @@ interface PeerConfig {
 }
 
 interface Callbacks {
-  onSendSerializedMediaEvent: (
-    serializedMediaEvent: SerializedMediaEvent
-  ) => void;
+  onSendMediaEvent: (mediaEvent: SerializedMediaEvent) => void;
 
   onJoined?: (peerId: string, peersInRoom: [Peer]) => void;
   onDenied?: () => void;
@@ -103,31 +101,30 @@ export class MembraneWebRTC {
         if (stream.getVideoTracks() !== []) relayVideo = true;
       });
 
-      this.onSendMediaEvent(
-        this.generateMediaEvent("join", {
-          relayAudio: relayAudio,
-          relayVideo: relayVideo,
-          receiveMedia: this.receiveMedia,
-          metadata: peerMetadata,
-          tracksMetadata: Array.from(this.localTrackIdToMetadata.values()),
-        })
-      );
+      let mediaEvent = this.generateMediaEvent("join", {
+        relayAudio: relayAudio,
+        relayVideo: relayVideo,
+        receiveMedia: this.receiveMedia,
+        metadata: peerMetadata,
+        tracksMetadata: Array.from(this.localTrackIdToMetadata.values()),
+      });
+      this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
     } catch (e) {
       this.callbacks.onConnectionError?.(e);
       this.leave();
     }
   };
 
-  public receiveEvent = (serializedMediaEvent: SerializedMediaEvent) => {
-    const mediaEvent = deserializeMediaEvent(serializedMediaEvent);
-    switch (mediaEvent.type) {
+  public receiveMediaEvent = (mediaEvent: SerializedMediaEvent) => {
+    const deserializedMediaEvent = deserializeMediaEvent(mediaEvent);
+    switch (deserializedMediaEvent.type) {
       case "peerAccepted":
-        this.id = mediaEvent.data.id;
+        this.id = deserializedMediaEvent.data.id;
         this.callbacks.onJoined?.(
-          mediaEvent.data.id,
-          mediaEvent.data.peersInRoom
+          deserializedMediaEvent.data.id,
+          deserializedMediaEvent.data.peersInRoom
         );
-        let peers = mediaEvent.data.peersInRoom as Peer[];
+        let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
           this.addPeer(peer);
         });
@@ -138,26 +135,26 @@ export class MembraneWebRTC {
         break;
 
       case "sdpOffer":
-        this.onOffer(mediaEvent.data);
+        this.onOffer(deserializedMediaEvent.data);
         break;
 
       case "candidate":
-        this.onRemoteCandidate(mediaEvent.data);
+        this.onRemoteCandidate(deserializedMediaEvent.data);
         break;
 
       case "peerJoined":
-        const peer = mediaEvent.data.peer;
+        const peer = deserializedMediaEvent.data.peer;
         if (peer.id != this.id) {
           this.onPeerJoined(peer);
         }
         break;
 
       case "peerLeft":
-        this.onPeerLeft(mediaEvent.data.peerId);
+        this.onPeerLeft(deserializedMediaEvent.data.peerId);
         break;
 
       case "error":
-        this.callbacks.onConnectionError?.(mediaEvent.data.message);
+        this.callbacks.onConnectionError?.(deserializedMediaEvent.data.message);
         this.leave();
         break;
     }
@@ -173,7 +170,8 @@ export class MembraneWebRTC {
   }
 
   public leave = () => {
-    this.onSendMediaEvent(this.generateMediaEvent("leave"));
+    let mediaEvent = this.generateMediaEvent("leave");
+    this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
     this.cleanUp();
   };
 
@@ -217,16 +215,15 @@ export class MembraneWebRTC {
             this.localTrackIdToMetadata.get(trackId)
           );
 
-          localTrackMidToMetadata[mid] = this.localTrackIdToMetadata.get(
-            trackId
-          );
+          localTrackMidToMetadata[mid] =
+            this.localTrackIdToMetadata.get(trackId);
         }
       });
       let mediaEvent = this.generateMediaEvent("sdpAnswer", {
         sdpAnswer: answer,
         midToTrackMetadata: localTrackMidToMetadata,
       });
-      this.onSendMediaEvent(mediaEvent);
+      this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
     } catch (error) {
       console.error(error);
     }
@@ -249,12 +246,11 @@ export class MembraneWebRTC {
   private onLocalCandidate = () => {
     return (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
-        this.onSendMediaEvent(
-          this.generateMediaEvent("candidate", {
-            candidate: event.candidate.candidate,
-            sdpMLineIndex: event.candidate.sdpMLineIndex,
-          })
-        );
+        let mediaEvent = this.generateMediaEvent("candidate", {
+          candidate: event.candidate.candidate,
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+        });
+        this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
       }
     };
   };
@@ -306,10 +302,6 @@ export class MembraneWebRTC {
       this.removePeer(peer);
       this.callbacks.onPeerLeft?.(peer);
     }
-  };
-
-  private onSendMediaEvent = (mediaEvent: MediaEvent): void => {
-    this.callbacks.onSendSerializedMediaEvent(serializeMediaEvent(mediaEvent));
   };
 
   private addPeer = (peer: Peer): void => {
