@@ -13,6 +13,7 @@ defmodule Membrane.SFU.MixProject do
 
   def application do
     [
+      mod: {Membrane.SFUApp, []},
       extra_applications: [:logger]
     ]
   end

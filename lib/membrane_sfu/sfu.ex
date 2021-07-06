@@ -53,10 +53,12 @@ defmodule Membrane.SFU do
     ])
   end
 
+  @spec get_registry_name() :: atom()
+  def get_registry_name(), do: @registry_name
+
   @impl true
   def handle_init(options) do
     play(self())
-    {:ok, _pid} = Registry.start_link(keys: :duplicate, name: get_registry_name(options[:id]))
 
     {{:ok, log_metadata: [sfu: options[:id]]},
      %{
@@ -68,17 +70,15 @@ defmodule Membrane.SFU do
      }}
   end
 
-  defp get_registry_name(id), do: String.to_atom("#{@registry_name}:#{id}")
-
   @impl true
   def handle_other({:register, pid}, _ctx, state) do
-    Registry.register(get_registry_name(state.id), :sfu, pid)
+    Registry.register(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
   @impl true
   def handle_other({:unregister, pid}, _ctx, state) do
-    Registry.unregister_match(get_registry_name(state.id), :sfu, pid)
+    Registry.unregister_match(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
@@ -102,7 +102,7 @@ defmodule Membrane.SFU do
   end
 
   defp handle_media_event(%{type: :join, data: data}, peer_id, ctx, state) do
-    dispatch({:new_peer, peer_id, data.metadata, data.tracks_metadata}, state)
+    dispatch({:new_peer, peer_id, data.metadata, data.tracks_metadata})
 
     receive do
       {:accept_new_peer, ^peer_id} ->
@@ -117,7 +117,7 @@ defmodule Membrane.SFU do
             {actions, state} = setup_peer(peer, ctx, state)
 
             MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
-            |> dispatch(state)
+            |> dispatch()
 
             {actions, state}
         end
@@ -128,7 +128,7 @@ defmodule Membrane.SFU do
 
       {:deny_new_peer, peer_id} ->
         MediaEvent.create_peer_denied_event(peer_id)
-        |> dispatch(state)
+        |> dispatch()
 
         {[], state}
     end
@@ -153,7 +153,7 @@ defmodule Membrane.SFU do
           state.peers[peer_id].metadata,
           event.data.mid_to_track_metadata
         )
-        |> dispatch(state)
+        |> dispatch()
 
         {tracks_msgs, state}
       else
@@ -176,7 +176,7 @@ defmodule Membrane.SFU do
   @impl true
   def handle_notification({:signal, message}, {:endpoint, peer_id}, _ctx, state) do
     MediaEvent.create_signal_event(peer_id, {:signal, message})
-    |> dispatch(state)
+    |> dispatch()
 
     {:ok, state}
   end
@@ -238,12 +238,12 @@ defmodule Membrane.SFU do
   end
 
   def handle_notification({:vad, val}, {:endpoint, endpoint_id}, _ctx, state) do
-    dispatch({:vad_notification, val, endpoint_id}, state)
+    dispatch({:vad_notification, val, endpoint_id})
     {:ok, state}
   end
 
-  defp dispatch(msg, state) do
-    Registry.dispatch(get_registry_name(state.id), :sfu, fn entries ->
+  defp dispatch(msg) do
+    Registry.dispatch(get_registry_name(), self(), fn entries ->
       for {_, pid} <- entries, do: send(pid, {self(), msg})
     end)
   end
@@ -341,7 +341,7 @@ defmodule Membrane.SFU do
 
       {:present, actions, state} ->
         MediaEvent.create_peer_left_event(peer_id)
-        |> dispatch(state)
+        |> dispatch()
 
         {actions, state}
     end
