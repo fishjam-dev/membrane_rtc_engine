@@ -30,3 +30,5 @@ videoroom-*.tar
 
 node_modules
 
+priv/static/*
+!priv/static/.gitkeep
