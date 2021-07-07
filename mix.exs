@@ -1,23 +1,40 @@
 defmodule Membrane.SFU.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+  @github_url "https://github.com/membraneframework/membrane_sfu"
+
   def project do
     [
       app: :membrane_sfu,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.10",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      aliases: aliases()
+      aliases: aliases(),
+
+      # hex
+      description: "Client and server libraries for Membrane SFU",
+      package: package(),
+
+      # docs
+      name: "Membrane SFU",
+      source_url: @github_url,
+      homepage_url: "https://membraneframework.org",
+      docs: docs()
     ]
   end
 
   def application do
     [
       mod: {Membrane.SFUApp, []},
-      extra_applications: [:logger]
+      extra_applications: []
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
 
   defp deps do
     [
@@ -27,7 +44,8 @@ defmodule Membrane.SFU.MixProject do
       {:membrane_element_fake, "~> 0.4.0"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
-      {:ex_doc, "0.24.2", only: :dev, runtime: false}
+      {:ex_doc, "0.24.2", only: :dev, runtime: false},
+      {:credo, "~> 1.4", only: :dev, runtime: false}
     ]
   end
 
@@ -35,6 +53,26 @@ defmodule Membrane.SFU.MixProject do
     [
       compile: ["compile", &compile_ts/1],
       docs: ["docs", &generate_ts_docs/1]
+    ]
+  end
+
+  defp package do
+    [
+      maintainers: ["Membrane Team"],
+      licenses: ["Apache 2.0"],
+      links: %{
+        "GitHub" => @github_url,
+        "Membrane Framework Homepage" => "https://membraneframework.org"
+      }
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md", "LICENSE"],
+      source_ref: "v#{@version}",
+      nest_modules_by_prefix: [Membrane.Template]
     ]
   end
 
