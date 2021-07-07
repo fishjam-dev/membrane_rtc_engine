@@ -1,9 +1,9 @@
 const path = require("path");
 
 module.exports = {
-  entry: "./js/membraneWebRTC.ts",
+  entry: "./js/index.ts",
   output: {
-    filename: "membraneWebRTC.js",
+    filename: "index.js",
     path: path.resolve(__dirname, "../priv/static"),
     library: "membrane-sfu",
     libraryTarget: "umd",
