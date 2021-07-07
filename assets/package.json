@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "webpack --mode production",
+    "docs": "typedoc js/index.ts --out ../doc/js",
     "format": "prettier --write .",
     "watch": "webpack --mode development --watch",
     "format:check": "prettier --check ."
@@ -25,6 +26,7 @@
     "prettier": "^2.2.1",
     "terser-webpack-plugin": "^2.3.2",
     "ts-loader": "^8.0.17",
+    "typedoc": "^0.21.2",
     "typescript": "^4.2.2",
     "webpack": "^4.41.5",
     "webpack-cli": "^3.3.2"

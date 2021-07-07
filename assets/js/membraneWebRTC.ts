@@ -1,62 +1,131 @@
-export type SerializedMediaEvent = string;
+import {
+  SerializedMediaEvent,
+  serializeMediaEvent,
+  deserializeMediaEvent,
+  generateMediaEvent,
+} from "./mediaEvent";
 
+/**
+ * Interface describing Peer.
+ */
 export interface Peer {
+  /**
+   * Peer's id. It is assigned by user in custom logic that use backend API.
+   */
   id: string;
+  /**
+   * Any information that was provided in {@link join}.
+   */
   metadata: any;
+  /**
+   * mapping between track's mid and its metadata. Track metadata
+   * can be set using {@link addTrack}
+   */
   midToTrackMetadata: any;
 }
 
+/**
+ * Config passed to {@link MembraneWebRTC}.
+ */
 export interface MembraneWebRTCConfig {
   callbacks: Callbacks;
   rtcConfig?: RTCConfiguration;
+  /**
+   * Determines wheater user want to receive media from other peers.
+   */
   receiveMedia?: boolean;
   peerConfig: PeerConfig;
 }
 
-interface MediaEvent {
-  type: string;
-  key?: string;
-  data?: any;
-}
-
-interface TrackContext {
+/**
+ * Track's context i.e. all data that can be usful when operating on track.
+ */
+export interface TrackContext {
   track: MediaStreamTrack;
+  /**
+   * Stream this track belongs to.
+   */
   stream: MediaStream;
+  /**
+   * Peer this track comes from.
+   */
   peer: Peer;
   mid: string;
+  /**
+   * Any info that was passed in {@link addTrack}.
+   */
   metadata: any;
 }
 
-interface PeerConfig {
+/**
+ * Peer's configuration. It is used by a server to create proper SDP offer.
+ * At this moment there is no possibility to send more than two tracks.
+ * This interface should probably be removed after adding ability to send
+ * any number of tracks.
+ */
+export interface PeerConfig {
+  /**
+   * Determines if user is willing to send video track.
+   */
   relayVideo: boolean;
+  /**
+   * Determines if user is willing to send audio track.
+   */
   relayAudio: boolean;
 }
 
-interface Callbacks {
+/**
+ * Callbacks that has to be implemented by user.
+ */
+export interface Callbacks {
+  /**
+   * Called each time MembraneWebRTC need to send some data to the server.
+   */
   onSendMediaEvent: (mediaEvent: SerializedMediaEvent) => void;
 
+  /**
+   * Called when peer is accepted. Triggered by {@link join}
+   */
   onJoined?: (peerId: string, peersInRoom: [Peer]) => void;
+  /**
+   * Called when peer was not accepted. Triggered by {@link join}
+   */
   onDenied?: () => void;
 
+  /**
+   * Called when a new track appears.
+   *
+   * This callback is always called after a new peer joins so after calling {@link onPeerJoined}.
+   * @param ctx - Contains information about the new track.
+   */
   onTrackAdded?: (ctx: TrackContext) => void;
+  /**
+   * Called when some track will no longer be sent.
+   *
+   * At this moment there is only one situation in which this callback is invoked i.e. when peer
+   * leaves the room. In such scenario, this callback will be invoked for each track this peer
+   * was sending and then {@link onPeerLeft} will be called.
+   */
   onTrackRemoved?: (ctx: TrackContext) => void;
 
+  /**
+   * Called each time new peer joins the room.
+   */
   onPeerJoined?: (peer: Peer) => void;
+  /**
+   * Called each time peer leaves the room.
+   */
   onPeerLeft?: (peer: Peer) => void;
 
+  /**
+   * Called in case of errors related to multimedia session e.g. ICE connection.
+   */
   onConnectionError?: (message: string) => void;
 }
 
-function serializeMediaEvent(mediaEvent: MediaEvent): SerializedMediaEvent {
-  return JSON.stringify(mediaEvent);
-}
-
-function deserializeMediaEvent(
-  serializedMediaEvent: SerializedMediaEvent
-): MediaEvent {
-  return JSON.parse(serializedMediaEvent) as MediaEvent;
-}
-
+/**
+ * Main class that is responsible for connecting to the SFU server, sending and receiving media.
+ */
 export class MembraneWebRTC {
   private id?: string;
 
@@ -91,6 +160,19 @@ export class MembraneWebRTC {
     this.rtcConfig = rtcConfig || this.rtcConfig;
   }
 
+  /**
+   * Tries to join to the SFU server. If user is accepted then {@link onJoined}
+   * will be called. In other case {@link onDenied} is invoked.
+   *
+   * @param peerMetadata - Any information that other peers will receive in {@link onPeerJoined}
+   * after accepting this peer
+   *
+   * @example
+   * ```ts
+   * let webrtc = new MembraneWebRTC(...)
+   * webrtc.join({displayName: "Bob"})
+   * ```
+   */
   public join = (peerMetadata: any): void => {
     try {
       let relayAudio = false,
@@ -101,7 +183,7 @@ export class MembraneWebRTC {
         if (stream.getVideoTracks() !== []) relayVideo = true;
       });
 
-      let mediaEvent = this.generateMediaEvent("join", {
+      let mediaEvent = generateMediaEvent("join", {
         relayAudio: relayAudio,
         relayVideo: relayVideo,
         receiveMedia: this.receiveMedia,
@@ -115,6 +197,22 @@ export class MembraneWebRTC {
     }
   };
 
+  /**
+   * Feeds media event received from SFU server to {@link MembraneWebRTC}.
+   * This function should be called whenever some media event from SFU server
+   * was received and can result in {@link MembraneWebRTC} generating some other
+   * media events.
+   *
+   * @param mediaEvent - String data received over custom signalling layer.
+   *
+   * @example
+   * This example assumes pheonix channels as signalling layer.
+   * As pheonix channels require objects, SFU server encapsulates binary data into
+   * map with one field that is converted to object with one field on the TS side.
+   * ```ts
+   * webrtcChannel.on("mediaEvent", (event) => webrtc.receiveMediaEvent(event.data));
+   * ```
+   */
   public receiveMediaEvent = (mediaEvent: SerializedMediaEvent) => {
     const deserializedMediaEvent = deserializeMediaEvent(mediaEvent);
     switch (deserializedMediaEvent.type) {
@@ -160,7 +258,45 @@ export class MembraneWebRTC {
     }
   };
 
-  public addLocalTrack(
+  /**
+   * Adds track that will be sent to the SFU server.
+   * @param track - Audio or video track e.g. from your microphone or camera.
+   * @param stream  - Stream that this track belongs to.
+   * @param trackMetadata - Any information about this track that other peers will
+   * receive in {@link onPeerJoined}. E.g. this can source of the track - wheather it's
+   * screensharing, webcam or some other media device.
+   *
+   * @example
+   * ```ts
+   * let localStream: MediaStream = new MediaStream();
+   * try {
+   *   localAudioStream = await navigator.mediaDevices.getUserMedia(
+   *     AUDIO_CONSTRAINTS
+   *   );
+   *   localAudioStream
+   *     .getTracks()
+   *     .forEach((track) => localStream.addTrack(track));
+   * } catch (error) {
+   *   console.error("Couldn't get microphone permission:", error);
+   * }
+   *
+   * try {
+   *   localVideoStream = await navigator.mediaDevices.getUserMedia(
+   *     VIDEO_CONSTRAINTS
+   *   );
+   *   localVideoStream
+   *     .getTracks()
+   *     .forEach((track) => localStream.addTrack(track));
+   * } catch (error) {
+   *  console.error("Couldn't get camera permission:", error);
+   * }
+   *
+   * localStream
+   *  .getTracks()
+   *  .forEach((track) => webrtc.addTrack(track, localStream));
+   * ```
+   */
+  public addTrack(
     track: MediaStreamTrack,
     stream: MediaStream,
     trackMetadata: any = {}
@@ -169,12 +305,22 @@ export class MembraneWebRTC {
     this.localTrackIdToMetadata.set(track.id, trackMetadata);
   }
 
+  /**
+   * Leaves the room. This function should be called when user leaves the room
+   * in a clean way e.g. by clicking dedicated, custom button `dissconnetc`.
+   * As a result there will be generated one more media event that should be
+   * sent to the SFU server. Thanks to it each other peer will be notified
+   * that peer left in {@link onPeerLeft},
+   */
   public leave = () => {
-    let mediaEvent = this.generateMediaEvent("leave");
+    let mediaEvent = generateMediaEvent("leave");
     this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
     this.cleanUp();
   };
 
+  /**
+   * Cleans up {@link MembraneWebRTC} instance.
+   */
   public cleanUp = () => {
     if (this.connection) {
       this.connection.onicecandidate = null;
@@ -219,7 +365,7 @@ export class MembraneWebRTC {
             this.localTrackIdToMetadata.get(trackId);
         }
       });
-      let mediaEvent = this.generateMediaEvent("sdpAnswer", {
+      let mediaEvent = generateMediaEvent("sdpAnswer", {
         sdpAnswer: answer,
         midToTrackMetadata: localTrackMidToMetadata,
       });
@@ -246,7 +392,7 @@ export class MembraneWebRTC {
   private onLocalCandidate = () => {
     return (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
-        let mediaEvent = this.generateMediaEvent("candidate", {
+        let mediaEvent = generateMediaEvent("candidate", {
           candidate: event.candidate.candidate,
           sdpMLineIndex: event.candidate.sdpMLineIndex,
         });
@@ -318,13 +464,5 @@ export class MembraneWebRTC {
       this.midToTrackMetadata.delete(key);
     }
     this.idToPeer.delete(peer.id);
-  };
-
-  private generateMediaEvent = (type: string, data?: any): MediaEvent => {
-    var event: MediaEvent = { type };
-    if (data) {
-      event = { ...event, data };
-    }
-    return event;
   };
 }

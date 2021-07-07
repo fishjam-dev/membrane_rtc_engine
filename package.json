@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Client library for Membrane SFU.",
   "license": "Apache 2.0",
-  "main": "./priv/static/membraneWebRTC.js",
+  "main": "./priv/static/index.ts",
   "author": "Membrane Team",
   "repository": {
     "type": "git",

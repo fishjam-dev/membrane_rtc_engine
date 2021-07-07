@@ -11,6 +11,6 @@
     "strict": true,
     "target": "es2018"
   },
-  "include": ["js/membraneWebRTC.ts"],
+  "include": ["js/index.ts"],
   "exclude": ["/node_modules/**/*"]
 }
