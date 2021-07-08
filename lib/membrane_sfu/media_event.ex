@@ -1,4 +1,6 @@
 defmodule Membrane.SFU.MediaEvent do
+  @moduledoc false
+
   def create_peer_accepted_event(peer_id, peers) do
     peers =
       Enum.map(peers, fn {id, peer} ->

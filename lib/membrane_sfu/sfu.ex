@@ -1,4 +1,122 @@
 defmodule Membrane.SFU do
+  @moduledoc """
+  SFU engine implementation.
+
+  One SFU instance is responsible for managing one room in which
+  all tracks of one peer are forwarded to all other peers.
+
+  SFU engine works by sending and receiving messages.
+  All messages are described below.
+  To receive SFU messages you have to register your process so that SFU will
+  know where to send its messages.
+
+  ## Registering for messages
+  Registration can be done by sending message `{register, pid}` to the SFU instance, e.g.
+
+  ```elixir
+  send(sfu_pid, {:register, self()})
+  ```
+
+  will register your process for receiving SFU messages.
+  If your process implements `GenServer` behaviour then all messages can be fetched
+  in `c:GenServer.handle_info/2`, e.g.
+
+  ```elixir
+  @impl true
+  def handle_info({_sfu_engine, {:sfu_media_event, :broadcast, event}}, state) do
+    for {_peer_id, pid} <- state.peer_channels, do: send(pid, {:media_event, event})
+    {:noreply, state}
+  end
+  ```
+
+  You can register multiple processes for receiving messages from one SFU instance.
+  In such a case each message will be sent to each registered process.
+
+  ## Media Events
+  SFU engine need to communicate somehow with Membrane client library.
+  This communication is done via so called `Media Events`.
+  Media Events are blackbox messages that carry stuff important for
+  SFU engine and client library but not for the user. Example Media Events will
+  contain SDP offer, ICE candidates or information about new peer.
+
+  All that user is obligated to do is to transport those Media Events from
+  SFU instance to client library and vice versa.
+
+  When SFU need to send something you will receive message `{:sfu_media_event, to, event}`.
+  `to` specifies where the message should be delivered. This can be either `:broadcast` when
+  event has to be sent to all peers or `peer_id` when it should be sent to specified peer.
+  `event` is in binary form so it is ready being sent and its internal structure shouldn't be modified.
+
+  Feeding SFU isntance with Media Events from client library can be done by sending
+  message `{:media_event, from, event}`. E.g. let's assume user process is a GenServer.
+  Media Event can be received in `c:GenServer.handle_info/2` and conveyd to SFU engine in the following
+  way:
+
+  ```elixir
+  @impl true
+  def handle_info({:media_event, _from, _event} = msg, state) do
+    send(state.sfu_engine, msg)
+    {:noreply, state}
+  end
+  ```
+
+  What is important, Membrane SFU doesn't impose usage of any specific transport layer.
+  You can e.g. use Phoenix and its channels.
+  This can look like this:
+
+  ```elixir
+  @impl true
+  def handle_in("mediaEvent", %{"data" => event}, socket) do
+    send(socket.assigns.room, {:media_event, socket.assigns.peer_id, event})
+
+    {:noreply, socket}
+  end
+  ```
+
+  ## Messages
+  Each message SFU sends is a two-element tuple `{sfu_pid, msg}` where
+  `sfu_pid` is a pid of SFU instance that sent message.`msg` can be any data.
+
+  Notice that thanks to presence of `sfu_pid` you can create multiple SFU instances.
+
+  Example SFU message:
+  ```elixir
+  {_sfu_pid, {:vad_notification, val, peer_id}}
+  ```
+  #### SFU sends following messages
+  * `{:sfu_media_event, to, event}` - Media Event that should be transported to client
+  library. `from` can be `:boradcast` if Media Event should be sent to all peers or
+  `peer_id` when Media Event should be sent to specified peer.
+  * `{:vad_notification, val, peer_id}` - sent when peer with id `peer_id` is speaking.
+  `VAD` stands for `Voice Activity Detection`. When `val` is `true` marks start of speech
+  whereas `false` marks end of speech.
+  * `{:new_peer, peer_id, metadata, track_metadata}` - sent when new peer tries to join
+  to an SFU instance. `metadata` is any data passed in client library while joining.
+  `track_metadata` is a map where key is track id and value is its metadata defined in client
+  library while adding a new track.
+  * `{:peer_left, peer_id}` - sent when peer with `peer_id` left an SFU instance
+
+  #### SFU receives following messages
+  * `{:register, pid}` - register given `pid` for receiving SFU messages
+  * `{:unregister, pid}` - unregister given `pid` from receiving SFU messages
+  * `{:media_event, from, event}` - feed Media Event to SFU. `from` is id of peer
+  that this Media event comes from.
+  * `{:accept_new_peer, peer_id}` - accepts peer with id `peer_id`
+  * `{:deny_new_peer, peer_id}` - denies peer with id `peer_id`
+  * `{:remove_peer, peer_id}` - removes peer with id `peer_id`
+
+  ## Peer id
+  Peer id has to assigned by user code. This is not done by SFU engine or client library.
+  Id can be e.g. assigned when peer initializes signaling channel. Let's assume we use
+  Phoenix channel as signaling layer.
+  ```elixir
+  def join("room:" <> room_id, _params, socket) do
+    # ...
+    peer_id = UUID.uuid4()
+    {:ok, assign(socket, %{room_id: room_id, room: room, peer_id: peer_id})}
+  end
+  ```
+  """
   use Membrane.Pipeline
 
   require Membrane.Logger
@@ -11,10 +129,31 @@ defmodule Membrane.SFU do
   @type stun_server_t() :: ExLibnice.stun_server()
   @type turn_server_t() :: ExLibnice.relay_info()
 
+  @typedoc """
+  List of RTP extensions to use.
+
+  At this moment only `vad` extension is supported.
+  Enabling it will cause SFU sending `{:vad_notification, val, endpoint_id}` messages.
+  """
   @type extension_options_t() :: [
           vad: boolean()
         ]
 
+  @typedoc """
+  SFU network configuration options.
+
+  `dtls_pkey` and `dtls_cert` can be used e.g. when there are a lot of SFU instances
+  and all of them need to use the same certificate and key.
+
+  Example configuration can look like this:
+
+  ```elixir
+  network_options: [
+    stun_servers: [
+      %{server_addr: "stun.l.google.com", server_port: 19_302}
+    ]
+  ]
+  """
   @type network_options_t() :: [
           stun_servers: [stun_server_t()],
           turn_servers: [turn_server_t()],
@@ -22,6 +161,11 @@ defmodule Membrane.SFU do
           dtls_cert: binary()
         ]
 
+  @typedoc """
+  SFU configuration options.
+
+  `id` is used by logger. If not provided it will be generated.
+  """
   @type options_t() :: [
           id: String.t(),
           extension_options: extension_options_t(),
