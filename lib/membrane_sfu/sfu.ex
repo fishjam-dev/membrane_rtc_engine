@@ -5,21 +5,22 @@ defmodule Membrane.SFU do
   One SFU instance is responsible for managing one room in which
   all tracks of one peer are forwarded to all other peers.
 
-  SFU engine works by sending and receiving messages.
+  The SFU engine works by sending and receiving messages.
   All messages are described below.
   To receive SFU messages you have to register your process so that SFU will
   know where to send its messages.
 
   ## Registering for messages
-  Registration can be done by sending message `{register, pid}` to the SFU instance, e.g.
+
+  Registration can be done by sending the message `{register, pid}` to the SFU instance, e.g.
 
   ```elixir
   send(sfu_pid, {:register, self()})
   ```
 
-  will register your process for receiving SFU messages.
-  If your process implements `GenServer` behaviour then all messages can be fetched
-  in `c:GenServer.handle_info/2`, e.g.
+  This will register your process to receive SFU messages.
+  If your process implements `GenServer` behaviour then all messages will be handled
+  by `c:GenServer.handle_info/2`, e.g.
 
   ```elixir
   @impl true
@@ -29,28 +30,30 @@ defmodule Membrane.SFU do
   end
   ```
 
-  You can register multiple processes for receiving messages from one SFU instance.
+  You can register multiple processes to receive messages from an SFU instance.
   In such a case each message will be sent to each registered process.
 
   ## Media Events
-  SFU engine need to communicate somehow with Membrane client library.
-  This communication is done via so called `Media Events`.
-  Media Events are blackbox messages that carry stuff important for
-  SFU engine and client library but not for the user. Example Media Events will
-  contain SDP offer, ICE candidates or information about new peer.
 
-  All that user is obligated to do is to transport those Media Events from
-  SFU instance to client library and vice versa.
+  The SFU engine needs to communicate with Membrane client libraries.
+  This communication is done via `Media Event` messages.
+  Media Events are blackbox messages that carry data important for the
+  SFU engine and client libraries, but not for the user. Example Media Events are
+  SDP offers, ICE candidates, and information about new peers.
 
-  When SFU need to send something you will receive message `{:sfu_media_event, to, event}`.
-  `to` specifies where the message should be delivered. This can be either `:broadcast` when
-  event has to be sent to all peers or `peer_id` when it should be sent to specified peer.
-  `event` is in binary form so it is ready being sent and its internal structure shouldn't be modified.
+  An application is obligated to transport Media Events from an SFU instance to
+  its client library, and vice versa.
 
-  Feeding SFU isntance with Media Events from client library can be done by sending
-  message `{:media_event, from, event}`. E.g. let's assume user process is a GenServer.
-  Media Event can be received in `c:GenServer.handle_info/2` and conveyd to SFU engine in the following
-  way:
+  When an SFU needs to send a message to a specific client, registered processes will
+  receive `{:sfu_media_event, to, event}`, where `to` specifies the message destination.
+  This can be either `:broadcast`, when the event should be sent to all peers, or `peer_id`
+  when the messages should be sent to specified peer. The `event` is encoded in binary format,
+  so it is ready to send without modification.
+
+  Feeding an SFU instance with Media Events from a client library can be done by sending the
+  message `{:media_event, from, event}`. Assuming the user process is a GenServer, the
+  Media Event can be received by `c:GenServer.handle_info/2` and conveyed to the SFU engine in
+  the following way:
 
   ```elixir
   @impl true
@@ -74,29 +77,34 @@ defmodule Membrane.SFU do
   ```
 
   ## Messages
-  Each message SFU sends is a two-element tuple `{sfu_pid, msg}` where
-  `sfu_pid` is a pid of SFU instance that sent message.`msg` can be any data.
+
+  Each message the SFU sends is a two-element tuple `{sfu_pid, msg}` where
+  `sfu_pid` is the pid of the SFU instance that sent message, and `msg` can be any data.
 
   Notice that thanks to presence of `sfu_pid` you can create multiple SFU instances.
 
   Example SFU message:
+
   ```elixir
   {_sfu_pid, {:vad_notification, val, peer_id}}
   ```
+
   #### SFU sends following messages
-  * `{:sfu_media_event, to, event}` - Media Event that should be transported to client
-  library. `from` can be `:boradcast` if Media Event should be sent to all peers or
-  `peer_id` when Media Event should be sent to specified peer.
+
+  * `{:sfu_media_event, to, event}` - a Media Event that should be transported to the client
+  library. When `from` is `:broadcast`, the Media Event should be sent to all peers. When
+  `from` is a `peer_id`, the Media Event should be sent to that specified peer.
   * `{:vad_notification, val, peer_id}` - sent when peer with id `peer_id` is speaking.
   `VAD` stands for `Voice Activity Detection`. When `val` is `true` marks start of speech
   whereas `false` marks end of speech.
-  * `{:new_peer, peer_id, metadata, track_metadata}` - sent when new peer tries to join
-  to an SFU instance. `metadata` is any data passed in client library while joining.
+  * `{:new_peer, peer_id, metadata, track_metadata}` - sent when a new peer tries to join
+  to an SFU instance. `metadata` is any data passed by the client library while joining.
   `track_metadata` is a map where key is track id and value is its metadata defined in client
   library while adding a new track.
-  * `{:peer_left, peer_id}` - sent when peer with `peer_id` left an SFU instance
+  * `{:peer_left, peer_id}` - sent when the peer with `peer_id` leaves an SFU instance
 
   #### SFU receives following messages
+
   * `{:register, pid}` - register given `pid` for receiving SFU messages
   * `{:unregister, pid}` - unregister given `pid` from receiving SFU messages
   * `{:media_event, from, event}` - feed Media Event to SFU. `from` is id of peer
@@ -106,9 +114,12 @@ defmodule Membrane.SFU do
   * `{:remove_peer, peer_id}` - removes peer with id `peer_id`
 
   ## Peer id
-  Peer id has to assigned by user code. This is not done by SFU engine or client library.
-  Id can be e.g. assigned when peer initializes signaling channel. Let's assume we use
-  Phoenix channel as signaling layer.
+
+  Peer ids must be assigned by application code. This is not done by the SFU engine or its client library.
+  Ids can be assigned when a peer initializes its signaling channel.
+
+  Assuming we use a Phoenix channel as signaling layer:
+
   ```elixir
   def join("room:" <> room_id, _params, socket) do
     # ...
