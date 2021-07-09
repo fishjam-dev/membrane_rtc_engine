@@ -29,6 +29,8 @@ jobs:
       - run: mix compile
       - run: mix credo
       - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
+      - run: cd assets && npm install
+      - run: cd assets && npm run format:check
 
 workflows:
   version: 2
