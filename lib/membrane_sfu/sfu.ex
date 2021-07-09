@@ -130,10 +130,10 @@ defmodule Membrane.SFU do
   """
   use Membrane.Pipeline
 
-  require Membrane.Logger
-
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
   alias Membrane.SFU.MediaEvent
+
+  require Membrane.Logger
 
   @registry_name Membrane.SFU.Registry.Dispatcher
 
@@ -261,20 +261,18 @@ defmodule Membrane.SFU do
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        cond do
-          Map.has_key?(state.peers, peer_id) ->
-            Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
-            {[], state}
+        if Map.has_key?(state.peers, peer_id) do
+          Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
+          {[], state}
+        else
+          peer = Map.put(data, :id, peer_id)
+          state = put_in(state, [:incoming_peers, peer_id], peer)
+          {actions, state} = setup_peer(peer, ctx, state)
 
-          true ->
-            peer = Map.put(data, :id, peer_id)
-            state = put_in(state, [:incoming_peers, peer_id], peer)
-            {actions, state} = setup_peer(peer, ctx, state)
+          MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
+          |> dispatch()
 
-            MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
-            |> dispatch()
-
-            {actions, state}
+          {actions, state}
         end
 
       {:accept_new_peer, _other_peer_id} ->
@@ -413,7 +411,7 @@ defmodule Membrane.SFU do
     inbound_tracks = create_inbound_tracks(config.relay_audio, config.relay_video)
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
-    # FIXME `type` field should probably be deleted from Endpoint struct
+    # TODO `type` field should probably be deleted from Endpoint struct
     endpoint =
       Endpoint.new(config.id, :participant, inbound_tracks, %{receive_media: config.receive_media})
 
@@ -468,7 +466,7 @@ defmodule Membrane.SFU do
 
   defp get_outbound_tracks(_endpoints, false), do: []
 
-  defp create_links(_receive_media = true, new_endpoint_bin_name, ctx, state) do
+  defp create_links(true = _receive_media, new_endpoint_bin_name, ctx, state) do
     flat_map_children(ctx, fn
       {:tee, {endpoint_id, track_id}} = tee ->
         endpoint = state.endpoints[endpoint_id]
@@ -486,7 +484,7 @@ defmodule Membrane.SFU do
     end)
   end
 
-  defp create_links(_receive_media = false, _endpoint, _ctx, _state) do
+  defp create_links(false = _receive_media, _endpoint, _ctx, _state) do
     []
   end
 
@@ -509,9 +507,7 @@ defmodule Membrane.SFU do
   end
 
   defp do_remove_peer(peer_id, ctx, state) do
-    if !Map.has_key?(state.endpoints, peer_id) do
-      {:absent, [], state}
-    else
+    if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
       {_peer, state} = pop_in(state, [:peers, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | enabled?: false})
@@ -535,6 +531,8 @@ defmodule Membrane.SFU do
         end
 
       {:present, tracks_msgs ++ actions, state}
+    else
+      {:absent, [], state}
     end
   end
 

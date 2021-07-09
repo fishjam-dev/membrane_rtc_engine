@@ -1,6 +1,11 @@
 defmodule Membrane.SFU.MediaEvent do
   @moduledoc false
 
+  @type peer_id_t() :: String.t()
+  @type to_t() :: peer_id_t() | :broadcast
+  @type sfu_media_event_t() :: {:sfu_media_event, to_t(), binary()}
+
+  @spec create_peer_accepted_event(peer_id_t(), map()) :: sfu_media_event_t()
   def create_peer_accepted_event(peer_id, peers) do
     peers =
       Enum.map(peers, fn {id, peer} ->
@@ -11,11 +16,13 @@ defmodule Membrane.SFU.MediaEvent do
     |> do_create(peer_id)
   end
 
+  @spec create_peer_denied_event(peer_id_t(), map()) :: sfu_media_event_t()
   def create_peer_denied_event(peer_id, metadata \\ %{}) do
     %{type: "peerDenied", data: metadata}
     |> do_create(peer_id)
   end
 
+  @spec create_peer_joined_event(peer_id_t(), map(), map()) :: sfu_media_event_t()
   def create_peer_joined_event(peer_id, metadata, mid_to_track_metadata) do
     %{
       type: "peerJoined",
@@ -30,6 +37,7 @@ defmodule Membrane.SFU.MediaEvent do
     |> do_create(:broadcast)
   end
 
+  @spec create_peer_left_event(peer_id_t()) :: sfu_media_event_t()
   def create_peer_left_event(peer_id) do
     %{
       type: "peerLeft",
@@ -40,6 +48,8 @@ defmodule Membrane.SFU.MediaEvent do
     |> do_create(:broadcast)
   end
 
+  @spec create_signal_event(peer_id_t(), {:signal, {:candidate, String.t(), non_neg_integer()}}) ::
+          sfu_media_event_t()
   def create_signal_event(peer_id, {:signal, {:candidate, candidate, sdp_m_line_index}}) do
     %{
       type: "candidate",
@@ -53,6 +63,8 @@ defmodule Membrane.SFU.MediaEvent do
     |> do_create(peer_id)
   end
 
+  @spec create_signal_event(peer_id_t(), {:signal, {:sdp_offer, String.t()}}) ::
+          sfu_media_event_t()
   def create_signal_event(peer_id, {:signal, {:sdp_offer, offer}}) do
     %{
       type: "sdpOffer",
@@ -64,6 +76,7 @@ defmodule Membrane.SFU.MediaEvent do
     |> do_create(peer_id)
   end
 
+  @spec create_error_event(to_t(), String.t()) :: sfu_media_event_t()
   def create_error_event(to, msg) do
     %{
       type: "error",
@@ -80,8 +93,10 @@ defmodule Membrane.SFU.MediaEvent do
     |> then(fn event -> {:sfu_media_event, to, event} end)
   end
 
+  @spec serialize(map()) :: binary()
   def serialize(event), do: Jason.encode!(event)
 
+  @spec deserialize(binary()) :: {:ok, map()} | {:error, :invalid_media_event}
   def deserialize(raw_event) do
     case Jason.decode(raw_event) do
       {:ok, event} -> do_deserialize(event)
