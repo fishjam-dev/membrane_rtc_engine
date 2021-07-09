@@ -286,6 +286,12 @@ defmodule Membrane.SFU do
         |> dispatch()
 
         {[], state}
+
+      {:deny_new_peer, peer_id, data: data} ->
+        MediaEvent.create_peer_denied_event(peer_id, data)
+        |> dispatch()
+
+        {[], state}
     end
   end
 

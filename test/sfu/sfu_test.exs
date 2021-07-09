@@ -106,4 +106,46 @@ defmodule Membrane.SFUTest do
                Jason.decode!(media_event)
     end
   end
+
+  describe "denying a new peer" do
+    test "triggers peerDenied event", %{sfu_engine: sfu_engine} do
+      peer_id = "sample_id"
+
+      metadata = %{
+        "reason" => "bob smells"
+      }
+
+      tracks_metadata = [
+        %{
+          "type" => "audio",
+          "source" => "microphone"
+        },
+        %{
+          "type" => "video",
+          "source" => "camera"
+        }
+      ]
+
+      media_event =
+        %{
+          type: "join",
+          data: %{
+            relayAudio: true,
+            relayVideo: true,
+            receiveMedia: true,
+            metadata: metadata,
+            tracksMetadata: tracks_metadata
+          }
+        }
+        |> Jason.encode!()
+
+      send(sfu_engine, {:media_event, peer_id, media_event})
+      assert_receive {_from, {:new_peer, ^peer_id, ^metadata, ^tracks_metadata}}
+      send(sfu_engine, {:deny_new_peer, peer_id, data: metadata})
+      assert_receive {_from, {:sfu_media_event, ^peer_id, media_event}}
+
+      assert %{"type" => "peerDenied", "data" => %{"reason" => "bob smells"}} ==
+               Jason.decode!(media_event)
+    end
+  end
 end

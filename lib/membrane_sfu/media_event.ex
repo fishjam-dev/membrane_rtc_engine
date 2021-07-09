@@ -11,8 +11,8 @@ defmodule Membrane.SFU.MediaEvent do
     |> do_create(peer_id)
   end
 
-  def create_peer_denied_event(peer_id) do
-    %{type: "peerDenied"}
+  def create_peer_denied_event(peer_id, metadata \\ %{}) do
+    %{type: "peerDenied", data: metadata}
     |> do_create(peer_id)
   end
 

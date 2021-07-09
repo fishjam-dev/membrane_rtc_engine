@@ -89,8 +89,9 @@ export interface Callbacks {
   onJoined?: (peerId: string, peersInRoom: [Peer]) => void;
   /**
    * Called when peer was not accepted. Triggered by {@link join}
+   * Data is a passthru for client application to communicate further actions to frontend
    */
-  onDenied?: () => void;
+  onDenied?: (data: any) => void;
 
   /**
    * Called when a new track appears.
@@ -229,7 +230,8 @@ export class MembraneWebRTC {
         break;
 
       case "peerDenied":
-        this.callbacks.onDenied?.();
+        console.log("denial event", deserializedMediaEvent);
+        this.callbacks.onDenied?.(deserializedMediaEvent.data);
         break;
 
       case "sdpOffer":
@@ -296,11 +298,7 @@ export class MembraneWebRTC {
    *  .forEach((track) => webrtc.addTrack(track, localStream));
    * ```
    */
-  public addTrack(
-    track: MediaStreamTrack,
-    stream: MediaStream,
-    trackMetadata: any = {}
-  ) {
+  public addTrack(track: MediaStreamTrack, stream: MediaStream, trackMetadata: any = {}) {
     this.localTracksWithStreams.push({ track, stream });
     this.localTrackIdToMetadata.set(track.id, trackMetadata);
   }
@@ -356,13 +354,9 @@ export class MembraneWebRTC {
         const trackId = transceiver.sender.track?.id;
         const mid = transceiver.mid;
         if (trackId && mid) {
-          this.midToTrackMetadata.set(
-            mid,
-            this.localTrackIdToMetadata.get(trackId)
-          );
+          this.midToTrackMetadata.set(mid, this.localTrackIdToMetadata.get(trackId));
 
-          localTrackMidToMetadata[mid] =
-            this.localTrackIdToMetadata.get(trackId);
+          localTrackMidToMetadata[mid] = this.localTrackIdToMetadata.get(trackId);
         }
       });
       let mediaEvent = generateMediaEvent("sdpAnswer", {
@@ -379,9 +373,7 @@ export class MembraneWebRTC {
     try {
       const iceCandidate = new RTCIceCandidate(candidate);
       if (!this.connection) {
-        throw new Error(
-          "Received new remote candidate but RTCConnection is undefined"
-        );
+        throw new Error("Received new remote candidate but RTCConnection is undefined");
       }
       this.connection.addIceCandidate(iceCandidate);
     } catch (error) {
