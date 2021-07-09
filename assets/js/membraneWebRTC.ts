@@ -216,6 +216,7 @@ export class MembraneWebRTC {
    */
   public receiveMediaEvent = (mediaEvent: SerializedMediaEvent) => {
     const deserializedMediaEvent = deserializeMediaEvent(mediaEvent);
+    let peer;
     switch (deserializedMediaEvent.type) {
       case "peerAccepted":
         this.id = deserializedMediaEvent.data.id;
@@ -243,14 +244,18 @@ export class MembraneWebRTC {
         break;
 
       case "peerJoined":
-        const peer = deserializedMediaEvent.data.peer;
+        peer = deserializedMediaEvent.data.peer;
         if (peer.id != this.id) {
-          this.onPeerJoined(peer);
+          this.addPeer(peer);
         }
         break;
 
       case "peerLeft":
-        this.onPeerLeft(deserializedMediaEvent.data.peerId);
+        peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
+        if (peer) {
+          this.removePeer(peer);
+          this.callbacks.onPeerLeft?.(peer);
+        }
         break;
 
       case "error":
@@ -429,25 +434,13 @@ export class MembraneWebRTC {
     };
   };
 
-  private onPeerJoined = (peer: Peer) => {
-    this.addPeer(peer);
-    this.callbacks.onPeerJoined?.(peer);
-  };
-
-  private onPeerLeft = (peerId: String) => {
-    const peer = this.idToPeer.get(peerId);
-    if (peer) {
-      this.removePeer(peer);
-      this.callbacks.onPeerLeft?.(peer);
-    }
-  };
-
   private addPeer = (peer: Peer): void => {
     for (let key in peer.midToTrackMetadata) {
       this.midToPeer.set(key, peer);
       this.midToTrackMetadata.set(key, peer.midToTrackMetadata[key]);
     }
     this.idToPeer.set(peer.id, peer);
+    this.callbacks.onPeerJoined?.(peer);
   };
 
   private removePeer = (peer: Peer): void => {
