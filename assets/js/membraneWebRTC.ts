@@ -34,7 +34,6 @@ export interface MembraneWebRTCConfig {
    * Determines wheater user want to receive media from other peers.
    */
   receiveMedia?: boolean;
-  peerConfig: PeerConfig;
 }
 
 /**
@@ -55,23 +54,6 @@ export interface TrackContext {
    * Any info that was passed in {@link addTrack}.
    */
   metadata: any;
-}
-
-/**
- * Peer's configuration. It is used by a server to create proper SDP offer.
- * At this moment there is no possibility to send more than two tracks.
- * This interface should probably be removed after adding ability to send
- * any number of tracks.
- */
-export interface PeerConfig {
-  /**
-   * Determines if user is willing to send video track.
-   */
-  relayVideo: boolean;
-  /**
-   * Determines if user is willing to send audio track.
-   */
-  relayAudio: boolean;
 }
 
 /**
@@ -176,12 +158,12 @@ export class MembraneWebRTC {
    */
   public join = (peerMetadata: any): void => {
     try {
-      let relayAudio = false,
-        relayVideo = false;
+      let relayAudio = false;
+      let relayVideo = false;
 
       this.localTracksWithStreams.forEach(({ stream }) => {
-        if (stream.getAudioTracks() !== []) relayAudio = true;
-        if (stream.getVideoTracks() !== []) relayVideo = true;
+        if (stream.getAudioTracks().length != 0) relayAudio = true;
+        if (stream.getVideoTracks().length != 0) relayVideo = true;
       });
 
       let mediaEvent = generateMediaEvent("join", {
@@ -231,7 +213,6 @@ export class MembraneWebRTC {
         break;
 
       case "peerDenied":
-        console.log("denial event", deserializedMediaEvent);
         this.callbacks.onDenied?.(deserializedMediaEvent.data);
         break;
 
@@ -267,6 +248,7 @@ export class MembraneWebRTC {
 
   /**
    * Adds track that will be sent to the SFU server.
+   * At this moment only one audio and one video track can be added.
    * @param track - Audio or video track e.g. from your microphone or camera.
    * @param stream  - Stream that this track belongs to.
    * @param trackMetadata - Any information about this track that other peers will
@@ -402,7 +384,6 @@ export class MembraneWebRTC {
     return (event: RTCTrackEvent) => {
       const [stream] = event.streams;
       const mid = event.transceiver.mid!;
-
       const peer = this.midToPeer.get(mid)!;
 
       this.midToStream.set(mid, stream);

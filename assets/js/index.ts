@@ -5,7 +5,6 @@
 
 export {
   Peer,
-  PeerConfig,
   MembraneWebRTCConfig,
   MembraneWebRTC,
   TrackContext,
