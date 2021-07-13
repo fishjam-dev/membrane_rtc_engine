@@ -228,6 +228,7 @@ export class MembraneWebRTC {
         peer = deserializedMediaEvent.data.peer;
         if (peer.id != this.id) {
           this.addPeer(peer);
+          this.callbacks.onPeerJoined?.(peer);
         }
         break;
 
@@ -421,7 +422,6 @@ export class MembraneWebRTC {
       this.midToTrackMetadata.set(key, peer.midToTrackMetadata[key]);
     }
     this.idToPeer.set(peer.id, peer);
-    this.callbacks.onPeerJoined?.(peer);
   };
 
   private removePeer = (peer: Peer): void => {
