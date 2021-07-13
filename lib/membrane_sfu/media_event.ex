@@ -116,21 +116,17 @@ defmodule Membrane.SFU.MediaEvent do
           "tracksMetadata" => tracks_metadata
         }
       } ->
-        if length(Map.keys(event)) != 2 or length(Map.keys(event["data"])) != 5 do
-          {:error, :invalid_media_event}
-        else
-          {:ok,
-           %{
-             type: :join,
-             data: %{
-               relay_audio: relay_audio,
-               relay_video: relay_video,
-               receive_media: receive_media,
-               metadata: metadata,
-               tracks_metadata: tracks_metadata
-             }
-           }}
-        end
+        {:ok,
+         %{
+           type: :join,
+           data: %{
+             relay_audio: relay_audio,
+             relay_video: relay_video,
+             receive_media: receive_media,
+             metadata: metadata,
+             tracks_metadata: tracks_metadata
+           }
+         }}
 
       _other ->
         {:error, :invalid_media_event}
@@ -149,22 +145,17 @@ defmodule Membrane.SFU.MediaEvent do
           "midToTrackMetadata" => mid_to_track_metadata
         }
       } ->
-        if length(Map.keys(event)) != 2 or length(Map.keys(event["data"])) != 2 or
-             length(Map.keys(event["data"]["sdpAnswer"])) != 2 do
-          {:error, :invalid_media_event}
-        else
-          {:ok,
-           %{
-             type: :sdp_answer,
-             data: %{
-               sdp_answer: %{
-                 type: :answer,
-                 sdp: sdp
-               },
-               mid_to_track_metadata: mid_to_track_metadata
-             }
-           }}
-        end
+        {:ok,
+         %{
+           type: :sdp_answer,
+           data: %{
+             sdp_answer: %{
+               type: :answer,
+               sdp: sdp
+             },
+             mid_to_track_metadata: mid_to_track_metadata
+           }
+         }}
 
       _other ->
         {:error, :invalid_media_event}
@@ -180,18 +171,14 @@ defmodule Membrane.SFU.MediaEvent do
           "sdpMLineIndex" => sdp_m_line_index
         }
       } ->
-        if length(Map.keys(event)) != 2 or length(Map.keys(event["data"])) != 2 do
-          {:error, :invalid_media_event}
-        else
-          {:ok,
-           %{
-             type: :candidate,
-             data: %{
-               candidate: candidate,
-               sdp_m_line_index: sdp_m_line_index
-             }
-           }}
-        end
+        {:ok,
+         %{
+           type: :candidate,
+           data: %{
+             candidate: candidate,
+             sdp_m_line_index: sdp_m_line_index
+           }
+         }}
 
       _other ->
         {:error, :invalid_media_event}
@@ -201,11 +188,7 @@ defmodule Membrane.SFU.MediaEvent do
   defp do_deserialize(%{"type" => "leave"} = event) do
     case event do
       %{"type" => "leave"} ->
-        if length(Map.keys(event)) != 1 do
-          {:error, :invalid_media_event}
-        else
-          {:ok, %{type: :leave}}
-        end
+        {:ok, %{type: :leave}}
 
       _other ->
         {:error, :invalid_media_event}
