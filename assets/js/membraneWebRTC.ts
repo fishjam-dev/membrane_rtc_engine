@@ -67,14 +67,14 @@ export interface Callbacks {
   onSendMediaEvent: (mediaEvent: SerializedMediaEvent) => void;
 
   /**
-   * Called when peer is accepted. Triggered by {@link join}
+   * Called when peer was accepted. Triggered by {@link join}
    */
-  onJoined?: (peerId: string, peersInRoom: [Peer]) => void;
+  onJoinSuccess?: (peerId: string, peersInRoom: [Peer]) => void;
   /**
    * Called when peer was not accepted. Triggered by {@link join}
-   * Data is a passthru for client application to communicate further actions to frontend
+   * @param metadata - Passthru for client application to communicate further actions to frontend
    */
-  onDenied?: (data: any) => void;
+  onJoinError?: (metadata: any) => void;
 
   /**
    * Called when a new track appears.
@@ -145,8 +145,8 @@ export class MembraneWebRTC {
   }
 
   /**
-   * Tries to join to the SFU server. If user is accepted then {@link onJoined}
-   * will be called. In other case {@link onDenied} is invoked.
+   * Tries to join to the SFU server. If user is accepted then {@link onJoinSuccess}
+   * will be called. In other case {@link onJoinError} is invoked.
    *
    * @param peerMetadata - Any information that other peers will receive in {@link onPeerJoined}
    * after accepting this peer
@@ -203,7 +203,7 @@ export class MembraneWebRTC {
     switch (deserializedMediaEvent.type) {
       case "peerAccepted":
         this.id = deserializedMediaEvent.data.id;
-        this.callbacks.onJoined?.(
+        this.callbacks.onJoinSuccess?.(
           deserializedMediaEvent.data.id,
           deserializedMediaEvent.data.peersInRoom
         );
@@ -214,7 +214,7 @@ export class MembraneWebRTC {
         break;
 
       case "peerDenied":
-        this.callbacks.onDenied?.(deserializedMediaEvent.data);
+        this.callbacks.onJoinError?.(deserializedMediaEvent.data);
         break;
 
       case "sdpOffer":
