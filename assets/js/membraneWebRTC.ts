@@ -3,6 +3,7 @@ import {
   serializeMediaEvent,
   deserializeMediaEvent,
   generateMediaEvent,
+  MediaEvent,
 } from "./mediaEvent";
 
 /**
@@ -173,7 +174,7 @@ export class MembraneWebRTC {
         metadata: peerMetadata,
         tracksMetadata: Array.from(this.localTrackIdToMetadata.values()),
       });
-      this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
+      this.sendMediaEvent(mediaEvent);
     } catch (e) {
       this.callbacks.onConnectionError?.(e);
       this.leave();
@@ -293,14 +294,14 @@ export class MembraneWebRTC {
 
   /**
    * Leaves the room. This function should be called when user leaves the room
-   * in a clean way e.g. by clicking dedicated, custom button `dissconnetc`.
+   * in a clean way e.g. by clicking a dedicated, custom button `disconnect`.
    * As a result there will be generated one more media event that should be
    * sent to the SFU server. Thanks to it each other peer will be notified
    * that peer left in {@link onPeerLeft},
    */
   public leave = () => {
     let mediaEvent = generateMediaEvent("leave");
-    this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
+    this.sendMediaEvent(mediaEvent);
     this.cleanUp();
   };
 
@@ -316,6 +317,10 @@ export class MembraneWebRTC {
     this.localTracksWithStreams.forEach(({ track }) => track.stop());
     this.localTracksWithStreams = [];
     this.connection = undefined;
+  };
+
+  private sendMediaEvent = (mediaEvent: MediaEvent) => {
+    this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
   };
 
   private onOffer = async (offer: RTCSessionDescriptionInit) => {
@@ -351,7 +356,7 @@ export class MembraneWebRTC {
         sdpAnswer: answer,
         midToTrackMetadata: localTrackMidToMetadata,
       });
-      this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
+      this.sendMediaEvent(mediaEvent);
     } catch (error) {
       console.error(error);
     }
@@ -376,7 +381,7 @@ export class MembraneWebRTC {
           candidate: event.candidate.candidate,
           sdpMLineIndex: event.candidate.sdpMLineIndex,
         });
-        this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
+        this.sendMediaEvent(mediaEvent);
       }
     };
   };

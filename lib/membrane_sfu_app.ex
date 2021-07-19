@@ -1,4 +1,4 @@
-defmodule Membrane.SFUApp do
+defmodule Membrane.SFU.App do
   @moduledoc false
   use Application
 

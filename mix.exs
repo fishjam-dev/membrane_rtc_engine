@@ -28,7 +28,7 @@ defmodule Membrane.SFU.MixProject do
 
   def application do
     [
-      mod: {Membrane.SFUApp, []},
+      mod: {Membrane.SFU.App, []},
       extra_applications: []
     ]
   end
@@ -78,7 +78,7 @@ defmodule Membrane.SFU.MixProject do
 
   defp compile_ts(_) do
     Mix.shell().info("Installing npm dependencies")
-    {result, exit_status} = System.cmd("npm", ["install"], cd: "assets")
+    {result, exit_status} = System.cmd("npm", ["ci"], cd: "assets")
     Mix.shell().info(result)
     if exit_status != 0, do: raise("Failed to install npm dependecies")
 

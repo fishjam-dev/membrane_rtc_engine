@@ -185,13 +185,7 @@ defmodule Membrane.SFU.MediaEvent do
     end
   end
 
-  defp do_deserialize(%{"type" => "leave"} = event) do
-    case event do
-      %{"type" => "leave"} ->
-        {:ok, %{type: :leave}}
+  defp do_deserialize(%{"type" => "leave"}), do: {:ok, %{type: :leave}}
 
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
+  defp do_deserialize(_event), do: {:error, :invalid_media_event}
 end
