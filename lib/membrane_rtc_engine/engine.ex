@@ -1,4 +1,4 @@
-defmodule Membrane.SFU do
+defmodule Membrane.RTC.Engine do
   @moduledoc """
   SFU engine implementation.
 
@@ -131,11 +131,11 @@ defmodule Membrane.SFU do
   use Membrane.Pipeline
 
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
-  alias Membrane.SFU.MediaEvent
+  alias Membrane.RTC.Engine.MediaEvent
 
   require Membrane.Logger
 
-  @registry_name Membrane.SFU.Registry.Dispatcher
+  @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @type stun_server_t() :: ExLibnice.stun_server()
   @type turn_server_t() :: ExLibnice.relay_info()

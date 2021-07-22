@@ -1,25 +1,25 @@
-# Membrane SFU
+# Membrane RTC Engine
 
-[![Hex.pm](https://img.shields.io/hexpm/v/membrane_sfu_.svg)](https://hex.pm/packages/membrane_sfu)
-[![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_sfu)
-[![CircleCI](https://circleci.com/gh/membraneframework/membrane_sfu.svg?style=svg)](https://circleci.com/gh/membraneframework/membrane_sfu)
+[![Hex.pm](https://img.shields.io/hexpm/v/membrane_rtc_engine.svg)](https://hex.pm/packages/membrane_rtc_engine)
+[![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_rtc_engine)
+[![CircleCI](https://circleci.com/gh/membraneframework/membrane_rtc_engine.svg?style=svg)](https://circleci.com/gh/membraneframework/membrane_rtc_engine)
 
-Client and server libraries for Membrane SFU.
+Client and server libraries for Membrane RTC Engine.
 
 ## Documentation
 
-Documentation of client library is available at https://hexdocs.pm/membrane_sfu/js
+Documentation of client library is available at https://hexdocs.pm/membrane_rtc_engine/js
 
-Documentation of server library is available at https://hexdocs.pm/membrane_sfu
+Documentation of server library is available at https://hexdocs.pm/membrane_rtc_engine
 
 ## Installation
 
-The package can be installed by adding `membrane_sfu` to your list of dependencies in `mix.exs`:
+The package can be installed by adding `membrane_rtc_engine` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:membrane_sfu, "~> 0.1.0"}
+    {:membrane_rtc_engine, "~> 0.1.0"}
   ]
 end
 ```
@@ -40,8 +40,8 @@ TypeScript documentation will be generated under `doc/js/`.
 
 ## Copyright and License
 
-Copyright 2021, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_sfu)
+Copyright 2021, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_rtc_engine)
 
-[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_sfu)
+[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_rtc_engine)
 
 Licensed under the [Apache License, Version 2.0](LICENSE)
