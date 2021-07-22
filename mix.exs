@@ -1,12 +1,12 @@
-defmodule Membrane.SFU.MixProject do
+defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
-  @github_url "https://github.com/membraneframework/membrane_sfu"
+  @version "0.1.0-alpha"
+  @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
     [
-      app: :membrane_sfu,
+      app: :membrane_rtc_engine,
       version: @version,
       elixir: "~> 1.10",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -15,11 +15,11 @@ defmodule Membrane.SFU.MixProject do
       aliases: aliases(),
 
       # hex
-      description: "Client and server libraries for Membrane SFU",
+      description: "Membrane RTC Engine and its client library",
       package: package(),
 
       # docs
-      name: "Membrane SFU",
+      name: "Membrane RTC Engine",
       source_url: @github_url,
       homepage_url: "https://membraneframework.org",
       docs: docs()
@@ -28,7 +28,7 @@ defmodule Membrane.SFU.MixProject do
 
   def application do
     [
-      mod: {Membrane.SFU.App, []},
+      mod: {Membrane.RTC.Engine.App, []},
       extra_applications: []
     ]
   end
@@ -39,7 +39,7 @@ defmodule Membrane.SFU.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.7.0", override: true},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
+      {:membrane_webrtc_plugin, "0.1.0-alpha"},
       {:membrane_element_tee, "~> 0.4.1"},
       {:membrane_element_fake, "~> 0.4.0"},
       {:jason, "~> 1.2"},
@@ -72,7 +72,7 @@ defmodule Membrane.SFU.MixProject do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.Template]
+      nest_modules_by_prefix: [Membrane.RTC.Engine]
     ]
   end
 
