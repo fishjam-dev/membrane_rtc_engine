@@ -19,22 +19,22 @@ The package can be installed by adding `membrane_rtc_engine` to your list of dep
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine, "~> 0.1.0"}
+    {:membrane_rtc_engine, "~> 0.1.0-alpha"}
   ]
 end
 ```
 
 ## Usage
 
-For usage examples please refere to our [membrane_demo](https://github.com/membraneframework/membrane_demo/tree/master/webrtc/videoroom) repository.
+For usage examples, please refer to our [membrane_demo](https://github.com/membraneframework/membrane_demo/tree/master/webrtc/videoroom) repository.
 
 
 ## Developing
 
-To make the development a little easier we augmented `mix compile` and `mix docs` tasks so that `mix compile` also installs npm dependencies and compiles TypeScript code
-and `mix docs` also generates documenation for TypeScript code.
+To make the development a little easier, we augmented `mix compile` and `mix docs` tasks so that `mix compile` also installs npm dependencies and compiles TypeScript code
+and `mix docs` also generates documentation for TypeScript code.
 
-Thanks to this there is no need to include compiled JS code in `priv/static`. It will be generated each time `mix compile` is called.
+Thanks to this, there is no need to include compiled JS code in `priv/static`. It will be generated each time `mix compile` is called.
 
 TypeScript documentation will be generated under `doc/js/`.
 

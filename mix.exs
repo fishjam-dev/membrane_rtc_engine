@@ -38,10 +38,10 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.7.0", override: true},
+      {:membrane_core, "~> 0.7.0"},
       {:membrane_webrtc_plugin, "0.1.0-alpha"},
-      {:membrane_element_tee, "~> 0.4.1"},
-      {:membrane_element_fake, "~> 0.4.0"},
+      {:membrane_element_tee, "~> 0.5.0"},
+      {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
@@ -63,7 +63,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       links: %{
         "GitHub" => @github_url,
         "Membrane Framework Homepage" => "https://membraneframework.org"
-      }
+      },
+      files:
+        ~w(lib mix.exs .formatter.exs LICENSE README.md) ++
+          ~w(assets/js assets/package.json assets/package-lock.json assets/tsconfig.json assets/webpack.config.js package.json)
     ]
   end
 
