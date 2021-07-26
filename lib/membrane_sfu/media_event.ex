@@ -76,6 +76,19 @@ defmodule Membrane.SFU.MediaEvent do
     |> do_create(peer_id)
   end
 
+  @spec create_signal_event(peer_id_t(), {:signal, {:sdp_answer, String.t()}}) ::
+          sfu_media_event_t()
+  def create_signal_event(peer_id, {:signal, {:sdp_answer, answer}}) do
+    %{
+      type: "sdpAnswer",
+      data: %{
+        type: "answer",
+        sdp: answer
+      }
+    }
+    |> do_create(peer_id)
+  end
+
   @spec create_error_event(to_t(), String.t()) :: sfu_media_event_t()
   def create_error_event(to, msg) do
     %{
@@ -151,6 +164,35 @@ defmodule Membrane.SFU.MediaEvent do
            data: %{
              sdp_answer: %{
                type: :answer,
+               sdp: sdp
+             },
+             mid_to_track_metadata: mid_to_track_metadata
+           }
+         }}
+
+      _other ->
+        {:error, :invalid_media_event}
+    end
+  end
+
+  defp do_deserialize(%{"type" => "sdpOffer"} = event) do
+    case event do
+      %{
+        "type" => "sdpOffer",
+        "data" => %{
+          "sdpOffer" => %{
+            "type" => "offer",
+            "sdp" => sdp
+          },
+          "midToTrackMetadata" => mid_to_track_metadata
+        }
+      } ->
+        {:ok,
+         %{
+           type: :sdp_offer,
+           data: %{
+             sdp_offer: %{
+               type: :offer,
                sdp: sdp
              },
              mid_to_track_metadata: mid_to_track_metadata

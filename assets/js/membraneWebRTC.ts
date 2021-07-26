@@ -5,6 +5,7 @@ import {
   generateMediaEvent,
   MediaEvent,
 } from "./mediaEvent";
+import {DEFAULT_TRANSCEIVER_CONFIG} from './consts'
 
 /**
  * Interface describing Peer.
@@ -220,6 +221,10 @@ export class MembraneWebRTC {
       case "sdpOffer":
         this.onOffer(deserializedMediaEvent.data);
         break;
+      
+      case "sdpAnswer":
+        this.onAnswer(deserializedMediaEvent.data)
+        break;
 
       case "candidate":
         this.onRemoteCandidate(deserializedMediaEvent.data);
@@ -227,6 +232,7 @@ export class MembraneWebRTC {
 
       case "peerJoined":
         peer = deserializedMediaEvent.data.peer;
+        console.log("Peer joined")
         if (peer.id != this.id) {
           this.addPeer(peer);
           this.callbacks.onPeerJoined?.(peer);
@@ -323,23 +329,106 @@ export class MembraneWebRTC {
     this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
   };
 
-  private onOffer = async (offer: RTCSessionDescriptionInit) => {
-    if (!this.connection) {
-      this.connection = new RTCPeerConnection(this.rtcConfig);
+  private changeLineToSendOnly = (line:string):string =>  line=="a=sendrecv"?"a=sendonly":line
+
+  private changeLineToIceAndFingerprint = (line:string,ufrag:string,pwd:string,fingerprint:string):string => {
+        if(line.startsWith("a=ice-ufrag:")) return ufrag
+        else if(line.startsWith("ice-pwd:")) return pwd
+        else if(line.startsWith("a=fingerprint:"))return fingerprint
+        else return line
+  }
+
+  private insertIceAndFingerprint = (splittedTracks:string[], splittedOffer: string[]): string[] => {
+    const ufrag = splittedOffer[10] 
+    const pwd = splittedOffer[11] 
+    const fingerprint = splittedOffer[13]
+
+    return splittedTracks.map(elem => this.changeLineToIceAndFingerprint(elem,ufrag,pwd,fingerprint)).slice(0,-2)
+  }
+
+  private endline = "\r\n"
+
+  private insertServerTracks = (splittedOffer:string[], outboundTracks:string):string[] => {
+    const splittedTracks = outboundTracks.split(this.endline)
+    const newOutboundTracks = this.insertIceAndFingerprint(splittedTracks,splittedOffer).join(this.endline)
+    const concatenated = splittedOffer.concat(newOutboundTracks);
+    concatenated[4] = concatenated[4] + " " + this.findMid(splittedTracks).join(" ")
+    return concatenated.filter(line => line!=="");
+  }
+
+  private findMid = (splittedTracks:string[]):string[] => {
+    const splitted = splittedTracks
+    const linesWithMid = splitted?.filter(elem => elem.startsWith("a=mid:"))
+    return linesWithMid?.map(line => line.substring(6))
+  }
+
+  private getTransceiverNumbers = (splittedTracks:string[]):string[] => 
+    splittedTracks
+      .filter(line => line.startsWith("m="))
+      .map(line => line.slice(2,7))
+
+  private addServerTracksToOffer = (offer:RTCSessionDescriptionInit,offerMedia: RTCSessionDescriptionInit):string|undefined => {
+    var splitted = offer.sdp?.split(this.endline)
+    if(splitted===undefined)throw new Error("Error during parsing");
+    splitted = splitted?.map(line => this.changeLineToSendOnly(line))
+    const insertMedia:string = offerMedia.sdp!==undefined?offerMedia.sdp:""
+    const result = insertMedia!==""?this.insertServerTracks(splitted,insertMedia).concat([""]):splitted
+    return result?.join(this.endline);
+  }
+
+  private onAnswer = async (answer: RTCSessionDescriptionInit) =>{
+    console.log(answer)
+    if(this.connection){
       this.connection.onicecandidate = this.onLocalCandidate();
       this.connection.ontrack = this.onTrack();
+      try{await this?.connection.setRemoteDescription(answer);}
+      catch(err) {console.log(err)}
+      console.log(this.connection.getTransceivers().map((elem) => elem.sender.track))
+    }else
+      console.log("Fatal error") 
+  }
 
-      this.localTracksWithStreams.forEach(({ track, stream }) => {
-        this.connection!.addTrack(track, stream);
-      });
+  private onOffer = async (offerMedia: RTCSessionDescriptionInit, isSimulcast:Boolean = false) => {
+    if (!this.connection) {
+      this.connection = new RTCPeerConnection(this.rtcConfig);
+      // this.connection.onicecandidate = this.onLocalCandidate();
+      // this.connection.ontrack = this.onTrack();
+
+      let stream = this.localTracksWithStreams[0].stream
+
+
+      if (isSimulcast)
+        stream.getTracks().forEach( (track) => {
+          let transceiverConfig: RTCRtpTransceiverInit = track.kind==="video"? DEFAULT_TRANSCEIVER_CONFIG.VIDEO : DEFAULT_TRANSCEIVER_CONFIG.AUDIO
+          this.connection?.addTransceiver(track,transceiverConfig)
+        })
+      else {
+        this.localTracksWithStreams.forEach(({ track, stream }) => { 
+          this.connection!.addTrack(track, stream) 
+        });
+        if(offerMedia.sdp!==undefined)
+          this.getTransceiverNumbers(offerMedia.sdp?.split(this.endline))
+            .forEach(line => this.connection?.addTransceiver(line,line=="audio"
+                ?DEFAULT_TRANSCEIVER_CONFIG.RECV_AUDIO:DEFAULT_TRANSCEIVER_CONFIG.RECV_VIDEO))
+      }
     } else {
       this.connection.createOffer({ iceRestart: true });
     }
 
+    
+
+
     try {
-      await this.connection.setRemoteDescription(offer);
-      const answer = await this.connection.createAnswer();
-      await this.connection.setLocalDescription(answer);
+
+      const offer = await this.connection.createOffer();
+      // offer.sdp = this.addServerTracksToOffer(offer,offerMedia);
+      offer.sdp = offer.sdp?.split(this.endline).map(line => this.changeLineToSendOnly(line)).join(this.endline)
+      // console.log(offer.sdp)
+      await this.connection.setLocalDescription(offer);      
+      // await this.connection.setRemoteDescription(offer);
+      // const answer = await this.connection.createAnswer();
+      // await this.connection.setLocalDescription(answer);
+      
 
       const localTrackMidToMetadata = {} as any;
 
@@ -348,12 +437,11 @@ export class MembraneWebRTC {
         const mid = transceiver.mid;
         if (trackId && mid) {
           this.midToTrackMetadata.set(mid, this.localTrackIdToMetadata.get(trackId));
-
           localTrackMidToMetadata[mid] = this.localTrackIdToMetadata.get(trackId);
         }
       });
-      let mediaEvent = generateMediaEvent("sdpAnswer", {
-        sdpAnswer: answer,
+      let mediaEvent = generateMediaEvent("sdpOffer", {
+        sdpOffer: offer,
         midToTrackMetadata: localTrackMidToMetadata,
       });
       this.sendMediaEvent(mediaEvent);
@@ -390,6 +478,7 @@ export class MembraneWebRTC {
     return (event: RTCTrackEvent) => {
       const [stream] = event.streams;
       const mid = event.transceiver.mid!;
+
       const peer = this.midToPeer.get(mid)!;
 
       this.midToStream.set(mid, stream);
@@ -410,6 +499,7 @@ export class MembraneWebRTC {
           metadata: this.midToTrackMetadata.get(mid),
         });
       };
+
 
       this.callbacks.onTrackAdded?.({
         track: event.track,
