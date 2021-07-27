@@ -292,6 +292,13 @@ export class MembraneWebRTC {
     this.localTrackIdToMetadata.set(track.id, trackMetadata);
   }
 
+  public async replaceTrack(track: MediaStreamTrack): Promise<any> {
+    const sender = this.connection!.getSenders().find((sender) => {
+      return sender?.track?.kind === track.kind;
+    });
+    return sender!.replaceTrack(track);
+  }
+
   /**
    * Leaves the room. This function should be called when user leaves the room
    * in a clean way e.g. by clicking a dedicated, custom button `disconnect`.
