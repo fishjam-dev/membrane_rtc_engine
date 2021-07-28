@@ -292,6 +292,49 @@ export class MembraneWebRTC {
     this.localTrackIdToMetadata.set(track.id, trackMetadata);
   }
 
+  /**
+   * Replaces a track that is being sent to the SFU server.
+   * At the moment this assumes that only one video and one audio track is being sent.
+   * @param track - Audio or video track.
+   *
+   * @example
+   * ```ts
+   * // setup camera
+   * let localStream: MediaStream = new MediaStream();
+   * try {
+   *   localVideoStream = await navigator.mediaDevices.getUserMedia(
+   *     VIDEO_CONSTRAINTS
+   *   );
+   *   localVideoStream
+   *     .getTracks()
+   *     .forEach((track) => localStream.addTrack(track));
+   * } catch (error) {
+   *   console.error("Couldn't get camera permission:", error);
+   * }
+   *
+   * localStream
+   *  .getTracks()
+   *  .forEach((track) => webrtc.addTrack(track, localStream));
+   *
+   * // change camera
+   * let videoDeviceId = "abcd-1234";
+   * navigator.mediaDevices.getUserMedia({
+   *      video: {
+   *        ...(VIDEO_CONSTRAINTS as {}),
+   *        deviceId: {
+   *          exact: videoDeviceId,
+   *        },
+   *      }
+   *   })
+   *   .then((stream) => {
+   *     let videoTrack = stream.getVideoTracks()[0];
+   *     webrtc.replaceTrack(videoTrack);
+   *   })
+   *   .catch((error) => {
+   *     console.error('Error switching camera', error);
+   *   })
+   * ```
+   */
   public async replaceTrack(track: MediaStreamTrack): Promise<any> {
     const sender = this.connection!.getSenders().find((sender) => {
       return sender?.track?.kind === track.kind;
