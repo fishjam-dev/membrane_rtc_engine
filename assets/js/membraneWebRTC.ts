@@ -5,7 +5,7 @@ import {
   generateMediaEvent,
   MediaEvent,
 } from "./mediaEvent";
-import {DEFAULT_TRANSCEIVER_CONFIG} from './consts'
+import { DEFAULT_TRANSCEIVER_CONFIG } from './consts'
 
 /**
  * Interface describing Peer.
@@ -221,7 +221,7 @@ export class MembraneWebRTC {
       case "sdpOffer":
         this.onOffer(deserializedMediaEvent.data);
         break;
-      
+
       case "sdpAnswer":
         this.onAnswer(deserializedMediaEvent.data)
         break;
@@ -329,66 +329,95 @@ export class MembraneWebRTC {
     this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
   };
 
-  private changeLineToSendOnly = (line:string):string =>  line=="a=sendrecv"?"a=sendonly":line
+  private changeLineToSendOnly = (line: string): string => line == "a=sendrecv" ? "a=sendonly" : line
 
-  private changeLineToIceAndFingerprint = (line:string,ufrag:string,pwd:string,fingerprint:string):string => {
-        if(line.startsWith("a=ice-ufrag:")) return ufrag
-        else if(line.startsWith("ice-pwd:")) return pwd
-        else if(line.startsWith("a=fingerprint:"))return fingerprint
-        else return line
+  private changeLineToIceAndFingerprint = (line: string, ufrag: string, pwd: string, fingerprint: string): string => {
+    if (line.startsWith("a=ice-ufrag:")) return ufrag
+    else if (line.startsWith("ice-pwd:")) return pwd
+    else if (line.startsWith("a=fingerprint:")) return fingerprint
+    else return line
   }
 
-  private insertIceAndFingerprint = (splittedTracks:string[], splittedOffer: string[]): string[] => {
-    const ufrag = splittedOffer[10] 
-    const pwd = splittedOffer[11] 
+  private insertIceAndFingerprint = (splittedTracks: string[], splittedOffer: string[]): string[] => {
+    const ufrag = splittedOffer[10]
+    const pwd = splittedOffer[11]
     const fingerprint = splittedOffer[13]
 
-    return splittedTracks.map(elem => this.changeLineToIceAndFingerprint(elem,ufrag,pwd,fingerprint)).slice(0,-2)
+    return splittedTracks.map(elem => this.changeLineToIceAndFingerprint(elem, ufrag, pwd, fingerprint)).slice(0, -2)
   }
 
   private endline = "\r\n"
 
-  private insertServerTracks = (splittedOffer:string[], outboundTracks:string):string[] => {
+  private insertServerTracks = (splittedOffer: string[], outboundTracks: string): string[] => {
     const splittedTracks = outboundTracks.split(this.endline)
-    const newOutboundTracks = this.insertIceAndFingerprint(splittedTracks,splittedOffer).join(this.endline)
+    const newOutboundTracks = this.insertIceAndFingerprint(splittedTracks, splittedOffer).join(this.endline)
     const concatenated = splittedOffer.concat(newOutboundTracks);
     concatenated[4] = concatenated[4] + " " + this.findMid(splittedTracks).join(" ")
-    return concatenated.filter(line => line!=="");
+    return concatenated.filter(line => line !== "");
   }
 
-  private findMid = (splittedTracks:string[]):string[] => {
+  private findMid = (splittedTracks: string[]): string[] => {
     const splitted = splittedTracks
     const linesWithMid = splitted?.filter(elem => elem.startsWith("a=mid:"))
     return linesWithMid?.map(line => line.substring(6))
   }
 
-  private getTransceiverNumbers = (splittedTracks:string[]):string[] => 
+  private midLine = "a=mid:"
+
+  private replaceMid = (splittedTracks: string[], newMids: string[]): string[] => {
+    let i = 0;
+    return splittedTracks.map(elem => elem.startsWith(this.midLine)?newMids[i++]:elem) 
+  }
+
+  private getTransceiverNumbers = (splittedTracks: string[]): string[] =>
     splittedTracks
       .filter(line => line.startsWith("m="))
-      .map(line => line.slice(2,7))
+      .map(line => line.slice(2, 7))
 
-  private addServerTracksToOffer = (offer:RTCSessionDescriptionInit,offerMedia: RTCSessionDescriptionInit):string|undefined => {
-    var splitted = offer.sdp?.split(this.endline)
-    if(splitted===undefined)throw new Error("Error during parsing");
-    splitted = splitted?.map(line => this.changeLineToSendOnly(line))
-    const insertMedia:string = offerMedia.sdp!==undefined?offerMedia.sdp:""
-    const result = insertMedia!==""?this.insertServerTracks(splitted,insertMedia).concat([""]):splitted
-    return result?.join(this.endline);
-  }
-
-  private onAnswer = async (answer: RTCSessionDescriptionInit) =>{
+  private onAnswer = async (answer: RTCSessionDescriptionInit) => {
     console.log(answer)
-    if(this.connection){
+    if (this.connection) {
       this.connection.onicecandidate = this.onLocalCandidate();
       this.connection.ontrack = this.onTrack();
-      try{await this?.connection.setRemoteDescription(answer);}
-      catch(err) {console.log(err)}
-      console.log(this.connection.getTransceivers().map((elem) => elem.sender.track))
-    }else
-      console.log("Fatal error") 
+      try { await this?.connection.setRemoteDescription(answer); }
+      catch (err) { console.log(err) }
+    } else
+      console.log("Fatal error")
   }
 
-  private onOffer = async (offerMedia: RTCSessionDescriptionInit, isSimulcast:Boolean = false) => {
+  private addTransceiversIfNeeded = (serverTracks:string[],mediaType:string) => {
+    const serverMedia = serverTracks.filter(elem => elem===mediaType)
+    const recvTransceivers = this.connection!.getTransceivers().filter(elem => elem.currentDirection === "recvonly")
+    const mediaTransceivers = recvTransceivers.filter((elem) => elem.receiver.track.kind === mediaType)
+
+    const toAdd = serverMedia.length-mediaTransceivers.length
+    const config = mediaType === "audio"? DEFAULT_TRANSCEIVER_CONFIG.RECV_AUDIO : DEFAULT_TRANSCEIVER_CONFIG.RECV_VIDEO
+    if(toAdd>0)
+      for(let i=0;i<toAdd;i++)
+        this.connection?.addTransceiver(mediaType,config)
+  }
+
+  private inMids:string[] = []
+
+  private getNewMids = (mids:string[],inMids:string[]):string[] => {
+    const usedMids = this.midToPeer.keys()
+    const newMidsNeededLength = inMids.filter(mid => !(mid in usedMids)).length
+    const midsLength:number = mids.length
+    const allMids = Array.from(Array(midsLength).keys()).map(mid => mid.toString()).filter(mid => !(this.inMids.includes(mid)))
+    this.inMids = this.inMids.concat(allMids.slice(-newMidsNeededLength))
+    return this.inMids.concat(allMids.slice(0,- newMidsNeededLength)).map(mid => "a=mid:"+mid)
+  }
+
+
+  private sdpMugging = (sdpOffer:string, inMids:string[]):string => {
+    const splittedOffer = sdpOffer.split(this.endline)
+    const mids = this.findMid(splittedOffer)
+    const newMids = this.getNewMids(mids,inMids)
+    const changedOffer = splittedOffer.map(line => this.changeLineToSendOnly(line))
+    return this.replaceMid(changedOffer,newMids).join(this.endline)
+  }
+
+  private onOffer = async (offerMedia: RTCSessionDescriptionInit, isSimulcast: Boolean = false) => {
     if (!this.connection) {
       this.connection = new RTCPeerConnection(this.rtcConfig);
       // this.connection.onicecandidate = this.onLocalCandidate();
@@ -398,37 +427,38 @@ export class MembraneWebRTC {
 
 
       if (isSimulcast)
-        stream.getTracks().forEach( (track) => {
-          let transceiverConfig: RTCRtpTransceiverInit = track.kind==="video"? DEFAULT_TRANSCEIVER_CONFIG.VIDEO : DEFAULT_TRANSCEIVER_CONFIG.AUDIO
-          this.connection?.addTransceiver(track,transceiverConfig)
+        stream.getTracks().forEach((track) => {
+          let transceiverConfig: RTCRtpTransceiverInit = track.kind === "video" ? DEFAULT_TRANSCEIVER_CONFIG.VIDEO : DEFAULT_TRANSCEIVER_CONFIG.AUDIO
+          this.connection?.addTransceiver(track, transceiverConfig)
         })
       else {
-        this.localTracksWithStreams.forEach(({ track, stream }) => { 
-          this.connection!.addTrack(track, stream) 
+        this.localTracksWithStreams.forEach(({ track, stream }) => {
+          this.connection!.addTrack(track, stream)
         });
-        if(offerMedia.sdp!==undefined)
-          this.getTransceiverNumbers(offerMedia.sdp?.split(this.endline))
-            .forEach(line => this.connection?.addTransceiver(line,line=="audio"
-                ?DEFAULT_TRANSCEIVER_CONFIG.RECV_AUDIO:DEFAULT_TRANSCEIVER_CONFIG.RECV_VIDEO))
       }
     } else {
       this.connection.createOffer({ iceRestart: true });
     }
 
-    
+    const serverTracks = offerMedia.sdp !== undefined ? this.getTransceiverNumbers(offerMedia?.sdp.split(this.endline)) : []
+
+    const sendMids:string[] = this.connection.getTransceivers().map(trans => trans.mid!)
+
+    this.addTransceiversIfNeeded(serverTracks,"audio")
+    this.addTransceiversIfNeeded(serverTracks,"video")
 
 
     try {
 
       const offer = await this.connection.createOffer();
-      // offer.sdp = this.addServerTracksToOffer(offer,offerMedia);
-      offer.sdp = offer.sdp?.split(this.endline).map(line => this.changeLineToSendOnly(line)).join(this.endline)
-      // console.log(offer.sdp)
-      await this.connection.setLocalDescription(offer);      
+      offer.sdp = this.sdpMugging(offer.sdp!,sendMids)
+      console.log(offer.sdp)
+      console.log(offer)
+      await this.connection.setLocalDescription(offer);
       // await this.connection.setRemoteDescription(offer);
       // const answer = await this.connection.createAnswer();
       // await this.connection.setLocalDescription(answer);
-      
+
 
       const localTrackMidToMetadata = {} as any;
 
@@ -482,6 +512,11 @@ export class MembraneWebRTC {
       const peer = this.midToPeer.get(mid)!;
 
       this.midToStream.set(mid, stream);
+
+      // console.log(mid)
+      // console.log(this.midToPeer)
+      console.log(event)
+      // console.log(stream)
 
       stream.onremovetrack = (e) => {
         const hasTracks = stream.getTracks().length > 0;

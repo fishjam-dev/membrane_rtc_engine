@@ -373,12 +373,39 @@ defmodule Membrane.SFU do
     {:ok, state}
   end
 
+  # @impl true
+  # def handle_notification({:added_tracks, inbound_tracks}, endpoint_bin_name, ctx, state) do
+  #   {:endpoint, endpoint_id} = endpoint_bin_name
+    # old_tracks = get_in(state,[:endpoints,endpoint_id]).inbound_tracks
+    # state = update_in(state, [:endpoints,  endpoint_id], & Endpoint.add_tracks(&1,inbound_tracks))
+    # actions = if Enum.count(old_tracks) != Enum.count(inbound_tracks), do: update_track_messages(ctx, inbound_tracks, {:endpoint, endpoint_id}), else: []
+  #   {{:ok,actions}, state}
+  # end
+
+  defp new_tracks?(endpoint,inbound_tracks) do
+    endpoint_tracks = Endpoint.get_tracks(endpoint) |> Enum.reduce([],& &2 ++ &1.ssrc)
+
+    Enum.reduce(inbound_tracks,[], & &2 ++ &1.ssrc) |> Enum.map(& &1 in endpoint_tracks) |> Enum.all?()
+  end
+
   @impl true
-  def handle_notification({:added_tracks, inbound_tracks}, endpoint_bin_name, ctx, state) do
+  def handle_notification({:link_tracks, inbound_tracks}, endpoint_bin_name, ctx, state) do
+    Membrane.Logger.info("Linking here")
+
     {:endpoint, endpoint_id} = endpoint_bin_name
-    old_tracks = get_in(state,[:endpoints,endpoint_id]).inbound_tracks
-    state = update_in(state, [:endpoints,  endpoint_id], & Endpoint.add_tracks(&1,inbound_tracks))
-    actions = if Enum.count(old_tracks) != Enum.count(inbound_tracks), do: update_track_messages(ctx, inbound_tracks, {:endpoint, endpoint_id}), else: []
+    endpoint = state.endpoints[endpoint_id]
+
+    {state,actions} = case not new_tracks?(endpoint, inbound_tracks) do
+      true ->
+        endpoint = Endpoint.new(endpoint_id, :participant, inbound_tracks, %{receive_media: endpoint.ctx.receive_media})
+        state = put_in(state.endpoints[endpoint_id], endpoint)
+        tracks_msgs = update_track_messages(ctx, inbound_tracks, {:endpoint, endpoint_id})
+        links = create_links(true, endpoint_bin_name, ctx, state)
+        spec = %ParentSpec{links: links}
+        {state,[spec: spec]++tracks_msgs}
+      false ->
+        {state,[]}
+    end
     {{:ok,actions}, state}
   end
 
@@ -450,7 +477,6 @@ defmodule Membrane.SFU do
   end
 
   defp setup_peer(config, ctx, state) do
-    # inbound_tracks = create_inbound_tracks(config.relay_audio, config.relay_video)
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -487,22 +513,12 @@ defmodule Membrane.SFU do
     }
 
 
-    links = create_links(config.receive_media, endpoint_bin_name, ctx, state)
-
-    spec = %ParentSpec{children: children, links: links, crash_group: {config.id, :temporary}}
+    spec = %ParentSpec{children: children, crash_group: {config.id, :temporary}}
 
     state = put_in(state.endpoints[config.id], endpoint)
 
     {[spec: spec], state}
   end
-
-
-  # defp create_inbound_tracks(relay_audio, relay_video) do
-  #   stream_id = Track.stream_id()
-  #   audio_track = if relay_audio, do: [Track.new(:audio, stream_id)], else: []
-  #   video_track = if relay_video, do: [Track.new(:video, stream_id)], else: []
-  #   audio_track ++ video_track
-  # end
 
   defp get_outbound_tracks(endpoints, true),
       do: Enum.flat_map(endpoints, fn {_id, endpoint} -> Endpoint.get_tracks(endpoint) end)
