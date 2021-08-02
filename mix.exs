@@ -39,7 +39,8 @@ defmodule Membrane.SFU.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.7.0", override: true},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin", branch: "webrtc_client_send_offer"},
+      {:membrane_webrtc_plugin,
+       github: "membraneframework/membrane_webrtc_plugin", branch: "webrtc_client_send_offer"},
       {:membrane_element_tee, "~> 0.4.1"},
       {:membrane_element_fake, "~> 0.4.0"},
       {:jason, "~> 1.2"},
