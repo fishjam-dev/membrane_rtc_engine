@@ -423,8 +423,8 @@ defmodule Membrane.RTC.Engine do
         [
           client_mode: false,
           dtls_srtp: true,
-          pkey: state.options.network_options.dtls_pkey,
-          cert: state.options.network_options.dtls_cert
+          pkey: state.options[:network_options][:dtls_pkey],
+          cert: state.options[:network_options][:dtls_cert]
         ]
       else
         [
