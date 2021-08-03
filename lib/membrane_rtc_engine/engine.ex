@@ -294,18 +294,12 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(%{type: :sdp_answer} = event, peer_id, ctx, state) do
-    actions = [
-      forward: {{:endpoint, peer_id}, {:signal, {:sdp_answer, event.data.sdp_answer.sdp}}}
-    ]
-
-    {tracks_msgs, state} =
+    {{:ok, actions}, state} =
       if Map.has_key?(state.incoming_peers, peer_id) do
-        inbound_tracks = Map.values(state.endpoints[peer_id].inbound_tracks)
         {peer, state} = pop_in(state, [:incoming_peers, peer_id])
         peer = Map.delete(peer, :tracks_metadata)
         peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
         state = put_in(state, [:peers, peer_id], peer)
-        tracks_msgs = update_track_messages(ctx, inbound_tracks, {:endpoint, peer_id})
 
         MediaEvent.create_peer_joined_event(
           peer_id,
@@ -314,12 +308,17 @@ defmodule Membrane.RTC.Engine do
         )
         |> dispatch()
 
-        {tracks_msgs, state}
+        # FIXME: handle_notification should be called by a notification from endpoint bin
+        # that notification should also contain inbound tracks, and they should be put
+        # to the state instead of being retrieved from it
+        tracks = state.endpoints[peer_id].inbound_tracks |> Map.values()
+        handle_notification({:new_tracks, tracks}, {:endpoint, peer_id}, ctx, state)
       else
-        {[], state}
+        {{:ok, []}, state}
       end
 
-    {actions ++ tracks_msgs, state}
+    {[forward: {{:endpoint, peer_id}, {:signal, {:sdp_answer, event.data.sdp_answer.sdp}}}] ++
+       actions, state}
   end
 
   defp handle_media_event(%{type: :candidate} = event, peer_id, _ctx, state) do
@@ -396,9 +395,17 @@ defmodule Membrane.RTC.Engine do
     {{:ok, spec: spec}, state}
   end
 
+  @impl true
   def handle_notification({:vad, val}, {:endpoint, endpoint_id}, _ctx, state) do
     dispatch({:vad_notification, val, endpoint_id})
     {:ok, state}
+  end
+
+  @impl true
+  def handle_notification({:new_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
+    links = create_links(state.endpoints[endpoint_id].ctx.receive_media, endpoint_id, ctx, state)
+    tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
+    {{:ok, tracks_msgs ++ [spec: %ParentSpec{links: links}]}, state}
   end
 
   defp dispatch(msg) do
@@ -408,14 +415,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp setup_peer(config, ctx, state) do
+    # inbound tracks should be created in the endpoint bin when handling SDP offer from client, not here
     inbound_tracks = create_inbound_tracks(config.relay_audio, config.relay_video)
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
     # TODO `type` field should probably be deleted from Endpoint struct
     endpoint =
       Endpoint.new(config.id, :participant, inbound_tracks, %{receive_media: config.receive_media})
-
-    endpoint_bin_name = {:endpoint, config.id}
 
     handshake_opts =
       if state.options[:network_options][:dtls_pkey] &&
@@ -434,7 +440,7 @@ defmodule Membrane.RTC.Engine do
       end
 
     children = %{
-      endpoint_bin_name => %EndpointBin{
+      {:endpoint, config.id} => %EndpointBin{
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
         stun_servers: state.options[:network_options][:stun_servers] || [],
@@ -444,9 +450,7 @@ defmodule Membrane.RTC.Engine do
       }
     }
 
-    links = create_links(config.receive_media, endpoint_bin_name, ctx, state)
-
-    spec = %ParentSpec{children: children, links: links, crash_group: {config.id, :temporary}}
+    spec = %ParentSpec{children: children, crash_group: {config.id, :temporary}}
 
     state = put_in(state.endpoints[config.id], endpoint)
 
@@ -466,9 +470,9 @@ defmodule Membrane.RTC.Engine do
 
   defp get_outbound_tracks(_endpoints, false), do: []
 
-  defp create_links(true = _receive_media, new_endpoint_bin_name, ctx, state) do
+  defp create_links(true = _receive_media, new_endpoint_id, ctx, state) do
     flat_map_children(ctx, fn
-      {:tee, {endpoint_id, track_id}} = tee ->
+      {:tee, {endpoint_id, track_id}} = tee when endpoint_id != new_endpoint_id ->
         endpoint = state.endpoints[endpoint_id]
         track = Endpoint.get_track_by_id(endpoint, track_id)
 
@@ -476,7 +480,7 @@ defmodule Membrane.RTC.Engine do
           link(tee)
           |> via_out(:copy)
           |> via_in(Pad.ref(:input, track_id), options: [encoding: track.encoding])
-          |> to(new_endpoint_bin_name)
+          |> to({:endpoint, new_endpoint_id})
         ]
 
       _child ->
