@@ -293,37 +293,6 @@ defmodule Membrane.SFU do
     end
   end
 
-  # defp handle_media_event(%{type: :sdp_answer} = event, peer_id, ctx, state) do
-  #   actions = [
-  #     forward: {{:endpoint, peer_id}, {:signal, {:sdp_answer, event.data.sdp_answer.sdp}}}
-  #   ]
-
-  #   Membrane.Logger.info("Peer_id answer: #{inspect peer_id}")
-
-  # {tracks_msgs, state} =
-  #   if Map.has_key?(state.incoming_peers, peer_id) do
-  #     inbound_tracks = Map.values(state.endpoints[peer_id].inbound_tracks)
-  #     {peer, state} = pop_in(state, [:incoming_peers, peer_id])
-  #     peer = Map.delete(peer, :tracks_metadata)
-  #     peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
-  #     state = put_in(state, [:peers, peer_id], peer)
-  #     tracks_msgs = update_track_messages(ctx, inbound_tracks, {:endpoint, peer_id})
-
-  #     MediaEvent.create_peer_joined_event(
-  #       peer_id,
-  #       state.peers[peer_id].metadata,
-  #       event.data.mid_to_track_metadata
-  #     )
-  #     |> dispatch()
-
-  #     {tracks_msgs, state}
-  #   else
-  #     {[], state}
-  #   end
-
-  #   {actions ++ tracks_msgs, state}
-  # end
-
   defp handle_media_event(%{type: :sdp_offer} = event, peer_id, ctx, state) do
     actions = [
       forward: {{:endpoint, peer_id}, {:signal, {:sdp_offer, event.data.sdp_offer.sdp}}}
@@ -372,49 +341,37 @@ defmodule Membrane.SFU do
     {:ok, state}
   end
 
-  # @impl true
-  # def handle_notification({:added_tracks, inbound_tracks}, endpoint_bin_name, ctx, state) do
-  #   {:endpoint, endpoint_id} = endpoint_bin_name
-  # old_tracks = get_in(state,[:endpoints,endpoint_id]).inbound_tracks
-  # state = update_in(state, [:endpoints,  endpoint_id], & Endpoint.add_tracks(&1,inbound_tracks))
-  # actions = if Enum.count(old_tracks) != Enum.count(inbound_tracks), do: update_track_messages(ctx, inbound_tracks, {:endpoint, endpoint_id}), else: []
-  #   {{:ok,actions}, state}
-  # end
-
   defp same_tracks?(endpoint, inbound_tracks) do
-    endpoint_tracks = Endpoint.get_tracks(endpoint) |> Enum.reduce([], &(&2 ++ &1.ssrc))
+    endpoint_tracks = Endpoint.get_tracks(endpoint) |> Enum.reduce([], &(&2 ++ [&1.ssrc]))
 
-    Enum.reduce(inbound_tracks, [], &(&2 ++ &1.ssrc))
+    Enum.reduce(inbound_tracks, [], &(&2 ++ [&1.ssrc]))
     |> Enum.map(&(&1 in endpoint_tracks))
     |> Enum.all?()
   end
 
   @impl true
   def handle_notification({:link_tracks, inbound_tracks}, endpoint_bin_name, ctx, state) do
-    Membrane.Logger.info("Linking here")
-
     {:endpoint, endpoint_id} = endpoint_bin_name
     endpoint = state.endpoints[endpoint_id]
 
-    links = create_links(true, endpoint_bin_name, ctx, state)
-    spec = %ParentSpec{links: links}
+    endpoint =
+      Endpoint.new(endpoint_id, :participant, inbound_tracks, %{
+        receive_media: endpoint.ctx.receive_media
+      })
 
-    {state, actions} =
+    state = put_in(state.endpoints[endpoint_id], endpoint)
+
+    tracks_msgs =
       if same_tracks?(endpoint, inbound_tracks) do
-        {state, []}
+        update_track_messages(ctx, inbound_tracks, {:endpoint, endpoint_id})
       else
-        endpoint =
-          Endpoint.new(endpoint_id, :participant, inbound_tracks, %{
-            receive_media: endpoint.ctx.receive_media
-          })
-
-        state = put_in(state.endpoints[endpoint_id], endpoint)
-        # tracks_msgs = update_track_messages(ctx, inbound_tracks, {:endpoint, endpoint_id})
-        tracks_msgs = []
-        {state, tracks_msgs}
+        []
       end
 
-    {{:ok, actions ++ [spec: spec]}, state}
+    links = create_links(true, endpoint_bin_name, ctx, state)
+    spec = %ParentSpec{links: links}
+    {{:ok, [spec: spec] ++ tracks_msgs}, state}
+    {{:ok, tracks_msgs}, state}
   end
 
   @impl true
@@ -534,8 +491,10 @@ defmodule Membrane.SFU do
   defp get_outbound_tracks(_endpoints, false), do: []
 
   defp create_links(true = _receive_media, new_endpoint_bin_name, ctx, state) do
+    {:endpoint, new_endpoint_id} = new_endpoint_bin_name
+
     flat_map_children(ctx, fn
-      {:tee, {endpoint_id, track_id}} = tee ->
+      {:tee, {endpoint_id, track_id}} = tee when endpoint_id != new_endpoint_id ->
         endpoint = state.endpoints[endpoint_id]
         track = Endpoint.get_track_by_id(endpoint, track_id)
 

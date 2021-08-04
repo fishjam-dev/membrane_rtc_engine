@@ -331,30 +331,8 @@ export class MembraneWebRTC {
 
   private changeLineToSendOnly = (line: string): string => line == "a=sendrecv" ? "a=sendonly" : line
 
-  private changeLineToIceAndFingerprint = (line: string, ufrag: string, pwd: string, fingerprint: string): string => {
-    if (line.startsWith("a=ice-ufrag:")) return ufrag
-    else if (line.startsWith("ice-pwd:")) return pwd
-    else if (line.startsWith("a=fingerprint:")) return fingerprint
-    else return line
-  }
-
-  private insertIceAndFingerprint = (splittedTracks: string[], splittedOffer: string[]): string[] => {
-    const ufrag = splittedOffer[10]
-    const pwd = splittedOffer[11]
-    const fingerprint = splittedOffer[13]
-
-    return splittedTracks.map(elem => this.changeLineToIceAndFingerprint(elem, ufrag, pwd, fingerprint)).slice(0, -2)
-  }
-
   private endline = "\r\n"
 
-  private insertServerTracks = (splittedOffer: string[], outboundTracks: string): string[] => {
-    const splittedTracks = outboundTracks.split(this.endline)
-    const newOutboundTracks = this.insertIceAndFingerprint(splittedTracks, splittedOffer).join(this.endline)
-    const concatenated = splittedOffer.concat(newOutboundTracks);
-    concatenated[4] = concatenated[4] + " " + this.findMid(splittedTracks).join(" ")
-    return concatenated.filter(line => line !== "");
-  }
 
   private findMid = (splittedTracks: string[]): string[] => {
     const splitted = splittedTracks
@@ -437,7 +415,8 @@ export class MembraneWebRTC {
         });
       }
     } else {
-      this.connection.createOffer({ iceRestart: true });
+      // this.connection.createOffer({ iceRestart: true });
+      await this.connection.restartIce()
     }
 
     const serverTracks = offerMedia.sdp !== undefined ? this.getTransceiverNumbers(offerMedia?.sdp.split(this.endline)) : []
