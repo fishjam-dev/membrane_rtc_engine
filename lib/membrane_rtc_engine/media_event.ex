@@ -5,14 +5,23 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   @type to_t() :: peer_id_t() | :broadcast
   @type sfu_media_event_t() :: {:sfu_media_event, to_t(), binary()}
 
-  @spec create_peer_accepted_event(peer_id_t(), map()) :: sfu_media_event_t()
-  def create_peer_accepted_event(peer_id, peers) do
+  @spec create_peer_accepted_event(peer_id_t(), map(), list()) :: sfu_media_event_t()
+  def create_peer_accepted_event(peer_id, peers, turn_servers) do
     peers =
       Enum.map(peers, fn {id, peer} ->
         %{id: id, metadata: peer.metadata, midToTrackMetadata: peer.mid_to_track_metadata}
       end)
 
-    %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers}}
+    turn_servers =
+      Enum.map(turn_servers, fn turn_server ->
+        Map.update!(turn_server, :server_addr, fn server_addr ->
+          :inet.ntoa(server_addr) |> to_string()
+        end)
+      end)
+
+    IO.inspect(turn_servers, label: :client_turn_servers)
+
+    %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers, turn_servers: turn_servers}}
     |> do_create(peer_id)
   end
 

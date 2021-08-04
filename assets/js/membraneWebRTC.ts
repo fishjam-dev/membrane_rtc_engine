@@ -125,7 +125,7 @@ export class MembraneWebRTC {
   private connection?: RTCPeerConnection;
   private idToPeer: Map<String, Peer> = new Map();
   private midToPeer: Map<String, Peer> = new Map();
-  private readonly rtcConfig: RTCConfiguration = {
+  private rtcConfig: RTCConfiguration = {
     iceServers: [
       {
         urls: "stun:stun.l.google.com:19302",
@@ -142,6 +142,7 @@ export class MembraneWebRTC {
 
     this.callbacks = callbacks;
     this.rtcConfig = rtcConfig || this.rtcConfig;
+    console.log(this.rtcConfig);
   }
 
   /**
@@ -207,6 +208,35 @@ export class MembraneWebRTC {
           deserializedMediaEvent.data.id,
           deserializedMediaEvent.data.peersInRoom
         );
+        let turnServers = deserializedMediaEvent.data.turn_servers;
+
+        if (turnServers == []) {
+          return [];
+        }
+        let rtcIceServers: RTCIceServer[] = [];
+        turnServers.forEach((turnServer: any) => {
+          let rtcIceServer: RTCIceServer = {
+            credential: turnServer.password,
+            credentialType: "password",
+            urls: "turn".concat(
+              ":",
+              turnServer.server_addr,
+              ":",
+              turnServer.server_port,
+              "?transport=",
+              turnServer.relay_type
+            ),
+            username: turnServer.username,
+          };
+          rtcIceServers.push(rtcIceServer);
+        });
+        if (this.rtcConfig.iceServers == null) {
+          this.rtcConfig.iceServers = rtcIceServers;
+        } else {
+          this.rtcConfig.iceServers = this.rtcConfig.iceServers.concat(rtcIceServers);
+        }
+        console.log(this.rtcConfig);
+
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
           this.addPeer(peer);

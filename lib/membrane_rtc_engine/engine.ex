@@ -138,7 +138,14 @@ defmodule Membrane.RTC.Engine do
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @type stun_server_t() :: ExLibnice.stun_server()
-  @type turn_server_t() :: ExLibnice.relay_info()
+  @type turn_server_t() ::
+          ExLibnice.relay_info()
+          | %{
+              server_addr: :inet.ip_address() | ExLibnice.fqdn(),
+              server_port: 0..65_535,
+              secret: String.t(),
+              relay_type: :udp | :tcp | :tls
+            }
 
   @typedoc """
   List of RTP extensions to use.
@@ -269,7 +276,13 @@ defmodule Membrane.RTC.Engine do
           state = put_in(state, [:incoming_peers, peer_id], peer)
           {actions, state} = setup_peer(peer, ctx, state)
 
-          MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
+          turn_servers = get_turn_configs(peer_id, state.options[:network_options][:turn_servers])
+
+          MediaEvent.create_peer_accepted_event(
+            peer_id,
+            Map.delete(state.peers, peer_id),
+            turn_servers
+          )
           |> dispatch()
 
           {actions, state}
@@ -433,12 +446,20 @@ defmodule Membrane.RTC.Engine do
         ]
       end
 
+    stun_servers = state.options[:network_options][:stun_servers] || []
+
+    turn_servers =
+      get_turn_configs("server", state.options[:network_options][:turn_servers])
+
+    IO.inspect(stun_servers, label: :stun_servers)
+    IO.inspect(turn_servers, label: :turn_servers)
+
     children = %{
       endpoint_bin_name => %EndpointBin{
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
-        stun_servers: state.options[:network_options][:stun_servers] || [],
-        turn_servers: state.options[:network_options][:turn_servers] || [],
+        stun_servers: stun_servers,
+        turn_servers: turn_servers,
         handshake_opts: handshake_opts,
         log_metadata: [peer_id: config.id]
       }
@@ -552,4 +573,20 @@ defmodule Membrane.RTC.Engine do
   defp flat_map_children(ctx, fun) do
     ctx.children |> Map.keys() |> Enum.flat_map(fun)
   end
+
+  defp get_turn_configs(name, turn_servers) when is_list(turn_servers) do
+    Enum.map(turn_servers, fn
+      %{secret: secret} = turn_server ->
+        {username, password} = Membrane.RTC.Engine.Turn.create_credentials(name, secret)
+
+        Map.delete(turn_server, :secret)
+        |> Map.put(:username, username)
+        |> Map.put(:password, password)
+
+      other ->
+        other
+    end)
+  end
+
+  defp get_turn_configs(_name, _other), do: []
 end
