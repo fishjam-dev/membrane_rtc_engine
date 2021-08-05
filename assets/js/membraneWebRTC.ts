@@ -329,14 +329,22 @@ export class MembraneWebRTC {
     this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
   };
 
-  private changeLineToSendOnly = (line: string): string => line == "a=sendrecv" ? "a=sendonly" : line
+  // private changeLineToSendOnly = (line: string): string => line == "a=sendrecv" ? "a=sendonly" : line
+
+  private bundleLine = "a=group:BUNDLE"
+
+  private changeLine = (line: string, mids: string[]): string => {
+    if (line.startsWith(this.bundleLine)) return this.bundleLine + " " + mids.join(" ")
+    else if (line === "a=sendrecv") return "a=sendonly"
+    else return line
+  }
 
   private endline = "\r\n"
 
 
   private findMid = (splittedTracks: string[]): string[] => {
     const splitted = splittedTracks
-    const linesWithMid = splitted?.filter(elem => elem.startsWith("a=mid:"))
+    const linesWithMid = splitted?.filter(elem => elem.startsWith(this.midLine))
     return linesWithMid?.map(line => line.substring(6))
   }
 
@@ -344,7 +352,7 @@ export class MembraneWebRTC {
 
   private replaceMid = (splittedTracks: string[], newMids: string[]): string[] => {
     let i = 0;
-    return splittedTracks.map(elem => elem.startsWith(this.midLine) ? newMids[i++] : elem)
+    return splittedTracks.map(elem => elem.startsWith(this.midLine) ? this.midLine + newMids[i++] : elem)
   }
 
   private getTransceiverNumbers = (splittedTracks: string[]): string[] =>
@@ -353,49 +361,63 @@ export class MembraneWebRTC {
       .map(line => line.slice(2, 7))
 
   private onAnswer = async (answer: RTCSessionDescriptionInit) => {
-    console.log(answer)
     if (this.connection) {
-      // this.connection.onicecandidate = this.onLocalCandidate();
-      // this.connection.ontrack = this.onTrack();
-      try { await this?.connection.setRemoteDescription(answer); console.log("Set answer description") }
-      catch (err) { console.log(err) }
+      try {
+        await this?.connection.setRemoteDescription(answer)
+      } catch (err) { console.log(err) }
     } else
       console.log("Fatal error")
   }
 
-  private addTransceiversIfNeeded = (serverTracks: string[], mediaType: string) => {
-    const serverMedia = serverTracks.filter(elem => elem === mediaType)
-    const recvTransceivers = this.connection!.getTransceivers().filter(elem => elem.currentDirection === "recvonly")
-    const mediaTransceivers = recvTransceivers.filter((elem) => elem.receiver.track.kind === mediaType)
+  private addTransceiversIfNeeded = (serverTracks: string[]) => {
+    const recvTransceivers = this.connection!.getTransceivers().filter(elem => elem.direction === "recvonly")
+    let audioTransceiversNumber = recvTransceivers.filter((elem) => elem.receiver.track.kind === "audio").length
+    let videoTransceiversNumber = recvTransceivers.filter((elem) => elem.receiver.track.kind === "video").length
+    const toAdd = []
+    for (let track of serverTracks) {
+      if (track === "audio" && audioTransceiversNumber > 0) audioTransceiversNumber--;
+      else if (track === "audio" && audioTransceiversNumber == 0) toAdd.push(track);
+      else if (track === "video" && videoTransceiversNumber > 0) videoTransceiversNumber--;
+      else if (track === "video" && videoTransceiversNumber == 0) toAdd.push(track);
+    }
 
-    const toAdd = serverMedia.length - mediaTransceivers.length
-    const config = mediaType === "audio" ? DEFAULT_TRANSCEIVER_CONFIG.RECV_AUDIO : DEFAULT_TRANSCEIVER_CONFIG.RECV_VIDEO
-    if (toAdd > 0)
-      for (let i = 0; i < toAdd; i++)
-        this.connection?.addTransceiver(mediaType, config)
+    for (let track of toAdd) {
+      const config = track === "audio" ? DEFAULT_TRANSCEIVER_CONFIG.RECV_AUDIO : DEFAULT_TRANSCEIVER_CONFIG.RECV_VIDEO
+      this.connection?.addTransceiver(track, config)
+    }
   }
 
-  private inMids: string[] = []
+  private generateMid = (): Number => new Date().valueOf() + Math.round(Math.random() * 1_000_000_000)
 
-  private getNewMids = (mids: string[], inMids: string[]): string[] => {
-    const usedMids = this.midToPeer.keys()
-    const newMidsNeededLength = inMids.filter(mid => !(mid in usedMids)).length
-    const midsLength: number = mids.length
-    const allMids = Array.from(Array(midsLength).keys()).map(mid => mid.toString()).filter(mid => !(this.inMids.includes(mid)))
-    this.inMids = this.inMids.concat(allMids.slice(-newMidsNeededLength))
-    return this.inMids.concat(allMids.slice(0, - newMidsNeededLength)).map(mid => "a=mid:" + mid)
+  private getNewMids = (serverMids: string[]): string[] => {
+    const mids = this.connection!.getTransceivers().map(trans => trans.mid)
+    const isReceiver = this.connection!.getTransceivers().map(trans => trans.sender.track !== null)
+
+    const filteredServerMids = serverMids.filter(mid => !mids.includes(mid))
+
+    const resultMids = []
+    for (let [idx, mid] of mids.entries()) {
+      if (mid !== null) resultMids.push(mid)
+      else if (!isReceiver[idx]) resultMids.push(filteredServerMids.shift())
+      else resultMids.push(this.generateMid())
+    }
+
+    return resultMids.map(mid => mid!.toString())
   }
 
 
-  private sdpMugging = (sdpOffer: string, inMids: string[]): string => {
+  private sdpMugging = (sdpOffer: string, oldMids: string[]): string => {
     const splittedOffer = sdpOffer.split(this.endline)
-    const mids = this.findMid(splittedOffer)
-    const newMids = this.getNewMids(mids, inMids)
-    const changedOffer = splittedOffer.map(line => this.changeLineToSendOnly(line))
+    const newMids = this.getNewMids(oldMids)
+    const changedOffer = splittedOffer.map(line => this.changeLine(line, newMids))
     return this.replaceMid(changedOffer, newMids).join(this.endline)
   }
 
+  private getSendTransceivers = (): RTCRtpTransceiver[] => this.connection!.getTransceivers().filter(trans => trans.sender.track !== null)
+
   private onOffer = async (offerMedia: RTCSessionDescriptionInit, isSimulcast: Boolean = false) => {
+
+
     if (!this.connection) {
       this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
@@ -419,24 +441,21 @@ export class MembraneWebRTC {
       await this.connection.restartIce()
     }
 
-    const serverTracks = offerMedia.sdp !== undefined ? this.getTransceiverNumbers(offerMedia?.sdp.split(this.endline)) : []
+    const splittedOfferMedia = offerMedia.sdp !== undefined ? offerMedia?.sdp.split(this.endline) : []
 
-    const sendMids: string[] = this.connection.getTransceivers().map(trans => trans.mid!)
+    const serverTracks = this.getTransceiverNumbers(splittedOfferMedia)
 
-    this.addTransceiversIfNeeded(serverTracks, "audio")
-    this.addTransceiversIfNeeded(serverTracks, "video")
+    const sendMids: string[] = this.getSendTransceivers().map(trans => trans.mid!)
 
+    this.addTransceiversIfNeeded(serverTracks)
+
+    const oldMids = this.findMid(splittedOfferMedia)
 
     try {
 
       const offer = await this.connection.createOffer();
-      offer.sdp = this.sdpMugging(offer.sdp!, sendMids)
-      console.log(offer.sdp)
-      console.log(offer)
+      offer.sdp = this.sdpMugging(offer.sdp!, oldMids)
       await this.connection.setLocalDescription(offer);
-      // await this.connection.setRemoteDescription(offer);
-      // const answer = await this.connection.createAnswer();
-      // await this.connection.setLocalDescription(answer);
 
 
       const localTrackMidToMetadata = {} as any;
@@ -491,11 +510,6 @@ export class MembraneWebRTC {
       const peer = this.midToPeer.get(mid)!;
 
       this.midToStream.set(mid, stream);
-
-      // console.log(mid)
-      // console.log(this.midToPeer)
-      console.log(event)
-      // console.log(stream)
 
       stream.onremovetrack = (e) => {
         const hasTracks = stream.getTracks().length > 0;

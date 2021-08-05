@@ -1,4 +1,4 @@
-defmodule Membrane.SFU do
+defmodule Membrane.RTC.Engine do
   @moduledoc """
   SFU engine implementation.
 
@@ -131,11 +131,11 @@ defmodule Membrane.SFU do
   use Membrane.Pipeline
 
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
-  alias Membrane.SFU.MediaEvent
+  alias Membrane.RTC.Engine.MediaEvent
 
   require Membrane.Logger
 
-  @registry_name Membrane.SFU.Registry.Dispatcher
+  @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @type stun_server_t() :: ExLibnice.stun_server()
   @type turn_server_t() :: ExLibnice.relay_info()
@@ -298,14 +298,12 @@ defmodule Membrane.SFU do
       forward: {{:endpoint, peer_id}, {:signal, {:sdp_offer, event.data.sdp_offer.sdp}}}
     ]
 
-    {tracks_msgs, state} =
+    state =
       if Map.has_key?(state.incoming_peers, peer_id) do
-        inbound_tracks = Map.values(state.endpoints[peer_id].inbound_tracks)
         {peer, state} = pop_in(state, [:incoming_peers, peer_id])
         peer = Map.delete(peer, :tracks_metadata)
         peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
         state = put_in(state, [:peers, peer_id], peer)
-        # tracks_msgs = update_track_messages(ctx, inbound_tracks, {:endpoint, peer_id})
 
         MediaEvent.create_peer_joined_event(
           peer_id,
@@ -314,13 +312,12 @@ defmodule Membrane.SFU do
         )
         |> dispatch()
 
-        # {tracks_msgs, state}
-        {[], state}
+        state
       else
-        {[], state}
+         state
       end
 
-    {actions ++ tracks_msgs, state}
+    {actions, state}
   end
 
   defp handle_media_event(%{type: :candidate} = event, peer_id, _ctx, state) do
@@ -347,31 +344,6 @@ defmodule Membrane.SFU do
     Enum.reduce(inbound_tracks, [], &(&2 ++ [&1.ssrc]))
     |> Enum.map(&(&1 in endpoint_tracks))
     |> Enum.all?()
-  end
-
-  @impl true
-  def handle_notification({:link_tracks, inbound_tracks}, endpoint_bin_name, ctx, state) do
-    {:endpoint, endpoint_id} = endpoint_bin_name
-    endpoint = state.endpoints[endpoint_id]
-
-    endpoint =
-      Endpoint.new(endpoint_id, :participant, inbound_tracks, %{
-        receive_media: endpoint.ctx.receive_media
-      })
-
-    state = put_in(state.endpoints[endpoint_id], endpoint)
-
-    tracks_msgs =
-      if same_tracks?(endpoint, inbound_tracks) do
-        update_track_messages(ctx, inbound_tracks, {:endpoint, endpoint_id})
-      else
-        []
-      end
-
-    links = create_links(true, endpoint_bin_name, ctx, state)
-    spec = %ParentSpec{links: links}
-    {{:ok, [spec: spec] ++ tracks_msgs}, state}
-    {{:ok, tracks_msgs}, state}
   end
 
   @impl true
@@ -430,9 +402,21 @@ defmodule Membrane.SFU do
     {{:ok, spec: spec}, state}
   end
 
+  @impl true
   def handle_notification({:vad, val}, {:endpoint, endpoint_id}, _ctx, state) do
     dispatch({:vad_notification, val, endpoint_id})
     {:ok, state}
+  end
+
+  @impl true
+  def handle_notification({:new_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
+    mid_to_track = Enum.reduce(tracks, %{}, & Map.merge(&2, %{&1.id => &1}))
+    endpoint = state.endpoints[endpoint_id]
+    endpoint = %Endpoint{endpoint | inbound_tracks: mid_to_track}
+    state = put_in(state.endpoints[endpoint_id], endpoint)
+    links = create_links(state.endpoints[endpoint_id].ctx.receive_media, endpoint_id, ctx, state)
+    tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
+    {{:ok, [spec: %ParentSpec{links: links}]++tracks_msgs}, state}
   end
 
   defp dispatch(msg) do
@@ -448,8 +432,6 @@ defmodule Membrane.SFU do
     # TODO `type` field should probably be deleted from Endpoint struct
     endpoint =
       Endpoint.new(config.id, :participant, inbound_tracks, %{receive_media: config.receive_media})
-
-    endpoint_bin_name = {:endpoint, config.id}
 
     handshake_opts =
       if state.options[:network_options][:dtls_pkey] &&
@@ -468,7 +450,7 @@ defmodule Membrane.SFU do
       end
 
     children = %{
-      endpoint_bin_name => %EndpointBin{
+      {:endpoint, config.id} => %EndpointBin{
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
         stun_servers: state.options[:network_options][:stun_servers] || [],
@@ -490,9 +472,8 @@ defmodule Membrane.SFU do
 
   defp get_outbound_tracks(_endpoints, false), do: []
 
-  defp create_links(true = _receive_media, new_endpoint_bin_name, ctx, state) do
-    {:endpoint, new_endpoint_id} = new_endpoint_bin_name
 
+  defp create_links(true = _receive_media, new_endpoint_id, ctx, state) do
     flat_map_children(ctx, fn
       {:tee, {endpoint_id, track_id}} = tee when endpoint_id != new_endpoint_id ->
         endpoint = state.endpoints[endpoint_id]
@@ -502,7 +483,7 @@ defmodule Membrane.SFU do
           link(tee)
           |> via_out(:copy)
           |> via_in(Pad.ref(:input, track_id), options: [encoding: track.encoding])
-          |> to(new_endpoint_bin_name)
+          |> to({:endpoint, new_endpoint_id})
         ]
 
       _child ->

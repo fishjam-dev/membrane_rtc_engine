@@ -1,7 +1,7 @@
-defmodule Membrane.SFUTest do
+defmodule Membrane.RTC.EngineTest do
   use ExUnit.Case
 
-  alias Membrane.SFU
+  alias Membrane.RTC.Engine
 
   setup do
     extension_options = [
@@ -21,7 +21,7 @@ defmodule Membrane.SFUTest do
       network_options: network_options
     ]
 
-    {:ok, pid} = SFU.start_link(options, [])
+    {:ok, pid} = Engine.start_link(options, [])
 
     send(pid, {:register, self()})
 

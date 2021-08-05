@@ -1,4 +1,4 @@
-defmodule Membrane.SFU.MediaEvent do
+defmodule Membrane.RTC.Engine.MediaEvent do
   @moduledoc false
 
   @type peer_id_t() :: String.t()

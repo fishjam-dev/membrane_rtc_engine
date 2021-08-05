@@ -1,7 +1,7 @@
-defmodule Membrane.SFU.MediaEventTest do
+defmodule Membrane.RTC.Engine.MediaEventTest do
   use ExUnit.Case
 
-  alias Membrane.SFU.MediaEvent
+  alias Membrane.RTC.Engine.MediaEvent
 
   describe "deserializing join media event" do
     test "creates proper map when event is valid" do
