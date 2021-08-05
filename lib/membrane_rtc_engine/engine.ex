@@ -293,7 +293,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp handle_media_event(%{type: :sdp_offer} = event, peer_id, ctx, state) do
+  defp handle_media_event(%{type: :sdp_offer} = event, peer_id, _ctx, state) do
     actions = [
       forward: {{:endpoint, peer_id}, {:signal, {:sdp_offer, event.data.sdp_offer.sdp}}}
     ]
@@ -336,14 +336,6 @@ defmodule Membrane.RTC.Engine do
     |> dispatch()
 
     {:ok, state}
-  end
-
-  defp same_tracks?(endpoint, inbound_tracks) do
-    endpoint_tracks = Endpoint.get_tracks(endpoint) |> Enum.reduce([], &(&2 ++ [&1.ssrc]))
-
-    Enum.reduce(inbound_tracks, [], &(&2 ++ [&1.ssrc]))
-    |> Enum.map(&(&1 in endpoint_tracks))
-    |> Enum.all?()
   end
 
   @impl true
@@ -425,7 +417,7 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp setup_peer(config, ctx, state) do
+  defp setup_peer(config, _ctx, state) do
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
