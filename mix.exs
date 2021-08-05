@@ -39,8 +39,8 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.7.0"},
-      # {:membrane_webrtc_plugin,github: "membraneframework/membrane_webrtc_plugin", branch: "webrtc_client_send_offer"},
-      {:membrane_webrtc_plugin, path: "../membrane_webrtc_plugin"},
+      {:membrane_webrtc_plugin,
+       github: "membraneframework/membrane_webrtc_plugin", branch: "webrtc_client_send_offer"},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
