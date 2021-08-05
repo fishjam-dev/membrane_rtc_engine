@@ -314,7 +314,7 @@ defmodule Membrane.RTC.Engine do
 
         state
       else
-         state
+        state
       end
 
     {actions, state}
@@ -410,13 +410,13 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_notification({:new_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
-    mid_to_track = Enum.reduce(tracks, %{}, & Map.merge(&2, %{&1.id => &1}))
+    mid_to_track = Enum.reduce(tracks, %{}, &Map.merge(&2, %{&1.id => &1}))
     endpoint = state.endpoints[endpoint_id]
     endpoint = %Endpoint{endpoint | inbound_tracks: mid_to_track}
     state = put_in(state.endpoints[endpoint_id], endpoint)
     links = create_links(state.endpoints[endpoint_id].ctx.receive_media, endpoint_id, ctx, state)
     tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
-    {{:ok, [spec: %ParentSpec{links: links}]++tracks_msgs}, state}
+    {{:ok, [spec: %ParentSpec{links: links}] ++ tracks_msgs}, state}
   end
 
   defp dispatch(msg) do
@@ -471,7 +471,6 @@ defmodule Membrane.RTC.Engine do
     do: Enum.flat_map(endpoints, fn {_id, endpoint} -> Endpoint.get_tracks(endpoint) end)
 
   defp get_outbound_tracks(_endpoints, false), do: []
-
 
   defp create_links(true = _receive_media, new_endpoint_id, ctx, state) do
     flat_map_children(ctx, fn
