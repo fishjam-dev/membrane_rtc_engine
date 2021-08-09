@@ -22,6 +22,11 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(peer_id)
   end
 
+  @spec create_peer_mids_update_event(peer_id_t(), map()) :: sfu_media_event_t()
+  def create_peer_mids_update_event(peer_id, data) do
+    %{type: "updateMid", data: %{id: peer_id, peersInRoom: data}} |> do_create(peer_id)
+  end
+
   @spec create_peer_joined_event(peer_id_t(), map(), map()) :: sfu_media_event_t()
   def create_peer_joined_event(peer_id, metadata, mid_to_track_metadata) do
     %{
@@ -71,6 +76,19 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       data: %{
         type: "offer",
         sdp: offer
+      }
+    }
+    |> do_create(peer_id)
+  end
+
+  @spec create_signal_event(peer_id_t(), {:signal, {:server_tracks, String.t()}}) ::
+          sfu_media_event_t()
+  def create_signal_event(peer_id, {:signal, {:server_tracks, tracks_types}}) do
+    %{
+      type: "serverTracks",
+      data: %{
+        type: "tracks",
+        tracks: tracks_types
       }
     }
     |> do_create(peer_id)

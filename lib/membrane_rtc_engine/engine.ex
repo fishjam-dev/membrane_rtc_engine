@@ -345,6 +345,32 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
+  defp get_mids_to_tracks_and_peer(mid_to_track, peer_id, state) do
+    track_to_peer_id =
+      for {_id, endpoint} <- state.endpoints,
+          track <- Endpoint.get_tracks(endpoint),
+          reduce: %{} do
+        acc -> Map.put(acc, track.id, endpoint.id)
+      end
+
+    for {mid, track} <- mid_to_track, reduce: %{} do
+      acc -> Map.put(acc, mid, %{track: track, id: Map.get(track_to_peer_id, track, peer_id)})
+    end
+  end
+
+  @impl true
+  def handle_notification({:mid_to_track, mid_to_track}, {:endpoint, peer_id}, _ctx, state) do
+    mid_to_track = get_mids_to_tracks_and_peer(mid_to_track, peer_id, state)
+
+    MediaEvent.create_peer_mids_update_event(
+      peer_id,
+      mid_to_track
+    )
+    |> dispatch()
+
+    {:ok, state}
+  end
+
   @impl true
   def handle_notification({:signal, message}, {:endpoint, peer_id}, _ctx, state) do
     MediaEvent.create_signal_event(peer_id, {:signal, message})
@@ -446,9 +472,9 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_notification({:new_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
-    mid_to_track = Enum.reduce(tracks, %{}, &Map.merge(&2, %{&1.id => &1}))
+    id_to_track = Enum.reduce(tracks, %{}, &Map.merge(&2, %{&1.id => &1}))
     endpoint = state.endpoints[endpoint_id]
-    endpoint = %Endpoint{endpoint | inbound_tracks: mid_to_track}
+    endpoint = %Endpoint{endpoint | inbound_tracks: id_to_track}
     state = put_in(state.endpoints[endpoint_id], endpoint)
     links = create_links(state.endpoints[endpoint_id].ctx.receive_media, endpoint_id, ctx, state)
     tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
