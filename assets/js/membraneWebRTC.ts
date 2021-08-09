@@ -219,7 +219,15 @@ export class MembraneWebRTC {
         break;
 
       case "sdpOffer":
-        this.onOffer(deserializedMediaEvent.data);
+        // this.onOffer(deserializedMediaEvent.data);
+        console.error("Handle server sdp offer not implemented yet");
+        break;
+      case "serverTracks":
+        this.onServerTracks(deserializedMediaEvent.data.tracks);
+        break;
+
+      case "updateMid":
+        this.midToPeer = new Map(Object.entries(deserializedMediaEvent.data.peersInRoom));
         break;
 
       case "sdpAnswer":
@@ -232,7 +240,6 @@ export class MembraneWebRTC {
 
       case "peerJoined":
         peer = deserializedMediaEvent.data.peer;
-        console.log("Peer joined");
         if (peer.id != this.id) {
           this.addPeer(peer);
           this.callbacks.onPeerJoined?.(peer);
@@ -329,36 +336,6 @@ export class MembraneWebRTC {
     this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
   };
 
-  // private changeLineToSendOnly = (line: string): string => line == "a=sendrecv" ? "a=sendonly" : line
-
-  private bundleLine = "a=group:BUNDLE";
-
-  private changeLine = (line: string, mids: string[]): string => {
-    if (line.startsWith(this.bundleLine)) return this.bundleLine + " " + mids.join(" ");
-    else if (line === "a=sendrecv") return "a=sendonly";
-    else return line;
-  };
-
-  private endline = "\r\n";
-
-  private findMid = (splittedTracks: string[]): string[] => {
-    const splitted = splittedTracks;
-    const linesWithMid = splitted?.filter((elem) => elem.startsWith(this.midLine));
-    return linesWithMid?.map((line) => line.substring(6));
-  };
-
-  private midLine = "a=mid:";
-
-  private replaceMid = (splittedTracks: string[], newMids: string[]): string[] => {
-    let i = 0;
-    return splittedTracks.map((elem) =>
-      elem.startsWith(this.midLine) ? this.midLine + newMids[i++] : elem
-    );
-  };
-
-  private getTransceiverNumbers = (splittedTracks: string[]): string[] =>
-    splittedTracks.filter((line) => line.startsWith("m=")).map((line) => line.slice(2, 7));
-
   private onAnswer = async (answer: RTCSessionDescriptionInit) => {
     if (this.connection) {
       try {
@@ -396,38 +373,7 @@ export class MembraneWebRTC {
     }
   };
 
-  private generateMid = (): Number =>
-    new Date().valueOf() + Math.round(Math.random() * 1_000_000_000);
-
-  private getNewMids = (serverMids: string[]): string[] => {
-    const mids = this.connection!.getTransceivers().map((trans) => trans.mid);
-    const isReceiver = this.connection!.getTransceivers().map(
-      (trans) => trans.sender.track !== null
-    );
-
-    const filteredServerMids = serverMids.filter((mid) => !mids.includes(mid));
-
-    const resultMids = [];
-    for (let [idx, mid] of mids.entries()) {
-      if (mid !== null) resultMids.push(mid);
-      else if (!isReceiver[idx]) resultMids.push(filteredServerMids.shift());
-      else resultMids.push(this.generateMid());
-    }
-
-    return resultMids.map((mid) => mid!.toString());
-  };
-
-  private sdpMugging = (sdpOffer: string, oldMids: string[]): string => {
-    const splittedOffer = sdpOffer.split(this.endline);
-    const newMids = this.getNewMids(oldMids);
-    const changedOffer = splittedOffer.map((line) => this.changeLine(line, newMids));
-    return this.replaceMid(changedOffer, newMids).join(this.endline);
-  };
-
-  private getSendTransceivers = (): RTCRtpTransceiver[] =>
-    this.connection!.getTransceivers().filter((trans) => trans.sender.track !== null);
-
-  private onOffer = async (offerMedia: RTCSessionDescriptionInit, isSimulcast: Boolean = false) => {
+  private onServerTracks = async (serverTracks: string[], isSimulcast: Boolean = false) => {
     if (!this.connection) {
       this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
@@ -448,25 +394,18 @@ export class MembraneWebRTC {
           this.connection!.addTrack(track, stream);
         });
       }
+
+      this.connection
+        .getTransceivers()
+        .forEach((trans) => (trans.direction = "sendrecv" ? "sendonly" : trans.direction));
     } else {
-      // this.connection.createOffer({ iceRestart: true });
       await this.connection.restartIce();
     }
 
-    const splittedOfferMedia =
-      offerMedia.sdp !== undefined ? offerMedia?.sdp.split(this.endline) : [];
-
-    const serverTracks = this.getTransceiverNumbers(splittedOfferMedia);
-
-    const sendMids: string[] = this.getSendTransceivers().map((trans) => trans.mid!);
-
     this.addTransceiversIfNeeded(serverTracks);
-
-    const oldMids = this.findMid(splittedOfferMedia);
 
     try {
       const offer = await this.connection.createOffer();
-      offer.sdp = this.sdpMugging(offer.sdp!, oldMids);
       await this.connection.setLocalDescription(offer);
 
       const localTrackMidToMetadata = {} as any;
