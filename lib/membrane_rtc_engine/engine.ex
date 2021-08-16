@@ -151,14 +151,14 @@ defmodule Membrane.RTC.Engine do
         ]
 
   @typedoc """
-  List of packet filters that will be applied to given encodings.
+  A map pointing from encoding names to lists of packet filters that should be used for given encodings.
 
   A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
-  It can greatly reduce CPU usage in rooms when there are a lot of people but only a couple of
+  It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
   them are actively speaking.
   """
   @type packet_filters_t() :: %{
-          (encoding_name :: atom()) => filter :: {atom(), module() | struct()}
+          (encoding_name :: atom()) => [Membrane.RTP.SessionBin.packet_filter_t()]
         }
 
   @typedoc """
@@ -192,7 +192,9 @@ defmodule Membrane.RTC.Engine do
           id: String.t(),
           extension_options: extension_options_t(),
           network_options: network_options_t(),
-          packet_filters: packet_filters_t()
+          packet_filters: %{
+            (encoding_name :: term()) => [packet_filters_t()]
+          }
         ]
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
