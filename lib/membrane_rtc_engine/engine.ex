@@ -193,7 +193,7 @@ defmodule Membrane.RTC.Engine do
           extension_options: extension_options_t(),
           network_options: network_options_t(),
           packet_filters: %{
-            (encoding_name :: term()) => [packet_filters_t()]
+            (encoding_name :: atom()) => [packet_filters_t()]
           }
         ]
 
