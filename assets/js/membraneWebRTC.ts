@@ -317,6 +317,7 @@ export class MembraneWebRTC {
    *  .forEach((track) => webrtc.addTrack(track, localStream));
    *
    * // change camera
+   * const oldDeviceId = localStream.getVideoTracks()[0].getCapabilities().deviceId;
    * let videoDeviceId = "abcd-1234";
    * navigator.mediaDevices.getUserMedia({
    *      video: {
@@ -328,18 +329,19 @@ export class MembraneWebRTC {
    *   })
    *   .then((stream) => {
    *     let videoTrack = stream.getVideoTracks()[0];
-   *     webrtc.replaceTrack(videoTrack);
+   *     webrtc.replaceTrack(oldDeviceId, videoTrack);
    *   })
    *   .catch((error) => {
    *     console.error('Error switching camera', error);
    *   })
    * ```
    */
-  public async replaceTrack(track: MediaStreamTrack): Promise<any> {
+  public async replaceTrack(oldTrackDeviceId: string, newTrack: MediaStreamTrack): Promise<any> {
     const sender = this.connection!.getSenders().find((sender) => {
-      return sender?.track?.kind === track.kind;
+      const capabilities = sender!.track!.getCapabilities();
+      return capabilities.deviceId === oldTrackDeviceId;
     });
-    return sender!.replaceTrack(track);
+    return sender!.replaceTrack(newTrack);
   }
 
   /**
