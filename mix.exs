@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.1.0-alpha.1"
+  @version "0.1.0-alpha.2"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
@@ -39,7 +39,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.7.0"},
-      {:membrane_webrtc_plugin, "0.1.0-alpha.1"},
+      {:membrane_webrtc_plugin, "0.1.0-alpha.2"},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
