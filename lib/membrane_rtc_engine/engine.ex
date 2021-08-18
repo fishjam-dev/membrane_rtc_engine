@@ -151,6 +151,17 @@ defmodule Membrane.RTC.Engine do
         ]
 
   @typedoc """
+  A map pointing from encoding names to lists of packet filters that should be used for given encodings.
+
+  A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
+  It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
+  them are actively speaking.
+  """
+  @type packet_filters_t() :: %{
+          (encoding_name :: atom()) => [Membrane.RTP.SessionBin.packet_filter_t()]
+        }
+
+  @typedoc """
   SFU network configuration options.
 
   `dtls_pkey` and `dtls_cert` can be used e.g. when there are a lot of SFU instances
@@ -180,7 +191,10 @@ defmodule Membrane.RTC.Engine do
   @type options_t() :: [
           id: String.t(),
           extension_options: extension_options_t(),
-          network_options: network_options_t()
+          network_options: network_options_t(),
+          packet_filters: %{
+            (encoding_name :: atom()) => [packet_filters_t()]
+          }
         ]
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
@@ -222,7 +236,8 @@ defmodule Membrane.RTC.Engine do
        incoming_peers: %{},
        endpoints: %{},
        track_id_to_peers: %{},
-       options: options
+       options: options,
+       packet_filters: options[:packet_filters] || %{}
      }}
   end
 
@@ -385,9 +400,13 @@ defmodule Membrane.RTC.Engine do
 
     peers = Map.get(state.track_id_to_peers, track_id, [])
 
+    packet_filters = state.packet_filters[encoding] || []
+
     link_to_fake =
       link(endpoint_bin_name)
-      |> via_out(Pad.ref(:output, track_id), options: [extensions: extensions])
+      |> via_out(Pad.ref(:output, track_id),
+        options: [packet_filters: packet_filters, extensions: extensions]
+      )
       |> to(tee)
       |> via_out(:master)
       |> to(fake)
@@ -414,8 +433,6 @@ defmodule Membrane.RTC.Engine do
     links = [link_to_fake | Enum.map(links_and_endpoints, fn {link, _endpoint} -> link end)]
     endpoints = Enum.map(links_and_endpoints, fn {_link, endpoint} -> endpoint end)
 
-    actions = Enum.flat_map(endpoints, &[forward: {&1, {:linked_tracks, [track_id]}}])
-
     spec = %ParentSpec{children: children, links: links, crash_group: {endpoint_id, :temporary}}
 
     state =
@@ -425,7 +442,7 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    {{:ok, actions ++ [spec: spec]}, state}
+    {{:ok, [spec: spec]}, state}
   end
 
   @impl true
@@ -464,11 +481,9 @@ defmodule Membrane.RTC.Engine do
         {track_id, peers}
       end)
 
-    actions = [forward: {endpoint_bin, {:linked_tracks, linked_tracks}}]
-
     state = %{state | track_id_to_peers: track_id_to_peers}
 
-    {{:ok, [spec: %ParentSpec{links: links}] ++ actions}, state}
+    {{:ok, [spec: %ParentSpec{links: links}]}, state}
   end
 
   @impl true
