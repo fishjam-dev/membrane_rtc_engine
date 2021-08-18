@@ -237,8 +237,8 @@ defmodule Membrane.RTC.Engine do
        incoming_peers: %{},
        endpoints: %{},
        options: options,
-       packet_filters: options[:packet_filters] || %{}
-       track_id_to_peers: %{},
+       packet_filters: options[:packet_filters] || %{},
+       track_id_to_peers: %{}
      }}
   end
 
@@ -313,7 +313,7 @@ defmodule Membrane.RTC.Engine do
       forward: {{:endpoint, peer_id}, {:signal, {:sdp_offer, event.data.sdp_offer.sdp}}}
     ]
 
-    {tracks_msgs, state} =
+    state =
       if Map.has_key?(state.incoming_peers, peer_id) do
         {peer, state} = pop_in(state, [:incoming_peers, peer_id])
         peer = Map.delete(peer, :tracks_metadata)
@@ -327,13 +327,12 @@ defmodule Membrane.RTC.Engine do
         )
         |> dispatch()
 
-        {[], state}
+        state
       else
-        {[], state}
+        state
       end
 
-    {[forward: {{:endpoint, peer_id}, {:signal, {:sdp_answer, event.data.sdp_answer.sdp}}}] ++
-       actions, state}
+    {actions, state}
   end
 
   defp handle_media_event(%{type: :candidate} = event, peer_id, _ctx, state) do
@@ -381,31 +380,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification({:link_tracks, inbound_tracks}, endpoint_bin_name, ctx, state) do
-    {:endpoint, endpoint_id} = endpoint_bin_name
-    endpoint = state.endpoints[endpoint_id]
-
-    endpoint =
-      Endpoint.new(endpoint_id, :participant, inbound_tracks, %{
-        receive_media: endpoint.ctx.receive_media
-      })
-
-    state = put_in(state.endpoints[endpoint_id], endpoint)
-
-    tracks_msgs =
-      if same_tracks?(endpoint, inbound_tracks) do
-        update_track_messages(ctx, inbound_tracks, {:endpoint, endpoint_id})
-      else
-        []
-      end
-
-    links = create_links(true, endpoint_bin_name, ctx, state)
-    spec = %ParentSpec{links: links}
-    {{:ok, [spec: spec] ++ tracks_msgs}, state}
-    {{:ok, tracks_msgs}, state}
-  end
-
-  @impl true
   def handle_notification({:new_track, track_id, encoding}, endpoint_bin_name, ctx, state) do
     Membrane.Logger.info(
       "New incoming #{encoding} track #{track_id} from #{inspect(endpoint_bin_name)}"
@@ -423,40 +397,39 @@ defmodule Membrane.RTC.Engine do
 
     extensions = setup_extensions(encoding, state[:options][:extension_options])
 
-    packet_filters = state.packet_filters[encoding] || []
-
     peers = Map.get(state.track_id_to_peers, track_id, [])
+
+    packet_filters = state.packet_filters[encoding] || []
 
     link_to_fake =
       link(endpoint_bin_name)
-      |> via_out(Pad.ref(:output, track_id), options: [packet_filters: packet_filters,extensions: extensions])
+      |> via_out(Pad.ref(:output, track_id),
+        options: [packet_filters: packet_filters, extensions: extensions]
+      )
       |> to(tee)
       |> via_out(:master)
       |> to(fake)
 
-    links_and_endpoints =
-      flat_map_children(ctx, fn
-        {:endpoint, other_endpoint_id} = other_endpoint_name ->
-          if other_endpoint_id in peers and
-               state.endpoints[other_endpoint_id].ctx.receive_media do
-            [
-              {link(tee)
-               |> via_out(:copy)
-               |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-               |> to(other_endpoint_name), other_endpoint_name}
-            ]
-          else
+    links = [
+      link_to_fake
+      | flat_map_children(ctx, fn
+          {:endpoint, other_endpoint_id} = other_endpoint_name ->
+            if other_endpoint_id in peers and
+                 state.endpoints[other_endpoint_id].ctx.receive_media do
+              [
+                link(tee)
+                |> via_out(:copy)
+                |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+                |> to(other_endpoint_name)
+              ]
+            else
+              []
+            end
+
+          _child ->
             []
-          end
-
-        _child ->
-          []
-      end)
-
-    links = [link_to_fake | Enum.map(links_and_endpoints, fn {link, _endpoint} -> link end)]
-    endpoints = Enum.map(links_and_endpoints, fn {_link, endpoint} -> endpoint end)
-
-    actions = Enum.flat_map(endpoints, &[forward: {&1, {:linked_tracks, [track_id]}}])
+        end)
+    ]
 
     spec = %ParentSpec{children: children, links: links, crash_group: {endpoint_id, :temporary}}
 
@@ -467,7 +440,7 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    {{:ok, actions ++ [spec: spec]}, state}
+    {{:ok, [spec: spec]}, state}
   end
 
   @impl true
@@ -477,12 +450,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification(
-        {:negotiation_done, tracks},
-        {:endpoint, endpoint_id} = endpoint_bin,
-        ctx,
-        state
-      ) do
+  def handle_notification({:negotiation_done, tracks}, {:endpoint, endpoint_id}, ctx, state) do
     links_and_tracks =
       Enum.flat_map(
         tracks,
@@ -506,11 +474,9 @@ defmodule Membrane.RTC.Engine do
         {track_id, peers}
       end)
 
-    actions = [forward: {endpoint_bin, {:linked_tracks, linked_tracks}}]
-
     state = %{state | track_id_to_peers: track_id_to_peers}
 
-    {{:ok, [spec: %ParentSpec{links: links}] ++ actions}, state}
+    {{:ok, [spec: %ParentSpec{links: links}]}, state}
   end
 
   @impl true

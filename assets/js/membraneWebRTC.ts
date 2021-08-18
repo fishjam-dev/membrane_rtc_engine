@@ -219,7 +219,6 @@ export class MembraneWebRTC {
         break;
 
       case "sdpOffer":
-        // this.onOffer(deserializedMediaEvent.data);
         console.error("Handle server sdp offer not implemented yet");
         break;
       case "serverTracks":
@@ -388,7 +387,6 @@ export class MembraneWebRTC {
   };
 
   private onAnswer = async (answer: RTCSessionDescriptionInit) => {
-    console.log(answer)
     if (this.connection) {
       try {
         await this?.connection.setRemoteDescription(answer);
@@ -459,9 +457,6 @@ export class MembraneWebRTC {
     try {
       const offer = await this.connection.createOffer();
       await this.connection.setLocalDescription(offer);
-      // await this.connection.setRemoteDescription(offer);
-      // const answer = await this.connection.createAnswer();
-      // await this.connection.setLocalDescription(answer);
 
       const localTrackMidToMetadata = {} as any;
 
@@ -515,11 +510,6 @@ export class MembraneWebRTC {
       const peer = this.midToPeer.get(mid)!;
 
       this.midToStream.set(mid, stream);
-
-      // console.log(mid)
-      // console.log(this.midToPeer)
-      console.log(event)
-      // console.log(stream)
 
       stream.onremovetrack = (e) => {
         const hasTracks = stream.getTracks().length > 0;
