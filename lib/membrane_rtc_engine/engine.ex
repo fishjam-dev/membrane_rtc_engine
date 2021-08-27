@@ -347,15 +347,50 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
-  defp handle_media_event(%{type: :update_metadata, data: data}, peer_id, _ctx, state) do
+  defp handle_media_event(
+         %{type: :update_peer_metadata, data: %{metadata: metadata}},
+         peer_id,
+         _ctx,
+         state
+       ) do
     case Map.get(state.peers, peer_id) do
       nil ->
         Membrane.Logger.warn("Unknown peer id passed for update: #{inspect(peer_id)}")
         {[], state}
 
+      %{metadata: ^metadata} ->
+        Membrane.Logger.debug("Received unchanged peer metadata: #{inspect(peer_id)}")
+        {[], state}
+
       peer ->
-        peer = Map.merge(peer, data)
-        state = put_in(state, [:incoming_peers, peer_id], peer)
+        peer = %{peer | metadata: metadata}
+        state = put_in(state, [:peers, peer_id], peer)
+
+        MediaEvent.create_peer_updated_event(peer_id, peer)
+        |> dispatch()
+
+        {[], state}
+    end
+  end
+
+  defp handle_media_event(
+         %{type: :update_tracks_metadata, data: %{mid_to_track_metadata: mid_to_track_metadata}},
+         peer_id,
+         _ctx,
+         state
+       ) do
+    case Map.get(state.peers, peer_id) do
+      nil ->
+        Membrane.Logger.warn("Unknown peer id passed for update: #{inspect(peer_id)}")
+        {[], state}
+
+      %{mid_to_track_metadata: ^mid_to_track_metadata} ->
+        Membrane.Logger.debug("Received unchanged track metadata: #{inspect(peer_id)}")
+        {[], state}
+
+      peer ->
+        peer = %{peer | mid_to_track_metadata: mid_to_track_metadata}
+        state = put_in(state, [:peers, peer_id], peer)
 
         MediaEvent.create_peer_updated_event(peer_id, peer)
         |> dispatch()
