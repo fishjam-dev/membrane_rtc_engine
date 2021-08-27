@@ -9,26 +9,18 @@
     "url": "git://github.com/membraneframework/membrane_sfu.git"
   },
   "scripts": {
-    "build": "webpack --mode production",
+    "ts-types": " tsc --emitDeclarationOnly --outDir ../priv/static",
+    "build": "rimraf lib && node ./esbuild.js && npm run ts-types",
     "docs": "typedoc js/index.ts --out ../doc/js",
     "format": "prettier --write .",
-    "watch": "webpack --mode development --watch",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^4.16.1",
-    "@typescript-eslint/parser": "^4.16.1",
-    "copy-webpack-plugin": "^5.1.1",
+    "esbuild": "^0.12.23",
     "eslint": "^7.21.0",
-    "eslint-config-prettier": "^8.1.0",
-    "eslint-plugin-prettier": "^3.3.1",
-    "hard-source-webpack-plugin": "^0.13.1",
     "prettier": "^2.2.1",
-    "terser-webpack-plugin": "^2.3.2",
-    "ts-loader": "^8.0.17",
+    "rimraf": "^3.0.2",
     "typedoc": "^0.21.2",
-    "typescript": "^4.2.2",
-    "webpack": "^4.41.5",
-    "webpack-cli": "^3.3.2"
+    "typescript": "^4.2.2"
   }
 }
