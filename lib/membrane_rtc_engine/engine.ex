@@ -347,6 +347,23 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
+  defp handle_media_event(%{type: :update_metadata, data: data}, peer_id, _ctx, state) do
+    case Map.get(state.peers, peer_id) do
+      nil ->
+        Membrane.Logger.warn("Unknown peer id passed for update: #{inspect(peer_id)}")
+        {[], state}
+
+      peer ->
+        peer = Map.merge(peer, data)
+        state = put_in(state, [:incoming_peers, peer_id], peer)
+
+        MediaEvent.create_peer_updated_event(peer_id, peer)
+        |> dispatch()
+
+        {[], state}
+    end
+  end
+
   @impl true
   def handle_notification({:signal, message}, {:endpoint, peer_id}, _ctx, state) do
     MediaEvent.create_signal_event(peer_id, {:signal, message})

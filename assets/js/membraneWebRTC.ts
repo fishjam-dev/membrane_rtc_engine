@@ -100,6 +100,10 @@ export interface Callbacks {
    * Called each time peer leaves the room.
    */
   onPeerLeft?: (peer: Peer) => void;
+  /**
+   * Called each time peer has its metadata or track metadata updated.
+   */
+  onPeerUpdated?: (peer: Peer) => void;
 
   /**
    * Called in case of errors related to multimedia session e.g. ICE connection.
@@ -241,6 +245,17 @@ export class MembraneWebRTC {
         }
         break;
 
+      case "peerUpdated":
+        peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
+        if (peer) {
+          peer.metadata = deserializedMediaEvent.data.metadata;
+          peer.midToTrackMetadata = deserializedMediaEvent.data.midToTrackMetadata;
+          this.addPeer(peer);
+          this.callbacks.onPeerUpdated?.(peer);
+        }
+
+        break;
+
       case "error":
         this.callbacks.onConnectionError?.(deserializedMediaEvent.data.message);
         this.leave();
@@ -368,6 +383,14 @@ export class MembraneWebRTC {
     this.localTracksWithStreams.forEach(({ track }) => track.stop());
     this.localTracksWithStreams = [];
     this.connection = undefined;
+  };
+
+  public updateMetadata = (peerMetadata: any): void => {
+    let mediaEvent = generateMediaEvent("updateMetadata", {
+      metadata: peerMetadata,
+      tracksMetadata: Array.from(this.localTrackIdToMetadata.values()),
+    });
+    this.sendMediaEvent(mediaEvent);
   };
 
   private sendMediaEvent = (mediaEvent: MediaEvent) => {
