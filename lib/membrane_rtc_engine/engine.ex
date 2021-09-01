@@ -192,6 +192,7 @@ defmodule Membrane.RTC.Engine do
           id: String.t(),
           extension_options: extension_options_t(),
           network_options: network_options_t(),
+          payload_and_depayload_tracks?: boolean(),
           packet_filters: %{
             (encoding_name :: atom()) => [packet_filters_t()]
           }
@@ -236,7 +237,8 @@ defmodule Membrane.RTC.Engine do
        incoming_peers: %{},
        endpoints: %{},
        options: options,
-       packet_filters: options[:packet_filters] || %{}
+       packet_filters: options[:packet_filters] || %{},
+       payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?]
      }}
   end
 
@@ -379,7 +381,12 @@ defmodule Membrane.RTC.Engine do
       [
         link(endpoint_bin_name)
         |> via_out(Pad.ref(:output, track_id),
-          options: [packet_filters: packet_filters, extensions: extensions]
+          options: [
+            use_jitter_buffer?: state.payload_and_depayload_tracks?,
+            use_depayloader?: state.payload_and_depayload_tracks?,
+            packet_filters: packet_filters,
+            extensions: extensions
+          ]
         )
         |> to(tee)
         |> via_out(:master)
@@ -392,7 +399,12 @@ defmodule Membrane.RTC.Engine do
               [
                 link(tee)
                 |> via_out(:copy)
-                |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+                |> via_in(Pad.ref(:input, track_id),
+                  options: [
+                    use_payloader?: state.payload_and_depayload_tracks?,
+                    encoding: encoding
+                  ]
+                )
                 |> to(other_endpoint_name)
               ]
             else
@@ -494,7 +506,12 @@ defmodule Membrane.RTC.Engine do
         [
           link(tee)
           |> via_out(:copy)
-          |> via_in(Pad.ref(:input, track_id), options: [encoding: track.encoding])
+          |> via_in(Pad.ref(:input, track_id),
+            options: [
+              use_payloader?: state.payload_and_depayload_tracks?,
+              encoding: track.encoding
+            ]
+          )
           |> to(new_endpoint_bin_name)
         ]
 
