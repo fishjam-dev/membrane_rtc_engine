@@ -276,7 +276,11 @@ defmodule Membrane.RTC.Engine do
           state = put_in(state, [:incoming_peers, peer_id], peer)
           {actions, state} = setup_peer(peer, ctx, state)
 
+          IO.inspect(state.options[:network_options][:turn_servers], label: "dupa engine.ex 279")
+
           turn_servers = get_turn_configs(peer_id, state.options[:network_options][:turn_servers])
+
+          IO.inspect(turn_servers, label: "dupa engine.ex 283")
 
           MediaEvent.create_peer_accepted_event(
             peer_id,

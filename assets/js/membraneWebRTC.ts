@@ -142,7 +142,8 @@ export class MembraneWebRTC {
 
     this.callbacks = callbacks;
     this.rtcConfig = rtcConfig || this.rtcConfig;
-    console.log(this.rtcConfig);
+    // console.log("dupa");
+    // console.log(this.rtcConfig);
   }
 
   /**
@@ -209,6 +210,7 @@ export class MembraneWebRTC {
           deserializedMediaEvent.data.peersInRoom
         );
         let turnServers = deserializedMediaEvent.data.turn_servers;
+        console.log("mWRTC.ts 213 dupa:", deserializedMediaEvent.data);
 
         if (turnServers == []) {
           return [];
@@ -228,6 +230,7 @@ export class MembraneWebRTC {
             ),
             username: turnServer.username,
           };
+          console.log("mWRTC.ts 223 dupa: ", rtcIceServer);
           rtcIceServers.push(rtcIceServer);
         });
         if (this.rtcConfig.iceServers == null) {
@@ -235,7 +238,7 @@ export class MembraneWebRTC {
         } else {
           this.rtcConfig.iceServers = this.rtcConfig.iceServers.concat(rtcIceServers);
         }
-        console.log(this.rtcConfig);
+        // console.log(this.rtcConfig);
 
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
@@ -355,7 +358,9 @@ export class MembraneWebRTC {
 
   private onOffer = async (offer: RTCSessionDescriptionInit) => {
     if (!this.connection) {
-      this.connection = new RTCPeerConnection(this.rtcConfig);
+      this.connection = new RTCPeerConnection({ iceTransportPolicy: "relay", ...this.rtcConfig });
+      console.log("dupa sanity check");
+      // this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
       this.connection.ontrack = this.onTrack();
 
