@@ -238,7 +238,8 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
-       track_id_to_peers: %{}
+       track_id_to_peers: %{},
+       track_id_to_metadata: %{}
      }}
   end
 
@@ -322,8 +323,7 @@ defmodule Membrane.RTC.Engine do
 
         MediaEvent.create_peer_joined_event(
           peer_id,
-          state.peers[peer_id].metadata,
-          event.data.mid_to_track_metadata
+          state.peers[peer_id].metadata
         )
         |> dispatch()
 
@@ -345,27 +345,39 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
-  defp get_mids_to_tracks_and_peer(mid_to_track, peer_id, state) do
-    track_to_peer_id =
-      for {_id, endpoint} <- state.endpoints,
-          track <- Endpoint.get_tracks(endpoint),
-          reduce: %{} do
-        acc -> Map.put(acc, track.id, endpoint.id)
-      end
-
-    for {mid, track} <- mid_to_track, reduce: %{} do
-      acc -> Map.put(acc, mid, %{track: track, id: Map.get(track_to_peer_id, track, peer_id)})
+  defp get_mids_to_track_info(track_to_mid, track_to_metadata, state) do
+    for {_id, endpoint} <- state.endpoints,
+        track <- Endpoint.get_tracks(endpoint),
+        mid = Map.get(track_to_mid, track.id),
+        reduce: %{} do
+      acc ->
+        Map.put(acc, mid, %{
+          id: endpoint.id,
+          track_id: track.id,
+          metadata: Map.get(track_to_metadata, track.id, %{})
+        })
     end
   end
 
   @impl true
-  def handle_notification({:mid_to_track, mid_to_track}, {:endpoint, peer_id}, _ctx, state) do
-    mid_to_track = get_mids_to_tracks_and_peer(mid_to_track, peer_id, state)
+  def handle_notification(
+        {:signal, {:sdp_answer, answer, track_to_mid}},
+        {:endpoint, peer_id},
+        _ctx,
+        state
+      ) do
+    mid_to_track_metadata = get_in(state, [:peers, peer_id, :mid_to_track_metadata])
 
-    MediaEvent.create_peer_mids_update_event(
-      peer_id,
-      mid_to_track
-    )
+    track_to_metadata =
+      Map.new(track_to_mid, fn {track, mid} ->
+        {track, Map.get(mid_to_track_metadata, mid, Map.get(state.track_id_to_metadata, track))}
+      end)
+
+    state = Map.update(state, :track_id_to_metadata, %{}, &Map.merge(&1, track_to_metadata))
+
+    mid_to_track = get_mids_to_track_info(track_to_mid, state.track_id_to_metadata, state)
+
+    MediaEvent.create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_track}})
     |> dispatch()
 
     {:ok, state}
@@ -619,7 +631,7 @@ defmodule Membrane.RTC.Engine do
     if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
       {_peer, state} = pop_in(state, [:peers, peer_id])
-      tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | enabled?: false})
+      tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
 
       tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, peer_id})
 

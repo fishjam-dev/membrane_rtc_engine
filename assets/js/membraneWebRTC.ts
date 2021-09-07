@@ -221,15 +221,12 @@ export class MembraneWebRTC {
       case "sdpOffer":
         console.error("Handle server sdp offer not implemented yet");
         break;
-      case "serverTracks":
-        this.onServerTracks(deserializedMediaEvent.data.tracks);
-        break;
-
-      case "updateMid":
-        this.midToPeer = new Map(Object.entries(deserializedMediaEvent.data.peersInRoom));
+      case "offerData":
+        this.onOfferData(deserializedMediaEvent.data);
         break;
 
       case "sdpAnswer":
+        this.midToPeer = new Map(Object.entries(deserializedMediaEvent.data.midToTrack));
         this.onAnswer(deserializedMediaEvent.data);
         break;
 
@@ -423,27 +420,15 @@ export class MembraneWebRTC {
     }
   };
 
-  private onServerTracks = async (serverTracks: string[], isSimulcast: Boolean = false) => {
+  private onOfferData = async (serverTracks: string[]) => {
     if (!this.connection) {
       this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
       this.connection.ontrack = this.onTrack();
 
-      let stream = this.localTracksWithStreams[0].stream;
-
-      if (isSimulcast)
-        stream.getTracks().forEach((track) => {
-          let transceiverConfig: RTCRtpTransceiverInit =
-            track.kind === "video"
-              ? DEFAULT_TRANSCEIVER_CONFIG.VIDEO
-              : DEFAULT_TRANSCEIVER_CONFIG.AUDIO;
-          this.connection?.addTransceiver(track, transceiverConfig);
-        });
-      else {
-        this.localTracksWithStreams.forEach(({ track, stream }) => {
-          this.connection!.addTrack(track, stream);
-        });
-      }
+      this.localTracksWithStreams.forEach(({ track, stream }) => {
+        this.connection!.addTrack(track, stream);
+      });
 
       this.connection
         .getTransceivers()

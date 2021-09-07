@@ -27,15 +27,14 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     %{type: "updateMid", data: %{id: peer_id, peersInRoom: data}} |> do_create(peer_id)
   end
 
-  @spec create_peer_joined_event(peer_id_t(), map(), map()) :: sfu_media_event_t()
-  def create_peer_joined_event(peer_id, metadata, mid_to_track_metadata) do
+  @spec create_peer_joined_event(peer_id_t(), map()) :: sfu_media_event_t()
+  def create_peer_joined_event(peer_id, metadata) do
     %{
       type: "peerJoined",
       data: %{
         peer: %{
           id: peer_id,
-          metadata: metadata,
-          midToTrackMetadata: mid_to_track_metadata
+          metadata: metadata
         }
       }
     }
@@ -83,25 +82,23 @@ defmodule Membrane.RTC.Engine.MediaEvent do
 
   @spec create_signal_event(peer_id_t(), {:signal, {:server_tracks, String.t()}}) ::
           sfu_media_event_t()
-  def create_signal_event(peer_id, {:signal, {:server_tracks, tracks_types}}) do
+  def create_signal_event(peer_id, {:signal, {:offer_data, tracks_types}}) do
     %{
-      type: "serverTracks",
-      data: %{
-        type: "tracks",
-        tracks: tracks_types
-      }
+      type: "offerData",
+      data: tracks_types
     }
     |> do_create(peer_id)
   end
 
-  @spec create_signal_event(peer_id_t(), {:signal, {:sdp_answer, String.t()}}) ::
+  @spec create_signal_event(peer_id_t(), {:signal, {:sdp_answer, String.t(), map()}}) ::
           sfu_media_event_t()
-  def create_signal_event(peer_id, {:signal, {:sdp_answer, answer}}) do
+  def create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_track}}) do
     %{
       type: "sdpAnswer",
       data: %{
         type: "answer",
-        sdp: answer
+        sdp: answer,
+        midToTrack: mid_to_track
       }
     }
     |> do_create(peer_id)
