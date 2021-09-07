@@ -110,6 +110,7 @@ defmodule Membrane.RTC.Engine do
   * `{:media_event, from, event}` - feed Media Event to SFU. `from` is id of peer
   that this Media event comes from.
   * `{:accept_new_peer, peer_id}` - accepts peer with id `peer_id`
+  * `{:accept_new_peer, peer_id, peer_node}` - accepts peer with id `peer_id` running on `peer_node`
   * `{:deny_new_peer, peer_id}` - denies peer with id `peer_id`
   * `{:remove_peer, peer_id}` - removes peer with id `peer_id`
 
@@ -276,22 +277,20 @@ defmodule Membrane.RTC.Engine do
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        if Map.has_key?(state.peers, peer_id) do
-          Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
-          {[], state}
-        else
-          peer = Map.put(data, :id, peer_id)
-          state = put_in(state, [:incoming_peers, peer_id], peer)
-          {actions, state} = setup_peer(peer, ctx, state)
+        do_accept_new_peer(peer_id, node(), data, ctx, state)
 
-          MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
-          |> dispatch()
+      {:accept_new_peer, ^peer_id, peer_node} ->
+        do_accept_new_peer(peer_id, peer_node, data, ctx, state)
 
-          {actions, state}
-        end
-
-      {:accept_new_peer, _other_peer_id} ->
+      {:accept_new_peer, peer_id} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
+        {[], state}
+
+      {:accept_new_peer, peer_id, peer_node} ->
+        Membrane.Logger.warn(
+          "Unknown peer id passed for acceptance: #{inspect(peer_id)} for node #{inspect(peer_node)}"
+        )
+
         {[], state}
 
       {:deny_new_peer, peer_id} ->
@@ -426,7 +425,23 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp setup_peer(config, ctx, state) do
+  defp do_accept_new_peer(peer_id, peer_node, data, ctx, state) do
+    if Map.has_key?(state.peers, peer_id) do
+      Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
+      {[], state}
+    else
+      peer = Map.put(data, :id, peer_id)
+      state = put_in(state, [:incoming_peers, peer_id], peer)
+      {actions, state} = setup_peer(peer, peer_node, ctx, state)
+
+      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
+      |> dispatch()
+
+      {actions, state}
+    end
+  end
+
+  defp setup_peer(config, peer_node, ctx, state) do
     inbound_tracks = create_inbound_tracks(config.relay_audio, config.relay_video)
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -465,7 +480,12 @@ defmodule Membrane.RTC.Engine do
 
     links = create_links(config.receive_media, endpoint_bin_name, ctx, state)
 
-    spec = %ParentSpec{children: children, links: links, crash_group: {config.id, :temporary}}
+    spec = %ParentSpec{
+      node: peer_node,
+      children: children,
+      links: links,
+      crash_group: {config.id, :temporary}
+    }
 
     state = put_in(state.endpoints[config.id], endpoint)
 
