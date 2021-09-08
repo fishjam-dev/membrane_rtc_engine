@@ -352,7 +352,7 @@ defmodule Membrane.RTC.Engine do
         reduce: %{} do
       acc ->
         Map.put(acc, mid, %{
-          id: endpoint.id,
+          peer_id: endpoint.id,
           track_id: track.id,
           metadata: Map.get(track_to_metadata, track.id, %{})
         })

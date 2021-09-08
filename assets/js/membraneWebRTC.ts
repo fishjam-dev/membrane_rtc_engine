@@ -10,6 +10,15 @@ import { DEFAULT_TRANSCEIVER_CONFIG } from "./consts";
 /**
  * Interface describing Peer.
  */
+
+export interface TrackMetadata {
+  track_id: string;
+
+  peer_id: string;
+
+  metadata: any;
+}
+
 export interface Peer {
   /**
    * Peer's id. It is assigned by user in custom logic that use backend API.
@@ -51,7 +60,7 @@ export interface TrackContext {
    * Peer this track comes from.
    */
   peer: Peer;
-  mid: string;
+  trackId: string;
   /**
    * Any info that was passed in {@link addTrack}.
    */
@@ -120,7 +129,7 @@ export class MembraneWebRTC {
     track: MediaStreamTrack;
     stream: MediaStream;
   }[] = [];
-  private midToTrackMetadata: Map<string, any> = new Map();
+  private midToTrackMetadata: Map<string, TrackMetadata> = new Map();
   private localTrackIdToMetadata: Map<string, any> = new Map();
   private midToStream: Map<String, MediaStream> = new Map();
   private connection?: RTCPeerConnection;
@@ -226,7 +235,8 @@ export class MembraneWebRTC {
         break;
 
       case "sdpAnswer":
-        this.midToPeer = new Map(Object.entries(deserializedMediaEvent.data.midToTrack));
+        this.midToTrackMetadata = new Map(Object.entries(deserializedMediaEvent.data.midToTrack));
+        this.updateMidToPeer();
         this.onAnswer(deserializedMediaEvent.data);
         break;
 
@@ -383,8 +393,15 @@ export class MembraneWebRTC {
     this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
   };
 
+  private updateMidToPeer = () =>
+    this.midToTrackMetadata.forEach((value: TrackMetadata, mid: string) => {
+      const peer = this.idToPeer.get(value.peer_id)!;
+      this.midToPeer.set(mid, peer);
+    });
+
   private onAnswer = async (answer: RTCSessionDescriptionInit) => {
     if (this.connection) {
+      this.connection.ontrack = this.onTrack();
       try {
         await this?.connection.setRemoteDescription(answer);
       } catch (err) {
@@ -424,15 +441,12 @@ export class MembraneWebRTC {
     if (!this.connection) {
       this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
-      this.connection.ontrack = this.onTrack();
 
       this.localTracksWithStreams.forEach(({ track, stream }) => {
         this.connection!.addTrack(track, stream);
       });
 
-      this.connection
-        .getTransceivers()
-        .forEach((trans) => (trans.direction = "sendrecv" ? "sendonly" : trans.direction));
+      this.connection.getTransceivers().forEach((trans) => (trans.direction = "sendonly"));
     } else {
       await this.connection.restartIce();
     }
@@ -449,7 +463,6 @@ export class MembraneWebRTC {
         const trackId = transceiver.sender.track?.id;
         const mid = transceiver.mid;
         if (trackId && mid) {
-          this.midToTrackMetadata.set(mid, this.localTrackIdToMetadata.get(trackId));
           localTrackMidToMetadata[mid] = this.localTrackIdToMetadata.get(trackId);
         }
       });
@@ -494,6 +507,8 @@ export class MembraneWebRTC {
 
       const peer = this.midToPeer.get(mid)!;
 
+      const trackId = this.midToTrackMetadata.get(mid)!.track_id;
+
       this.midToStream.set(mid, stream);
 
       stream.onremovetrack = (e) => {
@@ -508,7 +523,7 @@ export class MembraneWebRTC {
           peer,
           track: e.track,
           stream,
-          mid: event.transceiver.mid!,
+          trackId: trackId,
           metadata: this.midToTrackMetadata.get(mid),
         });
       };
@@ -517,7 +532,7 @@ export class MembraneWebRTC {
         track: event.track,
         peer,
         stream,
-        mid: event.transceiver.mid!,
+        trackId: trackId,
         metadata: this.midToTrackMetadata.get(mid),
       });
     };
