@@ -222,6 +222,8 @@ defmodule Membrane.RTC.Engine do
   def handle_init(options) do
     play(self())
 
+    :turn_starter.start("abc", 3478)
+
     {{:ok, log_metadata: [sfu: options[:id]]},
      %{
        id: options[:id],
@@ -274,18 +276,29 @@ defmodule Membrane.RTC.Engine do
         else
           peer = Map.put(data, :id, peer_id)
           state = put_in(state, [:incoming_peers, peer_id], peer)
-          {actions, state} = setup_peer(peer, ctx, state)
 
-          IO.inspect(state.options[:network_options][:turn_servers], label: "dupa engine.ex 279")
+          turn_secret = "abc"
+          {:ok, turn_port, turn_pid} = :turn_starter.start(turn_secret)
 
-          turn_servers = get_turn_configs(peer_id, state.options[:network_options][:turn_servers])
+          peer_turn_servers =
+            get_turn_configs(peer_id, [
+              %{
+                relay_type: :udp,
+                secret: turn_secret,
+                server_addr: {127, 0, 0, 1},
+                server_port: turn_port,
+                pid: turn_pid
+              }
+            ])
 
-          IO.inspect(turn_servers, label: "dupa engine.ex 283")
+          {actions, state} = setup_peer(peer, peer_turn_servers, ctx, state)
+
+          peer_turn_servers = Enum.map(peer_turn_servers, &Map.delete(&1, :pid))
 
           MediaEvent.create_peer_accepted_event(
             peer_id,
             Map.delete(state.peers, peer_id),
-            turn_servers
+            peer_turn_servers
           )
           |> dispatch()
 
@@ -424,7 +437,7 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp setup_peer(config, ctx, state) do
+  defp setup_peer(config, turn_servers, ctx, state) do
     inbound_tracks = create_inbound_tracks(config.relay_audio, config.relay_video)
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -451,12 +464,6 @@ defmodule Membrane.RTC.Engine do
       end
 
     stun_servers = state.options[:network_options][:stun_servers] || []
-
-    turn_servers =
-      get_turn_configs("server", state.options[:network_options][:turn_servers])
-
-    IO.inspect(stun_servers, label: :stun_servers)
-    IO.inspect(turn_servers, label: :turn_servers)
 
     children = %{
       endpoint_bin_name => %EndpointBin{

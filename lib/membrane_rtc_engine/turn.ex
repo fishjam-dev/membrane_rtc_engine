@@ -8,7 +8,13 @@ defmodule Membrane.RTC.Engine.Turn do
     username = "#{duration}:#{name}"
     IO.inspect(secret, label: "dupa turn.ex 9 secret")
     IO.inspect(username, label: "dupa turn.ex 10 username")
-    password = :crypto.mac(:hmac, :sha, secret, username) |> IO.inspect(label: "dupa password is") |> Base.encode64() |> IO.inspect(label: " dupa password after encoding is")
+
+    password =
+      :crypto.mac(:hmac, :sha, secret, username)
+      |> IO.inspect(label: "dupa password is")
+      |> Base.encode64()
+      |> IO.inspect(label: " dupa password after encoding is")
+
     # password = :crypto.mac(:hmac, :sha, secret, username) |> IO.inspect(label: "dupa password is")
     {username, password}
   end

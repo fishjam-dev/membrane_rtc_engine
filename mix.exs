@@ -45,7 +45,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false}
+      {:credo, "~> 1.4", only: :dev, runtime: false},
+      {:stun, path: "/Users/feliks/costam/turny/stun"}
     ]
   end
 
