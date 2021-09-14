@@ -98,7 +98,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       data: %{
         type: "answer",
         sdp: answer,
-        midToTrack: mid_to_track
+        midToTrackMetadata: mid_to_track
       }
     }
     |> do_create(peer_id)

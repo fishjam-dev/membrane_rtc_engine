@@ -235,7 +235,9 @@ export class MembraneWebRTC {
         break;
 
       case "sdpAnswer":
-        this.midToTrackMetadata = new Map(Object.entries(deserializedMediaEvent.data.midToTrack));
+        this.midToTrackMetadata = new Map(
+          Object.entries(deserializedMediaEvent.data.midToTrackMetadata)
+        );
         this.updateMidToPeer();
         this.onAnswer(deserializedMediaEvent.data);
         break;
