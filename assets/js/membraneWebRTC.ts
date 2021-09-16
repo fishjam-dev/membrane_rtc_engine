@@ -66,6 +66,7 @@ export interface TrackContext {
   metadata: any;
 }
 
+type fnGetPeerMediaStreams = (peerId: string) => MediaStream[];
 /**
  * Callbacks that has to be implemented by user.
  */
@@ -78,7 +79,11 @@ export interface Callbacks {
   /**
    * Called when peer was accepted. Triggered by {@link join}
    */
-  onJoinSuccess?: (peerId: string, peersInRoom: [Peer]) => void;
+  onJoinSuccess?: (
+    peerId: string,
+    peersInRoom: [Peer],
+    getPeerMediaStreams: fnGetPeerMediaStreams
+  ) => void;
   /**
    * Called when peer was not accepted. Triggered by {@link join}
    * @param metadata - Passthru for client application to communicate further actions to frontend
@@ -104,7 +109,7 @@ export interface Callbacks {
   /**
    * Called each time new peer joins the room.
    */
-  onPeerJoined?: (peer: Peer) => void;
+  onPeerJoined?: (peer: Peer, getPeerMediaStreams: fnGetPeerMediaStreams) => void;
   /**
    * Called each time peer leaves the room.
    */
@@ -214,7 +219,8 @@ export class MembraneWebRTC {
         this.id = deserializedMediaEvent.data.id;
         this.callbacks.onJoinSuccess?.(
           deserializedMediaEvent.data.id,
-          deserializedMediaEvent.data.peersInRoom
+          deserializedMediaEvent.data.peersInRoom,
+          this.getPeerMediaStreams
         );
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
@@ -249,7 +255,7 @@ export class MembraneWebRTC {
         peer = deserializedMediaEvent.data.peer;
         if (peer.id != this.id) {
           this.addPeer(peer);
-          this.callbacks.onPeerJoined?.(peer);
+          this.callbacks.onPeerJoined?.(peer, this.getPeerMediaStreams);
         }
         break;
 
@@ -310,6 +316,35 @@ export class MembraneWebRTC {
   public addTrack(track: MediaStreamTrack, stream: MediaStream, trackMetadata: any = {}) {
     this.localTracksWithStreams.push({ track, stream });
     this.localTrackIdToMetadata.set(track.id, trackMetadata);
+    const tracks = this.connection?.getTransceivers().map((trans) => trans.sender.track);
+
+    this.localTracksWithStreams.forEach(({ track, stream }) => {
+      if (!tracks?.includes(track)) this.connection?.addTrack(track, stream);
+    });
+
+    this.connection
+      ?.getTransceivers()
+      .forEach(
+        (trans) => (trans.direction = trans.direction == "sendrecv" ? "sendonly" : trans.direction)
+      );
+
+    if (this.connection) {
+      let mediaEvent = generateMediaEvent("restartIce", {});
+      this.sendMediaEvent(mediaEvent);
+    }
+  }
+
+  private getPeerMediaStreams = (peerId: string): MediaStream[] => {
+    return this.peerMediaStreams(peerId);
+  };
+
+  private peerMediaStreams(peerId: string): MediaStream[] {
+    const mids: String[] = [];
+    this.midToTrackMetadata.forEach((value: TrackMetadata, key: String) => {
+      if (value.peer_id === peerId) mids.push(key);
+    });
+
+    return mids.filter((mid) => this.midToStream.has(mid)).map((mid) => this.midToStream.get(mid)!);
   }
 
   /**
@@ -429,9 +464,37 @@ export class MembraneWebRTC {
       else if (track === "video" && videoTransceiversNumber == 0) toAdd.push(track);
     }
 
-    for (let track of toAdd)
-      this.connection?.addTransceiver(track, { direction: "recvonly" });
+    for (let track of toAdd) this.connection?.addTransceiver(track, { direction: "recvonly" });
   };
+
+  public async restartIce() {
+    if (this.connection) {
+      await this.createAndSendOffer();
+    }
+  }
+
+  private async createAndSendOffer() {
+    if (!this.connection) return;
+    try {
+      const offer = await this.connection.createOffer();
+      await this.connection.setLocalDescription(offer);
+
+      const localTrackMidToMetadata = {} as any;
+
+      this.connection.getTransceivers().forEach((transceiver) => {
+        const trackId = transceiver.sender.track?.id;
+        const mid = transceiver.mid;
+        if (trackId && mid) localTrackMidToMetadata[mid] = this.localTrackIdToMetadata.get(trackId);
+      });
+      let mediaEvent = generateMediaEvent("sdpOffer", {
+        sdpOffer: offer,
+        midToTrackMetadata: localTrackMidToMetadata,
+      });
+      this.sendMediaEvent(mediaEvent);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   private onOfferData = async (serverTracks: string[]) => {
     if (!this.connection) {
@@ -449,27 +512,7 @@ export class MembraneWebRTC {
 
     this.addTransceiversIfNeeded(serverTracks);
 
-    try {
-      const offer = await this.connection.createOffer();
-      await this.connection.setLocalDescription(offer);
-
-      const localTrackMidToMetadata = {} as any;
-
-      this.connection.getTransceivers().forEach((transceiver) => {
-        const trackId = transceiver.sender.track?.id;
-        const mid = transceiver.mid;
-        if (trackId && mid) {
-          localTrackMidToMetadata[mid] = this.localTrackIdToMetadata.get(trackId);
-        }
-      });
-      let mediaEvent = generateMediaEvent("sdpOffer", {
-        sdpOffer: offer,
-        midToTrackMetadata: localTrackMidToMetadata,
-      });
-      this.sendMediaEvent(mediaEvent);
-    } catch (error) {
-      console.error(error);
-    }
+    await this.createAndSendOffer();
   };
 
   private onRemoteCandidate = (candidate: RTCIceCandidate) => {

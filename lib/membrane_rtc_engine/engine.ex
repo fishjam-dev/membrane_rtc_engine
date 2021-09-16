@@ -345,6 +345,11 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
+  defp handle_media_event(%{type: :restart_ice}, peer_id, _ctx, state) do
+    actions = [forward: {{:endpoint, peer_id}, {:signal, :restart_ice}}]
+    {actions, state}
+  end
+
   defp get_mids_to_track_info(track_to_mid, track_to_metadata, state) do
     for {_id, endpoint} <- state.endpoints,
         track <- Endpoint.get_tracks(endpoint),

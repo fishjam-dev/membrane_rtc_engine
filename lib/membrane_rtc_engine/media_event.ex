@@ -132,6 +132,10 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     end
   end
 
+  defp do_deserialize(%{"type" => "restartIce"}) do
+    {:ok, %{type: :restart_ice}}
+  end
+
   defp do_deserialize(%{"type" => "join"} = event) do
     case event do
       %{
