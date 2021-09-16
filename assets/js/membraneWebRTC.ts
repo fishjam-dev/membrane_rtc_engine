@@ -5,7 +5,6 @@ import {
   generateMediaEvent,
   MediaEvent,
 } from "./mediaEvent";
-import { DEFAULT_TRANSCEIVER_CONFIG } from "./consts";
 
 /**
  * Interface describing Peer.
@@ -430,13 +429,8 @@ export class MembraneWebRTC {
       else if (track === "video" && videoTransceiversNumber == 0) toAdd.push(track);
     }
 
-    for (let track of toAdd) {
-      const config =
-        track === "audio"
-          ? DEFAULT_TRANSCEIVER_CONFIG.RECV_AUDIO
-          : DEFAULT_TRANSCEIVER_CONFIG.RECV_VIDEO;
-      this.connection?.addTransceiver(track, config);
-    }
+    for (let track of toAdd)
+      this.connection?.addTransceiver(track, { direction: "recvonly" });
   };
 
   private onOfferData = async (serverTracks: string[]) => {
