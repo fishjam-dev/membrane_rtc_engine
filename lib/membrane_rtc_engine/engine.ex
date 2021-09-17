@@ -238,7 +238,7 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
-       track_id_to_peers: %{},
+       track_id_and_peer_to_status: %{},
        track_id_to_metadata: %{}
      }}
   end
@@ -415,8 +415,6 @@ defmodule Membrane.RTC.Engine do
 
     extensions = setup_extensions(encoding, state[:options][:extension_options])
 
-    peers = Map.get(state.track_id_to_peers, track_id, [])
-
     packet_filters = state.packet_filters[encoding] || []
 
     link_to_fake =
@@ -428,28 +426,14 @@ defmodule Membrane.RTC.Engine do
       |> via_out(:master)
       |> to(fake)
 
-    links = [
-      link_to_fake
-      | flat_map_children(ctx, fn
-          {:endpoint, other_endpoint_id} = other_endpoint_name ->
-            if other_endpoint_id in peers and
-                 state.endpoints[other_endpoint_id].ctx.receive_media do
-              [
-                link(tee)
-                |> via_out(:copy)
-                |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-                |> to(other_endpoint_name)
-              ]
-            else
-              []
-            end
+    {links, track_id_and_peer_to_status} =
+      link_tracks([{track_id, encoding}], state.track_id_and_peer_to_status, ctx)
 
-          _child ->
-            []
-        end)
-    ]
-
-    spec = %ParentSpec{children: children, links: links, crash_group: {endpoint_id, :temporary}}
+    spec = %ParentSpec{
+      children: children,
+      links: [link_to_fake | links],
+      crash_group: {endpoint_id, :temporary}
+    }
 
     state =
       update_in(
@@ -457,6 +441,8 @@ defmodule Membrane.RTC.Engine do
         [:endpoints, endpoint_id],
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
+
+    state = %{state | track_id_and_peer_to_status: track_id_and_peer_to_status}
 
     {{:ok, [spec: spec]}, state}
   end
@@ -468,31 +454,22 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification({:negotiation_done, tracks}, {:endpoint, endpoint_id}, ctx, state) do
-    links_and_tracks =
-      Enum.flat_map(
-        tracks,
-        &link_track_if_tee_exist(&1, endpoint_id, ctx, state.track_id_to_peers)
-      )
-
-    links = Enum.map(links_and_tracks, fn {link, _track} -> link end)
-    linked_tracks = Enum.map(links_and_tracks, fn {_link, track} -> track end)
-
-    tracks_waiting_for_linking =
-      Enum.map(tracks, fn {track_id, _encoding} -> track_id end)
-      |> Enum.filter(&(&1 not in linked_tracks))
-
-    track_id_to_peers =
-      Map.new(state.track_id_to_peers, fn {track_id, peers} ->
-        peers =
-          if track_id in tracks_waiting_for_linking,
-            do: Enum.uniq([endpoint_id | peers]),
-            else: peers
-
-        {track_id, peers}
+  def handle_notification(
+        {:negotiation_done, outbound_tracks},
+        {:endpoint, endpoint_id},
+        ctx,
+        state
+      ) do
+    track_id_and_peer_to_status =
+      Enum.reduce(outbound_tracks, state.track_id_and_peer_to_status, fn {track_id, _encoding},
+                                                                         acc ->
+        Map.put(acc, {track_id, endpoint_id}, :waiting_for_linking)
       end)
 
-    state = %{state | track_id_to_peers: track_id_to_peers}
+    {links, track_id_and_peer_to_status} =
+      link_tracks(outbound_tracks, track_id_and_peer_to_status, ctx)
+
+    state = %{state | track_id_and_peer_to_status: track_id_and_peer_to_status}
 
     {{:ok, [spec: %ParentSpec{links: links}]}, state}
   end
@@ -506,40 +483,52 @@ defmodule Membrane.RTC.Engine do
     endpoint = Map.update!(endpoint, :inbound_tracks, &Map.merge(&1, id_to_track))
     state = put_in(state.endpoints[endpoint_id], endpoint)
 
-    track_id_to_peers =
-      Enum.reduce(tracks, state.track_id_to_peers, fn
-        track, acc -> Map.put(acc, track.id, [])
-      end)
-
-    state = %{state | track_id_to_peers: track_id_to_peers}
-
     tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
     {{:ok, tracks_msgs}, state}
   end
 
-  defp link_track_if_tee_exist({track_id, encoding}, endpoint_id, ctx, track_id_to_peers) do
-    peers = Map.get(track_id_to_peers, track_id, [])
-
-    tee =
+  defp link_tracks(tracks, track_id_and_peer_to_status, ctx) do
+    tee_and_tracks_with_encoding =
       ctx.children
       |> Map.keys()
       |> Enum.map(fn
-        {:tee, {_endpoint_id, ^track_id}} = tee -> tee
-        _child -> nil
+        {:tee, {_endpoint_id, track_id}} = tee ->
+          result = Enum.find(tracks, fn {track, _encoding} -> track == track_id end)
+
+          case result do
+            {track_id, encoding} -> {tee, track_id, encoding}
+            _other -> nil
+          end
+
+        _other ->
+          nil
       end)
       |> Enum.filter(&(&1 != nil))
 
-    if tee != [] and endpoint_id not in peers do
-      Enum.map(
-        tee,
-        &{link(&1)
-         |> via_out(:copy)
-         |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-         |> to({:endpoint, endpoint_id}), track_id}
-      )
-    else
-      []
-    end
+    links_tracks_peers =
+      for {tee, track_id, encoding} <- tee_and_tracks_with_encoding,
+          {{^track_id, endpoint_id}, status} <- track_id_and_peer_to_status do
+        case status do
+          :waiting_for_linking ->
+            {link(tee)
+             |> via_out(:copy)
+             |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+             |> to({:endpoint, endpoint_id}), track_id, endpoint_id}
+
+          _other ->
+            nil
+        end
+      end
+      |> Enum.filter(&(&1 != nil))
+
+    track_id_and_peer_to_status =
+      Enum.reduce(links_tracks_peers, track_id_and_peer_to_status, fn {_link, track_id, peer_id},
+                                                                      acc ->
+        Map.put(acc, {track_id, peer_id}, :linked)
+      end)
+
+    links = Enum.map(links_tracks_peers, fn {link, _track, _peer} -> link end)
+    {links, track_id_and_peer_to_status}
   end
 
   defp dispatch(msg) do

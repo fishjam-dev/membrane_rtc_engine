@@ -6,18 +6,14 @@ import {
   MediaEvent,
 } from "./mediaEvent";
 
+export interface TrackMetadata {
+  track_id: string;
+  peer_id: string;
+  metadata: any;
+}
 /**
  * Interface describing Peer.
  */
-
-export interface TrackMetadata {
-  track_id: string;
-
-  peer_id: string;
-
-  metadata: any;
-}
-
 export interface Peer {
   /**
    * Peer's id. It is assigned by user in custom logic that use backend API.
