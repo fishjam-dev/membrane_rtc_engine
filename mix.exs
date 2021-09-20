@@ -38,7 +38,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.7.0"},
+      {:membrane_core, github: "membraneframework/membrane_core", override: true},
       {:membrane_webrtc_plugin, "0.1.0-alpha.2"},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
