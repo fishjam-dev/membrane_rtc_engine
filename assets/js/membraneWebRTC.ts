@@ -313,20 +313,16 @@ export class MembraneWebRTC {
   public addTrack(track: MediaStreamTrack, stream: MediaStream, trackMetadata: any = {}) {
     this.localTracksWithStreams.push({ track, stream });
     this.localTrackIdToMetadata.set(track.id, trackMetadata);
-    const tracks = this.connection?.getTransceivers().map((trans) => trans.sender.track);
-
-    if (this.localTracksWithStreams.map(({ track }) => track).includes(track))
-      throw "This track is already added";
-
-    if (this.connection) this.connection?.addTrack(track, stream);
-
-    this.connection
-      ?.getTransceivers()
-      .forEach(
-        (trans) => (trans.direction = trans.direction == "sendrecv" ? "sendonly" : trans.direction)
-      );
 
     if (this.connection) {
+      this.connection.addTrack(track, stream);
+
+      this.connection
+        .getTransceivers()
+        .forEach(
+          (trans) => (trans.direction = trans.direction == "sendrecv" ? "sendonly" : trans.direction)
+        );
+
       let mediaEvent = generateMediaEvent("restartIce", {});
       this.sendMediaEvent(mediaEvent);
     }
