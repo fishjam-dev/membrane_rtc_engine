@@ -350,13 +350,13 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
-  defp get_mids_to_track_info(track_to_mid, track_to_metadata, state) do
-    for {_id, endpoint} <- state.endpoints,
-        track <- Endpoint.get_tracks(endpoint),
-        mid = Map.get(track_to_mid, track.id),
+  defp get_mids_to_track_info(tracks, track_to_metadata, state) do
+    for track <- tracks,
+        {_id, endpoint} <- state.endpoints,
+        Endpoint.get_track_by_id(endpoint, track.id) != nil,
         reduce: %{} do
       acc ->
-        Map.put(acc, mid, %{
+        Map.put(acc, track.mid, %{
           peer_id: endpoint.id,
           track_id: track.id,
           metadata: Map.get(track_to_metadata, track.id, %{})
@@ -366,22 +366,22 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_notification(
-        {:signal, {:sdp_answer, answer, track_to_mid}},
+        {:signal, {:sdp_answer, answer, tracks}},
         {:endpoint, peer_id},
         _ctx,
         state
       ) do
     mid_to_track_metadata = get_in(state, [:peers, peer_id, :mid_to_track_metadata])
-    mid_to_track_metadata = if mid_to_track_metadata === nil, do: %{}, else: mid_to_track_metadata
 
-    track_to_metadata =
-      Map.new(track_to_mid, fn {track, mid} ->
-        {track, Map.get(mid_to_track_metadata, mid, Map.get(state.track_id_to_metadata, track))}
+    track_id_to_metadata =
+      Map.new(tracks, fn track ->
+        {track.id,
+         Map.get(mid_to_track_metadata, track.mid, Map.get(state.track_id_to_metadata, track.id))}
       end)
 
-    state = Map.update(state, :track_id_to_metadata, %{}, &Map.merge(&1, track_to_metadata))
+    state = Map.update(state, :track_id_to_metadata, %{}, &Map.merge(&1, track_id_to_metadata))
 
-    mid_to_trackdata = get_mids_to_track_info(track_to_mid, state.track_id_to_metadata, state)
+    mid_to_trackdata = get_mids_to_track_info(tracks, state.track_id_to_metadata, state)
 
     MediaEvent.create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_trackdata}})
     |> dispatch()
@@ -461,10 +461,11 @@ defmodule Membrane.RTC.Engine do
         state
       ) do
     track_id_and_peer_to_status =
-      Enum.reduce(outbound_tracks, state.track_id_and_peer_to_status, fn {track_id, _encoding},
-                                                                         acc ->
-        Map.put(acc, {track_id, endpoint_id}, :waiting_for_linking)
-      end)
+      update_track_id_and_peer_to_status(
+        outbound_tracks,
+        state.track_id_and_peer_to_status,
+        endpoint_id
+      )
 
     {links, track_id_and_peer_to_status} =
       link_tracks(outbound_tracks, track_id_and_peer_to_status, ctx)
@@ -488,25 +489,11 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp link_tracks(tracks, track_id_and_peer_to_status, ctx) do
-    tee_and_tracks_with_encoding =
-      ctx.children
-      |> Map.keys()
-      |> Enum.map(fn
-        {:tee, {_endpoint_id, track_id}} = tee ->
-          result = Enum.find(tracks, fn {track, _encoding} -> track == track_id end)
-
-          case result do
-            {track_id, encoding} -> {tee, track_id, encoding}
-            _other -> nil
-          end
-
-        _other ->
-          nil
-      end)
-      |> Enum.filter(&(&1 != nil))
+    ctx_keys = Map.keys(ctx.children)
 
     links_tracks_peers =
-      for {tee, track_id, encoding} <- tee_and_tracks_with_encoding,
+      for {track_id, encoding} <- tracks,
+          {:tee, {_endpoint_id, ^track_id}} = tee <- ctx_keys,
           {{^track_id, endpoint_id}, status} <- track_id_and_peer_to_status do
         case status do
           :waiting_for_linking ->
@@ -522,14 +509,25 @@ defmodule Membrane.RTC.Engine do
       |> Enum.filter(&(&1 != nil))
 
     track_id_and_peer_to_status =
-      Enum.reduce(links_tracks_peers, track_id_and_peer_to_status, fn {_link, track_id, peer_id},
-                                                                      acc ->
-        Map.put(acc, {track_id, peer_id}, :linked)
-      end)
+      update_track_id_and_peer_to_status(links_tracks_peers, track_id_and_peer_to_status)
 
-    links = Enum.map(links_tracks_peers, fn {link, _track, _peer} -> link end)
-    {links, track_id_and_peer_to_status}
+    {Enum.map(links_tracks_peers, fn {link, _track, _peer} -> link end),
+     track_id_and_peer_to_status}
   end
+
+  defp update_track_id_and_peer_to_status(
+         tracks_and_peers,
+         track_id_and_peer_to_status,
+         endpoint_id \\ nil
+       ),
+       do:
+         Enum.reduce(tracks_and_peers, track_id_and_peer_to_status, fn
+           {_link, track_id, peer_id}, acc ->
+             Map.put(acc, {track_id, peer_id}, :linked)
+
+           {track_id, _encoding}, acc ->
+             Map.put(acc, {track_id, endpoint_id}, :waiting_for_linking)
+         end)
 
   defp dispatch(msg) do
     Registry.dispatch(get_registry_name(), self(), fn entries ->

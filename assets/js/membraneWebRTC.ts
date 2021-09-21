@@ -185,7 +185,7 @@ export class MembraneWebRTC {
         tracksMetadata: Array.from(this.localTrackIdToMetadata.values()),
       });
       this.sendMediaEvent(mediaEvent);
-    } catch (e) {
+    } catch (e: any) {
       this.callbacks.onConnectionError?.(e);
       this.leave();
     }
@@ -232,7 +232,8 @@ export class MembraneWebRTC {
         console.error("Handle server sdp offer not implemented yet");
         break;
       case "offerData":
-        this.onOfferData(deserializedMediaEvent.data);
+        const offerData = new Map<string, number>(Object.entries(deserializedMediaEvent.data));
+        this.onOfferData(offerData);
         break;
 
       case "sdpAnswer":
@@ -314,9 +315,10 @@ export class MembraneWebRTC {
     this.localTrackIdToMetadata.set(track.id, trackMetadata);
     const tracks = this.connection?.getTransceivers().map((trans) => trans.sender.track);
 
-    this.localTracksWithStreams.forEach(({ track, stream }) => {
-      if (!tracks?.includes(track)) this.connection?.addTrack(track, stream);
-    });
+    if (this.localTracksWithStreams.map(({ track }) => track).includes(track))
+      throw "This track is already added";
+
+    if (this.connection) this.connection?.addTrack(track, stream);
 
     this.connection
       ?.getTransceivers()
@@ -442,28 +444,30 @@ export class MembraneWebRTC {
     } else console.log("Fatal error");
   };
 
-  private addTransceiversIfNeeded = (serverTracks: string[]) => {
+  private addTransceiversIfNeeded = (serverTracks: Map<string, number>) => {
     const recvTransceivers = this.connection!.getTransceivers().filter(
       (elem) => elem.direction === "recvonly"
     );
-    let audioTransceiversNumber = recvTransceivers.filter(
-      (elem) => elem.receiver.track.kind === "audio"
-    ).length;
-    let videoTransceiversNumber = recvTransceivers.filter(
-      (elem) => elem.receiver.track.kind === "video"
-    ).length;
-    const toAdd = [];
-    for (let track of serverTracks) {
-      if (track === "audio" && audioTransceiversNumber > 0) audioTransceiversNumber--;
-      else if (track === "audio" && audioTransceiversNumber == 0) toAdd.push(track);
-      else if (track === "video" && videoTransceiversNumber > 0) videoTransceiversNumber--;
-      else if (track === "video" && videoTransceiversNumber == 0) toAdd.push(track);
-    }
+    let toAdd: string[] = [];
+
+    const getNeededTransceivers = (type: string): string[] => {
+      let typeNumber = serverTracks.get(type);
+      typeNumber = typeNumber !== undefined ? typeNumber : 0;
+      const typeTransceiversNumber = recvTransceivers.filter(
+        (elem) => elem.receiver.track.kind === type
+      ).length;
+      return Array(typeNumber - typeTransceiversNumber).fill(type);
+    };
+
+    const audio = getNeededTransceivers("audio");
+    const video = getNeededTransceivers("video");
+    toAdd = toAdd.concat(audio);
+    toAdd = toAdd.concat(video);
 
     for (let track of toAdd) this.connection?.addTransceiver(track, { direction: "recvonly" });
   };
 
-  public async restartIce() {
+  async restartIce() {
     if (this.connection) {
       await this.createAndSendOffer();
     }
@@ -474,7 +478,6 @@ export class MembraneWebRTC {
     try {
       const offer = await this.connection.createOffer();
       await this.connection.setLocalDescription(offer);
-
       const localTrackMidToMetadata = {} as any;
 
       this.connection.getTransceivers().forEach((transceiver) => {
@@ -492,7 +495,7 @@ export class MembraneWebRTC {
     }
   }
 
-  private onOfferData = async (serverTracks: string[]) => {
+  private onOfferData = async (offerData: Map<string, number>) => {
     if (!this.connection) {
       this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
@@ -506,7 +509,7 @@ export class MembraneWebRTC {
       await this.connection.restartIce();
     }
 
-    this.addTransceiversIfNeeded(serverTracks);
+    this.addTransceiversIfNeeded(offerData);
 
     await this.createAndSendOffer();
   };

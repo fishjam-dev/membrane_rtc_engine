@@ -80,7 +80,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(peer_id)
   end
 
-  @spec create_signal_event(peer_id_t(), {:signal, {:server_tracks, String.t()}}) ::
+  @spec create_signal_event(peer_id_t(), {:signal, {:offer_data, String.t()}}) ::
           sfu_media_event_t()
   def create_signal_event(peer_id, {:signal, {:offer_data, tracks_types}}) do
     %{
