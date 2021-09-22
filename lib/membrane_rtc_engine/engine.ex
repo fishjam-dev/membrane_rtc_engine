@@ -476,13 +476,19 @@ defmodule Membrane.RTC.Engine do
   def handle_notification({:new_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
-    endpoint =
-      Map.get(state.endpoints, endpoint_id)
-      |> Map.update!(:inbound_tracks, &Map.merge(&1, id_to_track))
-
-    state = put_in(state, [:endpoints, endpoint_id], endpoint)
+    state =
+      update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
 
     tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
+
+    if not Map.has_key?(state.incoming_peers, endpoint_id) do
+      peer = get_in(state, [:peers, endpoint_id])
+      {peer_id, peer} = get_peer_data(endpoint_id, peer, state)
+
+      MediaEvent.create_new_peer_tracks_event(peer_id, peer.tracks_metadata)
+      |> dispatch()
+    end
+
     {{:ok, tracks_msgs}, state}
   end
 

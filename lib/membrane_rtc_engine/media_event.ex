@@ -48,6 +48,19 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(:broadcast)
   end
 
+  @spec create_new_peer_tracks_event(peer_id_t(), map()) ::
+          sfu_media_event_t()
+  def create_new_peer_tracks_event(peer_id, track_id_to_metadata) do
+    %{
+      type: "newTracks",
+      data: %{
+        peerId: peer_id,
+        trackIdToMetadata: track_id_to_metadata
+      }
+    }
+    |> do_create(:broadcast)
+  end
+
   @spec create_signal_event(peer_id_t(), {:signal, {:candidate, String.t(), non_neg_integer()}}) ::
           sfu_media_event_t()
   def create_signal_event(peer_id, {:signal, {:candidate, candidate, sdp_m_line_index}}) do
@@ -76,11 +89,11 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(peer_id)
   end
 
-  @spec create_signal_event(peer_id_t(), {:signal, {:new_tracks, String.t()}}) ::
+  @spec create_signal_event(peer_id_t(), {:signal, {:offer_data, String.t()}}) ::
           sfu_media_event_t()
-  def create_signal_event(peer_id, {:signal, {:new_tracks, tracks_types}}) do
+  def create_signal_event(peer_id, {:signal, {:offer_data, tracks_types}}) do
     %{
-      type: "newTracks",
+      type: "offerData",
       data: tracks_types
     }
     |> do_create(peer_id)
@@ -128,7 +141,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     end
   end
 
-  defp do_deserialize(%{"type" => "restartIce"}) do
+  defp do_deserialize(%{"type" => "renegotiateTracks"}) do
     {:ok, %{type: :restart_ice}}
   end
 
