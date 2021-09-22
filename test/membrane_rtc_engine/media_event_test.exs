@@ -9,8 +9,6 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
         %{
           "type" => "join",
           "data" => %{
-            "relayAudio" => true,
-            "relayVideo" => true,
             "receiveMedia" => true,
             "metadata" => %{"displayName" => "Bob"},
             "tracksMetadata" => [
@@ -24,8 +22,6 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
       expected_media_event = %{
         type: :join,
         data: %{
-          relay_audio: true,
-          relay_video: true,
           receive_media: true,
           metadata: %{"displayName" => "Bob"},
           tracks_metadata: [
