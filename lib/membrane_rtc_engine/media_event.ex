@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   def create_peer_accepted_event(peer_id, peers) do
     peers =
       Enum.map(peers, fn {id, peer} ->
-        %{id: id, metadata: peer.metadata, midToTrackMetadata: peer.mid_to_track_metadata}
+        %{id: id, metadata: peer.metadata, trackIdToMetadata: peer.tracks_metadata}
       end)
 
     %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers}}
@@ -22,19 +22,15 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(peer_id)
   end
 
-  @spec create_peer_mids_update_event(peer_id_t(), map()) :: sfu_media_event_t()
-  def create_peer_mids_update_event(peer_id, data) do
-    %{type: "updateMid", data: %{id: peer_id, peersInRoom: data}} |> do_create(peer_id)
-  end
-
   @spec create_peer_joined_event(peer_id_t(), map()) :: sfu_media_event_t()
-  def create_peer_joined_event(peer_id, metadata) do
+  def create_peer_joined_event(peer_id, peer) do
     %{
       type: "peerJoined",
       data: %{
         peer: %{
           id: peer_id,
-          metadata: metadata
+          metadata: peer.metadata,
+          trackIdToMetadata: peer.tracks_metadata
         }
       }
     }
@@ -80,11 +76,11 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(peer_id)
   end
 
-  @spec create_signal_event(peer_id_t(), {:signal, {:offer_data, String.t()}}) ::
+  @spec create_signal_event(peer_id_t(), {:signal, {:new_tracks, String.t()}}) ::
           sfu_media_event_t()
-  def create_signal_event(peer_id, {:signal, {:offer_data, tracks_types}}) do
+  def create_signal_event(peer_id, {:signal, {:new_tracks, tracks_types}}) do
     %{
-      type: "offerData",
+      type: "newTracks",
       data: tracks_types
     }
     |> do_create(peer_id)
@@ -92,13 +88,13 @@ defmodule Membrane.RTC.Engine.MediaEvent do
 
   @spec create_signal_event(peer_id_t(), {:signal, {:sdp_answer, String.t(), map()}}) ::
           sfu_media_event_t()
-  def create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_track}}) do
+  def create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_track_id}}) do
     %{
       type: "sdpAnswer",
       data: %{
         type: "answer",
         sdp: answer,
-        midToTrackMetadata: mid_to_track
+        midToTrackId: mid_to_track_id
       }
     }
     |> do_create(peer_id)
@@ -141,8 +137,6 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       %{
         "type" => "join",
         "data" => %{
-          "relayAudio" => relay_audio,
-          "relayVideo" => relay_video,
           "receiveMedia" => receive_media,
           "metadata" => metadata,
           "tracksMetadata" => tracks_metadata
@@ -152,40 +146,9 @@ defmodule Membrane.RTC.Engine.MediaEvent do
          %{
            type: :join,
            data: %{
-             relay_audio: relay_audio,
-             relay_video: relay_video,
              receive_media: receive_media,
              metadata: metadata,
              tracks_metadata: tracks_metadata
-           }
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp do_deserialize(%{"type" => "sdpAnswer"} = event) do
-    case event do
-      %{
-        "type" => "sdpAnswer",
-        "data" => %{
-          "sdpAnswer" => %{
-            "type" => "answer",
-            "sdp" => sdp
-          },
-          "midToTrackMetadata" => mid_to_track_metadata
-        }
-      } ->
-        {:ok,
-         %{
-           type: :sdp_answer,
-           data: %{
-             sdp_answer: %{
-               type: :answer,
-               sdp: sdp
-             },
-             mid_to_track_metadata: mid_to_track_metadata
            }
          }}
 

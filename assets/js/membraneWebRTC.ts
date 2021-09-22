@@ -6,11 +6,6 @@ import {
   MediaEvent,
 } from "./mediaEvent";
 
-export interface TrackMetadata {
-  track_id: string;
-  peer_id: string;
-  metadata: any;
-}
 /**
  * Interface describing Peer.
  */
@@ -23,11 +18,7 @@ export interface Peer {
    * Any information that was provided in {@link join}.
    */
   metadata: any;
-  /**
-   * mapping between track's mid and its metadata. Track metadata
-   * can be set using {@link addTrack}
-   */
-  midToTrackMetadata: any;
+  trackIdToMetadata: Map<string, any>;
 }
 
 /**
@@ -129,12 +120,12 @@ export class MembraneWebRTC {
     track: MediaStreamTrack;
     stream: MediaStream;
   }[] = [];
-  private midToTrackMetadata: Map<string, TrackMetadata> = new Map();
+  private trackIdToTrack: Map<string, TrackContext> = new Map();
   private localTrackIdToMetadata: Map<string, any> = new Map();
   private midToStream: Map<String, MediaStream> = new Map();
   private connection?: RTCPeerConnection;
   private idToPeer: Map<String, Peer> = new Map();
-  private midToPeer: Map<String, Peer> = new Map();
+  private midToTrackId: Map<string, string> = new Map();
   private readonly rtcConfig: RTCConfiguration = {
     iceServers: [
       {
@@ -210,6 +201,7 @@ export class MembraneWebRTC {
   public receiveMediaEvent = (mediaEvent: SerializedMediaEvent) => {
     const deserializedMediaEvent = deserializeMediaEvent(mediaEvent);
     let peer;
+    console.log(deserializedMediaEvent.type);
     switch (deserializedMediaEvent.type) {
       case "peerAccepted":
         this.id = deserializedMediaEvent.data.id;
@@ -218,6 +210,7 @@ export class MembraneWebRTC {
           deserializedMediaEvent.data.peersInRoom,
           this.getPeerMediaStreams
         );
+        console.log("PeersInRoom", deserializedMediaEvent.data.peersInRoom);
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
           this.addPeer(peer);
@@ -228,19 +221,13 @@ export class MembraneWebRTC {
         this.callbacks.onJoinError?.(deserializedMediaEvent.data);
         break;
 
-      case "sdpOffer":
-        console.error("Handle server sdp offer not implemented yet");
-        break;
-      case "offerData":
+      case "newTracks":
         const offerData = new Map<string, number>(Object.entries(deserializedMediaEvent.data));
         this.onOfferData(offerData);
         break;
 
       case "sdpAnswer":
-        this.midToTrackMetadata = new Map(
-          Object.entries(deserializedMediaEvent.data.midToTrackMetadata)
-        );
-        this.updateMidToPeer();
+        this.midToTrackId = new Map(Object.entries(deserializedMediaEvent.data.midToTrackId));
         this.onAnswer(deserializedMediaEvent.data);
         break;
 
@@ -320,7 +307,8 @@ export class MembraneWebRTC {
       this.connection
         .getTransceivers()
         .forEach(
-          (trans) => (trans.direction = trans.direction == "sendrecv" ? "sendonly" : trans.direction)
+          (trans) =>
+            (trans.direction = trans.direction == "sendrecv" ? "sendonly" : trans.direction)
         );
 
       let mediaEvent = generateMediaEvent("restartIce", {});
@@ -329,17 +317,12 @@ export class MembraneWebRTC {
   }
 
   private getPeerMediaStreams = (peerId: string): MediaStream[] => {
-    return this.peerMediaStreams(peerId);
+    const peer: Peer = this.idToPeer.get(peerId)!;
+
+    return Array.from(peer.trackIdToMetadata.keys())
+      .map((trackId) => this.trackIdToTrack.get(trackId)!)
+      .map((trackContext) => trackContext.stream!);
   };
-
-  private peerMediaStreams(peerId: string): MediaStream[] {
-    const mids: String[] = [];
-    this.midToTrackMetadata.forEach((value: TrackMetadata, key: String) => {
-      if (value.peer_id === peerId) mids.push(key);
-    });
-
-    return mids.filter((mid) => this.midToStream.has(mid)).map((mid) => this.midToStream.get(mid)!);
-  }
 
   /**
    * Replaces a track that is being sent to the SFU server.
@@ -423,21 +406,13 @@ export class MembraneWebRTC {
     this.callbacks.onSendMediaEvent(serializeMediaEvent(mediaEvent));
   };
 
-  private updateMidToPeer = () =>
-    this.midToTrackMetadata.forEach((value: TrackMetadata, mid: string) => {
-      const peer = this.idToPeer.get(value.peer_id)!;
-      this.midToPeer.set(mid, peer);
-    });
-
   private onAnswer = async (answer: RTCSessionDescriptionInit) => {
-    if (this.connection) {
-      this.connection.ontrack = this.onTrack();
-      try {
-        await this?.connection.setRemoteDescription(answer);
-      } catch (err) {
-        console.log(err);
-      }
-    } else console.log("Fatal error");
+    this.connection!.ontrack = this.onTrack();
+    try {
+      await this.connection!.setRemoteDescription(answer);
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   private addTransceiversIfNeeded = (serverTracks: Map<string, number>) => {
@@ -446,7 +421,7 @@ export class MembraneWebRTC {
     );
     let toAdd: string[] = [];
 
-    const getNeededTransceivers = (type: string): string[] => {
+    const getNeededTransceiversTypes = (type: string): string[] => {
       let typeNumber = serverTracks.get(type);
       typeNumber = typeNumber !== undefined ? typeNumber : 0;
       const typeTransceiversNumber = recvTransceivers.filter(
@@ -455,12 +430,12 @@ export class MembraneWebRTC {
       return Array(typeNumber - typeTransceiversNumber).fill(type);
     };
 
-    const audio = getNeededTransceivers("audio");
-    const video = getNeededTransceivers("video");
+    const audio = getNeededTransceiversTypes("audio");
+    const video = getNeededTransceiversTypes("video");
     toAdd = toAdd.concat(audio);
     toAdd = toAdd.concat(video);
 
-    for (let track of toAdd) this.connection?.addTransceiver(track, { direction: "recvonly" });
+    for (let kind of toAdd) this.connection?.addTransceiver(kind, { direction: "recvonly" });
   };
 
   async restartIce() {
@@ -539,11 +514,22 @@ export class MembraneWebRTC {
       const [stream] = event.streams;
       const mid = event.transceiver.mid!;
 
-      const peer = this.midToPeer.get(mid)!;
-
-      const trackId = this.midToTrackMetadata.get(mid)!.track_id;
+      const trackId = this.midToTrackId.get(mid)!;
+      console.log(this.idToPeer);
+      const peer = Array.from(this.idToPeer.values()).filter((peer) =>
+        Array.from(peer.trackIdToMetadata.keys()).includes(trackId)
+      )[0];
+      const metadata = peer.trackIdToMetadata.get(trackId);
+      const trackContext = {
+        stream,
+        track: event.track,
+        peer: peer,
+        trackId,
+        metadata,
+      };
 
       this.midToStream.set(mid, stream);
+      this.trackIdToTrack.set(trackId, trackContext);
 
       stream.onremovetrack = (e) => {
         const hasTracks = stream.getTracks().length > 0;
@@ -553,38 +539,24 @@ export class MembraneWebRTC {
           stream.onremovetrack = null;
         }
 
-        this.callbacks.onTrackRemoved?.({
-          peer,
-          track: e.track,
-          stream,
-          trackId: trackId,
-          metadata: this.midToTrackMetadata.get(mid),
-        });
+        this.callbacks.onTrackRemoved?.(trackContext);
       };
 
-      this.callbacks.onTrackAdded?.({
-        track: event.track,
-        peer,
-        stream,
-        trackId: trackId,
-        metadata: this.midToTrackMetadata.get(mid),
-      });
+      this.callbacks.onTrackAdded?.(trackContext);
     };
   };
 
   private addPeer = (peer: Peer): void => {
-    for (let key in peer.midToTrackMetadata) {
-      this.midToPeer.set(key, peer);
-      this.midToTrackMetadata.set(key, peer.midToTrackMetadata[key]);
-    }
+    peer.trackIdToMetadata = new Map(Object.entries(peer.trackIdToMetadata));
     this.idToPeer.set(peer.id, peer);
   };
 
   private removePeer = (peer: Peer): void => {
-    for (let key in peer.midToTrackMetadata) {
-      this.midToPeer.delete(key);
-      this.midToTrackMetadata.delete(key);
-    }
+    const tracksId = Array.from(peer.trackIdToMetadata.keys());
+    tracksId.forEach((trackId) => this.trackIdToTrack.delete(trackId));
+    Array.from(this.midToTrackId.entries()).forEach(([mid, trackId]) => {
+      if (tracksId.includes(trackId)) this.midToTrackId.delete(mid);
+    });
     this.idToPeer.delete(peer.id);
   };
 }

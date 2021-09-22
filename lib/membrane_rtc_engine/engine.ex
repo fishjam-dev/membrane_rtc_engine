@@ -238,8 +238,7 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
-       track_id_and_peer_to_status: %{},
-       track_id_to_metadata: %{}
+       track_id_and_peer_to_status: %{}
      }}
   end
 
@@ -279,7 +278,23 @@ defmodule Membrane.RTC.Engine do
 
     receive do
       {:accept_new_peer, ^peer_id} ->
+<<<<<<< HEAD
         do_accept_new_peer(peer_id, node(), data, ctx, state)
+=======
+        if Map.has_key?(state.peers, peer_id) do
+          Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
+          {[], state}
+        else
+          peer = Map.put(data, :id, peer_id)
+          state = put_in(state, [:incoming_peers, peer_id], peer)
+          {actions, state} = setup_peer(peer, ctx, state)
+
+          peers_in_room =
+            Map.new(state.peers, fn {peer_id, peer} -> get_peer_data(peer_id, peer, state) end)
+
+          MediaEvent.create_peer_accepted_event(peer_id, Map.delete(peers_in_room, peer_id))
+          |> dispatch()
+>>>>>>> 767bcac (Removed midToTrackData, added trackIdToTrack)
 
       {:accept_new_peer, ^peer_id, peer_node} ->
         do_accept_new_peer(peer_id, peer_node, data, ctx, state)
@@ -317,17 +332,8 @@ defmodule Membrane.RTC.Engine do
     state =
       if Map.has_key?(state.incoming_peers, peer_id) do
         {peer, state} = pop_in(state, [:incoming_peers, peer_id])
-        peer = Map.delete(peer, :tracks_metadata)
         peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
-        state = put_in(state, [:peers, peer_id], peer)
-
-        MediaEvent.create_peer_joined_event(
-          peer_id,
-          state.peers[peer_id].metadata
-        )
-        |> dispatch()
-
-        state
+        put_in(state, [:incoming_peers, peer_id], peer)
       else
         state
       end
@@ -350,41 +356,32 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
-  defp get_mids_to_track_info(tracks, track_to_metadata, state) do
-    for track <- tracks,
-        {_id, endpoint} <- state.endpoints,
-        Endpoint.get_track_by_id(endpoint, track.id) != nil,
-        reduce: %{} do
-      acc ->
-        Map.put(acc, track.mid, %{
-          peer_id: endpoint.id,
-          track_id: track.id,
-          metadata: Map.get(track_to_metadata, track.id, %{})
-        })
-    end
-  end
-
   @impl true
   def handle_notification(
-        {:signal, {:sdp_answer, answer, tracks}},
+        {:signal, {:sdp_answer, answer, mid_to_track_id}},
         {:endpoint, peer_id},
         _ctx,
         state
       ) do
-    mid_to_track_metadata = get_in(state, [:peers, peer_id, :mid_to_track_metadata])
-
-    track_id_to_metadata =
-      Map.new(tracks, fn track ->
-        {track.id,
-         Map.get(mid_to_track_metadata, track.mid, Map.get(state.track_id_to_metadata, track.id))}
-      end)
-
-    state = Map.update(state, :track_id_to_metadata, %{}, &Map.merge(&1, track_id_to_metadata))
-
-    mid_to_trackdata = get_mids_to_track_info(tracks, state.track_id_to_metadata, state)
-
-    MediaEvent.create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_trackdata}})
+    MediaEvent.create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_track_id}})
     |> dispatch()
+
+    state =
+      if Map.has_key?(state.incoming_peers, peer_id) do
+        {peer, state} = pop_in(state, [:incoming_peers, peer_id])
+        state = put_in(state, [:peers, peer_id], peer)
+        {peer_id, peer} = get_peer_data(peer_id, peer, state)
+
+        MediaEvent.create_peer_joined_event(
+          peer_id,
+          peer
+        )
+        |> dispatch()
+
+        state
+      else
+        state
+      end
 
     {:ok, state}
   end
@@ -479,10 +476,11 @@ defmodule Membrane.RTC.Engine do
   def handle_notification({:new_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
-    endpoint = state.endpoints[endpoint_id]
+    endpoint =
+      Map.get(state.endpoints, endpoint_id)
+      |> Map.update!(:inbound_tracks, &Map.merge(&1, id_to_track))
 
-    endpoint = Map.update!(endpoint, :inbound_tracks, &Map.merge(&1, id_to_track))
-    state = put_in(state.endpoints[endpoint_id], endpoint)
+    state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
     tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
     {{:ok, tracks_msgs}, state}
@@ -529,6 +527,14 @@ defmodule Membrane.RTC.Engine do
              Map.put(acc, {track_id, endpoint_id}, :waiting_for_linking)
          end)
 
+  defp get_peer_data(peer_id, peer, state) do
+    endpoint = Map.get(state.endpoints, peer_id)
+    tracks = Endpoint.get_tracks(endpoint)
+    mid_to_track_metadata = peer.mid_to_track_metadata
+    tracks_metadata = Map.new(tracks, &{&1.id, Map.get(mid_to_track_metadata, &1.mid)})
+    {peer_id, Map.put(peer, :tracks_metadata, tracks_metadata)}
+  end
+
   defp dispatch(msg) do
     Registry.dispatch(get_registry_name(), self(), fn entries ->
       for {_, pid} <- entries, do: send(pid, {self(), msg})
@@ -536,6 +542,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp do_accept_new_peer(peer_id, peer_node, data, ctx, state) do
+
     if Map.has_key?(state.peers, peer_id) do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
@@ -544,7 +551,10 @@ defmodule Membrane.RTC.Engine do
       state = put_in(state, [:incoming_peers, peer_id], peer)
       {actions, state} = setup_peer(peer, peer_node, ctx, state)
 
-      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
+      peers_in_room =
+        Map.new(state.peers, fn {peer_id, peer} -> get_peer_data(peer_id, peer, state) end)
+
+      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(peers_in_room, peer_id))
       |> dispatch()
 
       {actions, state}
@@ -577,6 +587,7 @@ defmodule Membrane.RTC.Engine do
 
     children = %{
       {:endpoint, config.id} => %EndpointBin{
+        endpoint_id: config.id,
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
         stun_servers: state.options[:network_options][:stun_servers] || [],
