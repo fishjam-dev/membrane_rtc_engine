@@ -435,18 +435,12 @@ defmodule Membrane.RTC.Engine do
         ctx,
         state
       ) do
-    awaiting_links =
-      Map.update!(state.awaiting_links, endpoint_id, fn tracks_id_set ->
-        tracks_id = Enum.map(outbound_tracks, fn {track_id, _encoding} -> track_id end)
-        MapSet.union(tracks_id_set, MapSet.new(tracks_id))
-      end)
+    {new_links, new_awaiting_links} = link_outbound_tracks(outbound_tracks, endpoint_id, ctx)
 
-    {links, awaiting_links} =
-      link_outbound_tracks(outbound_tracks, endpoint_id, awaiting_links, ctx)
+    state =
+      update_in(state, [:awaiting_links, endpoint_id], &MapSet.union(&1, new_awaiting_links))
 
-    state = %{state | awaiting_links: awaiting_links}
-
-    {{:ok, [spec: %ParentSpec{links: links}]}, state}
+    {{:ok, [spec: %ParentSpec{links: new_links}]}, state}
   end
 
   @impl true
@@ -470,64 +464,48 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp link_inbound_track({track_id, encoding}, tee, awaiting_links, ctx) do
-    links_peers =
-      flat_map_children(ctx, fn
-        {:endpoint, other_endpoint_id} = other_endpoint_name ->
-          tracks_set = Map.get(awaiting_links, other_endpoint_id)
+    reduce_children(ctx, {[], awaiting_links}, fn
+      {:endpoint, endpoint_id}, {new_links, awaiting_links} ->
+        if MapSet.member?(awaiting_links[endpoint_id], track_id) do
+          new_link =
+            link(tee)
+            |> via_out(:copy)
+            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+            |> to({:endpoint, endpoint_id})
 
-          if MapSet.member?(tracks_set, track_id) do
-            [
-              link(tee)
-              |> via_out(:copy)
-              |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-              |> to(other_endpoint_name)
-              |> then(fn linked -> {linked, other_endpoint_id} end)
-            ]
-          else
-            []
-          end
+          awaiting_links = Map.update!(awaiting_links, endpoint_id, &MapSet.delete(&1, track_id))
 
-        _child ->
-          []
-      end)
+          {new_links ++ [new_link], awaiting_links}
+        else
+          {new_links, awaiting_links}
+        end
 
-    awaiting_links =
-      Enum.map(links_peers, fn {_link, peer} -> peer end)
-      |> Enum.reduce(awaiting_links, fn
-        peer_id, acc ->
-          Map.update!(acc, peer_id, fn tracks_set -> MapSet.delete(tracks_set, track_id) end)
-      end)
-
-    Enum.map(links_peers, fn {link, _peer_id} -> link end)
-    |> then(fn links -> {links, awaiting_links} end)
+      _other_child, {new_links, awaiting_links} ->
+        {new_links, awaiting_links}
+    end)
   end
 
-  defp link_outbound_tracks(tracks, endpoint_id, awaiting_links, ctx) do
-    ctx_keys = Map.keys(ctx.children)
+  defp link_outbound_tracks(tracks, endpoint_id, ctx) do
+    Enum.reduce(tracks, {[], MapSet.new()}, fn
+      {track_id, encoding}, {new_links, new_awaiting_links} ->
+        tee =
+          find_child(ctx, fn child -> match?({:tee, {_other_endpoint_id, ^track_id}}, child) end)
 
-    tracks_set = Map.get(awaiting_links, endpoint_id)
+        if tee do
+          new_link =
+            link(tee)
+            |> via_out(:copy)
+            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+            |> to({:endpoint, endpoint_id})
 
-    links_tracks =
-      for {track_id, encoding} <- tracks,
-          MapSet.member?(tracks_set, track_id),
-          {:tee, {_other_endpoint_id, ^track_id}} = tee <- ctx_keys do
-        link(tee)
-        |> via_out(:copy)
-        |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-        |> to({:endpoint, endpoint_id})
-        |> then(fn linked -> {linked, track_id} end)
-      end
+          {new_links ++ [new_link], new_awaiting_links}
+        else
+          {new_links, MapSet.put(new_awaiting_links, track_id)}
+        end
 
-    awaiting_links =
-      Enum.reduce(links_tracks, tracks_set, fn {_link, track_id}, acc ->
-        MapSet.delete(acc, track_id)
-      end)
-      |> then(fn tracks_id_to_remove ->
-        Map.put(awaiting_links, endpoint_id, tracks_id_to_remove)
-      end)
-
-    Enum.map(links_tracks, fn {link, _track_id} -> link end)
-    |> then(&{&1, awaiting_links})
+      _track, {new_links, new_awaiting_links} ->
+        {new_links, new_awaiting_links}
+    end)
   end
 
   defp get_peer_data(peer_id, peer, state) do
@@ -629,6 +607,8 @@ defmodule Membrane.RTC.Engine do
         {[], state}
 
       {:present, actions, state} ->
+        {_waiting, state} = pop_in(state, [:awaiting_links, peer_id])
+
         MediaEvent.create_peer_left_event(peer_id)
         |> dispatch()
 
@@ -677,6 +657,14 @@ defmodule Membrane.RTC.Engine do
       _child ->
         []
     end)
+  end
+
+  defp reduce_children(ctx, acc, fun) do
+    ctx.children |> Map.keys() |> Enum.reduce(acc, fun)
+  end
+
+  defp find_child(ctx, fun) do
+    ctx.children |> Map.keys() |> Enum.find(fun)
   end
 
   defp flat_map_children(ctx, fun) do
