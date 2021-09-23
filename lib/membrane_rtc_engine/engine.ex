@@ -198,6 +198,12 @@ defmodule Membrane.RTC.Engine do
           }
         ]
 
+  defmacrop find_child(ctx, pattern: pattern) do
+    quote do
+      unquote(ctx).children |> Map.keys() |> Enum.find(&match?(unquote(pattern), &1))
+    end
+  end
+
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
           GenServer.on_start()
   def start(options, process_options) do
@@ -488,8 +494,7 @@ defmodule Membrane.RTC.Engine do
   defp link_outbound_tracks(tracks, endpoint_id, ctx) do
     Enum.reduce(tracks, {[], MapSet.new()}, fn
       {track_id, encoding}, {new_links, new_awaiting_links} ->
-        tee =
-          find_child(ctx, fn child -> match?({:tee, {_other_endpoint_id, ^track_id}}, child) end)
+        tee = find_child(ctx, pattern: {:tee, {_other_endpoint_id, ^track_id}})
 
         if tee do
           new_link =
@@ -541,7 +546,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp setup_peer(config, peer_node, ctx, state) do
+  defp setup_peer(config, peer_node, _ctx, state) do
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -582,7 +587,6 @@ defmodule Membrane.RTC.Engine do
     spec = %ParentSpec{
       node: peer_node,
       children: children,
-      links: links,
       crash_group: {config.id, :temporary}
     }
 
@@ -661,10 +665,6 @@ defmodule Membrane.RTC.Engine do
 
   defp reduce_children(ctx, acc, fun) do
     ctx.children |> Map.keys() |> Enum.reduce(acc, fun)
-  end
-
-  defp find_child(ctx, fun) do
-    ctx.children |> Map.keys() |> Enum.find(fun)
   end
 
   defp flat_map_children(ctx, fun) do
