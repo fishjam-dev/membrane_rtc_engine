@@ -134,6 +134,7 @@ defmodule Membrane.RTC.Engine do
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
   alias Membrane.RTC.Engine.MediaEvent
 
+  import Membrane.RTC.Utils
   require Membrane.Logger
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
@@ -198,12 +199,6 @@ defmodule Membrane.RTC.Engine do
           }
         ]
 
-  defmacrop find_child(ctx, pattern: pattern) do
-    quote do
-      unquote(ctx).children |> Map.keys() |> Enum.find(&match?(unquote(pattern), &1))
-    end
-  end
-
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
           GenServer.on_start()
   def start(options, process_options) do
@@ -244,7 +239,7 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
-       awaiting_links: %{}
+       waiting_for_linking: %{}
      }}
   end
 
@@ -407,8 +402,8 @@ defmodule Membrane.RTC.Engine do
       |> via_out(:master)
       |> to(fake)
 
-    {links, awaiting_links} =
-      link_inbound_track({track_id, encoding}, tee, state.awaiting_links, ctx)
+    {links, waiting_for_linking} =
+      link_inbound_track({track_id, encoding}, tee, state.waiting_for_linking, ctx)
 
     spec = %ParentSpec{
       children: children,
@@ -423,7 +418,7 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    state = %{state | awaiting_links: awaiting_links}
+    state = %{state | waiting_for_linking: waiting_for_linking}
 
     {{:ok, [spec: spec]}, state}
   end
@@ -436,15 +431,20 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_notification(
-        {:negotiation_done, outbound_tracks},
+        {:negotiation_done, new_outbound_tracks},
         {:endpoint, endpoint_id},
         ctx,
         state
       ) do
-    {new_links, new_awaiting_links} = link_outbound_tracks(outbound_tracks, endpoint_id, ctx)
+    {new_links, new_waiting_for_linking} =
+      link_outbound_tracks(new_outbound_tracks, endpoint_id, ctx)
 
     state =
-      update_in(state, [:awaiting_links, endpoint_id], &MapSet.union(&1, new_awaiting_links))
+      update_in(
+        state,
+        [:waiting_for_linking, endpoint_id],
+        &MapSet.union(&1, new_waiting_for_linking)
+      )
 
     {{:ok, [spec: %ParentSpec{links: new_links}]}, state}
   end
@@ -469,31 +469,32 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  defp link_inbound_track({track_id, encoding}, tee, awaiting_links, ctx) do
-    reduce_children(ctx, {[], awaiting_links}, fn
-      {:endpoint, endpoint_id}, {new_links, awaiting_links} ->
-        if MapSet.member?(awaiting_links[endpoint_id], track_id) do
+  defp link_inbound_track({track_id, encoding}, tee, waiting_for_linking, ctx) do
+    reduce_children(ctx, {[], waiting_for_linking}, fn
+      {:endpoint, endpoint_id}, {new_links, waiting_for_linking} ->
+        if MapSet.member?(waiting_for_linking[endpoint_id], track_id) do
           new_link =
             link(tee)
             |> via_out(:copy)
             |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
             |> to({:endpoint, endpoint_id})
 
-          awaiting_links = Map.update!(awaiting_links, endpoint_id, &MapSet.delete(&1, track_id))
+          waiting_for_linking =
+            Map.update!(waiting_for_linking, endpoint_id, &MapSet.delete(&1, track_id))
 
-          {new_links ++ [new_link], awaiting_links}
+          {new_links ++ [new_link], waiting_for_linking}
         else
-          {new_links, awaiting_links}
+          {new_links, waiting_for_linking}
         end
 
-      _other_child, {new_links, awaiting_links} ->
-        {new_links, awaiting_links}
+      _other_child, {new_links, waiting_for_linking} ->
+        {new_links, waiting_for_linking}
     end)
   end
 
   defp link_outbound_tracks(tracks, endpoint_id, ctx) do
     Enum.reduce(tracks, {[], MapSet.new()}, fn
-      {track_id, encoding}, {new_links, new_awaiting_links} ->
+      {track_id, encoding}, {new_links, not_linked} ->
         tee = find_child(ctx, pattern: {:tee, {_other_endpoint_id, ^track_id}})
 
         if tee do
@@ -503,13 +504,13 @@ defmodule Membrane.RTC.Engine do
             |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
             |> to({:endpoint, endpoint_id})
 
-          {new_links ++ [new_link], new_awaiting_links}
+          {new_links ++ [new_link], not_linked}
         else
-          {new_links, MapSet.put(new_awaiting_links, track_id)}
+          {new_links, MapSet.put(not_linked, track_id)}
         end
 
-      _track, {new_links, new_awaiting_links} ->
-        {new_links, new_awaiting_links}
+      _track, {new_links, not_linked} ->
+        {new_links, not_linked}
     end)
   end
 
@@ -582,7 +583,7 @@ defmodule Membrane.RTC.Engine do
       }
     }
 
-    state = put_in(state, [:awaiting_links, config.id], MapSet.new())
+    state = put_in(state, [:waiting_for_linking, config.id], MapSet.new())
 
     spec = %ParentSpec{
       node: peer_node,
@@ -611,7 +612,7 @@ defmodule Membrane.RTC.Engine do
         {[], state}
 
       {:present, actions, state} ->
-        {_waiting, state} = pop_in(state, [:awaiting_links, peer_id])
+        {_waiting, state} = pop_in(state, [:waiting_for_linking, peer_id])
 
         MediaEvent.create_peer_left_event(peer_id)
         |> dispatch()
@@ -661,13 +662,5 @@ defmodule Membrane.RTC.Engine do
       _child ->
         []
     end)
-  end
-
-  defp reduce_children(ctx, acc, fun) do
-    ctx.children |> Map.keys() |> Enum.reduce(acc, fun)
-  end
-
-  defp flat_map_children(ctx, fun) do
-    ctx.children |> Map.keys() |> Enum.flat_map(fun)
   end
 end
