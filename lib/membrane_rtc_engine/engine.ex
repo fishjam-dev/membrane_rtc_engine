@@ -371,13 +371,7 @@ defmodule Membrane.RTC.Engine do
         {peer, state} = pop_in(state, [:incoming_peers, peer_id])
         state = put_in(state, [:peers, peer_id], peer)
         {peer_id, peer} = get_peer_data(peer_id, peer, state)
-
-        MediaEvent.create_peer_joined_event(
-          peer_id,
-          peer
-        )
-        |> dispatch()
-
+        MediaEvent.create_peer_joined_event(peer_id, peer) |> dispatch()
         state
       else
         state

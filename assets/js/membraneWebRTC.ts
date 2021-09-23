@@ -18,6 +18,9 @@ export interface Peer {
    * Any information that was provided in {@link join}.
    */
   metadata: any;
+  /**
+   * Map from track id set by rtc_engine to metadata (info that was passed in  {@link addTrack})
+   */
   trackIdToMetadata: Map<string, any>;
 }
 
@@ -46,6 +49,9 @@ export interface TrackContext {
    * Peer this track comes from.
    */
   peer: Peer;
+  /**
+   * Track id which was set by rtc_engine.
+   */
   trackId: string;
   /**
    * Any info that was passed in {@link addTrack}.
@@ -101,7 +107,10 @@ export interface Callbacks {
    * Called in case of errors related to multimedia session e.g. ICE connection.
    */
   onConnectionError?: (message: string) => void;
-  onPeerNewTracks?: (peer: Peer) => void;
+  /**
+   * Called each time the peer which was already in the room, add new track.
+   */
+  onNewPeerTracks?: (peer: Peer) => void;
 }
 
 /**
@@ -216,14 +225,14 @@ export class MembraneWebRTC {
         this.onOfferData(offerData);
         break;
 
-      case "newTracks":
+      case "newPeerTracks":
         const data = deserializedMediaEvent.data;
-        data.trackIdToMetadata = new Map<string, any>(Object.entries(data.trackIdToMetadata));
         if (this.id === data.peerId) return;
+        data.trackIdToMetadata = new Map<string, any>(Object.entries(data.trackIdToMetadata));
         peer = this.idToPeer.get(data.peerId)!;
         peer.trackIdToMetadata = new Map([...peer.trackIdToMetadata, ...data.trackIdToMetadata]);
         this.idToPeer.set(peer.id, peer);
-        this.callbacks.onPeerNewTracks?.(peer);
+        this.callbacks.onNewPeerTracks?.(peer);
         break;
 
       case "sdpAnswer":
@@ -260,7 +269,6 @@ export class MembraneWebRTC {
 
   /**
    * Adds track that will be sent to the SFU server.
-   * At this moment only one audio and one video track can be added.
    * @param track - Audio or video track e.g. from your microphone or camera.
    * @param stream  - Stream that this track belongs to.
    * @param trackMetadata - Any information about this track that other peers will
@@ -315,14 +323,6 @@ export class MembraneWebRTC {
       this.sendMediaEvent(mediaEvent);
     }
   }
-
-  private getPeerMediaStreams = (peerId: string): MediaStream[] => {
-    const peer: Peer = this.idToPeer.get(peerId)!;
-
-    return Array.from(peer.trackIdToMetadata.keys())
-      .map((trackId) => this.trackIdToTrack.get(trackId)!)
-      .map((trackContext) => trackContext.stream!);
-  };
 
   /**
    * Replaces a track that is being sent to the SFU server.
@@ -438,12 +438,6 @@ export class MembraneWebRTC {
     for (let kind of toAdd) this.connection?.addTransceiver(kind, { direction: "recvonly" });
   };
 
-  async restartIce() {
-    if (this.connection) {
-      await this.createAndSendOffer();
-    }
-  }
-
   private async createAndSendOffer() {
     if (!this.connection) return;
     try {
@@ -544,7 +538,7 @@ export class MembraneWebRTC {
   };
 
   private addPeer = (peer: Peer): void => {
-    // #TODO it looks bad, changes needed in deserialization
+    // #TODO remove this line after fixing deserialization
     peer.trackIdToMetadata = new Map(Object.entries(peer.trackIdToMetadata));
     this.idToPeer.set(peer.id, peer);
   };

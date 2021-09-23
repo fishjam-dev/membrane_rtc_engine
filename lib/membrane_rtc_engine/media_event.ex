@@ -52,7 +52,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
           sfu_media_event_t()
   def create_new_peer_tracks_event(peer_id, track_id_to_metadata) do
     %{
-      type: "newTracks",
+      type: "newPeerTracks",
       data: %{
         peerId: peer_id,
         trackIdToMetadata: track_id_to_metadata
@@ -142,7 +142,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   end
 
   defp do_deserialize(%{"type" => "renegotiateTracks"}) do
-    {:ok, %{type: :restart_ice}}
+    {:ok, %{type: :renegotiate_tracks}}
   end
 
   defp do_deserialize(%{"type" => "join"} = event) do
