@@ -351,8 +351,8 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
-  defp handle_media_event(%{type: :restart_ice}, peer_id, _ctx, state) do
-    actions = [forward: {{:endpoint, peer_id}, {:signal, :restart_ice}}]
+  defp handle_media_event(%{type: :renegotiate_tracks}, peer_id, _ctx, state) do
+    actions = [forward: {{:endpoint, peer_id}, {:signal, :renegotiate_tracks}}]
     {actions, state}
   end
 
@@ -418,7 +418,7 @@ defmodule Membrane.RTC.Engine do
       |> to(fake)
 
     {links, track_id_and_peer_to_status} =
-      link_tracks([{track_id, encoding}], state.track_id_and_peer_to_status, ctx)
+      link_inbound_track({track_id, encoding}, tee, state.track_id_and_peer_to_status, ctx)
 
     spec = %ParentSpec{
       children: children,
@@ -459,7 +459,7 @@ defmodule Membrane.RTC.Engine do
       )
 
     {links, track_id_and_peer_to_status} =
-      link_tracks(outbound_tracks, track_id_and_peer_to_status, ctx)
+      link_outbound_tracks(outbound_tracks, endpoint_id, track_id_and_peer_to_status, ctx)
 
     state = %{state | track_id_and_peer_to_status: track_id_and_peer_to_status}
 
@@ -486,32 +486,88 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  defp link_tracks(tracks, track_id_and_peer_to_status, ctx) do
+  defp link_inbound_track({track_id, encoding}, tee, track_id_and_peer_to_status, ctx) do
+    links_tracks_peers =
+      flat_map_children(ctx, fn
+        {:endpoint, other_endpoint_id} = other_endpoint_name ->
+          case Map.get(track_id_and_peer_to_status, {other_endpoint_id, track_id}) do
+            :waiting_for_linking ->
+              [
+                link(tee)
+                |> via_out(:copy)
+                |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+                |> to(other_endpoint_name)
+                |> then(fn linked -> {linked, track_id, other_endpoint_id} end)
+              ]
+
+            _other ->
+              []
+          end
+
+        _child ->
+          []
+      end)
+
+    track_id_and_peer_to_status =
+      update_track_id_and_peer_to_status(
+        links_tracks_peers,
+        track_id_and_peer_to_status
+      )
+
+    Enum.map(links_tracks_peers, fn {link, _track_id, _peer_id} -> link end)
+    |> then(fn links -> {links, track_id_and_peer_to_status} end)
+  end
+
+  defp link_outbound_tracks(tracks, endpoint_id, track_id_and_peer_to_status, ctx) do
     ctx_keys = Map.keys(ctx.children)
 
     links_tracks_peers =
       for {track_id, encoding} <- tracks,
-          {:tee, {_endpoint_id, ^track_id}} = tee <- ctx_keys,
-          {{^track_id, endpoint_id}, status} <- track_id_and_peer_to_status do
-        case status do
-          :waiting_for_linking ->
-            {link(tee)
-             |> via_out(:copy)
-             |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-             |> to({:endpoint, endpoint_id}), track_id, endpoint_id}
-
-          _other ->
-            nil
-        end
+          Map.get(track_id_and_peer_to_status, {endpoint_id, track_id}) == :waiting_for_linking,
+          {:tee, {_other_endpoint_id, ^track_id}} = tee <- ctx_keys do
+        link(tee)
+        |> via_out(:copy)
+        |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+        |> to({:endpoint, endpoint_id})
+        |> then(fn linked -> {linked, track_id, endpoint_id} end)
       end
-      |> Enum.filter(&(&1 != nil))
 
     track_id_and_peer_to_status =
-      update_track_id_and_peer_to_status(links_tracks_peers, track_id_and_peer_to_status)
+      update_track_id_and_peer_to_status(
+        links_tracks_peers,
+        track_id_and_peer_to_status
+      )
 
-    {Enum.map(links_tracks_peers, fn {link, _track, _peer} -> link end),
-     track_id_and_peer_to_status}
+    Enum.map(links_tracks_peers, fn {link, _track_id, _peer_id} -> link end)
+    |> then(&{&1, track_id_and_peer_to_status})
   end
+
+  # defp link_tracks(tracks, track_id_and_peer_to_status, ctx) do
+  #   ctx_keys = Map.keys(ctx.children)
+
+  #   links_tracks_peers =
+  #     for {track_id, encoding} <- tracks,
+  #         {:tee, {_endpoint_id, ^track_id}} = tee <- ctx_keys,
+  #         {{^track_id, endpoint_id}, status} <- track_id_and_peer_to_status do
+  #       case status do
+  #         :waiting_for_linking ->
+  #           {link(tee)
+  #            |> via_out(:copy)
+  #            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+  #            |> to({:endpoint, endpoint_id}), track_id, endpoint_id}
+
+  #         _other ->
+  #           nil
+  #       end
+  #     end
+  #     |> Enum.filter(&(&1 != nil))
+
+  #   track_id_and_peer_to_status =
+  #     update_track_id_and_peer_to_status(links_tracks_peers, track_id_and_peer_to_status)
+
+  #   {Enum.map(links_tracks_peers, fn {link, _track, _peer} -> link end),
+  #    track_id_and_peer_to_status}
+  # end
 
   defp update_track_id_and_peer_to_status(
          tracks_and_peers,
@@ -521,10 +577,10 @@ defmodule Membrane.RTC.Engine do
        do:
          Enum.reduce(tracks_and_peers, track_id_and_peer_to_status, fn
            {_link, track_id, peer_id}, acc ->
-             Map.put(acc, {track_id, peer_id}, :linked)
+             Map.put(acc, {peer_id, track_id}, :linked)
 
            {track_id, _encoding}, acc ->
-             Map.put(acc, {track_id, endpoint_id}, :waiting_for_linking)
+             Map.put(acc, {endpoint_id, track_id}, :waiting_for_linking)
          end)
 
   defp get_peer_data(peer_id, peer, state) do
