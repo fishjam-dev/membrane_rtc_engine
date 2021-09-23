@@ -130,11 +130,11 @@ defmodule Membrane.RTC.Engine do
   ```
   """
   use Membrane.Pipeline
+  import Membrane.RTC.Utils
 
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
   alias Membrane.RTC.Engine.MediaEvent
 
-  import Membrane.RTC.Utils
   require Membrane.Logger
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
