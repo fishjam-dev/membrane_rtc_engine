@@ -238,7 +238,7 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
-       track_id_and_peer_to_status: %{}
+       awaiting_links: %{}
      }}
   end
 
@@ -278,23 +278,7 @@ defmodule Membrane.RTC.Engine do
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-<<<<<<< HEAD
         do_accept_new_peer(peer_id, node(), data, ctx, state)
-=======
-        if Map.has_key?(state.peers, peer_id) do
-          Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
-          {[], state}
-        else
-          peer = Map.put(data, :id, peer_id)
-          state = put_in(state, [:incoming_peers, peer_id], peer)
-          {actions, state} = setup_peer(peer, ctx, state)
-
-          peers_in_room =
-            Map.new(state.peers, fn {peer_id, peer} -> get_peer_data(peer_id, peer, state) end)
-
-          MediaEvent.create_peer_accepted_event(peer_id, Map.delete(peers_in_room, peer_id))
-          |> dispatch()
->>>>>>> 767bcac (Removed midToTrackData, added trackIdToTrack)
 
       {:accept_new_peer, ^peer_id, peer_node} ->
         do_accept_new_peer(peer_id, peer_node, data, ctx, state)
@@ -417,8 +401,8 @@ defmodule Membrane.RTC.Engine do
       |> via_out(:master)
       |> to(fake)
 
-    {links, track_id_and_peer_to_status} =
-      link_inbound_track({track_id, encoding}, tee, state.track_id_and_peer_to_status, ctx)
+    {links, awaiting_links} =
+      link_inbound_track({track_id, encoding}, tee, state.awaiting_links, ctx)
 
     spec = %ParentSpec{
       children: children,
@@ -433,7 +417,7 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    state = %{state | track_id_and_peer_to_status: track_id_and_peer_to_status}
+    state = %{state | awaiting_links: awaiting_links}
 
     {{:ok, [spec: spec]}, state}
   end
@@ -451,17 +435,16 @@ defmodule Membrane.RTC.Engine do
         ctx,
         state
       ) do
-    track_id_and_peer_to_status =
-      update_track_id_and_peer_to_status(
-        outbound_tracks,
-        state.track_id_and_peer_to_status,
-        endpoint_id
-      )
+    awaiting_links =
+      Map.update!(state.awaiting_links, endpoint_id, fn tracks_id_set ->
+        tracks_id = Enum.map(outbound_tracks, fn {track_id, _encoding} -> track_id end)
+        MapSet.union(tracks_id_set, MapSet.new(tracks_id))
+      end)
 
-    {links, track_id_and_peer_to_status} =
-      link_outbound_tracks(outbound_tracks, endpoint_id, track_id_and_peer_to_status, ctx)
+    {links, awaiting_links} =
+      link_outbound_tracks(outbound_tracks, endpoint_id, awaiting_links, ctx)
 
-    state = %{state | track_id_and_peer_to_status: track_id_and_peer_to_status}
+    state = %{state | awaiting_links: awaiting_links}
 
     {{:ok, [spec: %ParentSpec{links: links}]}, state}
   end
@@ -486,102 +469,66 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  defp link_inbound_track({track_id, encoding}, tee, track_id_and_peer_to_status, ctx) do
-    links_tracks_peers =
+  defp link_inbound_track({track_id, encoding}, tee, awaiting_links, ctx) do
+    links_peers =
       flat_map_children(ctx, fn
         {:endpoint, other_endpoint_id} = other_endpoint_name ->
-          case Map.get(track_id_and_peer_to_status, {other_endpoint_id, track_id}) do
-            :waiting_for_linking ->
-              [
-                link(tee)
-                |> via_out(:copy)
-                |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-                |> to(other_endpoint_name)
-                |> then(fn linked -> {linked, track_id, other_endpoint_id} end)
-              ]
+          tracks_set = Map.get(awaiting_links, other_endpoint_id)
 
-            _other ->
-              []
+          if MapSet.member?(tracks_set, track_id) do
+            [
+              link(tee)
+              |> via_out(:copy)
+              |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+              |> to(other_endpoint_name)
+              |> then(fn linked -> {linked, other_endpoint_id} end)
+            ]
+          else
+            []
           end
 
         _child ->
           []
       end)
 
-    track_id_and_peer_to_status =
-      update_track_id_and_peer_to_status(
-        links_tracks_peers,
-        track_id_and_peer_to_status
-      )
+    awaiting_links =
+      Enum.map(links_peers, fn {_link, peer} -> peer end)
+      |> Enum.reduce(awaiting_links, fn
+        peer_id, acc ->
+          Map.update!(acc, peer_id, fn tracks_set -> MapSet.delete(tracks_set, track_id) end)
+      end)
 
-    Enum.map(links_tracks_peers, fn {link, _track_id, _peer_id} -> link end)
-    |> then(fn links -> {links, track_id_and_peer_to_status} end)
+    Enum.map(links_peers, fn {link, _peer_id} -> link end)
+    |> then(fn links -> {links, awaiting_links} end)
   end
 
-  defp link_outbound_tracks(tracks, endpoint_id, track_id_and_peer_to_status, ctx) do
+  defp link_outbound_tracks(tracks, endpoint_id, awaiting_links, ctx) do
     ctx_keys = Map.keys(ctx.children)
 
-    links_tracks_peers =
+    tracks_set = Map.get(awaiting_links, endpoint_id)
+
+    links_tracks =
       for {track_id, encoding} <- tracks,
-          Map.get(track_id_and_peer_to_status, {endpoint_id, track_id}) == :waiting_for_linking,
+          MapSet.member?(tracks_set, track_id),
           {:tee, {_other_endpoint_id, ^track_id}} = tee <- ctx_keys do
         link(tee)
         |> via_out(:copy)
         |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
         |> to({:endpoint, endpoint_id})
-        |> then(fn linked -> {linked, track_id, endpoint_id} end)
+        |> then(fn linked -> {linked, track_id} end)
       end
 
-    track_id_and_peer_to_status =
-      update_track_id_and_peer_to_status(
-        links_tracks_peers,
-        track_id_and_peer_to_status
-      )
+    awaiting_links =
+      Enum.reduce(links_tracks, tracks_set, fn {_link, track_id}, acc ->
+        MapSet.delete(acc, track_id)
+      end)
+      |> then(fn tracks_id_to_remove ->
+        Map.put(awaiting_links, endpoint_id, tracks_id_to_remove)
+      end)
 
-    Enum.map(links_tracks_peers, fn {link, _track_id, _peer_id} -> link end)
-    |> then(&{&1, track_id_and_peer_to_status})
+    Enum.map(links_tracks, fn {link, _track_id} -> link end)
+    |> then(&{&1, awaiting_links})
   end
-
-  # defp link_tracks(tracks, track_id_and_peer_to_status, ctx) do
-  #   ctx_keys = Map.keys(ctx.children)
-
-  #   links_tracks_peers =
-  #     for {track_id, encoding} <- tracks,
-  #         {:tee, {_endpoint_id, ^track_id}} = tee <- ctx_keys,
-  #         {{^track_id, endpoint_id}, status} <- track_id_and_peer_to_status do
-  #       case status do
-  #         :waiting_for_linking ->
-  #           {link(tee)
-  #            |> via_out(:copy)
-  #            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-  #            |> to({:endpoint, endpoint_id}), track_id, endpoint_id}
-
-  #         _other ->
-  #           nil
-  #       end
-  #     end
-  #     |> Enum.filter(&(&1 != nil))
-
-  #   track_id_and_peer_to_status =
-  #     update_track_id_and_peer_to_status(links_tracks_peers, track_id_and_peer_to_status)
-
-  #   {Enum.map(links_tracks_peers, fn {link, _track, _peer} -> link end),
-  #    track_id_and_peer_to_status}
-  # end
-
-  defp update_track_id_and_peer_to_status(
-         tracks_and_peers,
-         track_id_and_peer_to_status,
-         endpoint_id \\ nil
-       ),
-       do:
-         Enum.reduce(tracks_and_peers, track_id_and_peer_to_status, fn
-           {_link, track_id, peer_id}, acc ->
-             Map.put(acc, {peer_id, track_id}, :linked)
-
-           {track_id, _encoding}, acc ->
-             Map.put(acc, {endpoint_id, track_id}, :waiting_for_linking)
-         end)
 
   defp get_peer_data(peer_id, peer, state) do
     endpoint = Map.get(state.endpoints, peer_id)
@@ -598,7 +545,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp do_accept_new_peer(peer_id, peer_node, data, ctx, state) do
-
     if Map.has_key?(state.peers, peer_id) do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
@@ -652,6 +598,8 @@ defmodule Membrane.RTC.Engine do
         log_metadata: [peer_id: config.id]
       }
     }
+
+    state = put_in(state, [:awaiting_links, config.id], MapSet.new())
 
     spec = %ParentSpec{
       node: peer_node,
