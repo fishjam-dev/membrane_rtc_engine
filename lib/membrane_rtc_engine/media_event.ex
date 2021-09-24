@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   def create_peer_accepted_event(peer_id, peers) do
     peers =
       Enum.map(peers, fn {id, peer} ->
-        %{id: id, metadata: peer.metadata, midToTrackMetadata: peer.mid_to_track_metadata}
+        %{id: id, metadata: peer.metadata, trackIdToMetadata: peer.tracks_metadata}
       end)
 
     %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers}}
@@ -22,15 +22,15 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(peer_id)
   end
 
-  @spec create_peer_joined_event(peer_id_t(), map(), map()) :: sfu_media_event_t()
-  def create_peer_joined_event(peer_id, metadata, mid_to_track_metadata) do
+  @spec create_peer_joined_event(peer_id_t(), map()) :: sfu_media_event_t()
+  def create_peer_joined_event(peer_id, peer) do
     %{
       type: "peerJoined",
       data: %{
         peer: %{
           id: peer_id,
-          metadata: metadata,
-          midToTrackMetadata: mid_to_track_metadata
+          metadata: peer.metadata,
+          trackIdToMetadata: peer.tracks_metadata
         }
       }
     }
@@ -43,6 +43,19 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       type: "peerLeft",
       data: %{
         peerId: peer_id
+      }
+    }
+    |> do_create(:broadcast)
+  end
+
+  @spec create_new_peer_tracks_event(peer_id_t(), map()) ::
+          sfu_media_event_t()
+  def create_new_peer_tracks_event(peer_id, track_id_to_metadata) do
+    %{
+      type: "newPeerTracks",
+      data: %{
+        peerId: peer_id,
+        trackIdToMetadata: track_id_to_metadata
       }
     }
     |> do_create(:broadcast)
@@ -76,6 +89,30 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(peer_id)
   end
 
+  @spec create_signal_event(peer_id_t(), {:signal, {:offer_data, String.t()}}) ::
+          sfu_media_event_t()
+  def create_signal_event(peer_id, {:signal, {:offer_data, tracks_types}}) do
+    %{
+      type: "offerData",
+      data: tracks_types
+    }
+    |> do_create(peer_id)
+  end
+
+  @spec create_signal_event(peer_id_t(), {:signal, {:sdp_answer, String.t(), map()}}) ::
+          sfu_media_event_t()
+  def create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_track_id}}) do
+    %{
+      type: "sdpAnswer",
+      data: %{
+        type: "answer",
+        sdp: answer,
+        midToTrackId: mid_to_track_id
+      }
+    }
+    |> do_create(peer_id)
+  end
+
   @spec create_error_event(to_t(), String.t()) :: sfu_media_event_t()
   def create_error_event(to, msg) do
     %{
@@ -104,13 +141,15 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     end
   end
 
+  defp do_deserialize(%{"type" => "renegotiateTracks"}) do
+    {:ok, %{type: :renegotiate_tracks}}
+  end
+
   defp do_deserialize(%{"type" => "join"} = event) do
     case event do
       %{
         "type" => "join",
         "data" => %{
-          "relayAudio" => relay_audio,
-          "relayVideo" => relay_video,
           "receiveMedia" => receive_media,
           "metadata" => metadata,
           "tracksMetadata" => tracks_metadata
@@ -120,8 +159,6 @@ defmodule Membrane.RTC.Engine.MediaEvent do
          %{
            type: :join,
            data: %{
-             relay_audio: relay_audio,
-             relay_video: relay_video,
              receive_media: receive_media,
              metadata: metadata,
              tracks_metadata: tracks_metadata
@@ -133,13 +170,13 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     end
   end
 
-  defp do_deserialize(%{"type" => "sdpAnswer"} = event) do
+  defp do_deserialize(%{"type" => "sdpOffer"} = event) do
     case event do
       %{
-        "type" => "sdpAnswer",
+        "type" => "sdpOffer",
         "data" => %{
-          "sdpAnswer" => %{
-            "type" => "answer",
+          "sdpOffer" => %{
+            "type" => "offer",
             "sdp" => sdp
           },
           "midToTrackMetadata" => mid_to_track_metadata
@@ -147,10 +184,10 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       } ->
         {:ok,
          %{
-           type: :sdp_answer,
+           type: :sdp_offer,
            data: %{
-             sdp_answer: %{
-               type: :answer,
+             sdp_offer: %{
+               type: :offer,
                sdp: sdp
              },
              mid_to_track_metadata: mid_to_track_metadata
