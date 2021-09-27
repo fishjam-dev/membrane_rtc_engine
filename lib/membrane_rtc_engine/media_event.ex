@@ -179,7 +179,8 @@ defmodule Membrane.RTC.Engine.MediaEvent do
             "type" => "offer",
             "sdp" => sdp
           },
-          "midToTrackMetadata" => mid_to_track_metadata
+          "midToTrackMetadata" => mid_to_track_metadata,
+          "midToTrackId" => mid_to_track_id
         }
       } ->
         {:ok,
@@ -190,7 +191,8 @@ defmodule Membrane.RTC.Engine.MediaEvent do
                type: :offer,
                sdp: sdp
              },
-             mid_to_track_metadata: mid_to_track_metadata
+             mid_to_track_metadata: mid_to_track_metadata,
+             mid_to_track_id: mid_to_track_id
            }
          }}
 

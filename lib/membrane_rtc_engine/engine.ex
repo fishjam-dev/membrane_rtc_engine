@@ -311,7 +311,9 @@ defmodule Membrane.RTC.Engine do
 
   defp handle_media_event(%{type: :sdp_offer} = event, peer_id, _ctx, state) do
     actions = [
-      forward: {{:endpoint, peer_id}, {:signal, {:sdp_offer, event.data.sdp_offer.sdp}}}
+      forward:
+        {{:endpoint, peer_id},
+         {:signal, {:sdp_offer, event.data.sdp_offer.sdp, event.data.mid_to_track_id}}}
     ]
 
     state =
@@ -573,7 +575,6 @@ defmodule Membrane.RTC.Engine do
 
     children = %{
       {:endpoint, config.id} => %EndpointBin{
-        endpoint_id: config.id,
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
         stun_servers: state.options[:network_options][:stun_servers] || [],
