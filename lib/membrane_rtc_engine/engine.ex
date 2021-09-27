@@ -110,6 +110,7 @@ defmodule Membrane.RTC.Engine do
   * `{:media_event, from, event}` - feed Media Event to SFU. `from` is id of peer
   that this Media event comes from.
   * `{:accept_new_peer, peer_id}` - accepts peer with id `peer_id`
+  * `{:accept_new_peer, peer_id, peer_node}` - accepts peer with id `peer_id` running on `peer_node`
   * `{:deny_new_peer, peer_id}` - denies peer with id `peer_id`
   * `{:remove_peer, peer_id}` - removes peer with id `peer_id`
 
@@ -158,6 +159,17 @@ defmodule Membrane.RTC.Engine do
         ]
 
   @typedoc """
+  A map pointing from encoding names to lists of packet filters that should be used for given encodings.
+
+  A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
+  It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
+  them are actively speaking.
+  """
+  @type packet_filters_t() :: %{
+          (encoding_name :: atom()) => [Membrane.RTP.SessionBin.packet_filter_t()]
+        }
+
+  @typedoc """
   SFU network configuration options.
 
   `dtls_pkey` and `dtls_cert` can be used e.g. when there are a lot of SFU instances
@@ -187,7 +199,10 @@ defmodule Membrane.RTC.Engine do
   @type options_t() :: [
           id: String.t(),
           extension_options: extension_options_t(),
-          network_options: network_options_t()
+          network_options: network_options_t(),
+          packet_filters: %{
+            (encoding_name :: atom()) => [packet_filters_t()]
+          }
         ]
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
@@ -222,7 +237,7 @@ defmodule Membrane.RTC.Engine do
   def handle_init(options) do
     play(self())
 
-    :turn_starter.start("abc", 3478)
+    # :turn_starter.start("abc", 3478)
 
     {{:ok, log_metadata: [sfu: options[:id]]},
      %{
@@ -230,7 +245,8 @@ defmodule Membrane.RTC.Engine do
        peers: %{},
        incoming_peers: %{},
        endpoints: %{},
-       options: options
+       options: options,
+       packet_filters: options[:packet_filters] || %{}
      }}
   end
 
@@ -270,43 +286,20 @@ defmodule Membrane.RTC.Engine do
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        if Map.has_key?(state.peers, peer_id) do
-          Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
-          {[], state}
-        else
-          peer = Map.put(data, :id, peer_id)
-          state = put_in(state, [:incoming_peers, peer_id], peer)
+        do_accept_new_peer(peer_id, node(), data, ctx, state)
 
-          turn_secret = "abc"
-          {:ok, turn_port, turn_pid} = :turn_starter.start(turn_secret)
+      {:accept_new_peer, ^peer_id, peer_node} ->
+        do_accept_new_peer(peer_id, peer_node, data, ctx, state)
 
-          peer_turn_servers =
-            get_turn_configs(peer_id, [
-              %{
-                relay_type: :udp,
-                secret: turn_secret,
-                server_addr: {127, 0, 0, 1},
-                server_port: turn_port,
-                pid: turn_pid
-              }
-            ])
-
-          {actions, state} = setup_peer(peer, peer_turn_servers, ctx, state)
-
-          peer_turn_servers = Enum.map(peer_turn_servers, &Map.delete(&1, :pid))
-
-          MediaEvent.create_peer_accepted_event(
-            peer_id,
-            Map.delete(state.peers, peer_id),
-            peer_turn_servers
-          )
-          |> dispatch()
-
-          {actions, state}
-        end
-
-      {:accept_new_peer, _other_peer_id} ->
+      {:accept_new_peer, peer_id} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
+        {[], state}
+
+      {:accept_new_peer, peer_id, peer_node} ->
+        Membrane.Logger.warn(
+          "Unknown peer id passed for acceptance: #{inspect(peer_id)} for node #{inspect(peer_node)}"
+        )
+
         {[], state}
 
       {:deny_new_peer, peer_id} ->
@@ -388,10 +381,14 @@ defmodule Membrane.RTC.Engine do
 
     extensions = setup_extensions(encoding, state[:options][:extension_options])
 
+    packet_filters = state.packet_filters[encoding] || []
+
     links =
       [
         link(endpoint_bin_name)
-        |> via_out(Pad.ref(:output, track_id), options: [extensions: extensions])
+        |> via_out(Pad.ref(:output, track_id),
+          options: [packet_filters: packet_filters, extensions: extensions]
+        )
         |> to(tee)
         |> via_out(:master)
         |> to(fake)
@@ -437,7 +434,42 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp setup_peer(config, turn_servers, ctx, state) do
+  defp do_accept_new_peer(peer_id, peer_node, data, ctx, state) do
+    if Map.has_key?(state.peers, peer_id) do
+      Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
+      {[], state}
+    else
+      peer = Map.put(data, :id, peer_id)
+      state = put_in(state, [:incoming_peers, peer_id], peer)
+
+      server_secret = "abc"
+      {:ok, server_port, server_pid} = :turn_starter.start(server_secret)
+
+      servers =
+        get_turn_configs(peer_id, [
+          %{
+            relay_type: :udp,
+            secret: server_secret,
+            server_addr: {127, 0, 0, 1},
+            server_port: server_port,
+            pid: server_pid
+          }
+        ])
+
+      {actions, state} = setup_peer(peer, peer_node, servers, ctx, state)
+
+      MediaEvent.create_peer_accepted_event(
+        peer_id,
+        Map.delete(state.peers, peer_id),
+        Enum.map(servers, &Map.delete(&1, :pid))
+      )
+      |> dispatch()
+
+      {actions, state}
+    end
+  end
+
+  defp setup_peer(config, peer_node, turn_servers, ctx, state) do
     inbound_tracks = create_inbound_tracks(config.relay_audio, config.relay_video)
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -478,7 +510,24 @@ defmodule Membrane.RTC.Engine do
 
     links = create_links(config.receive_media, endpoint_bin_name, ctx, state)
 
-    spec = %ParentSpec{children: children, links: links, crash_group: {config.id, :temporary}}
+    spec = %ParentSpec{
+      # node: peer_node,
+      children: children,
+      links: links,
+      crash_group: {config.id, :temporary}
+    }
+
+    server_pid_to_peer_id =
+      Enum.filter(turn_servers, &Map.has_key?(&1, :pid))
+      |> Map.new(&{&1.pid, config.id})
+
+    state =
+      Map.update(
+        state,
+        :server_pid_to_peer_id,
+        server_pid_to_peer_id,
+        &Map.merge(&1, server_pid_to_peer_id)
+      )
 
     state = put_in(state.endpoints[config.id], endpoint)
 

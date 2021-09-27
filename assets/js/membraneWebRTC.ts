@@ -142,8 +142,6 @@ export class MembraneWebRTC {
 
     this.callbacks = callbacks;
     this.rtcConfig = rtcConfig || this.rtcConfig;
-    // console.log("dupa");
-    // console.log(this.rtcConfig);
   }
 
   /**
@@ -210,7 +208,6 @@ export class MembraneWebRTC {
           deserializedMediaEvent.data.peersInRoom
         );
         let turnServers = deserializedMediaEvent.data.turn_servers;
-        console.log("mWRTC.ts 213 dupa:", deserializedMediaEvent.data);
 
         if (turnServers == []) {
           return [];
@@ -230,7 +227,6 @@ export class MembraneWebRTC {
             ),
             username: turnServer.username,
           };
-          console.log("mWRTC.ts 223 dupa: ", rtcIceServer);
           rtcIceServers.push(rtcIceServer);
         });
         if (this.rtcConfig.iceServers == null) {
@@ -326,6 +322,57 @@ export class MembraneWebRTC {
   }
 
   /**
+   * Replaces a track that is being sent to the SFU server.
+   * At the moment this assumes that only one video and one audio track is being sent.
+   * @param track - Audio or video track.
+   *
+   * @example
+   * ```ts
+   * // setup camera
+   * let localStream: MediaStream = new MediaStream();
+   * try {
+   *   localVideoStream = await navigator.mediaDevices.getUserMedia(
+   *     VIDEO_CONSTRAINTS
+   *   );
+   *   localVideoStream
+   *     .getTracks()
+   *     .forEach((track) => localStream.addTrack(track));
+   * } catch (error) {
+   *   console.error("Couldn't get camera permission:", error);
+   * }
+   *
+   * localStream
+   *  .getTracks()
+   *  .forEach((track) => webrtc.addTrack(track, localStream));
+   *
+   * // change camera
+   * const oldTrackId = localStream.getVideoTracks()[0].id;
+   * let videoDeviceId = "abcd-1234";
+   * navigator.mediaDevices.getUserMedia({
+   *      video: {
+   *        ...(VIDEO_CONSTRAINTS as {}),
+   *        deviceId: {
+   *          exact: videoDeviceId,
+   *        },
+   *      }
+   *   })
+   *   .then((stream) => {
+   *     let videoTrack = stream.getVideoTracks()[0];
+   *     webrtc.replaceTrack(oldTrackId, videoTrack);
+   *   })
+   *   .catch((error) => {
+   *     console.error('Error switching camera', error);
+   *   })
+   * ```
+   */
+  public async replaceTrack(oldTrackId: string, newTrack: MediaStreamTrack): Promise<any> {
+    const sender = this.connection!.getSenders().find((sender) => {
+      return sender!.track!.id === oldTrackId;
+    });
+    return sender!.replaceTrack(newTrack);
+  }
+
+  /**
    * Leaves the room. This function should be called when user leaves the room
    * in a clean way e.g. by clicking a dedicated, custom button `disconnect`.
    * As a result there will be generated one more media event that should be
@@ -359,8 +406,6 @@ export class MembraneWebRTC {
   private onOffer = async (offer: RTCSessionDescriptionInit) => {
     if (!this.connection) {
       this.connection = new RTCPeerConnection({ iceTransportPolicy: "relay", ...this.rtcConfig });
-      console.log("dupa sanity check");
-      // this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
       this.connection.ontrack = this.onTrack();
 
