@@ -66,7 +66,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       },
       files:
         ~w(lib mix.exs .formatter.exs LICENSE README.md) ++
-          ~w(assets/js assets/package.json assets/package-lock.json assets/tsconfig.json assets/webpack.config.js package.json)
+          ~w(assets/js assets/package.json assets/package-lock.json assets/tsconfig.json assets/esbuild.js package.json)
     ]
   end
 

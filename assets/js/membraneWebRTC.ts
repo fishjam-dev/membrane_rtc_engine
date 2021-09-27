@@ -1,9 +1,9 @@
 import {
+  MediaEvent,
   SerializedMediaEvent,
-  serializeMediaEvent,
   deserializeMediaEvent,
   generateMediaEvent,
-  MediaEvent,
+  serializeMediaEvent,
 } from "./mediaEvent";
 
 /**
