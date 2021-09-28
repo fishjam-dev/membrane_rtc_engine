@@ -322,7 +322,9 @@ defmodule Membrane.RTC.Engine do
         peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
         put_in(state, [:incoming_peers, peer_id], peer)
       else
-        state
+        peer = get_in(state, [:peers, peer_id])
+        peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
+        put_in(state, [:peers, peer_id], peer)
       end
 
     {actions, state}
@@ -458,7 +460,7 @@ defmodule Membrane.RTC.Engine do
     state =
       update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
 
-    tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
+    tracks_msgs = update_track_messages(ctx, {:add_tracks, tracks}, {:endpoint, endpoint_id})
 
     if not Map.has_key?(state.incoming_peers, endpoint_id) do
       peer = get_in(state, [:peers, endpoint_id])
@@ -467,6 +469,22 @@ defmodule Membrane.RTC.Engine do
       MediaEvent.create_new_peer_tracks_event(peer_id, peer.tracks_metadata)
       |> dispatch()
     end
+
+    {{:ok, tracks_msgs}, state}
+  end
+
+  @impl true
+  def handle_notification({:removed_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
+    id_to_track = Map.new(tracks, &{&1.id, &1})
+
+    state =
+      update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
+
+    tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, endpoint_id})
+    track_ids = Enum.map(tracks, & &1.id)
+
+    MediaEvent.create_removed_peer_tracks_event(endpoint_id, track_ids)
+    |> dispatch()
 
     {{:ok, tracks_msgs}, state}
   end
@@ -628,7 +646,7 @@ defmodule Membrane.RTC.Engine do
       {_peer, state} = pop_in(state, [:peers, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
 
-      tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, peer_id})
+      tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, peer_id})
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
 
@@ -654,11 +672,11 @@ defmodule Membrane.RTC.Engine do
 
   defp update_track_messages(_ctx, [] = _tracks, _endpoint_bin), do: []
 
-  defp update_track_messages(ctx, tracks, endpoint_bin_name) do
+  defp update_track_messages(ctx, msg, endpoint_bin_name) do
     flat_map_children(ctx, fn
       {:endpoint, _endpoint_id} = other_endpoint_bin
       when other_endpoint_bin != endpoint_bin_name ->
-        [forward: {other_endpoint_bin, {:add_tracks, tracks}}]
+        [forward: {other_endpoint_bin, msg}]
 
       _child ->
         []

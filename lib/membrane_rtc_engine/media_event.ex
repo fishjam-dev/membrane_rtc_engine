@@ -61,6 +61,19 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(:broadcast)
   end
 
+  @spec create_removed_peer_tracks_event(peer_id_t(), map()) ::
+          sfu_media_event_t()
+  def create_removed_peer_tracks_event(peer_id, track_ids) do
+    %{
+      type: "removedPeerTracks",
+      data: %{
+        peerId: peer_id,
+        trackIds: track_ids
+      }
+    }
+    |> do_create(:broadcast)
+  end
+
   @spec create_signal_event(peer_id_t(), {:signal, {:candidate, String.t(), non_neg_integer()}}) ::
           sfu_media_event_t()
   def create_signal_event(peer_id, {:signal, {:candidate, candidate, sdp_m_line_index}}) do
