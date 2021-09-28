@@ -464,7 +464,7 @@ export class MembraneWebRTC {
     const data = this.localTrackIdToTrackWrapper.get(track.id)!;
     data.metadata = trackMetadata;
     this.localTrackIdToTrackWrapper.set(track.id, data);
-    const midToData = this.localTracksMidToData();
+    const midToData = this.getMidsToData();
     if (!midToData) return;
     const localTracksMidToMetadata = midToData.midToMetadata;
     let mediaEvent = generateMediaEvent("updateTracksMetadata", {
@@ -473,7 +473,7 @@ export class MembraneWebRTC {
     this.sendMediaEvent(mediaEvent);
   };
 
-  private localTracksMidToData = (): { midToMetadata: {}; midToTrackId: {} } | null => {
+  private getMidsToData = (): { midToMetadata: {}; midToTrackId: {} } | null => {
     const localTrackMidToMetadata = {} as any;
     const localTrackMidToTrackId = {} as any;
 
@@ -563,7 +563,7 @@ export class MembraneWebRTC {
     try {
       const offer = await this.connection.createOffer();
       await this.connection.setLocalDescription(offer);
-      const data = this.localTracksMidToData();
+      const data = this.getMidsToData();
       if (!data) throw "No data for local tracks";
       const localTrackMidToMetadata = data.midToMetadata;
       const localTrackMidToTrackId = data.midToTrackId;
