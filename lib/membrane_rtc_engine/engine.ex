@@ -262,11 +262,17 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_other({:media_event, from, data}, ctx, state) do
+  def handle_other({:media_event, peer_id, data}, ctx, state) do
     case MediaEvent.deserialize(data) do
       {:ok, event} ->
-        {actions, state} = handle_media_event(event, from, ctx, state)
-        {{:ok, actions}, state}
+        if event.type == :join or Map.has_key?(state.peers, peer_id) or
+             Map.has_key?(state.incoming_peers, peer_id) do
+          {actions, state} = handle_media_event(event, peer_id, ctx, state)
+          {{:ok, actions}, state}
+        else
+          Membrane.Logger.warn("Received media event from unknown peer id: #{inspect(peer_id)}")
+          {:ok, state}
+        end
 
       {:error, :invalid_media_event} ->
         Membrane.Logger.warn("Invalid media event #{inspect(data)}")
@@ -343,6 +349,46 @@ defmodule Membrane.RTC.Engine do
   defp handle_media_event(%{type: :renegotiate_tracks}, peer_id, _ctx, state) do
     actions = [forward: {{:endpoint, peer_id}, {:signal, :renegotiate_tracks}}]
     {actions, state}
+  end
+
+  defp handle_media_event(
+         %{type: :update_peer_metadata, data: %{metadata: metadata}},
+         peer_id,
+         _ctx,
+         state
+       ) do
+    peer = Map.get(state.peers, peer_id)
+
+    if peer.metadata != metadata do
+      peer = %{peer | metadata: metadata}
+      state = put_in(state, [:peers, peer_id], peer)
+      {peer_id, peer} = get_peer_data(peer_id, peer, state)
+
+      MediaEvent.create_peer_updated_event(peer_id, peer)
+      |> dispatch()
+    end
+
+    {[], state}
+  end
+
+  defp handle_media_event(
+         %{type: :update_tracks_metadata, data: %{mid_to_track_metadata: mid_to_track_metadata}},
+         peer_id,
+         _ctx,
+         state
+       ) do
+    peer = Map.get(state.peers, peer_id)
+
+    if peer.mid_to_track_metadata != mid_to_track_metadata do
+      peer = %{peer | mid_to_track_metadata: mid_to_track_metadata}
+      state = put_in(state, [:peers, peer_id], peer)
+      {peer_id, peer} = get_peer_data(peer_id, peer, state)
+
+      MediaEvent.create_peer_updated_event(peer_id, peer)
+      |> dispatch()
+    end
+
+    {[], state}
   end
 
   @impl true

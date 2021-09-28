@@ -74,6 +74,19 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(:broadcast)
   end
 
+  @spec create_peer_updated_event(peer_id_t(), map()) :: sfu_media_event_t()
+  def create_peer_updated_event(peer_id, peer) do
+    %{
+      type: "peerUpdated",
+      data: %{
+        peerId: peer_id,
+        metadata: peer.metadata,
+        trackIdToMetadata: peer.tracks_metadata
+      }
+    }
+    |> do_create(:broadcast)
+  end
+
   @spec create_signal_event(peer_id_t(), {:signal, {:candidate, String.t(), non_neg_integer()}}) ::
           sfu_media_event_t()
   def create_signal_event(peer_id, {:signal, {:candidate, candidate, sdp_m_line_index}}) do
@@ -229,6 +242,48 @@ defmodule Membrane.RTC.Engine.MediaEvent do
            data: %{
              candidate: candidate,
              sdp_m_line_index: sdp_m_line_index
+           }
+         }}
+
+      _other ->
+        {:error, :invalid_media_event}
+    end
+  end
+
+  defp do_deserialize(%{"type" => "updatePeerMetadata"} = event) do
+    case event do
+      %{
+        "type" => "updatePeerMetadata",
+        "data" => %{
+          "metadata" => peer_metadata
+        }
+      } ->
+        {:ok,
+         %{
+           type: :update_peer_metadata,
+           data: %{
+             metadata: peer_metadata
+           }
+         }}
+
+      _other ->
+        {:error, :invalid_media_event}
+    end
+  end
+
+  defp do_deserialize(%{"type" => "updateTracksMetadata"} = event) do
+    case event do
+      %{
+        "type" => "updateTracksMetadata",
+        "data" => %{
+          "midToTrackMetadata" => tracks_metadata
+        }
+      } ->
+        {:ok,
+         %{
+           type: :update_tracks_metadata,
+           data: %{
+             mid_to_track_metadata: tracks_metadata
            }
          }}
 
