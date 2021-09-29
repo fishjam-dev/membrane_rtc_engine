@@ -463,8 +463,8 @@ defmodule Membrane.RTC.Engine do
         ctx,
         state
       ) do
-    {new_links, new_waiting_for_linking} =
-      link_outbound_tracks(new_outbound_tracks, endpoint_id, ctx)
+    {new_links, actions, new_waiting_for_linking, state} =
+      link_outbound_tracks(new_outbound_tracks, endpoint_id, ctx, state)
 
     state =
       update_in(
@@ -473,7 +473,7 @@ defmodule Membrane.RTC.Engine do
         &MapSet.union(&1, new_waiting_for_linking)
       )
 
-    {{:ok, [spec: %ParentSpec{links: new_links}]}, state}
+    {{:ok, [spec: %ParentSpec{links: new_links}] ++ actions}, state}
   end
 
   @impl true
@@ -550,7 +550,7 @@ defmodule Membrane.RTC.Engine do
           MapSet.member?(state.waiting_for_linking[endpoint_id], track_id) ->
             # Link track to new UDP receiver on remote node
             new_spec = %ParentSpec{
-              children: %{track_source => NodeProxy.Source},
+              children: %{track_source => Membrane.NodeProxy.Source},
               links: [
                 link(track_source)
                 |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
@@ -579,25 +579,73 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp link_outbound_tracks(tracks, endpoint_id, ctx) do
-    Enum.reduce(tracks, {[], MapSet.new()}, fn
-      {track_id, encoding}, {new_links, not_linked} ->
+  defp link_outbound_tracks(tracks, endpoint_id, ctx, state) do
+    endpoint = ctx.children[{:endpoint, endpoint_id}]
+    endpoint_node = node(endpoint.pid)
+
+    Enum.reduce(tracks, {[], [], MapSet.new(), state}, fn
+      {track_id, encoding}, {new_links, actions, not_linked, state} ->
         tee = find_child(ctx, pattern: {:tee, {_other_endpoint_id, ^track_id}})
 
-        if tee do
-          new_link =
-            link(tee)
-            |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-            |> to({:endpoint, endpoint_id})
-
-          {new_links ++ [new_link], not_linked}
+        if is_nil(tee) do
+          {new_links, actions, MapSet.put(not_linked, track_id), state}
         else
-          {new_links, MapSet.put(not_linked, track_id)}
+          tee_child_entry = ctx.children[tee]
+          tee_node = node(tee_child_entry.pid)
+
+          track_source_id = {endpoint_node, track_id}
+          track_source = {:track_source, track_source_id}
+
+          cond do
+            tee_node == endpoint_node ->
+              # Link track to endpoint on the same node
+              new_link =
+                link(tee)
+                |> via_out(:copy)
+                |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+                |> to({:endpoint, endpoint_id})
+
+              {new_links ++ [new_link], actions, not_linked, state}
+
+            state.cross_node_track_receivers[track_source_id] ->
+              # Link track to existing UDP receiver on endpoint's node
+              new_spec = %ParentSpec{
+                links: [
+                  link(track_source)
+                  |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+                  |> to({:endpoint, endpoint_id})
+                ],
+                node: endpoint_node
+              }
+
+              {new_links, actions ++ [spec: new_spec], not_linked, state}
+
+            true ->
+              # Link track to new UDP receiver on remote node
+              new_spec = %ParentSpec{
+                children: %{track_source => Membrane.NodeProxy.Source},
+                links: [
+                  link(track_source)
+                  |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+                  |> to({:endpoint, endpoint_id}),
+                  link(track_source)
+                  |> via_out(:data_channel)
+                  |> via_in(Pad.ref(:data_channel, endpoint_id))
+                  |> to(tee)
+                ],
+                node: endpoint_node
+              }
+
+              cross_node_track_receivers =
+                Map.put(state.cross_node_track_receivers, track_source_id, track_source)
+
+              {new_links, actions ++ [spec: new_spec], not_linked,
+               %{state | cross_node_track_receivers: cross_node_track_receivers}}
+          end
         end
 
-      _track, {new_links, not_linked} ->
-        {new_links, not_linked}
+      _track, {new_links, actions, not_linked, state} ->
+        {new_links, actions, not_linked, state}
     end)
   end
 
