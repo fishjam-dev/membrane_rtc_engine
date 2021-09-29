@@ -415,35 +415,28 @@ defmodule Membrane.RTC.Engine do
     )
 
     {:endpoint, endpoint_id} = endpoint_bin_name
-
+    endpoint = ctx.children[endpoint_bin_name]
+    endpoint_node = node(endpoint.pid)
     tee = {:tee, {endpoint_id, track_id}}
-    fake = {:fake, {endpoint_id, track_id}}
-
-    children = %{
-      tee => Membrane.Element.Tee.Master,
-      fake => Membrane.Element.Fake.Sink.Buffers
-    }
-
     extensions = setup_extensions(encoding, state[:options][:extension_options])
-
     packet_filters = state.packet_filters[encoding] || []
 
-    link_to_fake =
+    link_to_tee = [
       link(endpoint_bin_name)
       |> via_out(Pad.ref(:output, track_id),
         options: [packet_filters: packet_filters, extensions: extensions]
       )
       |> to(tee)
-      |> via_out(:master)
-      |> to(fake)
+    ]
 
-    {links, waiting_for_linking} =
-      link_inbound_track({track_id, encoding}, tee, state.waiting_for_linking, ctx)
+    {local_links, track_link_actions, state} =
+      inbound_track_specs({track_id, encoding}, endpoint_node, tee, ctx, state)
 
-    spec = %ParentSpec{
-      children: children,
-      links: [link_to_fake | links],
-      crash_group: {endpoint_id, :temporary}
+    new_track_spec = %ParentSpec{
+      children: %{tee => Membrane.NodeProxy.Tee},
+      crash_group: {endpoint_id, :temporary},
+      links: link_to_tee ++ local_links,
+      node: endpoint_node
     }
 
     state =
@@ -453,9 +446,7 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    state = %{state | waiting_for_linking: waiting_for_linking}
-
-    {{:ok, [spec: spec]}, state}
+    {{:ok, [spec: new_track_spec] ++ track_link_actions}, state}
   end
 
   @impl true
@@ -517,26 +508,28 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  defp link_inbound_track({track_id, encoding}, tee, waiting_for_linking, ctx) do
-    reduce_children(ctx, {[], waiting_for_linking}, fn
-      {:endpoint, endpoint_id}, {new_links, waiting_for_linking} ->
-        if MapSet.member?(waiting_for_linking[endpoint_id], track_id) do
-          new_link =
+  defp inbound_track_specs({track_id, encoding}, _track_endpoint_node, tee, ctx, state) do
+    reduce_children(ctx, {[], [], state}, fn
+      {{:endpoint, endpoint_id}, _child_entry}, {local_links, new_specs, state} ->
+        if MapSet.member?(state.waiting_for_linking[endpoint_id], track_id) do
+          new_links = [
             link(tee)
             |> via_out(:copy)
             |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
             |> to({:endpoint, endpoint_id})
+          ]
 
           waiting_for_linking =
-            Map.update!(waiting_for_linking, endpoint_id, &MapSet.delete(&1, track_id))
+            Map.update!(state.waiting_for_linking, endpoint_id, &MapSet.delete(&1, track_id))
 
-          {new_links ++ [new_link], waiting_for_linking}
+          {local_links ++ new_links, new_specs,
+           %{state | waiting_for_linking: waiting_for_linking}}
         else
-          {new_links, waiting_for_linking}
+          {local_links, new_specs, state}
         end
 
-      _other_child, {new_links, waiting_for_linking} ->
-        {new_links, waiting_for_linking}
+      _other_child, {local_links, new_specs, state} ->
+        {local_links, new_specs, state}
     end)
   end
 
@@ -596,7 +589,6 @@ defmodule Membrane.RTC.Engine do
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
-    # TODO `type` field should probably be deleted from Endpoint struct
     endpoint =
       Endpoint.new(config.id, :participant, inbound_tracks, %{receive_media: config.receive_media})
 
@@ -682,7 +674,7 @@ defmodule Membrane.RTC.Engine do
           children =
             Endpoint.get_tracks(endpoint)
             |> Enum.map(fn track -> track.id end)
-            |> Enum.flat_map(&[tee: {peer_id, &1}, fake: {peer_id, &1}])
+            |> Enum.flat_map(&[tee: {peer_id, &1}])
             |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
           children = [endpoint: peer_id] ++ children
@@ -699,7 +691,7 @@ defmodule Membrane.RTC.Engine do
 
   defp update_track_messages(ctx, msg, endpoint_bin_name) do
     flat_map_children(ctx, fn
-      {:endpoint, _endpoint_id} = other_endpoint_bin
+      {{:endpoint, _endpoint_id} = other_endpoint_bin, _child_entry}
       when other_endpoint_bin != endpoint_bin_name ->
         [forward: {other_endpoint_bin, msg}]
 
