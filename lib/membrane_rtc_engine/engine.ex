@@ -234,6 +234,7 @@ defmodule Membrane.RTC.Engine do
     {{:ok, log_metadata: [sfu: options[:id]]},
      %{
        id: options[:id],
+       cross_node_track_receivers: %{},
        peers: %{},
        endpoints: %{},
        options: options,
@@ -508,28 +509,73 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  defp inbound_track_specs({track_id, encoding}, _track_endpoint_node, tee, ctx, state) do
+  defp inbound_track_specs({track_id, encoding}, track_endpoint_node, tee, ctx, state) do
     reduce_children(ctx, {[], [], state}, fn
-      {{:endpoint, endpoint_id}, _child_entry}, {local_links, new_specs, state} ->
-        if MapSet.member?(state.waiting_for_linking[endpoint_id], track_id) do
-          new_links = [
-            link(tee)
-            |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
-            |> to({:endpoint, endpoint_id})
-          ]
+      {{:endpoint, endpoint_id}, child_entry}, {local_links, actions, state} ->
+        other_endpoint_node = node(child_entry.pid)
+        track_source_id = {other_endpoint_node, track_id}
+        track_source = {:track_source, track_source_id}
 
-          waiting_for_linking =
-            Map.update!(state.waiting_for_linking, endpoint_id, &MapSet.delete(&1, track_id))
+        cond do
+          track_endpoint_node == other_endpoint_node and
+              MapSet.member?(state.waiting_for_linking[endpoint_id], track_id) ->
+            # Link track to endpoints on the same node
+            new_links = [
+              link(tee)
+              |> via_out(:copy)
+              |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+              |> to({:endpoint, endpoint_id})
+            ]
 
-          {local_links ++ new_links, new_specs,
-           %{state | waiting_for_linking: waiting_for_linking}}
-        else
-          {local_links, new_specs, state}
+            waiting_for_linking =
+              Map.update!(state.waiting_for_linking, endpoint_id, &MapSet.delete(&1, track_id))
+
+            {local_links ++ new_links, actions,
+             %{state | waiting_for_linking: waiting_for_linking}}
+
+          MapSet.member?(state.waiting_for_linking[endpoint_id], track_id) and
+              state.cross_node_track_receivers[track_source_id] ->
+            # Link track to existing UDP receiver on remote node
+            new_spec = %ParentSpec{
+              links: [
+                link(track_source)
+                |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+                |> to({:endpoint, endpoint_id})
+              ],
+              node: other_endpoint_node
+            }
+
+            {local_links, actions ++ [spec: new_spec], state}
+
+          MapSet.member?(state.waiting_for_linking[endpoint_id], track_id) ->
+            # Link track to new UDP receiver on remote node
+            new_spec = %ParentSpec{
+              children: %{track_source => NodeProxy.Source},
+              links: [
+                link(track_source)
+                |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+                |> to({:endpoint, endpoint_id}),
+                link(track_source)
+                |> via_out(:data_channel)
+                |> via_in(Pad.ref(:data_channel, endpoint_id))
+                |> to(tee)
+              ],
+              node: other_endpoint_node
+            }
+
+            cross_node_track_receivers =
+              Map.put(state.cross_node_track_receivers, track_source_id, track_source)
+
+            {local_links, actions ++ [spec: new_spec],
+             %{state | cross_node_track_receivers: cross_node_track_receivers}}
+
+          true ->
+            # Endpoint should not receive track
+            {local_links, actions, state}
         end
 
-      _other_child, {local_links, new_specs, state} ->
-        {local_links, new_specs, state}
+      _other_child, {local_links, actions, state} ->
+        {local_links, actions, state}
     end)
   end
 
