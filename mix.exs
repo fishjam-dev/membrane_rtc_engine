@@ -81,9 +81,16 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp compile_ts(_) do
     Mix.shell().info("Installing npm dependencies")
-    {result, exit_status} = System.cmd("npm", ["ci"], cd: "assets")
-    Mix.shell().info(result)
-    if exit_status != 0, do: raise("Failed to install npm dependecies")
+
+    case packages_installed?() do
+      :ok ->
+        Mix.shell().info("* Already installed")
+
+      :error ->
+        {result, exit_status} = System.cmd("npm", ["ci"], cd: "assets")
+        Mix.shell().info(result)
+        if exit_status != 0, do: raise("Failed to install npm dependecies")
+    end
 
     Mix.shell().info("Compiling TS files")
     {result, exit_status} = System.cmd("npm", ["run", "build"], cd: "assets")
@@ -96,5 +103,20 @@ defmodule Membrane.RTC.Engine.MixProject do
     {result, exit_status} = System.cmd("npm", ["run", "docs"], cd: "assets")
     Mix.shell().info(result)
     if exit_status != 0, do: raise("Failed to generate TS docs")
+  end
+
+  defp packages_installed?() do
+    System.cmd("npm", ["outdated", "--prefix", "assets"])
+    |> case do
+      {output, 0} ->
+        missing = output |> String.split("\n") |> Enum.filter(&Regex.match?(~r/MISSING/, &1))
+
+        if length(missing) > 0,
+          do: :error,
+          else: :ok
+
+      {_output, _} ->
+        :error
+    end
   end
 end
