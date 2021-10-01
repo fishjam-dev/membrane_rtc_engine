@@ -425,8 +425,8 @@ export class MembraneWebRTC {
     return false;
   }
 
-  public removeTrack(trackId: string) {
-    const sender = this.findSender(trackId);
+  public removeTrack(track: MediaStreamTrack) {
+    const sender = this.findSender(track.id);
     this.connection!.removeTrack(sender);
     let mediaEvent = generateMediaEvent("renegotiateTracks", {});
     this.sendMediaEvent(mediaEvent);
