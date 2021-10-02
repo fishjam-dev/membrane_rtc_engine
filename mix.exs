@@ -106,7 +106,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   end
 
   defp packages_installed?() do
-    System.cmd("npm", ["outdated", "--prefix", "assets"])
+    System.cmd("npm", ["outdated", "--prefix", "assets", "--prefer-offline"])
     |> case do
       {output, 0} ->
         missing = output |> String.split("\n") |> Enum.filter(&Regex.match?(~r/MISSING/, &1))
