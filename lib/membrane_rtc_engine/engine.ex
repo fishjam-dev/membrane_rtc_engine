@@ -262,15 +262,15 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_other({:media_event, peer_id, data}, ctx, state) do
+  def handle_other({:media_event, from, data}, ctx, state) do
     case MediaEvent.deserialize(data) do
       {:ok, event} ->
-        if event.type == :join or Map.has_key?(state.peers, peer_id) or
-             Map.has_key?(state.incoming_peers, peer_id) do
-          {actions, state} = handle_media_event(event, peer_id, ctx, state)
+        if event.type == :join or Map.has_key?(state.peers, from) or
+             Map.has_key?(state.incoming_peers, from) do
+          {actions, state} = handle_media_event(event, from, ctx, state)
           {{:ok, actions}, state}
         else
-          Membrane.Logger.warn("Received media event from unknown peer id: #{inspect(peer_id)}")
+          Membrane.Logger.warn("Received media event from unknown peer id: #{inspect(from)}")
           {:ok, state}
         end
 
@@ -325,11 +325,11 @@ defmodule Membrane.RTC.Engine do
     state =
       if Map.has_key?(state.incoming_peers, peer_id) do
         {peer, state} = pop_in(state, [:incoming_peers, peer_id])
-        peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
+        peer = Map.put(peer, :track_id_to_track_metadata, event.data.track_id_to_track_metadata)
         put_in(state, [:incoming_peers, peer_id], peer)
       else
         peer = get_in(state, [:peers, peer_id])
-        peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
+        peer = Map.put(peer, :track_id_to_track_metadata, event.data.track_id_to_track_metadata)
         put_in(state, [:peers, peer_id], peer)
       end
 
@@ -362,33 +362,38 @@ defmodule Membrane.RTC.Engine do
     if peer.metadata != metadata do
       peer = %{peer | metadata: metadata}
       state = put_in(state, [:peers, peer_id], peer)
-      {peer_id, peer} = get_peer_data(peer_id, peer, state)
 
       MediaEvent.create_peer_updated_event(peer_id, peer)
       |> dispatch()
-    end
 
-    {[], state}
+      {[], state}
+    else
+      {[], state}
+    end
   end
 
   defp handle_media_event(
-         %{type: :update_tracks_metadata, data: %{mid_to_track_metadata: mid_to_track_metadata}},
+         %{
+           type: :update_track_metadata,
+           data: %{track_id_to_track_metadata: track_id_to_track_metadata}
+         },
          peer_id,
          _ctx,
          state
        ) do
     peer = Map.get(state.peers, peer_id)
 
-    if peer.mid_to_track_metadata != mid_to_track_metadata do
-      peer = %{peer | mid_to_track_metadata: mid_to_track_metadata}
+    if peer.track_id_to_track_metadata != track_id_to_track_metadata do
+      peer = %{peer | track_id_to_track_metadata: track_id_to_track_metadata}
       state = put_in(state, [:peers, peer_id], peer)
-      {peer_id, peer} = get_peer_data(peer_id, peer, state)
 
       MediaEvent.create_peer_updated_event(peer_id, peer)
       |> dispatch()
-    end
 
-    {[], state}
+      {:ok, state}
+    else
+      {:ok, state}
+    end
   end
 
   @impl true
@@ -405,7 +410,6 @@ defmodule Membrane.RTC.Engine do
       if Map.has_key?(state.incoming_peers, peer_id) do
         {peer, state} = pop_in(state, [:incoming_peers, peer_id])
         state = put_in(state, [:peers, peer_id], peer)
-        {peer_id, peer} = get_peer_data(peer_id, peer, state)
         MediaEvent.create_peer_joined_event(peer_id, peer) |> dispatch()
         state
       else
@@ -510,9 +514,8 @@ defmodule Membrane.RTC.Engine do
 
     if not Map.has_key?(state.incoming_peers, endpoint_id) do
       peer = get_in(state, [:peers, endpoint_id])
-      {peer_id, peer} = get_peer_data(endpoint_id, peer, state)
 
-      MediaEvent.create_new_peer_tracks_event(peer_id, peer.tracks_metadata)
+      MediaEvent.create_new_peer_tracks_event(endpoint_id, peer.track_id_to_metadata)
       |> dispatch()
     end
 
@@ -580,14 +583,6 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp get_peer_data(peer_id, peer, state) do
-    endpoint = Map.get(state.endpoints, peer_id)
-    tracks = Endpoint.get_tracks(endpoint)
-    mid_to_track_metadata = peer.mid_to_track_metadata
-    tracks_metadata = Map.new(tracks, &{&1.id, Map.get(mid_to_track_metadata, &1.mid)})
-    {peer_id, Map.put(peer, :tracks_metadata, tracks_metadata)}
-  end
-
   defp dispatch(msg) do
     Registry.dispatch(get_registry_name(), self(), fn entries ->
       for {_, pid} <- entries, do: send(pid, {self(), msg})
@@ -603,10 +598,7 @@ defmodule Membrane.RTC.Engine do
       state = put_in(state, [:incoming_peers, peer_id], peer)
       {actions, state} = setup_peer(peer, peer_node, ctx, state)
 
-      peers_in_room =
-        Map.new(state.peers, fn {peer_id, peer} -> get_peer_data(peer_id, peer, state) end)
-
-      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(peers_in_room, peer_id))
+      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
       |> dispatch()
 
       {actions, state}

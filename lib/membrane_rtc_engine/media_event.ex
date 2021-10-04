@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   def create_peer_accepted_event(peer_id, peers) do
     peers =
       Enum.map(peers, fn {id, peer} ->
-        %{id: id, metadata: peer.metadata, trackIdToMetadata: peer.tracks_metadata}
+        %{id: id, metadata: peer.metadata, trackIdToMetadata: peer.track_id_to_track_metadata}
       end)
 
     %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers}}
@@ -30,7 +30,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
         peer: %{
           id: peer_id,
           metadata: peer.metadata,
-          trackIdToMetadata: peer.tracks_metadata
+          trackIdToMetadata: peer.track_id_to_track_metadata
         }
       }
     }
@@ -81,7 +81,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       data: %{
         peerId: peer_id,
         metadata: peer.metadata,
-        trackIdToMetadata: peer.tracks_metadata
+        trackIdToMetadata: peer.track_id_to_track_metadata
       }
     }
     |> do_create(:broadcast)
@@ -205,7 +205,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
             "type" => "offer",
             "sdp" => sdp
           },
-          "midToTrackMetadata" => mid_to_track_metadata,
+          "trackIdToTrackMetadata" => track_id_to_track_metadata,
           "midToTrackId" => mid_to_track_id
         }
       } ->
@@ -217,7 +217,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
                type: :offer,
                sdp: sdp
              },
-             mid_to_track_metadata: mid_to_track_metadata,
+             track_id_to_track_metadata: track_id_to_track_metadata,
              mid_to_track_id: mid_to_track_id
            }
          }}
@@ -271,17 +271,17 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     end
   end
 
-  defp do_deserialize(%{"type" => "updateTracksMetadata"} = event) do
+  defp do_deserialize(%{"type" => "updateTrackMetadata"} = event) do
     case event do
       %{
-        "type" => "updateTracksMetadata",
+        "type" => "updateTrackMetadata",
         "data" => %{
-          "midToTrackMetadata" => tracks_metadata
+          "trackIdToTrackMetadata" => tracks_metadata
         }
       } ->
         {:ok,
          %{
-           type: :update_tracks_metadata,
+           type: :update_track_metadata,
            data: %{
              mid_to_track_metadata: tracks_metadata
            }
