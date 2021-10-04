@@ -106,10 +106,11 @@ defmodule Membrane.RTC.Engine.MixProject do
   end
 
   defp packages_installed?() do
-    System.cmd("npm", ["outdated", "--prefix", "assets", "--prefer-offline"])
+    System.cmd("npm", ["ls", "--prefix", "assets", "--prefer-offline"], stderr_to_stdout: true)
     |> case do
       {output, 0} ->
-        missing = output |> String.split("\n") |> Enum.filter(&Regex.match?(~r/MISSING/, &1))
+        missing =
+          output |> String.split("\n") |> Enum.filter(&Regex.match?(~r/UNMET DEPENDENCY/, &1))
 
         if length(missing) > 0,
           do: :error,
