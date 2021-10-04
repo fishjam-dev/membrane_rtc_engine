@@ -89,6 +89,10 @@ export interface Callbacks {
    */
   onTrackReady?: (ctx: TrackContext) => void;
   /**
+   * Called each time the peer which was already in the room, adds new track.
+   */
+  onTrackAdded?: (ctx: TrackContext) => void;
+  /**
    * Called when some track will no longer be sent.
    *
    * At this moment there is only one situation in which this callback is invoked i.e. when peer
@@ -114,10 +118,6 @@ export interface Callbacks {
    * Called in case of errors related to multimedia session e.g. ICE connection.
    */
   onConnectionError?: (message: string) => void;
-  /**
-   * Called each time the peer which was already in the room, adds new tracks.
-   */
-  onNewPeerTracks?: (peer: Peer, trackIdToMetadata: Map<string, any>) => void;
 }
 
 interface TrackWrapper {
@@ -237,7 +237,10 @@ export class MembraneWebRTC {
         peer = this.idToPeer.get(data.peerId)!;
         peer.trackIdToMetadata = new Map([...peer.trackIdToMetadata, ...data.trackIdToMetadata]);
         this.idToPeer.set(peer.id, peer);
-        this.callbacks.onNewPeerTracks?.(peer, data.trackIdToMetadata);
+        Array.from(peer.trackIdToMetadata.keys()).forEach((trackId) => {
+          const trackContext = this.trackIdToTrack.get(trackId)!!;
+          this.callbacks.onTrackAdded?.(trackContext);
+        });
         break;
       case "removedPeerTracks":
         data = deserializedMediaEvent.data;
