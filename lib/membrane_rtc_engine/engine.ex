@@ -281,7 +281,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(%{type: :join, data: data}, peer_id, ctx, state) do
-    dispatch({:new_peer, peer_id, data.metadata, data.tracks_metadata})
+    dispatch({:new_peer, peer_id, data.metadata})
 
     receive do
       {:accept_new_peer, ^peer_id} ->
@@ -375,7 +375,7 @@ defmodule Membrane.RTC.Engine do
   defp handle_media_event(
          %{
            type: :update_track_metadata,
-           data: %{track_id_to_track_metadata: track_id_to_track_metadata}
+           data: %{track_id: track_id, track_metadata: track_metadata}
          },
          peer_id,
          _ctx,
@@ -383,16 +383,16 @@ defmodule Membrane.RTC.Engine do
        ) do
     peer = Map.get(state.peers, peer_id)
 
-    if peer.track_id_to_track_metadata != track_id_to_track_metadata do
-      peer = %{peer | track_id_to_track_metadata: track_id_to_track_metadata}
+    if Map.get(peer.track_id_to_track_metadata, track_id) != track_metadata do
+      peer = Map.update!(peer, :track_id_to_track_metadata, &%{&1 | track_id => track_metadata})
       state = put_in(state, [:peers, peer_id], peer)
 
       MediaEvent.create_peer_updated_event(peer_id, peer)
       |> dispatch()
 
-      {:ok, state}
+      {[], state}
     else
-      {:ok, state}
+      {[], state}
     end
   end
 
@@ -515,7 +515,7 @@ defmodule Membrane.RTC.Engine do
     if not Map.has_key?(state.incoming_peers, endpoint_id) do
       peer = get_in(state, [:peers, endpoint_id])
 
-      MediaEvent.create_new_peer_tracks_event(endpoint_id, peer.track_id_to_metadata)
+      MediaEvent.create_new_peer_tracks_event(endpoint_id, peer.track_id_to_track_metadata)
       |> dispatch()
     end
 
@@ -532,7 +532,7 @@ defmodule Membrane.RTC.Engine do
     tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, endpoint_id})
     track_ids = Enum.map(tracks, & &1.id)
 
-    MediaEvent.create_removed_peer_tracks_event(endpoint_id, track_ids)
+    MediaEvent.create_peer_tracks_removed_event(endpoint_id, track_ids)
     |> dispatch()
 
     {{:ok, tracks_msgs}, state}
