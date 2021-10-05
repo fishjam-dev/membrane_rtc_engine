@@ -82,14 +82,12 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp compile_ts(_) do
     Mix.shell().info("Installing npm dependencies")
 
-    case packages_installed?() do
-      :ok ->
-        Mix.shell().info("* Already installed")
-
-      :error ->
-        {result, exit_status} = System.cmd("npm", ["ci"], cd: "assets")
-        Mix.shell().info(result)
-        if exit_status != 0, do: raise("Failed to install npm dependecies")
+    if packages_installed?() do
+      Mix.shell().info("* Already installed")
+    else
+      {result, exit_status} = System.cmd("npm", ["ci"], cd: "assets")
+      Mix.shell().info(result)
+      if exit_status != 0, do: raise("Failed to install npm dependecies")
     end
 
     Mix.shell().info("Compiling TS files")
@@ -113,11 +111,11 @@ defmodule Membrane.RTC.Engine.MixProject do
           output |> String.split("\n") |> Enum.filter(&Regex.match?(~r/UNMET DEPENDENCY/, &1))
 
         if length(missing) > 0,
-          do: :error,
-          else: :ok
+          do: false,
+          else: true
 
       {_output, _} ->
-        :error
+        false
     end
   end
 end
