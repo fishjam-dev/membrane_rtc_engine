@@ -108,7 +108,9 @@ defmodule Membrane.RTC.Engine.MixProject do
     |> case do
       {output, 0} ->
         missing =
-          output |> String.split("\n") |> Enum.filter(&Regex.match?(~r/UNMET DEPENDENCY/, &1))
+          output
+          |> String.split("\n")
+          |> Enum.filter(&Regex.match?(~r/UNMET DEPENDENCY|empty/, &1))
 
         if length(missing) > 0,
           do: false,
