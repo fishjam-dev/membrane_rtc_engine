@@ -80,8 +80,20 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       type: "peerUpdated",
       data: %{
         peerId: peer_id,
-        metadata: peer.metadata,
-        trackIdToMetadata: peer.track_id_to_track_metadata
+        metadata: peer.metadata
+      }
+    }
+    |> do_create(:broadcast)
+  end
+
+  @spec create_track_updated_event(peer_id_t(), String.t(), map()) :: sfu_media_event_t()
+  def create_track_updated_event(peer_id, track_id, metadata) do
+    %{
+      type: "trackUpdated",
+      data: %{
+        peerId: peer_id,
+        trackId: track_id,
+        metadata: metadata
       }
     }
     |> do_create(:broadcast)

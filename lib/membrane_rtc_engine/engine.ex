@@ -387,7 +387,7 @@ defmodule Membrane.RTC.Engine do
       peer = Map.update!(peer, :track_id_to_track_metadata, &%{&1 | track_id => track_metadata})
       state = put_in(state, [:peers, peer_id], peer)
 
-      MediaEvent.create_peer_updated_event(peer_id, peer)
+      MediaEvent.create_track_updated_event(peer_id, track_id, track_metadata)
       |> dispatch()
 
       {[], state}

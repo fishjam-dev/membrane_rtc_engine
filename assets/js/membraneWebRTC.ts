@@ -110,9 +110,13 @@ export interface Callbacks {
    */
   onPeerLeft?: (peer: Peer) => void;
   /**
-   * Called each time peer has its metadata or track metadata updated.
+   * Called each time peer has its metadata updated.
    */
   onPeerUpdated?: (peer: Peer) => void;
+  /**
+   * Called each time peer has its track metadata updated.
+   */
+  onTrackUpdated?: (ctx: TrackContext) => void;
 
   /**
    * Called in case of errors related to multimedia session e.g. ICE connection.
@@ -266,10 +270,9 @@ export class MembraneWebRTC {
 
       case "peerJoined":
         peer = deserializedMediaEvent.data.peer;
-        if (peer.id != this.id) {
-          this.addPeer(peer);
-          this.callbacks.onPeerJoined?.(peer);
-        }
+        if (peer.id != this.id) return;
+        this.addPeer(peer);
+        this.callbacks.onPeerJoined?.(peer);
         break;
 
       case "peerLeft":
@@ -282,15 +285,21 @@ export class MembraneWebRTC {
       case "peerUpdated":
         if (this.id == deserializedMediaEvent.data.peerId) return;
         peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
-        if (peer) {
-          peer.metadata = deserializedMediaEvent.data.metadata;
-          peer.trackIdToMetadata = deserializedMediaEvent.data.trackIdToMetadata as Map<
-            string,
-            any
-          >;
-          this.addPeer(peer);
-          this.callbacks.onPeerUpdated?.(peer);
-        }
+        if (!peer) throw "Peer doesn't exist";
+        peer.metadata = deserializedMediaEvent.data.metadata;
+        this.addPeer(peer);
+        this.callbacks.onPeerUpdated?.(peer);
+        break;
+      case "trackUpdated":
+        if (this.id == deserializedMediaEvent.data.peerId) return;
+        peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
+        if (!peer) throw "Peer doesn't exist";
+        const trackId = deserializedMediaEvent.data.trackId;
+        const trackMetadata = deserializedMediaEvent.data.metadata;
+        peer.trackIdToMetadata.set(trackId, trackMetadata);
+        const trackContext = this.trackIdToTrack.get(trackId)!;
+        trackContext.metadata = trackMetadata;
+        this.callbacks.onTrackUpdated?.(trackContext);
         break;
 
       case "error":
