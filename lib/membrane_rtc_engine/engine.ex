@@ -139,14 +139,6 @@ defmodule Membrane.RTC.Engine do
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @type stun_server_t() :: ExLibnice.stun_server()
-  @type turn_server_t() ::
-          ExLibnice.relay_info()
-          | %{
-              server_addr: :inet.ip_address() | ExLibnice.fqdn(),
-              server_port: 0..65_535,
-              secret: String.t(),
-              relay_type: :udp | :tcp | :tls
-            }
 
   @typedoc """
   List of RTP extensions to use.
@@ -186,7 +178,10 @@ defmodule Membrane.RTC.Engine do
   """
   @type network_options_t() :: [
           stun_servers: [stun_server_t()],
-          turn_servers: [turn_server_t()],
+          turn_settings: [
+            ip: :inet.ip_v4(),
+            secret: String.t()
+          ],
           dtls_pkey: binary(),
           dtls_cert: binary()
         ]
@@ -237,8 +232,6 @@ defmodule Membrane.RTC.Engine do
   def handle_init(options) do
     play(self())
 
-    # :turn_starter.start("abc", 3478)
-
     {{:ok, log_metadata: [sfu: options[:id]]},
      %{
        id: options[:id],
@@ -246,7 +239,9 @@ defmodule Membrane.RTC.Engine do
        incoming_peers: %{},
        endpoints: %{},
        options: options,
-       packet_filters: options[:packet_filters] || %{}
+       packet_filters: options[:packet_filters] || %{},
+       turn_ip: options[:network_options][:turn_settings][:ip],
+       turn_secret: options[:network_options][:turn_settings][:secret]
      }}
   end
 
@@ -442,26 +437,32 @@ defmodule Membrane.RTC.Engine do
       peer = Map.put(data, :id, peer_id)
       state = put_in(state, [:incoming_peers, peer_id], peer)
 
-      server_secret = "abc"
-      {:ok, server_port, server_pid} = :turn_starter.start(server_secret)
+      turn_servers =
+        [:udp, :tcp]
+        |> Enum.map(fn transport ->
+          {:ok, port, pid} =
+            :turn_starter.start(
+              state.turn_secret,
+              ip: state.turn_ip,
+              transport: transport
+            )
 
-      servers =
-        get_turn_configs(peer_id, [
           %{
-            relay_type: :udp,
-            secret: server_secret,
-            server_addr: {127, 0, 0, 1},
-            server_port: server_port,
-            pid: server_pid
+            relay_type: transport,
+            secret: state.turn_secret,
+            server_addr: state.turn_ip,
+            server_port: port,
+            pid: pid
           }
-        ])
+        end)
+        |> then(&get_turn_configs(peer_id, &1))
 
-      {actions, state} = setup_peer(peer, peer_node, servers, ctx, state)
+      {actions, state} = setup_peer(peer, peer_node, turn_servers, ctx, state)
 
       MediaEvent.create_peer_accepted_event(
         peer_id,
         Map.delete(state.peers, peer_id),
-        Enum.map(servers, &Map.delete(&1, :pid))
+        Enum.map(turn_servers, &Map.delete(&1, :pid))
       )
       |> dispatch()
 
