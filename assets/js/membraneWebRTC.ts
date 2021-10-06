@@ -270,7 +270,7 @@ export class MembraneWebRTC {
 
       case "peerJoined":
         peer = deserializedMediaEvent.data.peer;
-        if (peer.id != this.id) return;
+        if (peer.id == this.id) return;
         this.addPeer(peer);
         this.callbacks.onPeerJoined?.(peer);
         break;
