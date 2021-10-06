@@ -82,7 +82,7 @@ export interface Callbacks {
   onJoinError?: (metadata: any) => void;
 
   /**
-   * Called when a new track appears.
+   * Called when a new track appears and is ready.
    *
    * This callback is always called after a new peer joins so after calling {@link onPeerJoined}.
    * @param ctx - Contains information about the new track.
@@ -95,9 +95,7 @@ export interface Callbacks {
   /**
    * Called when some track will no longer be sent.
    *
-   * At this moment there is only one situation in which this callback is invoked i.e. when peer
-   * leaves the room. In such scenario, this callback will be invoked for each track this peer
-   * was sending and then {@link onPeerLeft} will be called.
+   * It will also be called before {@link onPeerLeft} for each track of this peer.
    */
   onTrackRemoved?: (ctx: TrackContext) => void;
   /**
@@ -268,16 +266,17 @@ export class MembraneWebRTC {
         break;
 
       case "peerLeft":
-        peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
-        if (peer) {
-          this.erasePeer(peer);
-          this.callbacks.onPeerLeft?.(peer);
-        }
+        peer = this.idToPeer.get(deserializedMediaEvent.data.peerId)!;
+        if (peer.id === this.getPeerId()) return;
+        Array.from(peer.trackIdToMetadata.keys()).forEach((trackId) =>
+          this.callbacks.onTrackRemoved?.(this.trackIdToTrack.get(trackId)!)
+        );
+        this.erasePeer(peer);
+        this.callbacks.onPeerLeft?.(peer);
         break;
       case "peerUpdated":
         if (this.getPeerId() === deserializedMediaEvent.data.peerId) return;
-        peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
-        if (!peer) throw "Peer doesn't exist";
+        peer = this.idToPeer.get(deserializedMediaEvent.data.peerId)!;
         peer.metadata = deserializedMediaEvent.data.metadata;
         this.addPeer(peer);
         this.callbacks.onPeerUpdated?.(peer);
@@ -691,15 +690,6 @@ export class MembraneWebRTC {
       };
 
       this.trackIdToTrack.set(trackId, trackContext);
-
-      stream.onremovetrack = (e) => {
-        const hasTracks = stream.getTracks().length > 0;
-
-        if (!hasTracks) {
-          stream.onremovetrack = null;
-        }
-        this.callbacks.onTrackRemoved?.(trackContext);
-      };
 
       this.callbacks.onTrackReady?.(trackContext);
     };
