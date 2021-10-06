@@ -48,11 +48,11 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(:broadcast)
   end
 
-  @spec create_new_peer_tracks_event(peer_id_t(), map()) ::
+  @spec create_tracks_added_event(peer_id_t(), map()) ::
           sfu_media_event_t()
-  def create_new_peer_tracks_event(peer_id, track_id_to_metadata) do
+  def create_tracks_added_event(peer_id, track_id_to_metadata) do
     %{
-      type: "newPeerTracks",
+      type: "tracksAdded",
       data: %{
         peerId: peer_id,
         trackIdToMetadata: track_id_to_metadata
@@ -61,11 +61,11 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(:broadcast)
   end
 
-  @spec create_peer_tracks_removed_event(peer_id_t(), map()) ::
+  @spec create_tracks_removed_event(peer_id_t(), map()) ::
           sfu_media_event_t()
-  def create_peer_tracks_removed_event(peer_id, track_ids) do
+  def create_tracks_removed_event(peer_id, track_ids) do
     %{
-      type: "peerTracksRemoved",
+      type: "tracksRemoved",
       data: %{
         peerId: peer_id,
         trackIds: track_ids

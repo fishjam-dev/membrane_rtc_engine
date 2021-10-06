@@ -100,7 +100,10 @@ export interface Callbacks {
    * was sending and then {@link onPeerLeft} will be called.
    */
   onTrackRemoved?: (ctx: TrackContext) => void;
-
+  /**
+   * Called each time peer has its track metadata updated.
+   */
+  onTrackUpdated?: (ctx: TrackContext) => void;
   /**
    * Called each time new peer joins the room.
    */
@@ -113,10 +116,6 @@ export interface Callbacks {
    * Called each time peer has its metadata updated.
    */
   onPeerUpdated?: (peer: Peer) => void;
-  /**
-   * Called each time peer has its track metadata updated.
-   */
-  onTrackUpdated?: (ctx: TrackContext) => void;
 
   /**
    * Called in case of errors related to multimedia session e.g. ICE connection.
@@ -124,17 +123,10 @@ export interface Callbacks {
   onConnectionError?: (message: string) => void;
 }
 
-interface TrackWrapper {
-  trackId: string;
-  metadata: any;
-}
-
 /**
  * Main class that is responsible for connecting to the SFU server, sending and receiving media.
  */
 export class MembraneWebRTC {
-  private id?: string;
-
   private receiveMedia: boolean;
 
   private localTracksWithStreams: {
@@ -144,6 +136,8 @@ export class MembraneWebRTC {
   private trackIdToTrack: Map<string, TrackContext> = new Map();
   private connection?: RTCPeerConnection;
   private idToPeer: Map<String, Peer> = new Map();
+  private localPeer: Peer = { id: "", metadata: {}, trackIdToMetadata: new Map() };
+  private localTrackIdToTrack: Map<string, TrackContext> = new Map();
   private midToTrackId: Map<string, string> = new Map();
   private readonly rtcConfig: RTCConfiguration = {
     iceServers: [
@@ -179,6 +173,7 @@ export class MembraneWebRTC {
    */
   public join = (peerMetadata: any): void => {
     try {
+      this.localPeer.metadata = peerMetadata;
       let mediaEvent = generateMediaEvent("join", {
         receiveMedia: this.receiveMedia,
         metadata: peerMetadata,
@@ -212,8 +207,7 @@ export class MembraneWebRTC {
     let data;
     switch (deserializedMediaEvent.type) {
       case "peerAccepted":
-        this.id = deserializedMediaEvent.data.id;
-        this.addPeer({ id: this.id!, metadata: {}, trackIdToMetadata: {} } as Peer);
+        this.localPeer.id = deserializedMediaEvent.data.id;
         this.callbacks.onJoinSuccess?.(
           deserializedMediaEvent.data.id,
           deserializedMediaEvent.data.peersInRoom
@@ -233,9 +227,9 @@ export class MembraneWebRTC {
         this.onOfferData(offerData);
         break;
 
-      case "newPeerTracks":
+      case "tracksAdded":
         data = deserializedMediaEvent.data;
-        if (this.id === data.peerId) return;
+        if (this.getPeerId() === data.peerId) return;
         data.trackIdToMetadata = new Map<string, any>(Object.entries(data.trackIdToMetadata));
         peer = this.idToPeer.get(data.peerId)!;
         peer.trackIdToMetadata = new Map([...peer.trackIdToMetadata, ...data.trackIdToMetadata]);
@@ -245,17 +239,15 @@ export class MembraneWebRTC {
           this.callbacks.onTrackAdded?.(trackContext);
         });
         break;
-      case "peerTrackRemoved":
+      case "tracksRemoved":
         data = deserializedMediaEvent.data;
         const peerId = data.peerId;
-        if (this.id === data.peerId) return;
+        if (this.getPeerId() === data.peerId) return;
         const trackIds = data.trackIds as string[];
         trackIds.forEach((trackId) => {
-          if (this.trackIdToTrack.has(trackId)) {
-            const trackContext = this.trackIdToTrack.get(trackId)!;
-            this.callbacks.onTrackRemoved!(trackContext);
-            this.eraseTrack(trackId, peerId);
-          }
+          const trackContext = this.trackIdToTrack.get(trackId)!;
+          this.callbacks.onTrackRemoved!(trackContext);
+          this.eraseTrack(trackId, peerId);
         });
         break;
 
@@ -270,7 +262,7 @@ export class MembraneWebRTC {
 
       case "peerJoined":
         peer = deserializedMediaEvent.data.peer;
-        if (peer.id == this.id) return;
+        if (peer.id === this.getPeerId()) return;
         this.addPeer(peer);
         this.callbacks.onPeerJoined?.(peer);
         break;
@@ -283,7 +275,7 @@ export class MembraneWebRTC {
         }
         break;
       case "peerUpdated":
-        if (this.id == deserializedMediaEvent.data.peerId) return;
+        if (this.getPeerId() === deserializedMediaEvent.data.peerId) return;
         peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
         if (!peer) throw "Peer doesn't exist";
         peer.metadata = deserializedMediaEvent.data.metadata;
@@ -291,9 +283,9 @@ export class MembraneWebRTC {
         this.callbacks.onPeerUpdated?.(peer);
         break;
       case "trackUpdated":
-        if (this.id == deserializedMediaEvent.data.peerId) return;
+        if (this.getPeerId() === deserializedMediaEvent.data.peerId) return;
         peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
-        if (!peer) throw "Peer doesn't exist";
+        if (!peer) throw `Peer with id: ${deserializedMediaEvent.data.peerId} doesn't exist`;
         const trackId = deserializedMediaEvent.data.trackId;
         const trackMetadata = deserializedMediaEvent.data.metadata;
         peer.trackIdToMetadata.set(trackId, trackMetadata);
@@ -316,7 +308,7 @@ export class MembraneWebRTC {
    * @param trackMetadata - Any information about this track that other peers will
    * receive in {@link onPeerJoined}. E.g. this can source of the track - wheather it's
    * screensharing, webcam or some other media device.
-   *
+   * @returns {string} Return generated trackId
    * @example
    * ```ts
    * let localStream: MediaStream = new MediaStream();
@@ -352,17 +344,16 @@ export class MembraneWebRTC {
     stream: MediaStream,
     trackMetadata: any = new Map()
   ): string {
-    if (this.id == null) throw "You are not connected to SFU";
+    if (this.getPeerId() === "") throw "Cannot add tracks before being accepted by the server";
     const trackId = this.getTrackId(uuidv4());
     this.localTracksWithStreams.push({ track, stream });
 
-    const peer = this.idToPeer.get(this.id)!;
-    peer.trackIdToMetadata.set(trackId, trackMetadata);
-    this.trackIdToTrack.set(trackId, {
+    this.localPeer.trackIdToMetadata.set(trackId, trackMetadata);
+    this.localTrackIdToTrack.set(trackId, {
       track,
       stream,
       trackId,
-      peer,
+      peer: this.localPeer,
       metadata: trackMetadata,
     });
 
@@ -373,7 +364,7 @@ export class MembraneWebRTC {
         .getTransceivers()
         .forEach(
           (trans) =>
-            (trans.direction = trans.direction == "sendrecv" ? "sendonly" : trans.direction)
+            (trans.direction = trans.direction === "sendrecv" ? "sendonly" : trans.direction)
         );
     }
     let mediaEvent = generateMediaEvent("renegotiateTracks", {});
@@ -384,7 +375,7 @@ export class MembraneWebRTC {
   /**
    * Replaces a track that is being sent to the SFU server.
    * @param track - Audio or video track.
-   * @param {MediaStreamTrack} oldTrack - Audio or video track to replace.
+   * @param {string} trackId - Audio or video track to replace.
    * @param {MediaStreamTrack} newTrack
    * @param {any} [newMetadata] - Optional track metadata to apply to the new track. If no
    *                              track metadata is passed, the old track metadata is retained.
@@ -429,19 +420,19 @@ export class MembraneWebRTC {
    * ```
    */
   public async replaceTrack(
-    oldTrackId: string,
+    trackId: string,
     newTrack: MediaStreamTrack,
     newTrackMetadata?: any
   ): Promise<boolean> {
-    const trackContext = this.getTrackContext(oldTrackId);
+    const trackContext = this.localTrackIdToTrack.get(trackId)!;
     const sender = this.findSender(trackContext.track.id);
     if (sender) {
       return sender
         .replaceTrack(newTrack)
         .then(() => {
-          const trackMetadata = newTrackMetadata || this.trackIdToTrack.get(oldTrackId)!.metadata;
+          const trackMetadata = newTrackMetadata || this.localTrackIdToTrack.get(trackId)!.metadata;
           trackContext.track = newTrack;
-          this.updateTrackMetadata(oldTrackId, trackMetadata);
+          this.updateTrackMetadata(trackId, trackMetadata);
           return true;
         })
         .catch(() => false);
@@ -450,8 +441,35 @@ export class MembraneWebRTC {
     return false;
   }
 
+  /**
+   * Remove a track from connection that was being sent to the SFU server.
+   * @param {string} trackId - Audio or video track to remove.
+   * @example
+   * ```ts
+   * // setup camera
+   * let localStream: MediaStream = new MediaStream();
+   * try {
+   *   localVideoStream = await navigator.mediaDevices.getUserMedia(
+   *     VIDEO_CONSTRAINTS
+   *   );
+   *   localVideoStream
+   *     .getTracks()
+   *     .forEach((track) => localStream.addTrack(track));
+   * } catch (error) {
+   *   console.error("Couldn't get camera permission:", error);
+   * }
+   *
+   * let trackId
+   * localStream
+   *  .getTracks()
+   *  .forEach((track) => trackId = webrtc.addTrack(track, localStream));
+   *
+   * // remove track
+   * webrtc.removeTrack(trackId)
+   * ```
+   */
   public removeTrack(trackId: string) {
-    const trackContext = this.getTrackContext(trackId);
+    const trackContext = this.localTrackIdToTrack.get(trackId)!;
     const sender = this.findSender(trackContext.track.id);
     this.connection!.removeTrack(sender);
     let mediaEvent = generateMediaEvent("renegotiateTracks", {});
@@ -480,30 +498,24 @@ export class MembraneWebRTC {
 
   /**
    * Updates the metadata for a specific track.
-   * @param track - Audio or video track.
+   * @param trackId - trackId (generated in addTrack) of audio or video track.
    * @param trackMetadata - Data about this track that other peers will receive upon joining.
    *
    * If the metadata is different from what is already tracked in the room, the optional
-   * callback `onPeerUpdated` will be triggered for other peers in the room.
+   * callback `onTrackUpdated` will be triggered for other peers in the room.
    */
   public updateTrackMetadata = (trackId: string, trackMetadata: any): void => {
-    const trackContext = this.getTrackContext(trackId);
+    const trackContext = this.localTrackIdToTrack.get(trackId)!;
     trackContext.metadata = trackMetadata;
-    this.trackIdToTrack.set(trackId, trackContext);
-    const peer = this.idToPeer.get(this.id!)!;
-    peer.trackIdToMetadata.set(trackId, trackMetadata);
+    this.localTrackIdToTrack.set(trackId, trackContext);
+
+    this.localPeer.trackIdToMetadata.set(trackId, trackMetadata);
     let mediaEvent = generateMediaEvent("updateTrackMetadata", {
       trackId,
       trackMetadata,
     });
     this.sendMediaEvent(mediaEvent);
   };
-
-  private getTrackContext(trackId: string): TrackContext {
-    const trackContext = this.trackIdToTrack.get(trackId);
-    if (!trackContext) throw "Track with this id doesn't exist";
-    return trackContext;
-  }
 
   private getMidToTrackId = () => {
     const localTrackMidToTrackId = {} as any;
@@ -512,12 +524,11 @@ export class MembraneWebRTC {
     this.connection.getTransceivers().forEach((transceiver) => {
       const localTrackId = transceiver.sender.track?.id;
       const mid = transceiver.mid;
-      const peer = this.idToPeer.get(this.id!)!;
-      const trackIds = peer.trackIdToMetadata.keys();
-      const tracks = Array.from(trackIds).map((track) => this.trackIdToTrack.get(track));
+      const trackIds = this.localPeer.trackIdToMetadata.keys();
+      const tracks = Array.from(trackIds).map((track) => this.localTrackIdToTrack.get(track));
 
       if (localTrackId && mid) {
-        const trackContext = tracks.find((track) => track!.track.id == localTrackId)!;
+        const trackContext = tracks.find((track) => track!.track.id === localTrackId)!;
         localTrackMidToTrackId[mid] = trackContext.trackId;
       }
     });
@@ -552,7 +563,7 @@ export class MembraneWebRTC {
   };
 
   private getTrackId(uuid: string): string {
-    return `${this.id}:${uuid} `;
+    return `${this.getPeerId()}:${uuid} `;
   }
 
   private sendMediaEvent = (mediaEvent: MediaEvent) => {
@@ -610,8 +621,7 @@ export class MembraneWebRTC {
 
   private getTrackIdToMetadata = () => {
     const trackIdToMetadata = {} as any;
-    const peer = this.idToPeer.get(this.id!)!;
-    Array.from(peer.trackIdToMetadata.entries()).forEach(([trackId, metadata]) => {
+    Array.from(this.localPeer.trackIdToMetadata.entries()).forEach(([trackId, metadata]) => {
       trackIdToMetadata[trackId] = metadata;
     });
     return trackIdToMetadata;
@@ -639,7 +649,6 @@ export class MembraneWebRTC {
   private onRemoteCandidate = (candidate: RTCIceCandidate) => {
     try {
       const iceCandidate = new RTCIceCandidate(candidate);
-      if (iceCandidate.sdpMLineIndex == null || iceCandidate.sdpMid == null) return;
       if (!this.connection) {
         throw new Error("Received new remote candidate but RTCConnection is undefined");
       }
@@ -718,4 +727,6 @@ export class MembraneWebRTC {
     this.midToTrackId.delete(mid);
     this.idToPeer.get(peerId)!.trackIdToMetadata.delete(trackId);
   };
+
+  private getPeerId = () => this.localPeer.id;
 }

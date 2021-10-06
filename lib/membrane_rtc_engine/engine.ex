@@ -360,8 +360,7 @@ defmodule Membrane.RTC.Engine do
     peer = Map.get(state.peers, peer_id)
 
     if peer.metadata != metadata do
-      peer = %{peer | metadata: metadata}
-      state = put_in(state, [:peers, peer_id], peer)
+      state = put_in(state, [:peers, peer_id, metadata], metadata)
 
       MediaEvent.create_peer_updated_event(peer_id, peer)
       |> dispatch()
@@ -515,7 +514,7 @@ defmodule Membrane.RTC.Engine do
     if not Map.has_key?(state.incoming_peers, endpoint_id) do
       peer = get_in(state, [:peers, endpoint_id])
 
-      MediaEvent.create_new_peer_tracks_event(endpoint_id, peer.track_id_to_track_metadata)
+      MediaEvent.create_tracks_added_event(endpoint_id, peer.track_id_to_track_metadata)
       |> dispatch()
     end
 
@@ -532,7 +531,7 @@ defmodule Membrane.RTC.Engine do
     tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, endpoint_id})
     track_ids = Enum.map(tracks, & &1.id)
 
-    MediaEvent.create_peer_tracks_removed_event(endpoint_id, track_ids)
+    MediaEvent.create_tracks_removed_event(endpoint_id, track_ids)
     |> dispatch()
 
     {{:ok, tracks_msgs}, state}
