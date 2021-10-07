@@ -244,7 +244,7 @@ export class MembraneWebRTC {
         const trackIds = data.trackIds as string[];
         trackIds.forEach((trackId) => {
           const trackContext = this.trackIdToTrack.get(trackId)!;
-          this.callbacks.onTrackRemoved!(trackContext);
+          this.callbacks.onTrackRemoved?.(trackContext);
           this.eraseTrack(trackId, peerId);
         });
         break;
@@ -307,7 +307,7 @@ export class MembraneWebRTC {
    * @param trackMetadata - Any information about this track that other peers will
    * receive in {@link onPeerJoined}. E.g. this can source of the track - wheather it's
    * screensharing, webcam or some other media device.
-   * @returns {string} Return generated trackId
+   * @returns {string} Returns id of added track
    * @example
    * ```ts
    * let localStream: MediaStream = new MediaStream();
@@ -374,7 +374,7 @@ export class MembraneWebRTC {
   /**
    * Replaces a track that is being sent to the SFU server.
    * @param track - Audio or video track.
-   * @param {string} trackId - Audio or video track to replace.
+   * @param {string} trackId - Id of audio or video track to replace.
    * @param {MediaStreamTrack} newTrack
    * @param {any} [newMetadata] - Optional track metadata to apply to the new track. If no
    *                              track metadata is passed, the old track metadata is retained.
@@ -393,10 +393,10 @@ export class MembraneWebRTC {
    * } catch (error) {
    *   console.error("Couldn't get camera permission:", error);
    * }
-   *
+   * let oldTrackId;
    * localStream
    *  .getTracks()
-   *  .forEach((track) => webrtc.addTrack(track, localStream));
+   *  .forEach((track) => trackId = webrtc.addTrack(track, localStream));
    *
    * // change camera
    * const oldTrack = localStream.getVideoTracks()[0];
@@ -411,7 +411,7 @@ export class MembraneWebRTC {
    *   })
    *   .then((stream) => {
    *     let videoTrack = stream.getVideoTracks()[0];
-   *     webrtc.replaceTrack(oldTrack, videoTrack);
+   *     webrtc.replaceTrack(oldTrackId, videoTrack);
    *   })
    *   .catch((error) => {
    *     console.error('Error switching camera', error);
@@ -442,7 +442,7 @@ export class MembraneWebRTC {
 
   /**
    * Remove a track from connection that was being sent to the SFU server.
-   * @param {string} trackId - Audio or video track to remove.
+   * @param {string} trackId - Id of audio or video track to remove.
    * @example
    * ```ts
    * // setup camera
