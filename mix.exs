@@ -49,7 +49,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false},
-      {:stun, git: "git@github.com:FelonEkonom/stun.git", branch: "turn-api-in-rtc-engine"}
+      {:stun, git: "git@github.com:membraneframework/stun.git", branch: "turn-api-in-rtc-engine"}
     ]
   end
 
