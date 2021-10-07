@@ -326,7 +326,8 @@ defmodule Membrane.RTC.Engine do
       if Map.has_key?(state.incoming_peers, peer_id) do
         {peer, state} = pop_in(state, [:incoming_peers, peer_id])
         peer = Map.put(peer, :track_id_to_track_metadata, event.data.track_id_to_track_metadata)
-        put_in(state, [:incoming_peers, peer_id], peer)
+        MediaEvent.create_peer_joined_event(peer_id, peer) |> dispatch()
+        put_in(state, [:peers, peer_id], peer)
       else
         peer = get_in(state, [:peers, peer_id])
         peer = Map.put(peer, :track_id_to_track_metadata, event.data.track_id_to_track_metadata)
@@ -404,16 +405,6 @@ defmodule Membrane.RTC.Engine do
       ) do
     MediaEvent.create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_track_id}})
     |> dispatch()
-
-    state =
-      if Map.has_key?(state.incoming_peers, peer_id) do
-        {peer, state} = pop_in(state, [:incoming_peers, peer_id])
-        state = put_in(state, [:peers, peer_id], peer)
-        MediaEvent.create_peer_joined_event(peer_id, peer) |> dispatch()
-        state
-      else
-        state
-      end
 
     {:ok, state}
   end
@@ -511,12 +502,10 @@ defmodule Membrane.RTC.Engine do
 
     tracks_msgs = update_track_messages(ctx, {:add_tracks, tracks}, {:endpoint, endpoint_id})
 
-    if not Map.has_key?(state.incoming_peers, endpoint_id) do
-      peer = get_in(state, [:peers, endpoint_id])
+    peer = get_in(state, [:peers, endpoint_id])
 
-      MediaEvent.create_tracks_added_event(endpoint_id, peer.track_id_to_track_metadata)
-      |> dispatch()
-    end
+    MediaEvent.create_tracks_added_event(endpoint_id, peer.track_id_to_track_metadata)
+    |> dispatch()
 
     {{:ok, tracks_msgs}, state}
   end

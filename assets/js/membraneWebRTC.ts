@@ -91,7 +91,7 @@ export interface Callbacks {
   /**
    * Called each time the peer which was already in the room, adds new track.
    */
-  onTrackAdded?: (ctx: TrackContext) => void;
+  onTrackAdded?: (trackId: string) => void;
   /**
    * Called when some track will no longer be sent.
    *
@@ -233,8 +233,8 @@ export class MembraneWebRTC {
         peer.trackIdToMetadata = new Map([...peer.trackIdToMetadata, ...data.trackIdToMetadata]);
         this.idToPeer.set(peer.id, peer);
         Array.from(peer.trackIdToMetadata.keys()).forEach((trackId) => {
-          const trackContext = this.trackIdToTrack.get(trackId)!!;
-          this.callbacks.onTrackAdded?.(trackContext);
+          // const trackContext = this.trackIdToTrack.get(trackId)!!;
+          this.callbacks.onTrackAdded?.(trackId);
         });
         break;
       case "tracksRemoved":
