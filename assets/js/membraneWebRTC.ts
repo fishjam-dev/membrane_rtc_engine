@@ -233,7 +233,6 @@ export class MembraneWebRTC {
         peer.trackIdToMetadata = new Map([...peer.trackIdToMetadata, ...data.trackIdToMetadata]);
         this.idToPeer.set(peer.id, peer);
         Array.from(peer.trackIdToMetadata.keys()).forEach((trackId) => {
-          // const trackContext = this.trackIdToTrack.get(trackId)!!;
           this.callbacks.onTrackAdded?.(trackId);
         });
         break;
@@ -284,7 +283,7 @@ export class MembraneWebRTC {
       case "trackUpdated":
         if (this.getPeerId() === deserializedMediaEvent.data.peerId) return;
         peer = this.idToPeer.get(deserializedMediaEvent.data.peerId);
-        if (!peer) throw `Peer with id: ${deserializedMediaEvent.data.peerId} doesn't exist`;
+        if (peer == null) throw `Peer with id: ${deserializedMediaEvent.data.peerId} doesn't exist`;
         const trackId = deserializedMediaEvent.data.trackId;
         const trackMetadata = deserializedMediaEvent.data.metadata;
         peer.trackIdToMetadata.set(trackId, trackMetadata);
