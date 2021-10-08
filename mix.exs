@@ -38,8 +38,8 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.7.0"},
-      {:membrane_webrtc_plugin, "0.1.0-alpha.2"},
+      {:membrane_core, github: "membraneframework/membrane_core", override: true},
+      {:membrane_webrtc_plugin, "~> 0.1.0-alpha.3"},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
@@ -66,7 +66,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       },
       files:
         ~w(lib mix.exs .formatter.exs LICENSE README.md) ++
-          ~w(assets/js assets/package.json assets/package-lock.json assets/tsconfig.json assets/webpack.config.js package.json)
+          ~w(assets/js assets/package.json assets/package-lock.json assets/tsconfig.json assets/esbuild.js package.json)
     ]
   end
 
@@ -81,9 +81,14 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp compile_ts(_) do
     Mix.shell().info("Installing npm dependencies")
-    {result, exit_status} = System.cmd("npm", ["ci"], cd: "assets")
-    Mix.shell().info(result)
-    if exit_status != 0, do: raise("Failed to install npm dependecies")
+
+    if packages_installed?() do
+      Mix.shell().info("* Already installed")
+    else
+      {result, exit_status} = System.cmd("npm", ["ci"], cd: "assets")
+      Mix.shell().info(result)
+      if exit_status != 0, do: raise("Failed to install npm dependecies")
+    end
 
     Mix.shell().info("Compiling TS files")
     {result, exit_status} = System.cmd("npm", ["run", "build"], cd: "assets")
@@ -96,5 +101,23 @@ defmodule Membrane.RTC.Engine.MixProject do
     {result, exit_status} = System.cmd("npm", ["run", "docs"], cd: "assets")
     Mix.shell().info(result)
     if exit_status != 0, do: raise("Failed to generate TS docs")
+  end
+
+  defp packages_installed?() do
+    System.cmd("npm", ["ls", "--prefix", "assets", "--prefer-offline"], stderr_to_stdout: true)
+    |> case do
+      {output, 0} ->
+        missing =
+          output
+          |> String.split("\n")
+          |> Enum.filter(&Regex.match?(~r/UNMET DEPENDENCY|empty/, &1))
+
+        if length(missing) > 0,
+          do: false,
+          else: true
+
+      {_output, _} ->
+        false
+    end
   end
 end
