@@ -351,9 +351,10 @@ defmodule Membrane.RTC.Engine do
     peer = Map.get(state.peers, peer_id)
 
     if peer.metadata != metadata do
-      state = put_in(state, [:peers, peer_id, :metadata], metadata)
+      updated_peer = %{peer | metadata: metadata}
+      state = put_in(state, [:peers, peer_id], updated_peer)
 
-      MediaEvent.create_peer_updated_event(peer_id, peer)
+      MediaEvent.create_peer_updated_event(peer_id, updated_peer)
       |> dispatch()
 
       {[], state}
