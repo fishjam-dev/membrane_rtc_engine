@@ -36,32 +36,18 @@ defmodule Membrane.RTC.EngineTest do
         "displayName" => "Bob"
       }
 
-      tracks_metadata = [
-        %{
-          "type" => "audio",
-          "source" => "microphone"
-        },
-        %{
-          "type" => "video",
-          "source" => "camera"
-        }
-      ]
-
       media_event =
         %{
           "type" => "join",
           "data" => %{
-            "relayAudio" => true,
-            "relayVideo" => true,
             "receiveMedia" => true,
-            "metadata" => metadata,
-            "tracksMetadata" => tracks_metadata
+            "metadata" => metadata
           }
         }
         |> Jason.encode!()
 
       send(sfu_engine, {:media_event, peer_id, media_event})
-      assert_receive {_from, {:new_peer, ^peer_id, ^metadata, ^tracks_metadata}}
+      assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
     end
   end
 
@@ -73,32 +59,18 @@ defmodule Membrane.RTC.EngineTest do
         "displayName" => "Bob"
       }
 
-      tracks_metadata = [
-        %{
-          "type" => "audio",
-          "source" => "microphone"
-        },
-        %{
-          "type" => "video",
-          "source" => "camera"
-        }
-      ]
-
       media_event =
         %{
           type: "join",
           data: %{
-            relayAudio: true,
-            relayVideo: true,
             receiveMedia: true,
-            metadata: metadata,
-            tracksMetadata: tracks_metadata
+            metadata: metadata
           }
         }
         |> Jason.encode!()
 
       send(sfu_engine, {:media_event, peer_id, media_event})
-      assert_receive {_from, {:new_peer, ^peer_id, ^metadata, ^tracks_metadata}}
+      assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
       send(sfu_engine, {:accept_new_peer, peer_id})
       assert_receive {_from, {:sfu_media_event, ^peer_id, media_event}}
 
@@ -115,32 +87,18 @@ defmodule Membrane.RTC.EngineTest do
         "reason" => "bob smells"
       }
 
-      tracks_metadata = [
-        %{
-          "type" => "audio",
-          "source" => "microphone"
-        },
-        %{
-          "type" => "video",
-          "source" => "camera"
-        }
-      ]
-
       media_event =
         %{
           type: "join",
           data: %{
-            relayAudio: true,
-            relayVideo: true,
             receiveMedia: true,
-            metadata: metadata,
-            tracksMetadata: tracks_metadata
+            metadata: metadata
           }
         }
         |> Jason.encode!()
 
       send(sfu_engine, {:media_event, peer_id, media_event})
-      assert_receive {_from, {:new_peer, ^peer_id, ^metadata, ^tracks_metadata}}
+      assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
       send(sfu_engine, {:deny_new_peer, peer_id, data: metadata})
       assert_receive {_from, {:sfu_media_event, ^peer_id, media_event}}
 
