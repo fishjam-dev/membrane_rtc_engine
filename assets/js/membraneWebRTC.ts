@@ -219,7 +219,7 @@ export class MembraneWebRTC {
             credentialType: "password",
             urls: "turn".concat(
               ":",
-              location.hostname,
+              turnServer.server_addr,
               ":",
               turnServer.server_port,
               "?transport=",
