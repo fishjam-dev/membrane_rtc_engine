@@ -427,14 +427,13 @@ defmodule Membrane.RTC.Engine do
       |> via_out(Pad.ref(:output, track_id),
         options: [packet_filters: packet_filters, extensions: extensions]
       )
-      |> to(tee)
+      |> to(tee, Membrane.NodeProxy.Tee)
     ]
 
     {local_links, track_link_actions, state} =
       inbound_track_specs({track_id, encoding}, endpoint_node, tee, ctx, state)
 
     new_track_spec = %ParentSpec{
-      children: %{tee => Membrane.NodeProxy.Tee},
       crash_group: {endpoint_id, :temporary},
       links: link_to_tee ++ local_links,
       node: endpoint_node
