@@ -72,7 +72,6 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp dialyzer do
     [
-      plt_add_apps: [:membrane_core],
       plt_add_deps: :app_tree
     ]
   end

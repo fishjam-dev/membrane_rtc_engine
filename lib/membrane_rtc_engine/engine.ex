@@ -780,7 +780,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp update_track_messages(_ctx, [] = _tracks, _endpoint_bin), do: []
+  defp update_track_messages(_ctx, {_msg_type, [] = _tracks}, _endpoint_bin), do: []
 
   defp update_track_messages(ctx, msg, endpoint_bin_name) do
     flat_map_children(ctx, fn
