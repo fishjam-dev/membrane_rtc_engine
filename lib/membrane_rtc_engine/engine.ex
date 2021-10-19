@@ -132,8 +132,8 @@ defmodule Membrane.RTC.Engine do
   use Membrane.Pipeline
   import Membrane.RTC.Utils
 
-  alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
   alias Membrane.RTC.Engine.MediaEvent
+  alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
 
   require Membrane.Logger
 
