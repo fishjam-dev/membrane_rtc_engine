@@ -138,11 +138,11 @@ export class MembraneWebRTC {
   private localPeer: Peer = { id: "", metadata: {}, trackIdToMetadata: new Map() };
   private localTrackIdToTrack: Map<string, TrackContext> = new Map();
   private midToTrackId: Map<string, string> = new Map();
-  private readonly rtcConfig: RTCConfiguration = {
+  private rtcConfig: RTCConfiguration = {
     iceServers: [
-      {
-        urls: "stun:stun.l.google.com:19302",
-      },
+      // {
+      //   urls: "stun:stun.l.google.com:19302",
+      // },
     ],
   };
 
@@ -211,6 +211,29 @@ export class MembraneWebRTC {
           deserializedMediaEvent.data.id,
           deserializedMediaEvent.data.peersInRoom
         );
+
+        const turnServers = deserializedMediaEvent.data.turn_servers;
+        if (!this.rtcConfig.iceServers) {
+          this.rtcConfig.iceServers = [];
+        }
+        turnServers.forEach((turnServer: any) => {
+          const rtcIceServer: RTCIceServer = {
+            credential: turnServer.password,
+            credentialType: "password",
+            urls: "turn".concat(
+              ":",
+              turnServer.server_addr,
+              ":",
+              turnServer.server_port,
+              "?transport=",
+              turnServer.relay_type
+            ),
+            username: turnServer.username,
+          };
+
+          this.rtcConfig.iceServers!.push(rtcIceServer);
+        });
+
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
           this.addPeer(peer);
@@ -641,7 +664,10 @@ export class MembraneWebRTC {
 
   private onOfferData = async (offerData: Map<string, number>) => {
     if (!this.connection) {
-      this.connection = new RTCPeerConnection(this.rtcConfig);
+      console.log("dupa rtcConfig", this.rtcConfig);
+      this.connection = new RTCPeerConnection({ iceTransportPolicy: "relay", ...this.rtcConfig });
+      // this.connection = new RTCPeerConnection(this.rtcConfig);
+
       this.connection.onicecandidate = this.onLocalCandidate();
 
       this.localTracksWithStreams.forEach(({ track, stream }) => {

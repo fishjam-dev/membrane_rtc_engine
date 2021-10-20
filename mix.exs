@@ -40,12 +40,17 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       {:membrane_core, github: "membraneframework/membrane_core", override: true},
       {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
+      {:membrane_ice_plugin,
+       git: "git@github.com:membraneframework/membrane_ice_plugin.git",
+       branch: "turn-api-in-rtc-engine-rewriting",
+       override: true},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false}
+      {:credo, "~> 1.4", only: :dev, runtime: false},
+      {:stun, git: "git@github.com:membraneframework/stun.git", branch: "turn-api-in-rtc-engine"}
     ]
   end
 

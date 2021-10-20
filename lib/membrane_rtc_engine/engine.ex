@@ -133,14 +133,13 @@ defmodule Membrane.RTC.Engine do
   import Membrane.RTC.Utils
 
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
-  alias Membrane.RTC.Engine.MediaEvent
+  alias Membrane.RTC.Engine.{MediaEvent, TurnUtils}
 
   require Membrane.Logger
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @type stun_server_t() :: ExLibnice.stun_server()
-  @type turn_server_t() :: ExLibnice.relay_info()
 
   @typedoc """
   List of RTP extensions to use.
@@ -180,7 +179,7 @@ defmodule Membrane.RTC.Engine do
   """
   @type network_options_t() :: [
           stun_servers: [stun_server_t()],
-          turn_servers: [turn_server_t()],
+          turn_ip: :inet.ip_v4(),
           dtls_pkey: binary(),
           dtls_cert: binary()
         ]
@@ -238,6 +237,7 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
+       turn_ip: options[:network_options][:turn_ip],
        waiting_for_linking: %{}
      }}
   end
@@ -579,11 +579,37 @@ defmodule Membrane.RTC.Engine do
           else: Map.put(data, :track_id_to_track_metadata, %{})
 
       peer = Map.put(peer, :id, peer_id)
-
       state = put_in(state, [:peers, peer_id], peer)
-      {actions, state} = setup_peer(peer, peer_node, ctx, state)
 
-      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
+      turn_servers =
+        [:udp, :tcp]
+        |> Enum.map(fn transport ->
+          secret = TurnUtils.generate_secret()
+
+          {:ok, port, pid} =
+            :turn_starter.start(
+              secret,
+              ip: state.turn_ip,
+              transport: transport
+            )
+
+          %{
+            relay_type: transport,
+            secret: secret,
+            server_addr: state.turn_ip,
+            server_port: port,
+            pid: pid
+          }
+        end)
+        |> then(&get_turn_configs(peer_id, &1))
+
+      {actions, state} = setup_peer(peer, peer_node, turn_servers, ctx, state)
+
+      MediaEvent.create_peer_accepted_event(
+        peer_id,
+        Map.delete(state.peers, peer_id),
+        Enum.map(turn_servers, &Map.delete(&1, :pid))
+      )
       |> dispatch()
 
       MediaEvent.create_peer_joined_event(peer_id, peer) |> dispatch()
@@ -592,7 +618,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp setup_peer(config, peer_node, _ctx, state) do
+  defp setup_peer(config, peer_node, turn_servers, ctx, state) do
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -616,12 +642,14 @@ defmodule Membrane.RTC.Engine do
         ]
       end
 
+    stun_servers = state.options[:network_options][:stun_servers] || []
+
     children = %{
       {:endpoint, config.id} => %EndpointBin{
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
-        stun_servers: state.options[:network_options][:stun_servers] || [],
-        turn_servers: state.options[:network_options][:turn_servers] || [],
+        stun_servers: stun_servers,
+        turn_servers: turn_servers,
         handshake_opts: handshake_opts,
         log_metadata: [peer_id: config.id]
       }
@@ -638,6 +666,20 @@ defmodule Membrane.RTC.Engine do
     state = put_in(state.endpoints[config.id], endpoint)
 
     {[spec: spec], state}
+  end
+
+  defp get_turn_configs(name, turn_servers) do
+    Enum.map(turn_servers, fn
+      %{secret: secret} = turn_server ->
+        {username, password} = TurnUtils.create_credentials(name, secret)
+
+        Map.delete(turn_server, :secret)
+        |> Map.put(:username, username)
+        |> Map.put(:password, password)
+
+      other ->
+        other
+    end)
   end
 
   defp get_outbound_tracks(endpoints, true),
