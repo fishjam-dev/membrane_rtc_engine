@@ -236,7 +236,6 @@ defmodule Membrane.RTC.Engine do
      %{
        id: options[:id],
        peers: %{},
-       incoming_peers: %{},
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
@@ -267,8 +266,13 @@ defmodule Membrane.RTC.Engine do
   def handle_other({:media_event, from, data}, ctx, state) do
     case MediaEvent.deserialize(data) do
       {:ok, event} ->
-        {actions, state} = handle_media_event(event, from, ctx, state)
-        {{:ok, actions}, state}
+        if event.type == :join or Map.has_key?(state.peers, from) do
+          {actions, state} = handle_media_event(event, from, ctx, state)
+          {{:ok, actions}, state}
+        else
+          Membrane.Logger.warn("Received media event from unknown peer id: #{inspect(from)}")
+          {:ok, state}
+        end
 
       {:error, :invalid_media_event} ->
         Membrane.Logger.warn("Invalid media event #{inspect(data)}")
@@ -277,7 +281,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(%{type: :join, data: data}, peer_id, ctx, state) do
-    dispatch({:new_peer, peer_id, data.metadata, data.tracks_metadata})
+    dispatch({:new_peer, peer_id, data.metadata})
 
     receive do
       {:accept_new_peer, ^peer_id} ->
@@ -313,17 +317,14 @@ defmodule Membrane.RTC.Engine do
 
   defp handle_media_event(%{type: :sdp_offer} = event, peer_id, _ctx, state) do
     actions = [
-      forward: {{:endpoint, peer_id}, {:signal, {:sdp_offer, event.data.sdp_offer.sdp}}}
+      forward:
+        {{:endpoint, peer_id},
+         {:signal, {:sdp_offer, event.data.sdp_offer.sdp, event.data.mid_to_track_id}}}
     ]
 
-    state =
-      if Map.has_key?(state.incoming_peers, peer_id) do
-        {peer, state} = pop_in(state, [:incoming_peers, peer_id])
-        peer = Map.put(peer, :mid_to_track_metadata, event.data.mid_to_track_metadata)
-        put_in(state, [:incoming_peers, peer_id], peer)
-      else
-        state
-      end
+    peer = get_in(state, [:peers, peer_id])
+    peer = Map.put(peer, :track_id_to_track_metadata, event.data.track_id_to_track_metadata)
+    state = put_in(state, [:peers, peer_id], peer)
 
     {actions, state}
   end
@@ -343,6 +344,51 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
+  defp handle_media_event(
+         %{type: :update_peer_metadata, data: %{metadata: metadata}},
+         peer_id,
+         _ctx,
+         state
+       ) do
+    peer = Map.get(state.peers, peer_id)
+
+    if peer.metadata != metadata do
+      updated_peer = %{peer | metadata: metadata}
+      state = put_in(state, [:peers, peer_id], updated_peer)
+
+      MediaEvent.create_peer_updated_event(peer_id, updated_peer)
+      |> dispatch()
+
+      {[], state}
+    else
+      {[], state}
+    end
+  end
+
+  defp handle_media_event(
+         %{
+           type: :update_track_metadata,
+           data: %{track_id: track_id, track_metadata: track_metadata}
+         },
+         peer_id,
+         _ctx,
+         state
+       ) do
+    peer = Map.get(state.peers, peer_id)
+
+    if Map.get(peer.track_id_to_track_metadata, track_id) != track_metadata do
+      peer = Map.update!(peer, :track_id_to_track_metadata, &%{&1 | track_id => track_metadata})
+      state = put_in(state, [:peers, peer_id], peer)
+
+      MediaEvent.create_track_updated_event(peer_id, track_id, track_metadata)
+      |> dispatch()
+
+      {[], state}
+    else
+      {[], state}
+    end
+  end
+
   @impl true
   def handle_notification(
         {:signal, {:sdp_answer, answer, mid_to_track_id}},
@@ -352,17 +398,6 @@ defmodule Membrane.RTC.Engine do
       ) do
     MediaEvent.create_signal_event(peer_id, {:signal, {:sdp_answer, answer, mid_to_track_id}})
     |> dispatch()
-
-    state =
-      if Map.has_key?(state.incoming_peers, peer_id) do
-        {peer, state} = pop_in(state, [:incoming_peers, peer_id])
-        state = put_in(state, [:peers, peer_id], peer)
-        {peer_id, peer} = get_peer_data(peer_id, peer, state)
-        MediaEvent.create_peer_joined_event(peer_id, peer) |> dispatch()
-        state
-      else
-        state
-      end
 
     {:ok, state}
   end
@@ -458,15 +493,28 @@ defmodule Membrane.RTC.Engine do
     state =
       update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
 
-    tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, endpoint_id})
+    tracks_msgs = update_track_messages(ctx, {:add_tracks, tracks}, {:endpoint, endpoint_id})
 
-    if not Map.has_key?(state.incoming_peers, endpoint_id) do
-      peer = get_in(state, [:peers, endpoint_id])
-      {peer_id, peer} = get_peer_data(endpoint_id, peer, state)
+    peer = get_in(state, [:peers, endpoint_id])
 
-      MediaEvent.create_new_peer_tracks_event(peer_id, peer.tracks_metadata)
-      |> dispatch()
-    end
+    MediaEvent.create_tracks_added_event(endpoint_id, peer.track_id_to_track_metadata)
+    |> dispatch()
+
+    {{:ok, tracks_msgs}, state}
+  end
+
+  @impl true
+  def handle_notification({:removed_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
+    id_to_track = Map.new(tracks, &{&1.id, &1})
+
+    state =
+      update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
+
+    tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, endpoint_id})
+    track_ids = Enum.map(tracks, & &1.id)
+
+    MediaEvent.create_tracks_removed_event(endpoint_id, track_ids)
+    |> dispatch()
 
     {{:ok, tracks_msgs}, state}
   end
@@ -516,14 +564,6 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp get_peer_data(peer_id, peer, state) do
-    endpoint = Map.get(state.endpoints, peer_id)
-    tracks = Endpoint.get_tracks(endpoint)
-    mid_to_track_metadata = peer.mid_to_track_metadata
-    tracks_metadata = Map.new(tracks, &{&1.id, Map.get(mid_to_track_metadata, &1.mid)})
-    {peer_id, Map.put(peer, :tracks_metadata, tracks_metadata)}
-  end
-
   defp dispatch(msg) do
     Registry.dispatch(get_registry_name(), self(), fn entries ->
       for {_, pid} <- entries, do: send(pid, {self(), msg})
@@ -535,15 +575,20 @@ defmodule Membrane.RTC.Engine do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
     else
-      peer = Map.put(data, :id, peer_id)
-      state = put_in(state, [:incoming_peers, peer_id], peer)
+      peer =
+        if Map.has_key?(data, :track_id_to_track_metadata),
+          do: data,
+          else: Map.put(data, :track_id_to_track_metadata, %{})
+
+      peer = Map.put(peer, :id, peer_id)
+
+      state = put_in(state, [:peers, peer_id], peer)
       {actions, state} = setup_peer(peer, peer_node, ctx, state)
 
-      peers_in_room =
-        Map.new(state.peers, fn {peer_id, peer} -> get_peer_data(peer_id, peer, state) end)
-
-      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(peers_in_room, peer_id))
+      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
       |> dispatch()
+
+      MediaEvent.create_peer_joined_event(peer_id, peer) |> dispatch()
 
       {actions, state}
     end
@@ -575,7 +620,6 @@ defmodule Membrane.RTC.Engine do
 
     children = %{
       {:endpoint, config.id} => %EndpointBin{
-        endpoint_id: config.id,
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
         stun_servers: state.options[:network_options][:stun_servers] || [],
@@ -629,7 +673,7 @@ defmodule Membrane.RTC.Engine do
       {_peer, state} = pop_in(state, [:peers, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
 
-      tracks_msgs = update_track_messages(ctx, tracks, {:endpoint, peer_id})
+      tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, peer_id})
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
 
@@ -655,11 +699,11 @@ defmodule Membrane.RTC.Engine do
 
   defp update_track_messages(_ctx, [] = _tracks, _endpoint_bin), do: []
 
-  defp update_track_messages(ctx, tracks, endpoint_bin_name) do
+  defp update_track_messages(ctx, msg, endpoint_bin_name) do
     flat_map_children(ctx, fn
       {:endpoint, _endpoint_id} = other_endpoint_bin
       when other_endpoint_bin != endpoint_bin_name ->
-        [forward: {other_endpoint_bin, {:add_tracks, tracks}}]
+        [forward: {other_endpoint_bin, msg}]
 
       _child ->
         []

@@ -10,11 +10,7 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
           "type" => "join",
           "data" => %{
             "receiveMedia" => true,
-            "metadata" => %{"displayName" => "Bob"},
-            "tracksMetadata" => [
-              %{"type" => "audio", "source" => "microphone"},
-              %{"type" => "video", "source" => "camera"}
-            ]
+            "metadata" => %{"displayName" => "Bob"}
           }
         }
         |> Jason.encode!()
@@ -23,11 +19,7 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
         type: :join,
         data: %{
           receive_media: true,
-          metadata: %{"displayName" => "Bob"},
-          tracks_metadata: [
-            %{"type" => "audio", "source" => "microphone"},
-            %{"type" => "video", "source" => "camera"}
-          ]
+          metadata: %{"displayName" => "Bob"}
         }
       }
 
@@ -39,14 +31,8 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
         %{
           "type" => "join",
           "data" => %{
-            "relayAudio" => true,
-            # missing relayVideo field
-            "receiveMedia" => true,
-            "metadata" => %{"displayName" => "Bob"},
-            "trackMetadata" => [
-              %{"type" => "audio", "source" => "microphone"},
-              %{"type" => "video", "source" => "camera"}
-            ]
+            # missing receiveMedia field
+            "metadata" => %{"displayName" => "Bob"}
           }
         }
         |> Jason.encode!()
