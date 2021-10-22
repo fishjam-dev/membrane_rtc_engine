@@ -197,7 +197,8 @@ defmodule Membrane.RTC.Engine do
           payload_and_depayload_tracks?: boolean(),
           packet_filters: %{
             (encoding_name :: atom()) => [packet_filters_t()]
-          }
+          },
+          payload_and_depayload_tracks?: boolean()
         ]
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
@@ -410,8 +411,13 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
+  # NOTE: When `payload_and_depayload_tracks?` options is set to false we may still want to depayload
+  # some streams just in one place to e.g. dump them to HLS or perform any actions on depayloaded
+  # media without adding payload/depaload elements to all EndpointBins (performing unnecessary work).
+  #
+  # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
   @impl true
-  def handle_notification({:new_track, track_id, encoding}, endpoint_bin_name, ctx, state) do
+  def handle_notification({:new_track, track_id, encoding, _depayloading_filter}, endpoint_bin_name, ctx, state) do
     Membrane.Logger.info(
       "New incoming #{encoding} track #{track_id} from #{inspect(endpoint_bin_name)}"
     )
@@ -433,7 +439,11 @@ defmodule Membrane.RTC.Engine do
     link_to_fake =
       link(endpoint_bin_name)
       |> via_out(Pad.ref(:output, track_id),
-        options: [packet_filters: packet_filters, extensions: extensions, use_depayloader?: state.payload_and_depayload_tracks?]
+        options: [
+          packet_filters: packet_filters,
+          extensions: extensions,
+          use_depayloader?: state.payload_and_depayload_tracks?
+        ]
       )
       |> to(tee)
       |> via_out(:master)
@@ -474,7 +484,7 @@ defmodule Membrane.RTC.Engine do
         state
       ) do
     {new_links, new_waiting_for_linking} =
-      link_outbound_tracks(new_outbound_tracks, endpoint_id, ctx)
+      link_outbound_tracks(new_outbound_tracks, endpoint_id, ctx, state)
 
     state =
       update_in(
@@ -542,7 +552,7 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp link_outbound_tracks(tracks, endpoint_id, ctx) do
+  defp link_outbound_tracks(tracks, endpoint_id, ctx, state) do
     Enum.reduce(tracks, {[], MapSet.new()}, fn
       {track_id, encoding}, {new_links, not_linked} ->
         tee = find_child(ctx, pattern: {:tee, {_other_endpoint_id, ^track_id}})
@@ -551,7 +561,7 @@ defmodule Membrane.RTC.Engine do
           new_link =
             link(tee)
             |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?])
             |> to({:endpoint, endpoint_id})
 
           {new_links ++ [new_link], not_linked}
