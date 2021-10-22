@@ -417,7 +417,12 @@ defmodule Membrane.RTC.Engine do
   #
   # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
   @impl true
-  def handle_notification({:new_track, track_id, encoding, _depayloading_filter}, endpoint_bin_name, ctx, state) do
+  def handle_notification(
+        {:new_track, track_id, encoding, _depayloading_filter},
+        endpoint_bin_name,
+        ctx,
+        state
+      ) do
     Membrane.Logger.info(
       "New incoming #{encoding} track #{track_id} from #{inspect(endpoint_bin_name)}"
     )
@@ -536,7 +541,9 @@ defmodule Membrane.RTC.Engine do
           new_link =
             link(tee)
             |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?])
+            |> via_in(Pad.ref(:input, track_id),
+              options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?]
+            )
             |> to({:endpoint, endpoint_id})
 
           waiting_for_linking =
@@ -561,7 +568,9 @@ defmodule Membrane.RTC.Engine do
           new_link =
             link(tee)
             |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?])
+            |> via_in(Pad.ref(:input, track_id),
+              options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?]
+            )
             |> to({:endpoint, endpoint_id})
 
           {new_links ++ [new_link], not_linked}

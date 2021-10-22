@@ -40,7 +40,8 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       {:membrane_core, github: "membraneframework/membrane_core", override: true},
       # {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin", branch: "optional-jitter-buffer"},
+      {:membrane_webrtc_plugin,
+       github: "membraneframework/membrane_webrtc_plugin", branch: "optional-jitter-buffer"},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
