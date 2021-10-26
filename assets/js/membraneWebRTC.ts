@@ -183,7 +183,6 @@ export class MembraneWebRTC {
       this.leave();
     }
   };
-
   /**
    * Feeds media event received from SFU server to {@link MembraneWebRTC}.
    * This function should be called whenever some media event from SFU server
@@ -377,10 +376,15 @@ export class MembraneWebRTC {
             (trans.direction = trans.direction === "sendrecv" ? "sendonly" : trans.direction)
         );
     }
-    let mediaEvent = generateMediaEvent("renegotiateTracks", {});
-    this.sendMediaEvent(mediaEvent);
+
+    this.sendRenegotiateTracks();
     return trackId;
   }
+
+  private sendRenegotiateTracks = () => {
+    let mediaEvent = generateMediaEvent("renegotiateTracks", {});
+    this.sendMediaEvent(mediaEvent);
+  };
 
   /**
    * Replaces a track that is being sent to the SFU server.
@@ -575,7 +579,7 @@ export class MembraneWebRTC {
   };
 
   private getTrackId(uuid: string): string {
-    return `${this.getPeerId()}:${uuid} `;
+    return `${this.getPeerId()}:${uuid}`;
   }
 
   private sendMediaEvent = (mediaEvent: MediaEvent) => {
