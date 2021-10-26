@@ -201,8 +201,6 @@ export class MembraneWebRTC {
    */
   public receiveMediaEvent = (mediaEvent: SerializedMediaEvent) => {
     const deserializedMediaEvent = deserializeMediaEvent(mediaEvent);
-    let peer: Peer;
-    let data;
     switch (deserializedMediaEvent.type) {
       case "peerAccepted":
         this.localPeer.id = deserializedMediaEvent.data.id;
@@ -220,6 +218,15 @@ export class MembraneWebRTC {
         this.callbacks.onJoinError?.(deserializedMediaEvent.data);
         break;
 
+      default:
+        if (this.localPeer.id != null) this.handleMediaEvent(deserializedMediaEvent);
+    }
+  };
+
+  private handleMediaEvent = (deserializedMediaEvent: MediaEvent) => {
+    let peer: Peer;
+    let data;
+    switch (deserializedMediaEvent.type) {
       case "offerData":
         const offerData = new Map<string, number>(Object.entries(deserializedMediaEvent.data));
         this.onOfferData(offerData);
