@@ -664,9 +664,7 @@ export class MembraneWebRTC {
 
   private onOfferData = async (offerData: Map<string, number>) => {
     if (!this.connection) {
-      console.log("dupa rtcConfig", this.rtcConfig);
       this.connection = new RTCPeerConnection({ iceTransportPolicy: "relay", ...this.rtcConfig });
-      // this.connection = new RTCPeerConnection(this.rtcConfig);
 
       this.connection.onicecandidate = this.onLocalCandidate();
 

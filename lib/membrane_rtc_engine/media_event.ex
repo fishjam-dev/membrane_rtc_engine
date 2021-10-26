@@ -19,8 +19,6 @@ defmodule Membrane.RTC.Engine.MediaEvent do
         end)
       end)
 
-    IO.inspect(turn_servers, label: "client_turn_servers")
-
     %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers, turn_servers: turn_servers}}
     |> do_create(peer_id)
   end
