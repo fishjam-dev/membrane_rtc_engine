@@ -194,7 +194,6 @@ defmodule Membrane.RTC.Engine do
           id: String.t(),
           extension_options: extension_options_t(),
           network_options: network_options_t(),
-          payload_and_depayload_tracks?: boolean(),
           packet_filters: %{
             (encoding_name :: atom()) => [packet_filters_t()]
           },
@@ -240,7 +239,7 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
-       payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?],
+       payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
        waiting_for_linking: %{}
      }}
   end
