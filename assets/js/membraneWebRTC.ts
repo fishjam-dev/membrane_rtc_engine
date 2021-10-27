@@ -384,14 +384,10 @@ export class MembraneWebRTC {
         );
     }
 
-    this.sendRenegotiateTracks();
-    return trackId;
-  }
-
-  private sendRenegotiateTracks = () => {
     let mediaEvent = generateMediaEvent("renegotiateTracks", {});
     this.sendMediaEvent(mediaEvent);
-  };
+    return trackId;
+  }
 
   /**
    * Replaces a track that is being sent to the SFU server.
