@@ -140,6 +140,7 @@ defmodule Membrane.RTC.Engine do
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @type stun_server_t() :: ExLibnice.stun_server()
+  @type turn_server_t() :: ExLibnice.relay_info()
 
   @typedoc """
   List of RTP extensions to use.
@@ -179,7 +180,9 @@ defmodule Membrane.RTC.Engine do
   """
   @type network_options_t() :: [
           stun_servers: [stun_server_t()],
-          turn_ip: :inet.ip_v4(),
+          turn_servers: [stun_server_t()],
+          use_integrated_turn: boolean(),
+          integrated_turn_ip: :inet.ip_v4() | nil,
           dtls_pkey: binary(),
           dtls_cert: binary()
         ]
@@ -237,7 +240,8 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
-       turn_ip: options[:network_options][:turn_ip],
+       use_integrated_turn: options[:network_options][:use_integrated_turn],
+       integrated_turn_ip: options[:network_options][:integrated_turn_ip],
        waiting_for_linking: %{}
      }}
   end
@@ -582,25 +586,29 @@ defmodule Membrane.RTC.Engine do
       state = put_in(state, [:peers, peer_id], peer)
 
       turn_servers =
-        [:udp, :tcp]
-        |> Enum.map(fn transport ->
-          secret = TurnUtils.generate_secret()
+        if state.use_integrated_turn do
+          [:udp, :tcp]
+          |> Enum.map(fn transport ->
+            secret = TurnUtils.generate_secret()
 
-          {:ok, port, pid} =
-            :turn_starter.start(
-              secret,
-              ip: state.turn_ip,
-              transport: transport
-            )
+            {:ok, port, pid} =
+              :turn_starter.start(
+                secret,
+                ip: state.integrated_turn_ip,
+                transport: transport
+              )
 
-          %{
-            relay_type: transport,
-            secret: secret,
-            server_addr: state.turn_ip,
-            server_port: port,
-            pid: pid
-          }
-        end)
+            %{
+              relay_type: transport,
+              secret: secret,
+              server_addr: state.integrated_turn_ip,
+              server_port: port,
+              pid: pid
+            }
+          end)
+        else
+          state.options.turn_servers
+        end
         |> then(&get_turn_configs(peer_id, &1))
 
       {actions, state} = setup_peer(peer, peer_node, turn_servers, ctx, state)
@@ -643,6 +651,16 @@ defmodule Membrane.RTC.Engine do
       end
 
     stun_servers = state.options[:network_options][:stun_servers] || []
+    use_integrated_turn = state.options[:network_options][:use_integrated_turn]
+
+    {turn_servers, integrated_turns_pids} =
+      if use_integrated_turn do
+        pids = Enum.map(turn_servers, & &1.pid)
+        {[], pids}
+      else
+        {turn_servers, []}
+      end
+
 
     children = %{
       {:endpoint, config.id} => %EndpointBin{
@@ -650,6 +668,8 @@ defmodule Membrane.RTC.Engine do
         inbound_tracks: inbound_tracks,
         stun_servers: stun_servers,
         turn_servers: turn_servers,
+        use_integrated_turn: use_integrated_turn,
+        integrated_turns_pids: integrated_turns_pids,
         handshake_opts: handshake_opts,
         log_metadata: [peer_id: config.id]
       }

@@ -140,9 +140,9 @@ export class MembraneWebRTC {
   private midToTrackId: Map<string, string> = new Map();
   private rtcConfig: RTCConfiguration = {
     iceServers: [
-      // {
-      //   urls: "stun:stun.l.google.com:19302",
-      // },
+      {
+        urls: "stun:stun.l.google.com:19302",
+      },
     ],
   };
 
