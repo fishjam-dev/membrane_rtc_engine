@@ -265,6 +265,12 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  def handle_other({:add_endpoint, id, bin}, ctx, state) do
+    {actions, state} = setup_peer(%{id: id, bin: bin, receive_media: true}, node(), ctx, state)
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   def handle_other({:media_event, from, data}, ctx, state) do
     case MediaEvent.deserialize(data) do
       {:ok, event} ->
@@ -286,17 +292,17 @@ defmodule Membrane.RTC.Engine do
     dispatch({:new_peer, peer_id, data.metadata})
 
     receive do
-      {:accept_new_peer, ^peer_id} ->
-        setup_peer(peer_id, node(), data, state)
+      {:accept_new_peer, ^peer_id, bin} ->
+        do_accept_new_peer(peer_id, node(), data, bin, ctx, state)
 
-      {:accept_new_peer, ^peer_id, peer_node} ->
-        setup_peer(peer_id, peer_node, data, state)
+      {:accept_new_peer, ^peer_id, bin, peer_node} ->
+        do_accept_new_peer(peer_id, peer_node, data, bin, ctx, state)
 
-      {:accept_new_peer, peer_id} ->
+      {:accept_new_peer, peer_id, bin} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
         {[], state}
 
-      {:accept_new_peer, peer_id, peer_node} ->
+      {:accept_new_peer, peer_id, bin, peer_node} ->
         Membrane.Logger.warn(
           "Unknown peer id passed for acceptance: #{inspect(peer_id)} for node #{inspect(peer_node)}"
         )
@@ -616,7 +622,7 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp setup_peer(peer_id, peer_node, data, state) do
+  defp do_accept_new_peer(peer_id, peer_node, data, bin, ctx, state) do
     if Map.has_key?(state.peers, peer_id) do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
@@ -630,7 +636,7 @@ defmodule Membrane.RTC.Engine do
         |> Map.put(:id, peer_id)
 
       state = put_in(state, [:peers, peer_id], peer)
-      do_setup_peer(peer, peer_node, state)
+      do_setup_peer(Map.put(peer, :bin, bin), peer_node, ctx, state)
     end
   end
 
@@ -642,33 +648,8 @@ defmodule Membrane.RTC.Engine do
     endpoint =
       Endpoint.new(config.id, :participant, inbound_tracks, %{receive_media: config.receive_media})
 
-    handshake_opts =
-      if state.options[:network_options][:dtls_pkey] &&
-           state.options[:network_options][:dtls_cert] do
-        [
-          client_mode: false,
-          dtls_srtp: true,
-          pkey: state.options[:network_options][:dtls_pkey],
-          cert: state.options[:network_options][:dtls_cert]
-        ]
-      else
-        [
-          client_mode: false,
-          dtls_srtp: true
-        ]
-      end
-
     children = %{
-      {:endpoint, config.id} => %EndpointBin{
-        outbound_tracks: outbound_tracks,
-        inbound_tracks: inbound_tracks,
-        extensions: state.webrtc_extensions,
-        stun_servers: state.options[:network_options][:stun_servers] || [],
-        integrated_turn_options: state.integrated_turn_options,
-        turn_servers: [],
-        handshake_opts: handshake_opts,
-        log_metadata: [peer_id: config.id]
-      }
+      {:endpoint, config.id} => Map.put(config.bin, :outbound_tracks, outbound_tracks)
     }
 
     state = put_in(state, [:waiting_for_linking, config.id], MapSet.new())
