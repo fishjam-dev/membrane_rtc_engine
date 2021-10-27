@@ -491,7 +491,8 @@ defmodule Membrane.RTC.Engine do
     state =
       update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
 
-    tracks_msgs = update_track_messages(ctx, {:add_tracks, tracks}, {:endpoint, endpoint_id})
+    tracks_msgs =
+      update_track_messages(state.endpoints, ctx, {:add_tracks, tracks}, {:endpoint, endpoint_id})
 
     peer = get_in(state, [:peers, endpoint_id])
 
@@ -508,7 +509,14 @@ defmodule Membrane.RTC.Engine do
     state =
       update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
 
-    tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, endpoint_id})
+    tracks_msgs =
+      update_track_messages(
+        state.endpoints,
+        ctx,
+        {:remove_tracks, tracks},
+        {:endpoint, endpoint_id}
+      )
+
     track_ids = Enum.map(tracks, & &1.id)
 
     MediaEvent.create_tracks_removed_event(endpoint_id, track_ids)
@@ -671,7 +679,13 @@ defmodule Membrane.RTC.Engine do
       {_peer, state} = pop_in(state, [:peers, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
 
-      tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, peer_id})
+      tracks_msgs =
+        update_track_messages(
+          state.endpoints,
+          ctx,
+          {:remove_tracks, tracks},
+          {:endpoint, peer_id}
+        )
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
 
@@ -695,13 +709,19 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp update_track_messages(_ctx, [] = _tracks, _endpoint_bin), do: []
+  defp update_track_messages(_endpoints, _ctx, [] = _tracks, _endpoint_bin), do: []
 
-  defp update_track_messages(ctx, msg, endpoint_bin_name) do
+  defp update_track_messages(endpoints, ctx, msg, endpoint_bin_name) do
     flat_map_children(ctx, fn
-      {:endpoint, _endpoint_id} = other_endpoint_bin
-      when other_endpoint_bin != endpoint_bin_name ->
-        [forward: {other_endpoint_bin, msg}]
+      {:endpoint, endpoint_id} = other_endpoint_bin ->
+        endpoint = Map.get(endpoints, endpoint_id)
+
+        if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) and
+             endpoint.ctx.receive_media do
+          [forward: {other_endpoint_bin, msg}]
+        else
+          []
+        end
 
       _child ->
         []
