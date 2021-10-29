@@ -1,0 +1,28 @@
+<style>
+#videos {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 10px;
+
+}
+
+#videos video {
+  height: 100%;
+  width: 100%;
+}
+</style>
+<div id="container">
+    <div id="videos">
+        <video id="local-video" playsinline autoplay muted></video>
+    </div>
+
+    <div id="buttons">
+        <button id="start">Start</button>
+        <button id="stop">Stop</button>
+        <button id="stats">Stats</button>
+    </div>
+    
+
+    Stats
+    <div id="data" data-version="0" style="">uninitialized</div>
+</div>
