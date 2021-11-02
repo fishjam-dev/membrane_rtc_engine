@@ -1,4 +1,6 @@
 defmodule Membrane.RTC.Engine.TurnUtils do
+  @moduledoc false
+
   @spec create_credentials(binary(), binary()) :: {binary(), binary()}
   def create_credentials(name, secret) do
     duration =
