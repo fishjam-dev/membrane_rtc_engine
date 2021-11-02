@@ -242,7 +242,8 @@ defmodule Membrane.RTC.Engine do
        packet_filters: options[:packet_filters] || %{},
        use_integrated_turn: options[:network_options][:use_integrated_turn],
        integrated_turn_ip: options[:network_options][:integrated_turn_ip],
-       waiting_for_linking: %{}
+       waiting_for_linking: %{},
+       peer_id_to_turn_pids: %{}
      }}
   end
 
@@ -611,6 +612,14 @@ defmodule Membrane.RTC.Engine do
         end
         |> then(&get_turn_configs(peer_id, &1))
 
+      state =
+        if state.use_integrated_turn do
+          tuns_pids = Enum.map(turn_servers, & &1.pid)
+          update_in(state, [:peer_id_to_turn_pids], &Map.put(&1, peer_id, tuns_pids))
+        else
+          state
+        end
+
       {actions, state} = setup_peer(peer, peer_node, turn_servers, ctx, state)
 
       MediaEvent.create_peer_accepted_event(
@@ -660,7 +669,6 @@ defmodule Membrane.RTC.Engine do
       else
         {turn_servers, []}
       end
-
 
     children = %{
       {:endpoint, config.id} => %EndpointBin{
@@ -737,6 +745,14 @@ defmodule Membrane.RTC.Engine do
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
 
+      state =
+        if state.use_integrated_turn do
+          Enum.each(state.peer_id_to_turn_pids[peer_id], &terminate_integrated_turn/1)
+          update_in(state, [:peer_id_to_turn_pids], &Map.delete(&1, peer_id))
+        else
+          state
+        end
+
       actions =
         if endpoint_bin == nil or endpoint_bin.terminating? do
           []
@@ -769,4 +785,6 @@ defmodule Membrane.RTC.Engine do
         []
     end)
   end
+
+  defp terminate_integrated_turn(turn_pid), do: send(turn_pid, :terminate)
 end
