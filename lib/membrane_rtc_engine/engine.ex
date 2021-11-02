@@ -298,11 +298,11 @@ defmodule Membrane.RTC.Engine do
       {:accept_new_peer, ^peer_id, bin, peer_node} ->
         do_accept_new_peer(peer_id, peer_node, data, bin, ctx, state)
 
-      {:accept_new_peer, peer_id, bin} ->
+      {:accept_new_peer, peer_id, _bin} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
         {[], state}
 
-      {:accept_new_peer, peer_id, bin, peer_node} ->
+      {:accept_new_peer, peer_id, _bin, peer_node} ->
         Membrane.Logger.warn(
           "Unknown peer id passed for acceptance: #{inspect(peer_id)} for node #{inspect(peer_node)}"
         )
