@@ -68,7 +68,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> do_create(:broadcast)
   end
 
-  @spec create_tracks_removed_event(peer_id_t(), map()) ::
+  @spec create_tracks_removed_event(peer_id_t(), [String.t()]) ::
           sfu_media_event_t()
   def create_tracks_removed_event(peer_id, track_ids) do
     %{

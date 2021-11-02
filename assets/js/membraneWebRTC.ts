@@ -183,7 +183,6 @@ export class MembraneWebRTC {
       this.leave();
     }
   };
-
   /**
    * Feeds media event received from SFU server to {@link MembraneWebRTC}.
    * This function should be called whenever some media event from SFU server
@@ -202,8 +201,6 @@ export class MembraneWebRTC {
    */
   public receiveMediaEvent = (mediaEvent: SerializedMediaEvent) => {
     const deserializedMediaEvent = deserializeMediaEvent(mediaEvent);
-    let peer: Peer;
-    let data;
     switch (deserializedMediaEvent.type) {
       case "peerAccepted":
         this.localPeer.id = deserializedMediaEvent.data.id;
@@ -244,6 +241,15 @@ export class MembraneWebRTC {
         this.callbacks.onJoinError?.(deserializedMediaEvent.data);
         break;
 
+      default:
+        if (this.localPeer.id != null) this.handleMediaEvent(deserializedMediaEvent);
+    }
+  };
+
+  private handleMediaEvent = (deserializedMediaEvent: MediaEvent) => {
+    let peer: Peer;
+    let data;
+    switch (deserializedMediaEvent.type) {
       case "offerData":
         const offerData = new Map<string, number>(Object.entries(deserializedMediaEvent.data));
         this.onOfferData(offerData);
@@ -400,6 +406,7 @@ export class MembraneWebRTC {
             (trans.direction = trans.direction === "sendrecv" ? "sendonly" : trans.direction)
         );
     }
+
     let mediaEvent = generateMediaEvent("renegotiateTracks", {});
     this.sendMediaEvent(mediaEvent);
     return trackId;
@@ -598,7 +605,7 @@ export class MembraneWebRTC {
   };
 
   private getTrackId(uuid: string): string {
-    return `${this.getPeerId()}:${uuid} `;
+    return `${this.getPeerId()}:${uuid}`;
   }
 
   private sendMediaEvent = (mediaEvent: MediaEvent) => {

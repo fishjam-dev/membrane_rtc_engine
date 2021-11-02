@@ -198,7 +198,8 @@ defmodule Membrane.RTC.Engine do
           network_options: network_options_t(),
           packet_filters: %{
             (encoding_name :: atom()) => [packet_filters_t()]
-          }
+          },
+          payload_and_depayload_tracks?: boolean()
         ]
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
@@ -242,6 +243,7 @@ defmodule Membrane.RTC.Engine do
        packet_filters: options[:packet_filters] || %{},
        use_integrated_turn: options[:network_options][:use_integrated_turn],
        integrated_turn_ip: options[:network_options][:integrated_turn_ip],
+       payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
        waiting_for_linking: %{},
        peer_id_to_turn_pids: %{}
      }}
@@ -413,8 +415,18 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
+  # NOTE: When `payload_and_depayload_tracks?` options is set to false we may still want to depayload
+  # some streams just in one place to e.g. dump them to HLS or perform any actions on depayloaded
+  # media without adding payload/depaload elements to all EndpointBins (performing unnecessary work).
+  #
+  # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
   @impl true
-  def handle_notification({:new_track, track_id, encoding}, endpoint_bin_name, ctx, state) do
+  def handle_notification(
+        {:new_track, track_id, encoding, _depayloading_filter},
+        endpoint_bin_name,
+        ctx,
+        state
+      ) do
     Membrane.Logger.info(
       "New incoming #{encoding} track #{track_id} from #{inspect(endpoint_bin_name)}"
     )
@@ -436,14 +448,18 @@ defmodule Membrane.RTC.Engine do
     link_to_fake =
       link(endpoint_bin_name)
       |> via_out(Pad.ref(:output, track_id),
-        options: [packet_filters: packet_filters, extensions: extensions]
+        options: [
+          packet_filters: packet_filters,
+          extensions: extensions,
+          use_depayloader?: state.payload_and_depayload_tracks?
+        ]
       )
       |> to(tee)
       |> via_out(:master)
       |> to(fake)
 
     {links, waiting_for_linking} =
-      link_inbound_track({track_id, encoding}, tee, state.waiting_for_linking, ctx)
+      link_inbound_track({track_id, encoding}, tee, state.waiting_for_linking, ctx, state)
 
     spec = %ParentSpec{
       children: children,
@@ -477,7 +493,7 @@ defmodule Membrane.RTC.Engine do
         state
       ) do
     {new_links, new_waiting_for_linking} =
-      link_outbound_tracks(new_outbound_tracks, endpoint_id, ctx)
+      link_outbound_tracks(new_outbound_tracks, endpoint_id, ctx, state)
 
     state =
       update_in(
@@ -496,7 +512,8 @@ defmodule Membrane.RTC.Engine do
     state =
       update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
 
-    tracks_msgs = update_track_messages(ctx, {:add_tracks, tracks}, {:endpoint, endpoint_id})
+    tracks_msgs =
+      update_track_messages(state.endpoints, ctx, {:add_tracks, tracks}, {:endpoint, endpoint_id})
 
     peer = get_in(state, [:peers, endpoint_id])
 
@@ -513,7 +530,14 @@ defmodule Membrane.RTC.Engine do
     state =
       update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
 
-    tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, endpoint_id})
+    tracks_msgs =
+      update_track_messages(
+        state.endpoints,
+        ctx,
+        {:remove_tracks, tracks},
+        {:endpoint, endpoint_id}
+      )
+
     track_ids = Enum.map(tracks, & &1.id)
 
     MediaEvent.create_tracks_removed_event(endpoint_id, track_ids)
@@ -522,14 +546,16 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  defp link_inbound_track({track_id, encoding}, tee, waiting_for_linking, ctx) do
+  defp link_inbound_track({track_id, encoding}, tee, waiting_for_linking, ctx, state) do
     reduce_children(ctx, {[], waiting_for_linking}, fn
       {:endpoint, endpoint_id}, {new_links, waiting_for_linking} ->
         if MapSet.member?(waiting_for_linking[endpoint_id], track_id) do
           new_link =
             link(tee)
             |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+            |> via_in(Pad.ref(:input, track_id),
+              options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?]
+            )
             |> to({:endpoint, endpoint_id})
 
           waiting_for_linking =
@@ -545,7 +571,7 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp link_outbound_tracks(tracks, endpoint_id, ctx) do
+  defp link_outbound_tracks(tracks, endpoint_id, ctx, state) do
     Enum.reduce(tracks, {[], MapSet.new()}, fn
       {track_id, encoding}, {new_links, not_linked} ->
         tee = find_child(ctx, pattern: {:tee, {_other_endpoint_id, ^track_id}})
@@ -554,7 +580,9 @@ defmodule Membrane.RTC.Engine do
           new_link =
             link(tee)
             |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: encoding])
+            |> via_in(Pad.ref(:input, track_id),
+              options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?]
+            )
             |> to({:endpoint, endpoint_id})
 
           {new_links ++ [new_link], not_linked}
@@ -741,7 +769,13 @@ defmodule Membrane.RTC.Engine do
       {_peer, state} = pop_in(state, [:peers, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
 
-      tracks_msgs = update_track_messages(ctx, {:remove_tracks, tracks}, {:endpoint, peer_id})
+      tracks_msgs =
+        update_track_messages(
+          state.endpoints,
+          ctx,
+          {:remove_tracks, tracks},
+          {:endpoint, peer_id}
+        )
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
 
@@ -773,13 +807,19 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp update_track_messages(_ctx, [] = _tracks, _endpoint_bin), do: []
+  defp update_track_messages(_endpoints, _ctx, [] = _tracks, _endpoint_bin), do: []
 
-  defp update_track_messages(ctx, msg, endpoint_bin_name) do
+  defp update_track_messages(endpoints, ctx, msg, endpoint_bin_name) do
     flat_map_children(ctx, fn
-      {:endpoint, _endpoint_id} = other_endpoint_bin
-      when other_endpoint_bin != endpoint_bin_name ->
-        [forward: {other_endpoint_bin, msg}]
+      {:endpoint, endpoint_id} = other_endpoint_bin ->
+        endpoint = Map.get(endpoints, endpoint_id)
+
+        if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) and
+             endpoint.ctx.receive_media do
+          [forward: {other_endpoint_bin, msg}]
+        else
+          []
+        end
 
       _child ->
         []
