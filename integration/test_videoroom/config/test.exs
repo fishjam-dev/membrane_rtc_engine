@@ -7,3 +7,7 @@ config :test_videoroom, TestVideoroomWeb.Endpoint,
     esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]}
   ],
   server: true
+
+config :wallaby, :driver, Wallaby.Selenium
+
+config :wallaby, :hackney_options, timeout: 10_000, recv_timeout: 10_000

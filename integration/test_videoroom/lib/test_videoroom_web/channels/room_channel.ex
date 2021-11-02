@@ -11,7 +11,6 @@ defmodule TestVideoroomWeb.RoomChannel do
     end
     |> case do
       {:ok, room} ->
-      IO.inspect room
         peer_id = "#{UUID.uuid4()}"
         # TODO handle crash of room?
         Process.monitor(room)
@@ -41,5 +40,10 @@ defmodule TestVideoroomWeb.RoomChannel do
     push(socket, "mediaEvent", %{data: event})
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:DOWN, _ref, :process, room, :normal}, %{assigns: %{room: room}} = state) do
+    {:stop, :normal, state}
   end
 end

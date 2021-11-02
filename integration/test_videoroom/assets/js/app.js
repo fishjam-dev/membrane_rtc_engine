@@ -1,39 +1,50 @@
-// Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
-import "phoenix_html"
 import Room from "./room";
 import { remoteStreamsStats } from "./stats";
-// Establish Phoenix Socket and LiveView configuration.
 
 const videos = document.querySelector("#videos");
 const localVideo = document.querySelector("video#local-video");
 const data = document.querySelector("div#data");
 
-const startButton = document.querySelector("button#start");
+const startButtons = ["all", "mic-only", "camera-only", "none"]
+  .map(type => document.querySelector(`button#start-${type}`));
+
+const [
+  startAllButton, 
+  startMicOnlyButton, 
+  startCameraOnlyButton, 
+  startNoneButton
+] = startButtons;
+
 const stopButton = document.querySelector("button#stop");
 const statsButton = document.querySelector("button#stats");
 
-startButton.disabled = false;
+startButtons.forEach(button => button.disabled = false);
 stopButton.disabled = true;
 statsButton.disabled = false;
 
-
 let room;
 
-async function start() {
+async function start(media) {
   if (room) return;
 
-  const localStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video: true,
-  });
+  const preferences = {
+    audio: ["all", "mic"].includes(media), 
+    video: ["all", "camera"].includes(media)
+  };
+  
+  
+  let localStream = undefined;
+  if (preferences.audio || preferences.video) {
+    localStream = await navigator.mediaDevices.getUserMedia(preferences);
+    window.stream = localStream;
+  }
   
   localVideo.srcObject = localStream;
 
-  startButton.disabled = true;
+  startButtons.forEach(button => button.disabled = true);
   stopButton.disabled = false;
 
   room = new Room(localStream);
-  window.room = room;
   
   await room.init();
   await room.join();
@@ -44,27 +55,37 @@ async function stop() {
   
   room.leave()
   
+  // remove children until we are left with the local video
+  // tag which was the first one present
   while (videos.children.length > 1) {
     videos.removeChild(videos.lastChild);
   } 
   
   room = undefined;
 
-  startButton.disabled = false;
+  startButtons.forEach(button => button.disabled = false);
   stopButton.disabled = true;
 }
 
 async function refreshStats() {
   if (!room || !room.webrtc || !room.webrtc.connection) return;
-  window.pc = room.webrtc.connection;
   
-  // we are accessing room's private field...
+  // we are accessing room's private field, in the name of science of course...
   const stats = await remoteStreamsStats(room.webrtc.connection);
   
+  window.pc = room.webrtc.connection;
+  
+  // put the statistics as text inside div
   data.innerHTML = JSON.stringify(stats);
+
+  // update the current accessed version
   data.dataset.version = parseInt(data.dataset.version) + 1;
 }
 
-startButton.onclick = start;
+// setup all button callbacks
+startAllButton.onclick = () => start("all");
+startMicOnlyButton.onclick = () => start("mic");
+startCameraOnlyButton.onclick = () => start("camera");
+startNoneButton.onclick = () => start("none");
 stopButton.onclick = stop;
 statsButton.onclick = refreshStats;

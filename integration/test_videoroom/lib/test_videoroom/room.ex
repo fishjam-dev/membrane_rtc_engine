@@ -5,7 +5,6 @@ defmodule TestVideoroom.Room do
 
   require Logger
 
-
   def start(opts) do
     GenServer.start(__MODULE__, [], opts)
   end
@@ -49,7 +48,6 @@ defmodule TestVideoroom.Room do
   def handle_call({:register_new_peer_listener, listener}, _from, state) do
     {:reply, :ok, %{state | listeners: [listener | state.listeners]}}
   end
-
 
   @impl true
   def handle_call({:add_peer_channel, peer_channel_pid, peer_id}, _from, state) do

@@ -46,9 +46,11 @@ class Room {
         },
         onConnectionError: setErrorMessage,
         onJoinSuccess: (peerId, peersInRoom) => {
-          this.localStream.getTracks().forEach((track) =>
-            this.webrtc.addTrack(track, this.localStream)
-          );
+          if (this.localStream) {
+            this.localStream.getTracks().forEach((track) =>
+              this.webrtc.addTrack(track, this.localStream)
+            );
+          }
 
           this.peers = peersInRoom;
           this.peers.forEach((peer) => {
