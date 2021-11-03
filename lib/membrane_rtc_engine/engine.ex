@@ -636,7 +636,7 @@ defmodule Membrane.RTC.Engine do
             }
           end)
         else
-          state.options.turn_servers
+          state.options[:turn_servers] || []
         end
         |> then(&get_turn_configs(peer_id, &1))
 
@@ -648,7 +648,7 @@ defmodule Membrane.RTC.Engine do
           state
         end
 
-      {actions, state} = setup_peer(peer, peer_node, turn_servers, ctx, state)
+      {actions, state} = setup_peer(peer, peer_node, turn_servers, state)
 
       MediaEvent.create_peer_accepted_event(
         peer_id,
@@ -663,7 +663,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp setup_peer(config, peer_node, turn_servers, ctx, state) do
+  defp setup_peer(config, peer_node, turn_servers, state) do
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
