@@ -133,8 +133,7 @@ defmodule Membrane.RTC.Engine do
   import Membrane.RTC.Utils
 
   alias Membrane.ICE.TurnUtils
-  alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
-  alias Membrane.RTC.Engine.MediaEvent
+  alias Membrane.RTC.Engine.{MediaEvent, Endpoint, Track}
 
   require Membrane.Logger
 
@@ -487,7 +486,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_notification(
-        {:negotiation_done, new_outbound_tracks},
+        {:subscribe, new_outbound_tracks},
         {:endpoint, endpoint_id},
         ctx,
         state
@@ -506,14 +505,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification({:new_tracks, tracks}, {:endpoint, endpoint_id}, ctx, state) do
+  def handle_notification({:publish, tracks} = msg, {:endpoint, endpoint_id}, ctx, state) do
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
     state =
       update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
 
-    tracks_msgs =
-      update_track_messages(state.endpoints, ctx, {:add_tracks, tracks}, {:endpoint, endpoint_id})
+    tracks_msgs = update_track_messages(state.endpoints, ctx, msg, {:endpoint, endpoint_id})
 
     peer = get_in(state, [:peers, endpoint_id])
 
@@ -704,7 +702,7 @@ defmodule Membrane.RTC.Engine do
     if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
       {_peer, state} = pop_in(state, [:peers, peer_id])
-      tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
+      tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | disabled?: true})
 
       tracks_msgs =
         update_track_messages(

@@ -1,8 +1,9 @@
 defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
   use Membrane.Bin
 
-  alias Membrane.WebRTC.EndpointBin
-  alias Membrane.WebRTC.SDP
+  alias Membrane.WebRTC.{SDP, EndpointBin}
+  alias Membrane.WebRTC
+  alias Membrane.RTC.Engine
 
   def_options inbound_tracks: [
                 spec: [Membrane.WebRTC.Track.t()],
@@ -111,7 +112,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
       log_metadata: opts.log_metadata,
       filter_codecs: opts.filter_codecs,
       inbound_tracks: opts.inbound_tracks,
-      outbound_tracks: opts.outbound_tracks
+      outbound_tracks: Enum.map(opts.outbound_tracks, &rtc_track_to_webrtc_track(&1))
     }
 
     spec = %ParentSpec{
@@ -122,8 +123,34 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
   end
 
   @impl true
+  def handle_notification({:new_tracks, tracks}, _from, _ctx, state) do
+    rtc_tracks = Enum.map(tracks, &webrtc_track_to_rtc_track(&1))
+    {{:ok, notify: {:publish, rtc_tracks}}, state}
+  end
+
+  @impl true
+  def handle_notification({:negotiation_done, new_outbound_tracks}, _from, _ctx, state) do
+    {{:ok, notify: {:subscribe, new_outbound_tracks}}, state}
+  end
+
+  @impl true
   def handle_notification(notification, _element, _ctx, state) do
     {{:ok, notify: notification}, state}
+  end
+
+  @impl true
+  def handle_other({:publish, tracks}, _ctx, state) do
+    webrtc_tracks =
+      Enum.map(
+        tracks,
+        &WebRTC.Track.new(
+          &1.type,
+          &1.stream_id,
+          struct_to_keyword_list(&1)
+        )
+      )
+
+    {{:ok, forward: [endpoint_bin: {:add_tracks, webrtc_tracks}]}, state}
   end
 
   @impl true
@@ -133,7 +160,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, _track_id) = pad, ctx, state) do
-    options = ctx.pads[pad].options |> Enum.map(fn {key, value} -> {key, value} end)
+    options = ctx.pads[pad].options |> map_to_keyword_list()
 
     links = [
       link_bin_input(pad)
@@ -148,7 +175,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
   def handle_pad_added(Pad.ref(:output, _track_id) = pad, ctx, state) do
     options =
       ctx.pads[pad].options
-      |> Enum.map(fn {key, value} -> {key, value} end)
+      |> map_to_keyword_list()
 
     spec = %ParentSpec{
       links: [
@@ -162,4 +189,26 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
 
     {{:ok, spec: spec}, state}
   end
+
+  defp webrtc_track_to_rtc_track(track) do
+    %Engine.Track{
+      type: track.type,
+      stream_id: track.stream_id,
+      id: track.id,
+      encoding: track.encoding,
+      fmtp: track.fmtp,
+      disabled?: track.status == :disabled
+    }
+  end
+
+  defp rtc_track_to_webrtc_track(track) do
+    track = if track.disabled?, do: Map.put(track, :status, :disabled), else: track
+    WebRTC.Track.new(track.type, track.stream_id, struct_to_keyword_list(track))
+  end
+
+  defp struct_to_keyword_list(struct),
+    do: Map.from_struct(struct) |> map_to_keyword_list()
+
+  defp map_to_keyword_list(map),
+    do: Enum.map(map, fn {key, value} -> {key, value} end)
 end
