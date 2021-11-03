@@ -231,6 +231,8 @@ export class MembraneWebRTC {
           this.rtcConfig.iceServers!.push(rtcIceServer);
         });
 
+        this.rtcConfig.iceTransportPolicy = deserializedMediaEvent.data.ice_transport_policy;
+
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
           this.addPeer(peer);
@@ -671,8 +673,7 @@ export class MembraneWebRTC {
 
   private onOfferData = async (offerData: Map<string, number>) => {
     if (!this.connection) {
-      this.connection = new RTCPeerConnection({ iceTransportPolicy: "relay", ...this.rtcConfig });
-
+      this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
 
       this.localTracksWithStreams.forEach(({ track, stream }) => {

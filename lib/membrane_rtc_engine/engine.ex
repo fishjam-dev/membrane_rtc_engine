@@ -653,7 +653,8 @@ defmodule Membrane.RTC.Engine do
       MediaEvent.create_peer_accepted_event(
         peer_id,
         Map.delete(state.peers, peer_id),
-        Enum.map(turn_servers, &Map.delete(&1, :pid))
+        Enum.map(turn_servers, &Map.delete(&1, :pid)),
+        state.use_integrated_turn
       )
       |> dispatch()
 
@@ -688,7 +689,7 @@ defmodule Membrane.RTC.Engine do
       end
 
     stun_servers = state.options[:network_options][:stun_servers] || []
-    use_integrated_turn = state.options[:network_options][:use_integrated_turn]
+    use_integrated_turn = state.options[:network_options][:use_integrated_turn] || false
 
     {turn_servers, integrated_turns_pids} =
       if use_integrated_turn do
