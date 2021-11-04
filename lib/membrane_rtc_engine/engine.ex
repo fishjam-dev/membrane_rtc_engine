@@ -182,7 +182,7 @@ defmodule Membrane.RTC.Engine do
           stun_servers: [stun_server_t()],
           turn_servers: [turn_server_t()],
           use_integrated_turn: boolean(),
-          integrated_turn_ip: :inet.ip_v4() | nil,
+          integrated_turn_ip: :inet.ip4_address() | nil,
           dtls_pkey: binary(),
           dtls_cert: binary()
         ]
@@ -284,15 +284,15 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp handle_media_event(%{type: :join, data: data}, peer_id, ctx, state) do
+  defp handle_media_event(%{type: :join, data: data}, peer_id, _ctx, state) do
     dispatch({:new_peer, peer_id, data.metadata})
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        do_accept_new_peer(peer_id, node(), data, ctx, state)
+        do_accept_new_peer(peer_id, node(), data, state)
 
       {:accept_new_peer, ^peer_id, peer_node} ->
-        do_accept_new_peer(peer_id, peer_node, data, ctx, state)
+        do_accept_new_peer(peer_id, peer_node, data, state)
 
       {:accept_new_peer, peer_id} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
@@ -600,7 +600,7 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp do_accept_new_peer(peer_id, peer_node, data, ctx, state) do
+  defp do_accept_new_peer(peer_id, peer_node, data, state) do
     if Map.has_key?(state.peers, peer_id) do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
