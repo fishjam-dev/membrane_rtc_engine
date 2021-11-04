@@ -180,7 +180,7 @@ defmodule Membrane.RTC.Engine do
   """
   @type network_options_t() :: [
           stun_servers: [stun_server_t()],
-          turn_servers: [stun_server_t()],
+          turn_servers: [turn_server_t()],
           use_integrated_turn: boolean(),
           integrated_turn_ip: :inet.ip_v4() | nil,
           dtls_pkey: binary(),
@@ -244,8 +244,7 @@ defmodule Membrane.RTC.Engine do
        use_integrated_turn: options[:network_options][:use_integrated_turn],
        integrated_turn_ip: options[:network_options][:integrated_turn_ip],
        payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
-       waiting_for_linking: %{},
-       peer_id_to_turn_pids: %{}
+       waiting_for_linking: %{}
      }}
   end
 
@@ -606,22 +605,14 @@ defmodule Membrane.RTC.Engine do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
     else
-      peer =
-        if Map.has_key?(data, :track_id_to_track_metadata),
-          do: data,
-          else: Map.put(data, :track_id_to_track_metadata, %{})
-
-      peer = Map.put(peer, :id, peer_id)
-      state = put_in(state, [:peers, peer_id], peer)
-
-      turn_servers =
+      integrated_turn_servers =
         if state.use_integrated_turn do
           [:udp, :tcp]
           |> Enum.map(fn transport ->
             secret = TurnUtils.generate_secret()
 
             {:ok, port, pid} =
-              :turn_starter.start(
+              TurnUtils.start_integrated_turn(
                 secret,
                 ip: state.integrated_turn_ip,
                 transport: transport
@@ -636,24 +627,28 @@ defmodule Membrane.RTC.Engine do
             }
           end)
         else
-          state.options[:turn_servers] || []
+          []
         end
         |> then(&get_turn_configs(peer_id, &1))
 
-      state =
-        if state.use_integrated_turn do
-          tuns_pids = Enum.map(turn_servers, & &1.pid)
-          update_in(state, [:peer_id_to_turn_pids], &Map.put(&1, peer_id, tuns_pids))
-        else
-          state
-        end
+      peer =
+        if Map.has_key?(data, :track_id_to_track_metadata),
+          do: data,
+          else:
+            Map.put(data, :track_id_to_track_metadata, %{})
+            |> Map.merge(%{
+              id: peer_id,
+              integrated_turn_servers: integrated_turn_servers
+            })
 
-      {actions, state} = setup_peer(peer, peer_node, turn_servers, state)
+      state = put_in(state, [:peers, peer_id], peer)
+
+      {actions, state} = setup_peer(peer, peer_node, integrated_turn_servers, state)
 
       MediaEvent.create_peer_accepted_event(
         peer_id,
         Map.delete(state.peers, peer_id),
-        Enum.map(turn_servers, &Map.delete(&1, :pid)),
+        Enum.map(integrated_turn_servers, &Map.delete(&1, :pid)),
         state.use_integrated_turn
       )
       |> dispatch()
@@ -767,8 +762,10 @@ defmodule Membrane.RTC.Engine do
   defp do_remove_peer(peer_id, ctx, state) do
     if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
-      {_peer, state} = pop_in(state, [:peers, peer_id])
+      {peer, state} = pop_in(state, [:peers, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
+
+      Enum.each(peer.integrated_turn_servers, &TurnUtils.stop_integrated_turn/1)
 
       tracks_msgs =
         update_track_messages(
@@ -779,14 +776,6 @@ defmodule Membrane.RTC.Engine do
         )
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
-
-      state =
-        if state.use_integrated_turn do
-          Enum.each(state.peer_id_to_turn_pids[peer_id], &terminate_integrated_turn/1)
-          update_in(state, [:peer_id_to_turn_pids], &Map.delete(&1, peer_id))
-        else
-          state
-        end
 
       actions =
         if endpoint_bin == nil or endpoint_bin.terminating? do
@@ -826,6 +815,4 @@ defmodule Membrane.RTC.Engine do
         []
     end)
   end
-
-  defp terminate_integrated_turn(turn_pid), do: send(turn_pid, :terminate)
 end

@@ -25,4 +25,12 @@ defmodule Membrane.RTC.Engine.TurnUtils do
     |> Enum.map(fn _i -> Enum.random(symbols) end)
     |> to_string()
   end
+
+  @spec start_integrated_turn(binary(), list()) :: {:ok, :inet.port_number(), pid()}
+  def start_integrated_turn(secret, opts \\ []),
+    do: :turn_starter.start(secret, opts)
+
+  @spec stop_integrated_turn(map()) :: :ok
+  def stop_integrated_turn(turn),
+    do: :stun_listener.del_listener(turn.server_addr, turn.server_port, turn.relay_type)
 end

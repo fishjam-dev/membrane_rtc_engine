@@ -213,25 +213,29 @@ export class MembraneWebRTC {
         if (!this.rtcConfig.iceServers) {
           this.rtcConfig.iceServers = [];
         }
-        turnServers.forEach((turnServer: any) => {
-          const rtcIceServer: RTCIceServer = {
-            credential: turnServer.password,
-            credentialType: "password",
-            urls: "turn".concat(
-              ":",
-              turnServer.server_addr,
-              ":",
-              turnServer.server_port,
-              "?transport=",
-              turnServer.relay_type
-            ),
-            username: turnServer.username,
-          };
 
-          this.rtcConfig.iceServers!.push(rtcIceServer);
-        });
+        const iceTransportPolicy = deserializedMediaEvent.data.ice_transport_policy;
+        if (iceTransportPolicy === "relay") {
+          this.rtcConfig.iceTransportPolicy = "relay";
 
-        this.rtcConfig.iceTransportPolicy = deserializedMediaEvent.data.ice_transport_policy;
+          turnServers.forEach((turnServer: any) => {
+            const rtcIceServer: RTCIceServer = {
+              credential: turnServer.password,
+              credentialType: "password",
+              urls: "turn".concat(
+                ":",
+                turnServer.server_addr,
+                ":",
+                turnServer.server_port,
+                "?transport=",
+                turnServer.relay_type
+              ),
+              username: turnServer.username,
+            };
+
+            this.rtcConfig.iceServers!.push(rtcIceServer);
+          });
+        }
 
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
