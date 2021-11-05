@@ -193,9 +193,8 @@ defmodule Membrane.RTC.Engine do
   @type options_t() :: [
           id: String.t(),
           webrtc_extensions: webrtc_extensions_t(),
-          network_options: network_options_t(),
           extensions: extensions_t(),
-          payload_and_depayload_tracks?: boolean()
+          network_options: network_options_t()
         ]
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
@@ -240,8 +239,9 @@ defmodule Membrane.RTC.Engine do
          options[:network_options][:integrated_turn_options] || [use_integrated_turn: false],
        extensions: options[:extensions] || %{},
        webrtc_extensions: options[:webrtc_extensions] || [],
-       payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
-       waiting_for_linking: %{}
+       waiting_for_linking: %{},
+       filters: %{},
+       subscriptions: %{}
      }}
   end
 
@@ -424,7 +424,7 @@ defmodule Membrane.RTC.Engine do
   # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
   @impl true
   def handle_notification(
-        {:new_track, track_id, encoding, _depayloading_filter},
+        {:new_track, track_id, encoding, depayloading_filter},
         endpoint_bin_name,
         ctx,
         state
@@ -437,32 +437,48 @@ defmodule Membrane.RTC.Engine do
 
     tee = {:tee, {endpoint_id, track_id}}
     fake = {:fake, {endpoint_id, track_id}}
+    filter = {:filter, track_id}
+    filter_tee = {:filter_tee, track_id}
+    filter_tee_fake = {:filter_tee_fake, track_id}
 
     children = %{
       tee => Membrane.Element.Tee.Master,
-      fake => Membrane.Element.Fake.Sink.Buffers
+      fake => Membrane.Element.Fake.Sink.Buffers,
+      filter => depayloading_filter,
+      filter_tee => Membrane.Element.Tee.Master,
+      filter_tee_fake => Membrane.Element.Fake.Sink.Buffers
     }
 
-    extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
+    # extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
 
     link_to_fake =
       link(endpoint_bin_name)
-      |> via_out(Pad.ref(:output, track_id),
-        options: [
-          extensions: extensions,
-          use_depayloader?: state.payload_and_depayload_tracks?
-        ]
-      )
+      |> via_out(Pad.ref(:output, track_id))
       |> to(tee)
       |> via_out(:master)
       |> to(fake)
 
+    filter_link =
+      link(tee)
+      |> via_out(:copy)
+      |> to(filter)
+      |> to(filter_tee)
+      |> via_out(:master)
+      |> to(filter_tee_fake)
+
     {links, waiting_for_linking} =
-      link_inbound_track({track_id, encoding}, tee, state.waiting_for_linking, ctx, state)
+      link_inbound_track(
+        {track_id, depayloading_filter},
+        tee,
+        filter_tee,
+        state.waiting_for_linking,
+        ctx,
+        state
+      )
 
     spec = %ParentSpec{
       children: children,
-      links: [link_to_fake | links],
+      links: [link_to_fake | [filter_link | links]],
       crash_group: {endpoint_id, :temporary}
     }
 
@@ -474,6 +490,7 @@ defmodule Membrane.RTC.Engine do
       )
 
     state = %{state | waiting_for_linking: waiting_for_linking}
+    state = put_in(state, [:filters, track_id], depayloading_filter)
 
     {{:ok, [spec: spec]}, state}
   end
@@ -491,6 +508,16 @@ defmodule Membrane.RTC.Engine do
         ctx,
         state
       ) do
+    all_tracks =
+      Map.values(state.endpoints)
+      |> Enum.flat_map(&Endpoint.get_tracks(&1))
+      |> Map.new(&{&1.id, &1})
+
+    new_outbound_tracks =
+      Enum.map(new_outbound_tracks, fn {track_id, format} ->
+        {Map.get(all_tracks, track_id), format}
+      end)
+
     {new_links, new_waiting_for_linking} =
       link_outbound_tracks(new_outbound_tracks, endpoint_id, ctx, state)
 
@@ -501,6 +528,18 @@ defmodule Membrane.RTC.Engine do
         &MapSet.union(&1, new_waiting_for_linking)
       )
 
+    new_endpoint_subscriptions =
+      Map.new(new_outbound_tracks, fn {track, format} -> {track.id, format} end)
+
+    subscriptions =
+      Map.update(
+        state.subscriptions,
+        endpoint_id,
+        new_endpoint_subscriptions,
+        &Map.merge(&1, new_endpoint_subscriptions)
+      )
+
+    state = %{state | subscriptions: subscriptions}
     {{:ok, [spec: %ParentSpec{links: new_links}]}, state}
   end
 
@@ -565,16 +604,25 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp link_inbound_track({track_id, encoding}, tee, waiting_for_linking, ctx, state) do
+  defp link_inbound_track(
+         {track_id, _filter},
+         tee,
+         filter_tee,
+         waiting_for_linking,
+         ctx,
+         state
+       ) do
     reduce_children(ctx, {[], waiting_for_linking}, fn
       {:endpoint, endpoint_id}, {new_links, waiting_for_linking} ->
         if MapSet.member?(waiting_for_linking[endpoint_id], track_id) do
+          format = state.subscriptions[endpoint_id][track_id]
+
+          format_specific_tee = if format == :raw, do: filter_tee, else: tee
+
           new_link =
-            link(tee)
+            link(format_specific_tee)
             |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id),
-              options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?]
-            )
+            |> via_in(Pad.ref(:input, track_id))
             |> to({:endpoint, endpoint_id})
 
           waiting_for_linking =
@@ -592,21 +640,24 @@ defmodule Membrane.RTC.Engine do
 
   defp link_outbound_tracks(tracks, endpoint_id, ctx, state) do
     Enum.reduce(tracks, {[], MapSet.new()}, fn
-      {track_id, encoding}, {new_links, not_linked} ->
-        tee = find_child(ctx, pattern: {:tee, {_other_endpoint_id, ^track_id}})
+      {%{id: track_id} = track, format}, {new_links, not_linked} ->
+        tee =
+          if format == :raw do
+            find_child(ctx, pattern: {:filter_tee, ^track_id})
+          else
+            find_child(ctx, pattern: {:tee, {_other_endpoint_id, ^track_id}})
+          end
 
         if tee do
           new_link =
             link(tee)
             |> via_out(:copy)
-            |> via_in(Pad.ref(:input, track_id),
-              options: [encoding: encoding, use_payloader?: state.payload_and_depayload_tracks?]
-            )
+            |> via_in(Pad.ref(:input, track_id))
             |> to({:endpoint, endpoint_id})
 
           {new_links ++ [new_link], not_linked}
         else
-          {new_links, MapSet.put(not_linked, track_id)}
+          {new_links, MapSet.put(not_linked, track.id)}
         end
 
       _track, {new_links, not_linked} ->
