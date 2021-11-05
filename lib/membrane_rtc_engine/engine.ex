@@ -632,14 +632,15 @@ defmodule Membrane.RTC.Engine do
         |> then(&get_turn_configs(peer_id, &1))
 
       peer =
-        if Map.has_key?(data, :track_id_to_track_metadata),
-          do: data,
-          else:
-            Map.put(data, :track_id_to_track_metadata, %{})
-            |> Map.merge(%{
-              id: peer_id,
-              integrated_turn_servers: integrated_turn_servers
-            })
+        if Map.has_key?(data, :track_id_to_track_metadata) do
+          data
+        else
+          Map.put(data, :track_id_to_track_metadata, %{})
+        end
+        |> Map.merge(%{
+          id: peer_id,
+          integrated_turn_servers: integrated_turn_servers
+        })
 
       state = put_in(state, [:peers, peer_id], peer)
 

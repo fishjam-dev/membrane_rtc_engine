@@ -32,5 +32,5 @@ defmodule Membrane.RTC.Engine.TurnUtils do
 
   @spec stop_integrated_turn(map()) :: :ok
   def stop_integrated_turn(turn),
-    do: :stun_listener.del_listener(turn.server_addr, turn.server_port, turn.relay_type)
+    do: :turn_starter.stop(turn.server_addr, turn.server_port, turn.relay_type)
 end
