@@ -241,7 +241,7 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
-       use_integrated_turn: options[:network_options][:use_integrated_turn],
+       use_integrated_turn: options[:network_options][:use_integrated_turn] || false,
        integrated_turn_ip: options[:network_options][:integrated_turn_ip],
        payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
        waiting_for_linking: %{}
