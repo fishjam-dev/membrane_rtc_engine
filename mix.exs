@@ -39,13 +39,15 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, github: "membraneframework/membrane_core", override: true},
-      {:membrane_webrtc_plugin, "~> 0.1.0"},
+      # {:membrane_webrtc_plugin, "~> 0.1.0"},
+      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false}
+      {:credo, "~> 1.4", only: :dev, runtime: false},
+      {:stun, git: "git@github.com:membraneframework/stun.git"}
     ]
   end
 

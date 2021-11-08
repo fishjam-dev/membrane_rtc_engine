@@ -74,7 +74,15 @@ defmodule Membrane.RTC.EngineTest do
       send(sfu_engine, {:accept_new_peer, peer_id})
       assert_receive {_from, {:sfu_media_event, ^peer_id, media_event}}
 
-      assert %{"type" => "peerAccepted", "data" => %{"id" => peer_id, "peersInRoom" => []}} ==
+      assert %{
+               "type" => "peerAccepted",
+               "data" => %{
+                 "id" => peer_id,
+                 "peersInRoom" => [],
+                 "ice_transport_policy" => "all",
+                 "turn_servers" => []
+               }
+             } ==
                Jason.decode!(media_event)
     end
   end

@@ -133,7 +133,7 @@ defmodule Membrane.RTC.Engine do
   import Membrane.RTC.Utils
 
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
-  alias Membrane.RTC.Engine.MediaEvent
+  alias Membrane.RTC.Engine.{MediaEvent, TurnUtils}
 
   require Membrane.Logger
 
@@ -181,6 +181,8 @@ defmodule Membrane.RTC.Engine do
   @type network_options_t() :: [
           stun_servers: [stun_server_t()],
           turn_servers: [turn_server_t()],
+          use_integrated_turn: boolean(),
+          integrated_turn_ip: :inet.ip4_address() | nil,
           dtls_pkey: binary(),
           dtls_cert: binary()
         ]
@@ -239,6 +241,8 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        options: options,
        packet_filters: options[:packet_filters] || %{},
+       use_integrated_turn: options[:network_options][:use_integrated_turn] || false,
+       integrated_turn_ip: options[:network_options][:integrated_turn_ip],
        payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
        waiting_for_linking: %{}
      }}
@@ -280,15 +284,15 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp handle_media_event(%{type: :join, data: data}, peer_id, ctx, state) do
+  defp handle_media_event(%{type: :join, data: data}, peer_id, _ctx, state) do
     dispatch({:new_peer, peer_id, data.metadata})
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        do_accept_new_peer(peer_id, node(), data, ctx, state)
+        do_accept_new_peer(peer_id, node(), data, state)
 
       {:accept_new_peer, ^peer_id, peer_node} ->
-        do_accept_new_peer(peer_id, peer_node, data, ctx, state)
+        do_accept_new_peer(peer_id, peer_node, data, state)
 
       {:accept_new_peer, peer_id} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
@@ -596,22 +600,58 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp do_accept_new_peer(peer_id, peer_node, data, ctx, state) do
+  defp do_accept_new_peer(peer_id, peer_node, data, state) do
     if Map.has_key?(state.peers, peer_id) do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
     else
-      peer =
-        if Map.has_key?(data, :track_id_to_track_metadata),
-          do: data,
-          else: Map.put(data, :track_id_to_track_metadata, %{})
+      integrated_turn_servers =
+        if state.use_integrated_turn do
+          [:udp, :tcp]
+          |> Enum.map(fn transport ->
+            secret = TurnUtils.generate_secret()
 
-      peer = Map.put(peer, :id, peer_id)
+            {:ok, port, pid} =
+              TurnUtils.start_integrated_turn(
+                secret,
+                ip: state.integrated_turn_ip,
+                transport: transport
+              )
+
+            %{
+              relay_type: transport,
+              secret: secret,
+              server_addr: state.integrated_turn_ip,
+              server_port: port,
+              pid: pid
+            }
+          end)
+        else
+          []
+        end
+        |> then(&get_turn_configs(peer_id, &1))
+
+      peer =
+        if Map.has_key?(data, :track_id_to_track_metadata) do
+          data
+        else
+          Map.put(data, :track_id_to_track_metadata, %{})
+        end
+        |> Map.merge(%{
+          id: peer_id,
+          integrated_turn_servers: integrated_turn_servers
+        })
 
       state = put_in(state, [:peers, peer_id], peer)
-      {actions, state} = setup_peer(peer, peer_node, ctx, state)
 
-      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(state.peers, peer_id))
+      {actions, state} = setup_peer(peer, peer_node, integrated_turn_servers, state)
+
+      MediaEvent.create_peer_accepted_event(
+        peer_id,
+        Map.delete(state.peers, peer_id),
+        Enum.map(integrated_turn_servers, &Map.delete(&1, :pid)),
+        state.use_integrated_turn
+      )
       |> dispatch()
 
       MediaEvent.create_peer_joined_event(peer_id, peer) |> dispatch()
@@ -620,7 +660,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp setup_peer(config, peer_node, _ctx, state) do
+  defp setup_peer(config, peer_node, turn_servers, state) do
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -644,12 +684,25 @@ defmodule Membrane.RTC.Engine do
         ]
       end
 
+    stun_servers = state.options[:network_options][:stun_servers] || []
+    use_integrated_turn = state.options[:network_options][:use_integrated_turn] || false
+
+    {turn_servers, integrated_turns_pids} =
+      if use_integrated_turn do
+        pids = Enum.map(turn_servers, & &1.pid)
+        {[], pids}
+      else
+        {turn_servers, []}
+      end
+
     children = %{
       {:endpoint, config.id} => %EndpointBin{
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
-        stun_servers: state.options[:network_options][:stun_servers] || [],
-        turn_servers: state.options[:network_options][:turn_servers] || [],
+        stun_servers: stun_servers,
+        turn_servers: turn_servers,
+        use_integrated_turn: use_integrated_turn,
+        integrated_turns_pids: integrated_turns_pids,
         handshake_opts: handshake_opts,
         log_metadata: [peer_id: config.id]
       }
@@ -666,6 +719,20 @@ defmodule Membrane.RTC.Engine do
     state = put_in(state.endpoints[config.id], endpoint)
 
     {[spec: spec], state}
+  end
+
+  defp get_turn_configs(name, turn_servers) do
+    Enum.map(turn_servers, fn
+      %{secret: secret} = turn_server ->
+        {username, password} = TurnUtils.create_credentials(name, secret)
+
+        Map.delete(turn_server, :secret)
+        |> Map.put(:username, username)
+        |> Map.put(:password, password)
+
+      other ->
+        other
+    end)
   end
 
   defp get_outbound_tracks(endpoints, true),
@@ -696,8 +763,10 @@ defmodule Membrane.RTC.Engine do
   defp do_remove_peer(peer_id, ctx, state) do
     if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
-      {_peer, state} = pop_in(state, [:peers, peer_id])
+      {peer, state} = pop_in(state, [:peers, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
+
+      Enum.each(peer.integrated_turn_servers, &TurnUtils.stop_integrated_turn/1)
 
       tracks_msgs =
         update_track_messages(
