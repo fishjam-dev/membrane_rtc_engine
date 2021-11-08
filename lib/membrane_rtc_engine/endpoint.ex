@@ -1,27 +1,23 @@
 defmodule Membrane.RTC.Engine.Endpoint do
-  @moduledoc """
-  Module representing a WebRTC connection.
-  """
+  @moduledoc false
   use Bunch.Access
   alias Membrane.RTC.Engine.Track
 
   @type id() :: any()
-  @type type() :: :screensharing | :participant
 
   @type t :: %__MODULE__{
           id: id(),
-          type: :participant | :screensharing,
           inbound_tracks: %{Track.id() => Track.t()},
           ctx: any()
         }
 
-  defstruct id: nil, type: :participant, inbound_tracks: %{}, ctx: nil
+  defstruct id: nil, inbound_tracks: %{}, ctx: nil
 
-  @spec new(id :: id(), type :: type(), inbound_tracks :: [Track.t()], ctx :: any()) ::
+  @spec new(id :: id(), inbound_tracks :: [Track.t()], ctx :: any()) ::
           Endpoint.t()
-  def new(id, type, inbound_tracks, ctx) do
+  def new(id, inbound_tracks, ctx) do
     inbound_tracks = Map.new(inbound_tracks, &{&1.id, &1})
-    %__MODULE__{id: id, type: type, inbound_tracks: inbound_tracks, ctx: ctx}
+    %__MODULE__{id: id, inbound_tracks: inbound_tracks, ctx: ctx}
   end
 
   @spec get_audio_tracks(endpoint :: t()) :: [Track.t()]

@@ -40,13 +40,21 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       {:membrane_core, github: "membraneframework/membrane_core", override: true},
       {:membrane_webrtc_plugin,
-       github: "membraneframework/membrane_webrtc_plugin", branch: "modular_rtc_engine"},
+       github: "membraneframework/membrane_webrtc_plugin",
+       branch: "modular_rtc_engine",
+       optional: true},
+      {:membrane_http_adaptive_stream_plugin,
+       github: "membraneframework/membrane_http_adaptive_stream_plugin", optional: true},
+      {:membrane_mp4_plugin, "~> 0.7.0", optional: true},
+      {:membrane_aac_plugin, "~> 0.8.0", optional: true},
+      {:membrane_aac_format, "~> 0.3.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.8.0", optional: true},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false}
+      {:credo, "~> 1.4", only: :dev, runtime: false, override: true}
     ]
   end
 

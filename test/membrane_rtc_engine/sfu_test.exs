@@ -2,6 +2,7 @@ defmodule Membrane.RTC.EngineTest do
   use ExUnit.Case
 
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Endpoint.Webrtc
 
   setup do
     webrtc_extensions = [
@@ -62,6 +63,47 @@ defmodule Membrane.RTC.EngineTest do
         "displayName" => "Bob"
       }
 
+      state = %{
+        network_options: [
+          stun_servers: [
+            %{server_addr: "stun.l.google.com", server_port: 19_302}
+          ],
+          turn_servers: [],
+          dtls_pkey: Application.get_env(:membrane_videoroom_demo, :dtls_pkey),
+          dtls_cert: Application.get_env(:membrane_videoroom_demo, :dtls_cert)
+        ]
+      }
+
+      handshake_opts =
+        if state.network_options[:dtls_pkey] &&
+             state.network_options[:dtls_cert] do
+          [
+            client_mode: false,
+            dtls_srtp: true,
+            pkey: state.network_options[:dtls_pkey],
+            cert: state.network_options[:dtls_cert]
+          ]
+        else
+          [
+            client_mode: false,
+            dtls_srtp: true
+          ]
+        end
+
+      bin = %Webrtc{
+        stun_servers: [],
+        turn_servers: [],
+        handshake_opts: handshake_opts,
+        log_metadata: [peer_id: peer_id],
+        filter_codecs: fn {rtp, fmtp} ->
+          case rtp.encoding do
+            "opus" -> true
+            "H264" -> fmtp.profile_level_id === 0x42E01F
+            _unsupported_codec -> false
+          end
+        end
+      }
+
       media_event =
         %{
           type: "join",
@@ -74,7 +116,7 @@ defmodule Membrane.RTC.EngineTest do
 
       send(sfu_engine, {:media_event, peer_id, media_event})
       assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
-      send(sfu_engine, {:accept_new_peer, peer_id})
+      send(sfu_engine, {:accept_new_peer, peer_id, bin})
       assert_receive {_from, {:sfu_media_event, ^peer_id, media_event}}, 1000
 
       assert %{

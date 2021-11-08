@@ -1,9 +1,17 @@
 defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
+  @moduledoc """
+  An Endpoint responsible for communicatiing with WebRTC peer.
+
+  It is responsible for sending and receiving media tracks from other WebRTC peer (e.g. web browser).
+  """
   use Membrane.Bin
 
   alias Membrane.WebRTC.{SDP, EndpointBin}
   alias Membrane.WebRTC
   alias Membrane.RTC.Engine
+
+  @type stun_server_t() :: ExLibnice.stun_server()
+  @type turn_server_t() :: ExLibnice.relay_info()
 
   @type extension_options_t() :: [
           vad: boolean()
@@ -125,7 +133,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
       log_metadata: opts.log_metadata,
       filter_codecs: opts.filter_codecs,
       inbound_tracks: opts.inbound_tracks,
-      outbound_tracks: Enum.map(opts.outbound_tracks, &rtc_track_to_webrtc_track(&1))
+      outbound_tracks: Enum.map(opts.outbound_tracks, &to_webrtc_track(&1))
     }
 
     spec = %ParentSpec{
@@ -144,14 +152,18 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
 
   @impl true
   def handle_notification({:new_tracks, tracks}, _from, _ctx, state) do
-    rtc_tracks = Enum.map(tracks, &webrtc_track_to_rtc_track(&1))
+    {tracks, outbound_tracks} = update_outbound_tracks(tracks, state)
 
-    outbound_tracks =
-      Enum.reduce(rtc_tracks, state.outbound_tracks, fn track, acc ->
-        Map.put(acc, track.id, track)
-      end)
+    {{:ok, notify: {:publish, {:new_tracks, tracks}}},
+     %{state | outbound_tracks: outbound_tracks}}
+  end
 
-    {{:ok, notify: {:publish, rtc_tracks}}, %{state | outbound_tracks: outbound_tracks}}
+  @impl true
+  def handle_notification({:removed_tracks, tracks}, _from, _ctx, state) do
+    {tracks, outbound_tracks} = update_outbound_tracks(tracks, state)
+
+    {{:ok, notify: {:publish, {:removed_tracks, tracks}}},
+     %{state | outbound_tracks: outbound_tracks}}
   end
 
   @impl true
@@ -161,25 +173,20 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
     {{:ok, notify: {:subscribe, tracks}}, state}
   end
 
-  #  @impl true
-  #  def handle_notification({:new_track, id, encoding, depayloading_filter}, _from, _ctx, state) do
-
-  #  end
-
   @impl true
   def handle_notification(notification, _element, _ctx, state) do
     {{:ok, notify: notification}, state}
   end
 
   @impl true
-  def handle_other({:publish, tracks}, _ctx, state) do
+  def handle_other({:new_tracks, tracks}, _ctx, state) do
     webrtc_tracks =
       Enum.map(
         tracks,
         &WebRTC.Track.new(
           &1.type,
           &1.stream_id,
-          struct_to_keyword_list(&1)
+          to_keyword_list(&1)
         )
       )
 
@@ -225,11 +232,22 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
     {{:ok, spec: spec}, state}
   end
 
+  defp update_outbound_tracks(tracks, state) do
+    rtc_tracks = Enum.map(tracks, &to_rtc_track(&1))
+
+    outbound_tracks =
+      Enum.reduce(rtc_tracks, state.outbound_tracks, fn track, acc ->
+        Map.put(acc, track.id, track)
+      end)
+
+    {rtc_tracks, outbound_tracks}
+  end
+
   defp setup_extensions(encoding, extension_options) do
     if encoding == :OPUS and extension_options[:vad], do: [{:vad, Membrane.RTP.VAD}], else: []
   end
 
-  defp webrtc_track_to_rtc_track(track) do
+  defp to_rtc_track(%WebRTC.Track{} = track) do
     %Engine.Track{
       type: track.type,
       stream_id: track.stream_id,
@@ -241,14 +259,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
     }
   end
 
-  defp rtc_track_to_webrtc_track(track) do
+  defp to_webrtc_track(%Engine.Track{} = track) do
     track = if track.disabled?, do: Map.put(track, :status, :disabled), else: track
-    WebRTC.Track.new(track.type, track.stream_id, struct_to_keyword_list(track))
+    WebRTC.Track.new(track.type, track.stream_id, to_keyword_list(track))
   end
 
-  defp struct_to_keyword_list(struct),
-    do: Map.from_struct(struct) |> map_to_keyword_list()
+  defp to_keyword_list(%_{} = struct), do: Map.from_struct(struct) |> to_keyword_list()
 
-  defp map_to_keyword_list(map),
-    do: Enum.map(map, fn {key, value} -> {key, value} end)
+  defp to_keyword_list(%{} = map), do: Enum.map(map, fn {key, value} -> {key, value} end)
 end
