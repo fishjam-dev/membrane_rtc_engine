@@ -11,7 +11,9 @@ config :esbuild,
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]
 
-config :membrane_videoroom_demo, VideoRoomWeb.Endpoint, pubsub_server: VideoRoom.PubSub
+config :membrane_videoroom_demo, VideoRoomWeb.Endpoint,
+  pubsub_server: VideoRoom.PubSub,
+  server: true
 
 config :membrane_videoroom_demo, version: System.get_env("VERSION", "unknown")
 
