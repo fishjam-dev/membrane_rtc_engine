@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @moduledoc """
   An Endpoint responsible for communicatiing with WebRTC peer.
 
@@ -22,16 +22,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
         }
 
   def_options(
-    inbound_tracks: [
-      spec: [Membrane.WebRTC.Track.t()],
-      default: [],
-      description: "List of initial inbound tracks"
-    ],
-    outbound_tracks: [
-      spec: [Membrane.WebRTC.Track.t()],
-      default: [],
-      description: "List of initial outbound tracks"
-    ],
     stun_servers: [
       type: :list,
       spec: [ExLibnice.stun_server()],
@@ -81,14 +71,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
       default: [],
       description: "Logger metadata used for endpoint bin and all its descendants"
     ],
-    payload_and_depayload_tracks?: [
-      spec: boolean(),
-      default: false,
-      description: """
-      Defines if incoming/outcoming stream should be payloaded/depayloaded based on given encoding.
-      Otherwise the stream is assumed  be in RTP format.
-      """
-    ],
     extension_options: [
       spec: extension_options_t(),
       default: [vad: false],
@@ -132,8 +114,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
       handshake_opts: opts.handshake_opts,
       log_metadata: opts.log_metadata,
       filter_codecs: opts.filter_codecs,
-      inbound_tracks: opts.inbound_tracks,
-      outbound_tracks: Enum.map(opts.outbound_tracks, &to_webrtc_track(&1))
+      inbound_tracks: [],
+      outbound_tracks: []
     }
 
     spec = %ParentSpec{
@@ -143,8 +125,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
     state = %{
       extensions: opts.extension_options,
       packet_filters: opts.packet_filters || %{},
-      payload_and_depayload_tracks?: opts.payload_and_depayload_tracks?,
-      outbound_tracks: Map.new(opts.outbound_tracks, &{&1.id, &1})
+      outbound_tracks: %{},
+      inbound_tracks: %{}
     }
 
     {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
@@ -152,31 +134,40 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
 
   @impl true
   def handle_notification({:new_tracks, tracks}, _from, _ctx, state) do
-    {tracks, outbound_tracks} = update_outbound_tracks(tracks, state)
-
-    {{:ok, notify: {:publish, {:new_tracks, tracks}}},
-     %{state | outbound_tracks: outbound_tracks}}
+    tracks = Enum.map(tracks, &to_rtc_track(&1))
+    inbound_tracks = update_tracks(tracks, state.inbound_tracks)
+    publish_notification = Engine.publish({:new_tracks, tracks})
+    {{:ok, publish_notification}, %{state | inbound_tracks: inbound_tracks}}
   end
 
   @impl true
   def handle_notification({:removed_tracks, tracks}, _from, _ctx, state) do
-    {tracks, outbound_tracks} = update_outbound_tracks(tracks, state)
+    {tracks, outbound_tracks} = update_tracks(tracks, state.inbound_tracks)
 
     {{:ok, notify: {:publish, {:removed_tracks, tracks}}},
      %{state | outbound_tracks: outbound_tracks}}
   end
 
   @impl true
-  def handle_notification({:negotiation_done, new_outbound_tracks}, _from, _ctx, state) do
-    tracks = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
-
-    {{:ok, notify: {:subscribe, tracks}}, state}
+  def handle_notification(
+        {:new_track, track_id, encoding, depayloading_filter},
+        _from,
+        _ctx,
+        state
+      ) do
+    {{:ok, notify: {:track_ready, track_id, encoding, depayloading_filter}}, state}
   end
 
   @impl true
-  def handle_notification(notification, _element, _ctx, state) do
-    {{:ok, notify: notification}, state}
+  def handle_notification({:negotiation_done, new_outbound_tracks}, _from, _ctx, state) do
+    tracks = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
+    subscriptions = Engine.subscribe(tracks)
+    {{:ok, subscriptions}, state}
   end
+
+  @impl true
+  def handle_notification(notification, _element, _ctx, state),
+    do: {{:ok, notify: notification}, state}
 
   @impl true
   def handle_other({:new_tracks, tracks}, _ctx, state) do
@@ -190,7 +181,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
         )
       )
 
-    {{:ok, forward: [endpoint_bin: {:add_tracks, webrtc_tracks}]}, state}
+    outbound_tracks = update_tracks(tracks, state.outbound_tracks)
+
+    {{:ok, forward: [endpoint_bin: {:add_tracks, webrtc_tracks}]},
+     %{state | outbound_tracks: outbound_tracks}}
   end
 
   @impl true
@@ -202,7 +196,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
   def handle_pad_added(Pad.ref(:input, _track_id) = pad, _ctx, state) do
     links = [
       link_bin_input(pad)
-      |> via_in(pad, options: [use_payloader?: state.payload_and_depayload_tracks?])
+      |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
     ]
 
@@ -211,7 +205,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
 
   @impl true
   def handle_pad_added(Pad.ref(:output, track_id) = pad, _ctx, state) do
-    %{encoding: encoding} = Map.get(state.outbound_tracks, track_id)
+    %{encoding: encoding} = Map.get(state.inbound_tracks, track_id)
     extensions = setup_extensions(encoding, state[:options][:extension_options])
     packet_filters = state.packet_filters[encoding] || []
 
@@ -222,7 +216,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
           options: [
             packet_filters: packet_filters,
             extensions: extensions,
-            use_depayloader?: state.payload_and_depayload_tracks?
+            use_depayloader?: false
           ]
         )
         |> to_bin_output(pad)
@@ -232,16 +226,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
     {{:ok, spec: spec}, state}
   end
 
-  defp update_outbound_tracks(tracks, state) do
-    rtc_tracks = Enum.map(tracks, &to_rtc_track(&1))
-
-    outbound_tracks =
-      Enum.reduce(rtc_tracks, state.outbound_tracks, fn track, acc ->
+  defp update_tracks(tracks, track_id_to_track),
+    do:
+      Enum.reduce(tracks, track_id_to_track, fn track, acc ->
         Map.put(acc, track.id, track)
       end)
-
-    {rtc_tracks, outbound_tracks}
-  end
 
   defp setup_extensions(encoding, extension_options) do
     if encoding == :OPUS and extension_options[:vad], do: [{:vad, Membrane.RTP.VAD}], else: []
@@ -255,12 +244,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Webrtc do
       encoding: track.encoding,
       format: [:RTP, :raw],
       fmtp: track.fmtp,
-      disabled?: track.status == :disabled
+      active?: track.status != :disabled
     }
   end
 
   defp to_webrtc_track(%Engine.Track{} = track) do
-    track = if track.disabled?, do: Map.put(track, :status, :disabled), else: track
+    track = if track.active?, do: track, else: Map.put(track, :status, :disabled)
     WebRTC.Track.new(track.type, track.stream_id, to_keyword_list(track))
   end
 

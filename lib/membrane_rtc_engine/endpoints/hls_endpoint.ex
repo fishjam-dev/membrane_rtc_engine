@@ -1,53 +1,41 @@
 defmodule Membrane.RTC.Engine.Endpoint.HLS do
   @moduledoc """
-  An Endpoint responsible for saving incoming tracks to file.
+  An Endpoint responsible for converting incoming tracks to HLS playlist.
   """
   use Membrane.Bin
-  import WebRTCToHLS.Helpers
+  alias Membrane.RTC.Engine
+  require Membrane.Logger
 
-  def_input_pad(:input,
+  def_input_pad :input,
     demand_unit: :buffers,
     caps: :any,
     availability: :on_request
-  )
 
-  def_options(
-    inbound_tracks: [
-      spec: [Membrane.WebRTC.Track.t()],
-      default: [],
-      description: "List of initial inbound tracks"
-    ],
-    outbound_tracks: [
-      spec: [Membrane.WebRTC.Track.t()],
-      default: [],
-      description: "List of initial outbound tracks"
-    ],
-    subdirectory_name: [
-      spec: String.t(),
-      description: "Name of subdirectory after hls_output"
-    ],
-    use_depayloader?: [
-      spec: boolean(),
-      default: true,
-      description: """
-      Defines if the outgoing stream should get depayloaded.
-      This option should be used as a convenience, it is not necessary as the new track notification
-      returns a depayloading filter's definition that can be attached to the output pad
-      to work the same way as with the option set to true.
-      """
-    ]
-  )
+  def_options output_directory: [
+                spec: Path.t(),
+                description: "Path to directory under which HLS output will be saved",
+                default: "hls_output"
+              ],
+              use_depayloader?: [
+                spec: boolean(),
+                default: true,
+                description: """
+                Defines if the outgoing stream should get depayloaded.
+                This option should be used as a convenience, it is not necessary as the new track notification
+                returns a depayloading filter's definition that can be attached to the output pad
+                to work the same way as with the option set to true.
+                """
+              ]
 
   @impl true
   def handle_init(opts) do
     state = %{
-      tracks: Map.new(opts.outbound_tracks, &{&1.id, &1}),
+      tracks: %{},
       stream_ids: MapSet.new(),
-      subdirectory_name: opts.subdirectory_name
+      output_directory: opts.output_directory
     }
 
-    actions = create_subscriptions_action(opts.outbound_tracks)
-    {{:ok, actions}, state}
+    {:ok, state}
   end
 
   @impl true
@@ -58,12 +46,14 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   end
 
   @impl true
-  def handle_other(_msg, _ctx, state) do
+  def handle_other(msg, _ctx, state) do
+    Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
     {:ok, state}
   end
 
   @impl true
-  def handle_notification(_notification, _element, _context, state) do
+  def handle_notification(notification, _element, _context, state) do
+    Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
     {:ok, state}
   end
 
@@ -72,7 +62,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     link_builder = link_bin_input(pad)
     track = Map.get(state.tracks, track_id)
 
-    directory = hls_output_path(state.subdirectory_name, track.stream_id)
+    directory = Path.join(state.output_directory, track.stream_id)
 
     # remove directory if it already exists
     File.rm_rf(directory)
@@ -89,7 +79,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
           target_window_duration: 20 |> Membrane.Time.seconds(),
           target_segment_duration: 2 |> Membrane.Time.seconds(),
           persist?: false,
-          storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{directory: directory}
+          storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
+            directory: directory
+          }
         }
 
         new_spec = %{
@@ -104,46 +96,54 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   end
 
   defp create_subscriptions_action(tracks) do
-    subscriptions = Enum.map(tracks, fn track -> {track.id, :raw} end)
+    subscriptions =
+      Enum.filter(tracks, fn track -> :raw in track.format end)
+      |> Enum.map(fn track -> {track.id, :raw} end)
 
-    if subscriptions != [], do: [notify: {:subscribe, subscriptions}], else: []
+    if subscriptions != [], do: Engine.subscribe(subscriptions), else: []
   end
 
-  defp hls_links_and_children(link_builder, encoding, track_id, stream_id) do
-    case encoding do
-      :H264 ->
-        %ParentSpec{
-          children: %{
-            {:video_parser, track_id} => %Membrane.H264.FFmpeg.Parser{
-              framerate: {30, 1},
-              alignment: :au,
-              attach_nalus?: true
-            }
-          },
-          links: [
-            link_builder
-            |> to({:video_parser, track_id})
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: :H264])
-            |> to({:hls_sink_bin, stream_id})
-          ]
-        }
+  defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id),
+    do: %ParentSpec{
+      children: %{
+        {:opus_decoder, track_id} => Membrane.Opus.Decoder,
+        {:aac_encoder, track_id} => Membrane.AAC.FDK.Encoder,
+        {:aac_parser, track_id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+      },
+      links: [
+        link_builder
+        |> to({:opus_decoder, track_id})
+        |> to({:aac_encoder, track_id})
+        |> to({:aac_parser, track_id})
+        |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
+        |> to({:hls_sink_bin, stream_id})
+      ]
+    }
 
-      :OPUS ->
-        %ParentSpec{
-          children: %{
-            {:opus_decoder, track_id} => Membrane.Opus.Decoder,
-            {:aac_encoder, track_id} => Membrane.AAC.FDK.Encoder,
-            {:aac_parser, track_id} => %Membrane.AAC.Parser{out_encapsulation: :none}
-          },
-          links: [
-            link_builder
-            |> to({:opus_decoder, track_id})
-            |> to({:aac_encoder, track_id})
-            |> to({:aac_parser, track_id})
-            |> via_in(Pad.ref(:input, track_id), options: [encoding: :AAC])
-            |> to({:hls_sink_bin, stream_id})
-          ]
+  defp hls_links_and_children(link_builder, :AAC, _track_id, stream_id),
+    do: %ParentSpec{
+      children: %{},
+      links: [
+        link_builder
+        |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
+        |> to({:hls_sink_bin, stream_id})
+      ]
+    }
+
+  defp hls_links_and_children(link_builder, :H264, track_id, stream_id),
+    do: %ParentSpec{
+      children: %{
+        {:video_parser, track_id} => %Membrane.H264.FFmpeg.Parser{
+          framerate: {30, 1},
+          alignment: :au,
+          attach_nalus?: true
         }
-    end
-  end
+      },
+      links: [
+        link_builder
+        |> to({:video_parser, track_id})
+        |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
+        |> to({:hls_sink_bin, stream_id})
+      ]
+    }
 end

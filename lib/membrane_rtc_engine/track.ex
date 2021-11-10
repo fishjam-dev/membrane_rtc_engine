@@ -9,21 +9,25 @@ defmodule Membrane.RTC.Engine.Track do
   alias ExSDP.Attribute.FMTP
 
   @enforce_keys [:type, :stream_id, :id, :fmtp]
-  defstruct @enforce_keys ++ [encoding: nil, format: nil, disabled?: false]
+  defstruct @enforce_keys ++ [encoding: nil, format: nil, active?: true]
 
   @type id :: String.t()
-  @type encoding :: :OPUS | :H264 | :VP8
-  @type format :: atom()
+  @type encoding :: atom()
+  @type format :: [atom()]
 
   @typedoc """
   This module contains:
-  type - track can be of type audio or video,
-  stream_id - track can belong to some media stream. Each media stream can contains multiple tracks. This allow to group tracks
-  id - allow to identify track
-  encoding -  describe in what codec media is encodec e.g. OPUS, VP8
-  format - describe in what format media is sent e.g. raw, RTP, RTMP
-  fmtp - struct describing format specific parameters e.g. for H264 it contains profile_level_id
-  disabled? - describe if track is still enabld (peer is still in room and sending media)
+  * `type` - audio or video,
+  * `stream_id` - media stream this track belongs to. Relationship between tracks (e.g. audio and video)
+  can be indicated by assigning each of them the same `stream_id`. One `stream_id` can be assign to any
+  number of tracks.
+  * `id` - track id
+  * `encoding` - track encoding
+  * `format` - list of available track formats. At this moment max two formats can be specified.
+  One of them has to be `:raw` which indicates that other Endpoints will receive this track in format
+  of `encoding`. The other one can be any atom (e.g. `:RTP`).
+  * `fmtp` - struct describing format specific parameters e.g. for H264 it contains `profile_level_id`
+  * `active?` - indicates whether track is still available or not (because peer left a room)
   """
   @type t :: %__MODULE__{
           type: :audio | :video,
@@ -32,7 +36,7 @@ defmodule Membrane.RTC.Engine.Track do
           encoding: encoding,
           format: format,
           fmtp: FMTP,
-          disabled?: boolean()
+          active?: boolean()
         }
 
   @doc """
