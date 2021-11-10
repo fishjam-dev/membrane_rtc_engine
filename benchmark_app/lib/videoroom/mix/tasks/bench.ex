@@ -20,7 +20,7 @@ defmodule Mix.Tasks.Bench do
     ret = bench()
     print(ret)
     save_to_file(ret)
-    Membrane.Logger.info("Results successfully saved to #{inspect(@new)} directory")
+    Mix.shell().info("Results successfully saved to #{inspect(@new)} directory")
   end
 
   defp run_scenario() do
@@ -48,6 +48,6 @@ defmodule Mix.Tasks.Bench do
   end
 
   defp print(data) do
-    IO.inspect(data)
+    Mix.shell().info("#{inspect(data)}")
   end
 end

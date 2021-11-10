@@ -9,5 +9,6 @@ defmodule Mix.Tasks.Bench.Clean do
   @impl Mix.Task
   def run(_args) do
     File.rm_rf!(@out)
+    Mix.shell().info("Deleted #{inspect(@out)} directory")
   end
 end
