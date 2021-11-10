@@ -209,12 +209,12 @@ export class MembraneWebRTC {
           deserializedMediaEvent.data.peersInRoom
         );
 
-        const turnServers = deserializedMediaEvent.data.turn_servers;
+        const turnServers = deserializedMediaEvent.data.integratedTurnServers;
         if (!this.rtcConfig.iceServers) {
           this.rtcConfig.iceServers = [];
         }
 
-        const iceTransportPolicy = deserializedMediaEvent.data.ice_transport_policy;
+        const iceTransportPolicy = deserializedMediaEvent.data.iceTransportPolicy;
         if (iceTransportPolicy === "relay") {
           this.rtcConfig.iceTransportPolicy = "relay";
 
@@ -224,11 +224,11 @@ export class MembraneWebRTC {
               credentialType: "password",
               urls: "turn".concat(
                 ":",
-                turnServer.server_addr,
+                turnServer.serverAddr,
                 ":",
-                turnServer.server_port,
+                turnServer.serverPort,
                 "?transport=",
-                turnServer.relay_type
+                turnServer.transport
               ),
               username: turnServer.username,
             };
