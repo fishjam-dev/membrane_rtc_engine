@@ -84,7 +84,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       if MapSet.member?(state.stream_ids, track.stream_id) do
         {spec, state}
       else
-        hls_sink = %Membrane.HTTPAdaptiveStream.Sink{
+        hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
           manifest_module: Membrane.HTTPAdaptiveStream.HLS,
           target_window_duration: 20 |> Membrane.Time.seconds(),
           target_segment_duration: 2 |> Membrane.Time.seconds(),
@@ -94,7 +94,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
         new_spec = %{
           spec
-          | children: Map.put(spec.children, {:hls_sink, track.stream_id}, hls_sink)
+          | children: Map.put(spec.children, {:hls_sink_bin, track.stream_id}, hls_sink_bin)
         }
 
         {new_spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
@@ -118,17 +118,13 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
               framerate: {30, 1},
               alignment: :au,
               attach_nalus?: true
-            },
-            {:video_payloader, track_id} => Membrane.MP4.Payloader.H264,
-            {:video_cmaf_muxer, track_id} => Membrane.MP4.CMAF.Muxer
+            }
           },
           links: [
             link_builder
             |> to({:video_parser, track_id})
-            |> to({:video_payloader, track_id})
-            |> to({:video_cmaf_muxer, track_id})
-            |> via_in(Pad.ref(:input, track_id))
-            |> to({:hls_sink, stream_id})
+            |> via_in(Pad.ref(:input, track_id), options: [encoding: :H264])
+            |> to({:hls_sink_bin, stream_id})
           ]
         }
 
@@ -137,19 +133,15 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
           children: %{
             {:opus_decoder, track_id} => Membrane.Opus.Decoder,
             {:aac_encoder, track_id} => Membrane.AAC.FDK.Encoder,
-            {:aac_parser, track_id} => %Membrane.AAC.Parser{out_encapsulation: :none},
-            {:audio_payloader, track_id} => Membrane.MP4.Payloader.AAC,
-            {:audio_cmaf_muxer, track_id} => Membrane.MP4.CMAF.Muxer
+            {:aac_parser, track_id} => %Membrane.AAC.Parser{out_encapsulation: :none}
           },
           links: [
             link_builder
             |> to({:opus_decoder, track_id})
             |> to({:aac_encoder, track_id})
             |> to({:aac_parser, track_id})
-            |> to({:audio_payloader, track_id})
-            |> to({:audio_cmaf_muxer, track_id})
-            |> via_in(Pad.ref(:input, track_id))
-            |> to({:hls_sink, stream_id})
+            |> via_in(Pad.ref(:input, track_id), options: [encoding: :AAC])
+            |> to({:hls_sink_bin, stream_id})
           ]
         }
     end
