@@ -32,6 +32,7 @@ defmodule VideoRoom.MixProject do
       {:jason, "~> 1.2"},
       {:phoenix_inline_svg, "~> 1.4"},
       {:uuid, "~> 1.1"},
+      {:bunch, "~> 1.3.0"},
       {:recon, "~> 2.5", only: :dev, runtime: false}
     ]
   end
