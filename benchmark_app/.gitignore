@@ -1,3 +1,4 @@
+benchmark/
 .idea/
 *.iml
 priv/certs/*.pem
