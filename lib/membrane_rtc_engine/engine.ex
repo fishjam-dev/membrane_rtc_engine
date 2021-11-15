@@ -289,10 +289,10 @@ defmodule Membrane.RTC.Engine do
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        do_start_endpoint_bin(peer_id, node(), data, state)
+        setup_peer(peer_id, node(), data, state)
 
       {:accept_new_peer, ^peer_id, peer_node} ->
-        do_start_endpoint_bin(peer_id, peer_node, data, state)
+        setup_peer(peer_id, peer_node, data, state)
 
       {:accept_new_peer, peer_id} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
@@ -620,7 +620,7 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp do_start_endpoint_bin(peer_id, peer_node, data, state) do
+  defp setup_peer(peer_id, peer_node, data, state) do
     if Map.has_key?(state.peers, peer_id) do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
@@ -634,11 +634,11 @@ defmodule Membrane.RTC.Engine do
         |> Map.put(:id, peer_id)
 
       state = put_in(state, [:peers, peer_id], peer)
-      setup_peer(peer, peer_node, state)
+      do_setup_peer(peer, peer_node, state)
     end
   end
 
-  defp setup_peer(config, peer_node, state) do
+  defp do_setup_peer(config, peer_node, state) do
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -667,6 +667,7 @@ defmodule Membrane.RTC.Engine do
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
         stun_servers: state.options[:network_options][:stun_servers] || [],
+        turn_servers: [],
         use_integrated_turn: state.use_integrated_turn,
         integrated_turn_ip: state.integrated_turn_ip,
         handshake_opts: handshake_opts,
@@ -729,7 +730,7 @@ defmodule Membrane.RTC.Engine do
   defp do_remove_peer(peer_id, ctx, state) do
     if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
-      {peer, state} = pop_in(state, [:peers, peer_id])
+      {_peer, state} = pop_in(state, [:peers, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | status: :disabled})
 
       tracks_msgs =
