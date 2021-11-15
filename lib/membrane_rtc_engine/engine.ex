@@ -132,8 +132,9 @@ defmodule Membrane.RTC.Engine do
   use Membrane.Pipeline
   import Membrane.RTC.Utils
 
+  alias Membrane.ICE.TurnUtils
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
-  alias Membrane.RTC.Engine.{MediaEvent, TurnUtils}
+  alias Membrane.RTC.Engine.MediaEvent
 
   require Membrane.Logger
 
@@ -691,7 +692,7 @@ defmodule Membrane.RTC.Engine do
   defp get_turn_configs(name, turn_servers) do
     Enum.map(turn_servers, fn
       %{secret: secret} = turn_server ->
-        {username, password} = TurnUtils.turn_credentials(name, secret)
+        {username, password} = TurnUtils.generate_credentials(name, secret)
 
         Map.delete(turn_server, :secret)
         |> Map.put(:username, username)
