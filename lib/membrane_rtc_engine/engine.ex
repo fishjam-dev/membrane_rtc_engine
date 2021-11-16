@@ -132,8 +132,9 @@ defmodule Membrane.RTC.Engine do
   use Membrane.Pipeline
   import Membrane.RTC.Utils
 
+  alias Membrane.ICE.TurnUtils
   alias Membrane.WebRTC.{Endpoint, EndpointBin, Track}
-  alias Membrane.RTC.Engine.{MediaEvent, TurnUtils}
+  alias Membrane.RTC.Engine.MediaEvent
 
   require Membrane.Logger
 
@@ -287,10 +288,10 @@ defmodule Membrane.RTC.Engine do
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        do_start_endpoint_bin(peer_id, node(), data, state)
+        setup_peer(peer_id, node(), data, state)
 
       {:accept_new_peer, ^peer_id, peer_node} ->
-        do_start_endpoint_bin(peer_id, peer_node, data, state)
+        setup_peer(peer_id, peer_node, data, state)
 
       {:accept_new_peer, peer_id} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
@@ -619,7 +620,7 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp do_start_endpoint_bin(peer_id, peer_node, data, state) do
+  defp setup_peer(peer_id, peer_node, data, state) do
     if Map.has_key?(state.peers, peer_id) do
       Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
       {[], state}
@@ -633,11 +634,11 @@ defmodule Membrane.RTC.Engine do
         |> Map.put(:id, peer_id)
 
       state = put_in(state, [:peers, peer_id], peer)
-      setup_peer(peer, peer_node, state)
+      do_setup_peer(peer, peer_node, state)
     end
   end
 
-  defp setup_peer(config, peer_node, state) do
+  defp do_setup_peer(config, peer_node, state) do
     inbound_tracks = []
     outbound_tracks = get_outbound_tracks(state.endpoints, config.receive_media)
 
@@ -667,6 +668,7 @@ defmodule Membrane.RTC.Engine do
         inbound_tracks: inbound_tracks,
         stun_servers: state.options[:network_options][:stun_servers] || [],
         integrated_turn_options: state.integrated_turn_options,
+        turn_servers: [],
         handshake_opts: handshake_opts,
         log_metadata: [peer_id: config.id]
       }
@@ -688,7 +690,7 @@ defmodule Membrane.RTC.Engine do
   defp get_turn_configs(name, turn_servers) do
     Enum.map(turn_servers, fn
       %{secret: secret} = turn_server ->
-        {username, password} = TurnUtils.turn_credentials(name, secret)
+        {username, password} = TurnUtils.generate_credentials(name, secret)
 
         Map.delete(turn_server, :secret)
         |> Map.put(:username, username)
