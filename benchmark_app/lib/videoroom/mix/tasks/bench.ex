@@ -16,6 +16,11 @@ defmodule Mix.Tasks.Bench do
 
   @impl Mix.Task
   def run(_args) do
+    if File.exists?(@new) do
+      File.rm_rf!(@base)
+      File.rename!(@new, @base)
+    end
+
     run_scenario()
     ret = bench()
     print(ret)
@@ -31,20 +36,11 @@ defmodule Mix.Tasks.Bench do
   end
 
   defp save_to_file(results) do
-    if File.exists?(@new) do
-      File.rm_rf!(@base)
-      File.rename!(@new, @base)
-    end
-
     File.mkdir_p!(@new)
-    do_save(@new, results)
-    :noop
-  end
-
-  defp do_save(directory, results) do
-    out = Path.join(directory, @results_file_name)
+    out = Path.join(@new, @results_file_name)
     results = :erlang.term_to_binary(results)
     File.write!(out, results)
+    :noop
   end
 
   defp print(new) do
