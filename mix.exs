@@ -43,7 +43,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
-      {:stun, github: "membraneframework/stun"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
