@@ -47,7 +47,47 @@ defmodule Mix.Tasks.Bench do
     File.write!(out, results)
   end
 
-  defp print(data) do
-    Mix.shell().info("#{inspect(data)}")
+  defp print(new) do
+    base =
+      if File.exists?(@base) do
+        File.read!(Path.join(@base, @results_file_name))
+        |> :erlang.binary_to_term()
+      end
+
+    if base do
+      Mix.shell().info("Base:")
+
+      for row <- base do
+        Mix.shell().info(format(row))
+      end
+
+      Mix.shell().info("\n")
+    end
+
+    new = if base, do: compare(base, new), else: new
+
+    Mix.shell().info("New:")
+
+    for row <- new do
+      Mix.shell().info(format(row))
+    end
+  end
+
+  defp compare(base, new) do
+    for i <- 0..(length(new) - 1), into: [] do
+      {_, i_base} = Enum.at(base, i)
+      {_, i_new} = Enum.at(new, i)
+      diff = i_new - i_base
+      {i, i_new, diff}
+    end
+  end
+
+  defp format({scheduler, usage, diff}) do
+    color = if diff < 0, do: IO.ANSI.red(), else: IO.ANSI.green()
+    "#{scheduler}: #{usage} #{color}#{diff}#{IO.ANSI.reset()}"
+  end
+
+  defp format({scheduler, usage}) do
+    "#{scheduler}: #{usage}"
   end
 end
