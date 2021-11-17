@@ -48,7 +48,12 @@ defmodule Mix.Tasks.Bench do
   end
 
   defp bench() do
+    # get schedulers type
+    {_, schedulers_sample} = :scheduler.sample_all()
+    schedulers_type = Map.new(schedulers_sample, fn {type, id, _, _} -> {id, type} end)
+
     :recon.scheduler_usage(5000)
+    |> Enum.map(fn {id, usage} -> {id, Map.get(schedulers_type, id), usage} end)
   end
 
   defp save_to_file(results) do
@@ -67,7 +72,12 @@ defmodule Mix.Tasks.Bench do
       end
 
     if base do
-      Mix.shell().info("Base:")
+      """
+      ================
+      BASE
+      ================
+      """
+      |> Mix.shell().info()
 
       for row <- base do
         Mix.shell().info(format(row))
@@ -78,7 +88,12 @@ defmodule Mix.Tasks.Bench do
 
     new = if base, do: compare(base, new), else: new
 
-    Mix.shell().info("New:")
+    """
+    ================
+    NEW
+    ================
+    """
+    |> Mix.shell().info()
 
     for row <- new do
       Mix.shell().info(format(row))
@@ -87,19 +102,19 @@ defmodule Mix.Tasks.Bench do
 
   defp compare(base, new) do
     for i <- 0..(length(new) - 1), into: [] do
-      {_, i_base} = Enum.at(base, i)
-      {_, i_new} = Enum.at(new, i)
+      {_, _type, i_base} = Enum.at(base, i)
+      {_, type, i_new} = Enum.at(new, i)
       diff = i_new - i_base
-      {i, i_new, diff}
+      {i, type, i_new, diff}
     end
   end
 
-  defp format({scheduler, usage, diff}) do
+  defp format({scheduler, type, usage, diff}) do
     color = if diff < 0, do: IO.ANSI.red(), else: IO.ANSI.green()
-    "#{scheduler}: #{usage} #{color}#{diff}#{IO.ANSI.reset()}"
+    "#{scheduler} #{type}: #{usage} #{color}#{diff}#{IO.ANSI.reset()}"
   end
 
-  defp format({scheduler, usage}) do
-    "#{scheduler}: #{usage}"
+  defp format({scheduler, type, usage}) do
+    "#{scheduler} #{type}: #{usage}"
   end
 end
