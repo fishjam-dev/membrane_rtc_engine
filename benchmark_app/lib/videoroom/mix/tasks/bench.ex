@@ -21,11 +21,27 @@ defmodule Mix.Tasks.Bench do
       File.rename!(@new, @base)
     end
 
+    print_system_info()
     run_scenario()
     ret = bench()
     print(ret)
     save_to_file(ret)
     Mix.shell().info("Results successfully saved to #{inspect(@new)} directory")
+  end
+
+  defp print_system_info() do
+    info = """
+
+    ================
+    SYSTEM INFO
+    ================
+
+    System version: #{:erlang.system_info(:system_version)}\
+    System arch: #{:erlang.system_info(:system_architecture)}
+    NIF version: #{:erlang.system_info(:nif_version)}
+    """
+
+    Mix.shell().info(info)
   end
 
   defp run_scenario() do
