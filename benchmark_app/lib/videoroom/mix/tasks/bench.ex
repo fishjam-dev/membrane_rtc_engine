@@ -21,9 +21,9 @@ defmodule Mix.Tasks.Bench do
       File.rename!(@new, @base)
     end
 
-    print_system_info()
-    run_scenario()
+    task = run_scenario()
     ret = bench()
+    Task.await(task, :infinity)
     print(ret)
     save_to_file(ret)
     Mix.shell().info("Results successfully saved to #{inspect(@new)} directory")
@@ -45,14 +45,19 @@ defmodule Mix.Tasks.Bench do
   end
 
   defp run_scenario() do
+    Mix.shell().info("Running scenario")
+    mustang_options = %{target_url: "http://localhost:4000/?room_id=test"}
+    options = %{count: 2, delay: 1000}
+    Task.async(fn -> Stampede.start({ExampleMustang, mustang_options}, options) end)
   end
 
   defp bench() do
     # get schedulers type
+    Mix.shell().info("Benching")
     {_, schedulers_sample} = :scheduler.sample_all()
     schedulers_type = Map.new(schedulers_sample, fn {type, id, _, _} -> {id, type} end)
 
-    :recon.scheduler_usage(5000)
+    :recon.scheduler_usage(20000)
     |> Enum.map(fn {id, usage} -> {id, Map.get(schedulers_type, id), usage} end)
   end
 
@@ -65,6 +70,8 @@ defmodule Mix.Tasks.Bench do
   end
 
   defp print(new) do
+    print_system_info()
+
     base =
       if File.exists?(@base) do
         File.read!(Path.join(@base, @results_file_name))

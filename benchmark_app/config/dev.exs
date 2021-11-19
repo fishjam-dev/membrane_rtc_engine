@@ -29,4 +29,4 @@ config :membrane_videoroom_demo, VideoRoomWeb.Endpoint,
     ]
   ]
 
-# config :logger, level: :error
+config :logger, level: :info

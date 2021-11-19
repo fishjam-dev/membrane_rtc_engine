@@ -15,7 +15,7 @@ defmodule VideoRoom.MixProject do
   def application do
     [
       mod: {VideoRoom.Application, []},
-      extra_applications: [:logger]
+      extra_applications: [:logger, :runtime_tools]
     ]
   end
 
@@ -23,6 +23,7 @@ defmodule VideoRoom.MixProject do
     [
       {:membrane_core, github: "membraneframework/membrane_core", override: true},
       {:membrane_rtc_engine, github: "membraneframework/membrane_rtc_engine"},
+      {:ex_sdp, github: "membraneframework/ex_sdp", override: true},
       {:esbuild, "~> 0.1", runtime: Mix.env() == :dev},
       {:plug_cowboy, "~> 2.0"},
       {:phoenix, "~> 1.6"},
@@ -33,7 +34,9 @@ defmodule VideoRoom.MixProject do
       {:phoenix_inline_svg, "~> 1.4"},
       {:uuid, "~> 1.1"},
       {:bunch, "~> 1.3.0"},
-      {:recon, "~> 2.5", only: :dev, runtime: false}
+      {:recon, "~> 2.5", only: :dev, runtime: false},
+      {:stampede, github: "geometerio/stampede-elixir"},
+#      {:stampede, path: "~/Repos/stampede-elixir"},
     ]
   end
 
