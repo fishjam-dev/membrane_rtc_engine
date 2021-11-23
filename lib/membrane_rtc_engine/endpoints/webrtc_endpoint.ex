@@ -174,11 +174,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     webrtc_tracks =
       Enum.map(
         tracks,
-        &WebRTC.Track.new(
-          &1.type,
-          &1.stream_id,
-          to_keyword_list(&1)
-        )
+        &to_webrtc_track(&1)
       )
 
     outbound_tracks = update_tracks(tracks, state.outbound_tracks)

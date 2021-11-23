@@ -128,20 +128,20 @@ defmodule Membrane.RTC.Engine do
 
   #### How to implement your custom endpoint
 
-  To receive tracks from rtc_engine your endpoint have to reply on message {:new_tracks, tracks} with subscription notification.
+  To receive tracks from rtc_engine your endpoint have to reply on message `{:new_tracks, tracks}` with subscription notification.
   To generate it you can use subscribe function from this module.
 
   To send tracks to rtc_engine your endpoint have to send two messages to rtc_engine.
-  * First is {:new_tracks, tracks} publish notification. Which inform that this endpoint want to send this tracks.
-  * Second is {:track_ready, track_id, encoding, depayloading_filter} message. It inform that first packets of
+  * First is `{:new_tracks, tracks}` publish notification. Which inform that this endpoint want to send this tracks.
+  * Second is `{:track_ready, track_id, encoding, depayloading_filter}` message. It inform that first packets of
   track with this id and this encoding arrived. Also you have to pass depayloading filter element which is responsible for
   convert this track in his specific format to raw.
 
   To create publish notification you can use publish function from this module.
 
   If you set that your endpoint should receive_media it will receive this messages:
-  * {:new_tracks, tracks} - it will be received when some peer announce that it will send new tracks
-  * {:removed_tracks, tracks} - it will be received when e.g some peer left room
+  * `{:new_tracks, tracks}` - it will be received when some peer announce that it will send new tracks
+  * `{:removed_tracks, tracks}` - it will be received when e.g some peer left room
 
   ## Peer id
 
