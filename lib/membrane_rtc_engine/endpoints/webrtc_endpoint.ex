@@ -21,90 +21,82 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
           (encoding_name :: atom()) => [Membrane.RTP.SessionBin.packet_filter_t()]
         }
 
-  def_options(
-    stun_servers: [
-      type: :list,
-      spec: [ExLibnice.stun_server()],
-      default: [],
-      description: "List of stun servers"
-    ],
-    turn_servers: [
-      type: :list,
-      spec: [ExLibnice.relay_info()],
-      default: [],
-      description: "List of turn servers"
-    ],
-    port_range: [
-      spec: Range.t(),
-      default: 0..0,
-      description: "Port range to be used by `Membrane.ICE.Bin`"
-    ],
-    handshake_opts: [
-      type: :list,
-      spec: Keyword.t(),
-      default: [],
-      description: """
-      Keyword list with options for handshake module. For more information please
-      refer to `Membrane.ICE.Bin`
-      """
-    ],
-    video_codecs: [
-      type: :list,
-      spec: [ExSDP.Attribute.t()],
-      default: [],
-      description: "Video codecs that will be passed for SDP offer generation"
-    ],
-    audio_codecs: [
-      type: :list,
-      spec: [ExSDP.Attribute.t()],
-      default: [],
-      description: "Audio codecs that will be passed for SDP offer generation"
-    ],
-    filter_codecs: [
-      spec: ({RTPMapping.t(), FMTP.t() | nil} -> boolean()),
-      default: &SDP.filter_mappings(&1),
-      description: "Defines function which will filter SDP m-line by codecs"
-    ],
-    log_metadata: [
-      spec: :list,
-      spec: Keyword.t(),
-      default: [],
-      description: "Logger metadata used for endpoint bin and all its descendants"
-    ],
-    extension_options: [
-      spec: extension_options_t(),
-      default: [vad: false],
-      description: """
-      List of RTP extensions to use.
+  def_options stun_servers: [
+                type: :list,
+                spec: [ExLibnice.stun_server()],
+                default: [],
+                description: "List of stun servers"
+              ],
+              turn_servers: [
+                type: :list,
+                spec: [ExLibnice.relay_info()],
+                default: [],
+                description: "List of turn servers"
+              ],
+              port_range: [
+                spec: Range.t(),
+                default: 0..0,
+                description: "Port range to be used by `Membrane.ICE.Bin`"
+              ],
+              handshake_opts: [
+                type: :list,
+                spec: Keyword.t(),
+                default: [],
+                description: """
+                Keyword list with options for handshake module. For more information please
+                refer to `Membrane.ICE.Bin`
+                """
+              ],
+              filter_codecs: [
+                spec: ({RTPMapping.t(), FMTP.t() | nil} -> boolean()),
+                default: &SDP.filter_mappings(&1),
+                description: "Defines function which will filter SDP m-line by codecs"
+              ],
+              log_metadata: [
+                spec: :list,
+                spec: Keyword.t(),
+                default: [],
+                description: "Logger metadata used for endpoint bin and all its descendants"
+              ],
+              extension_options: [
+                spec: extension_options_t(),
+                default: [vad: false],
+                description: """
+                List of RTP extensions to use.
 
-      At this moment only `vad` extension is supported.
-      Enabling it will cause SFU sending `{:vad_notification, val, endpoint_id}` messages.
-      """
-    ],
-    packet_filters: [
-      spec: packet_filters_t(),
-      default: %{},
-      description: """
-      A map pointing from encoding names to lists of packet filters that should be used for given encodings.
+                At this moment only `vad` extension is supported.
+                Enabling it will cause SFU sending `{:vad_notification, val, endpoint_id}` messages.
+                """
+              ],
+              packet_filters: [
+                spec: packet_filters_t(),
+                default: %{},
+                description: """
+                A map pointing from encoding names to lists of packet filters that should be used for given encodings.
 
-      A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
-      It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
-      them are actively speaking.
-      """
-    ]
-  )
+                A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
+                It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
+                them are actively speaking.
+                """
+              ],
+              owner: [
+                spec: pid(),
+                description: """
+                Pid of parent to which will be send notification from bin e.g
 
-  def_input_pad(:input,
+                `{:vad_notification, val, endpoint}`
+                """
+              ]
+
+  def_input_pad :input,
     demand_unit: :buffers,
     caps: :any,
     availability: :on_request
-  )
 
-  def_output_pad(:output,
+  def_output_pad :output,
     demand_unit: :buffers,
     caps: :any,
     availability: :on_request
-  )
 
   @impl true
   def handle_init(opts) do
@@ -126,7 +118,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       extensions: opts.extension_options,
       packet_filters: opts.packet_filters || %{},
       outbound_tracks: %{},
-      inbound_tracks: %{}
+      inbound_tracks: %{},
+      owner: opts.owner
     }
 
     {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
@@ -155,7 +148,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
-    {{:ok, notify: {:track_ready, track_id, encoding, depayloading_filter}}, state}
+    {{:ok, Engine.track_ready(track_id, encoding, depayloading_filter)}, state}
   end
 
   @impl true
@@ -166,11 +159,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_notification({:vad, val}, {:endpoint, endpoint_id}, _ctx, state) do
+    send(state.owner, {:vad_notification, val, endpoint_id})
+    {:ok, state}
+  end
+
+  @impl true
   def handle_notification(notification, _element, _ctx, state),
     do: {{:ok, notify: notification}, state}
 
   @impl true
   def handle_other({:new_tracks, tracks}, _ctx, state) do
+    # Don't subscribe for new tracks yet.
+    # We will do this after ice restart is finished.
+    # Notification :negotiation_done  will inform us about it
+
     webrtc_tracks =
       Enum.map(
         tracks,

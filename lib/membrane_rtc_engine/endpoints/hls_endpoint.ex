@@ -15,16 +15,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
                 spec: Path.t(),
                 description: "Path to directory under which HLS output will be saved",
                 default: "hls_output"
-              ],
-              use_depayloader?: [
-                spec: boolean(),
-                default: true,
-                description: """
-                Defines if the outgoing stream should get depayloaded.
-                This option should be used as a convenience, it is not necessary as the new track notification
-                returns a depayloading filter's definition that can be attached to the output pad
-                to work the same way as with the option set to true.
-                """
               ]
 
   @impl true
@@ -41,7 +31,12 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   @impl true
   def handle_other({:new_tracks, tracks}, _ctx, state) do
     new_tracks = Map.new(tracks, &{&1.id, &1})
-    actions = create_subscriptions_action(tracks)
+
+    subscriptions =
+      Enum.filter(tracks, fn track -> :raw in track.format end)
+      |> Enum.map(fn track -> {track.id, :raw} end)
+
+    actions = Engine.subscribe(subscriptions)
     {{:ok, actions}, Map.update!(state, :tracks, &Map.merge(&1, new_tracks))}
   end
 
@@ -93,14 +88,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       end
 
     {{:ok, spec: spec}, state}
-  end
-
-  defp create_subscriptions_action(tracks) do
-    subscriptions =
-      Enum.filter(tracks, fn track -> :raw in track.format end)
-      |> Enum.map(fn track -> {track.id, :raw} end)
-
-    if subscriptions != [], do: Engine.subscribe(subscriptions), else: []
   end
 
   defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id),

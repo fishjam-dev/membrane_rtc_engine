@@ -7,17 +7,16 @@ defmodule Membrane.RTC.Engine.Endpoint do
 
   @type t :: %__MODULE__{
           id: id(),
-          inbound_tracks: %{Track.id() => Track.t()},
-          ctx: any()
+          inbound_tracks: %{Track.id() => Track.t()}
         }
 
-  defstruct id: nil, inbound_tracks: %{}, ctx: nil
+  defstruct id: nil, inbound_tracks: %{}
 
-  @spec new(id :: id(), inbound_tracks :: [Track.t()], ctx :: any()) ::
+  @spec new(id :: id(), inbound_tracks :: [Track.t()]) ::
           Endpoint.t()
-  def new(id, inbound_tracks, ctx) do
+  def new(id, inbound_tracks) do
     inbound_tracks = Map.new(inbound_tracks, &{&1.id, &1})
-    %__MODULE__{id: id, inbound_tracks: inbound_tracks, ctx: ctx}
+    %__MODULE__{id: id, inbound_tracks: inbound_tracks}
   end
 
   @spec get_audio_tracks(endpoint :: t()) :: [Track.t()]
@@ -33,12 +32,6 @@ defmodule Membrane.RTC.Engine.Endpoint do
 
   @spec get_tracks(endpoint :: t()) :: [Track.t()]
   def get_tracks(endpoint), do: Map.values(endpoint.inbound_tracks)
-
-  @spec get_context(endpoint :: t()) :: any()
-  def get_context(endpoint), do: endpoint.ctx
-
-  @spec put_context(endpoint :: t(), ctx :: any()) :: Endpoint.t()
-  def put_context(endpoint, ctx), do: %__MODULE__{endpoint | ctx: ctx}
 
   @spec update_track_encoding(endpoint :: Endpoint.t(), track_id :: Track.id(), encoding :: atom) ::
           Endpoint.t()

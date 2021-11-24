@@ -91,6 +91,7 @@ defmodule Membrane.RTC.EngineTest do
         end
 
       bin = %WebRTC{
+        owner: self(),
         stun_servers: [],
         turn_servers: [],
         handshake_opts: handshake_opts,
@@ -116,8 +117,8 @@ defmodule Membrane.RTC.EngineTest do
 
       send(rtc_engine, {:media_event, peer_id, media_event})
       assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
-      Engine.accept_peer(rtc_engine, peer_id, bin)
-      assert_receive {_from, {:sfu_media_event, ^peer_id, media_event}}, 1000
+      Engine.accept_peer(rtc_engine, peer_id)
+      assert_receive {_from, {:rtc_media_event, ^peer_id, media_event}}, 1000
 
       assert %{
                "type" => "peerAccepted",
