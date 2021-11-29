@@ -14,10 +14,10 @@ defmodule Membrane.RTC.Engine.MediaEvent do
 
     integrated_turn_servers =
       Enum.map(integrated_turn_servers, fn turn ->
-        server_addr = :inet.ntoa(turn.server_addr) |> to_string()
+        addr = :inet.ntoa(turn.prepared_server_addr) |> to_string()
 
         %{
-          serverAddr: server_addr,
+          serverAddr: addr,
           serverPort: turn.server_port,
           transport: turn.relay_type,
           password: turn.password,
