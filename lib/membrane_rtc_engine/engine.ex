@@ -153,10 +153,10 @@ defmodule Membrane.RTC.Engine do
 
   @typedoc """
   A map pointing from encoding names to lists of extensions that should be used for given encodings.
-  Encoding "`:any`" indicates that extension should be applied regardless of encoding.
+  Encoding "`:any`" indicates that extensions should be applied regardless of encoding.
 
-  A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
-  It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
+  A sample usage would be to add silence discarder to OPUS tracks when `Membrane.WebRTC.Extension.VAD`
+  is enabled. It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
   them are actively speaking.
   """
   @type extensions_t() :: %{
