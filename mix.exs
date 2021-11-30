@@ -40,7 +40,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       {:membrane_core, github: "membraneframework/membrane_core", override: true},
       {:membrane_webrtc_plugin,
-       github: "membraneframework/membrane_webrtc_plugin", optional: true},
+       github: "membraneframework/membrane_webrtc_plugin", branch: "otel", optional: true},
       {:membrane_http_adaptive_stream_plugin,
        github: "membraneframework/membrane_http_adaptive_stream_plugin", optional: true},
       {:membrane_mp4_plugin, "~> 0.9.0", optional: true},
@@ -52,7 +52,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false, override: true}
+      {:credo, "~> 1.4", only: :dev, runtime: false, override: true},
+      {:opentelemetry_api, "~> 1.0.0-rc.3"},
+      {:opentelemetry, "~> 1.0.0-rc.3"},
+      {:open_telemetry_decorator, "~> 1.0.0-rc.3"}
     ]
   end
 

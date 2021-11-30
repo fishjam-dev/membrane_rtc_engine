@@ -340,9 +340,12 @@ defmodule Membrane.RTC.Engine do
   def handle_init(options) do
     play(self())
 
+    trace_ctx = Membrane.RTC.Utils.create_otel_context("rtc: #{options[:id]}")
+
     {{:ok, log_metadata: [sfu: options[:id]]},
      %{
        id: options[:id],
+       trace_context: trace_ctx,
        peers: %{},
        endpoints: %{},
        waiting_for_linking: %{},
@@ -789,7 +792,7 @@ defmodule Membrane.RTC.Engine do
     endpoint_name = {:endpoint, config.id}
 
     children = %{
-      endpoint_name => config.endpoint
+      endpoint_name => Map.put(config.endpoint, :trace_context, state.trace_context)
     }
 
     action = [forward: {endpoint_name, {:new_tracks, outbound_tracks}}]
