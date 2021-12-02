@@ -144,24 +144,23 @@ defmodule Membrane.RTC.Engine do
   @type turn_server_t() :: ExLibnice.relay_info()
 
   @typedoc """
-  List of RTP extensions to use.
+  List of WebRTC extensions to use.
 
-  At this moment only `vad` extension is supported.
+  At this moment only VAD (RFC 6464) is supported.
   Enabling it will cause SFU sending `{:vad_notification, val, endpoint_id}` messages.
   """
-  @type extension_options_t() :: [
-          vad: boolean()
-        ]
+  @type webrtc_extensions_t() :: [Membrane.WebRTC.Extension.t()]
 
   @typedoc """
-  A map pointing from encoding names to lists of packet filters that should be used for given encodings.
+  A map pointing from encoding names to lists of extensions that should be used for given encodings.
+  Encoding "`:any`" indicates that extensions should be applied regardless of encoding.
 
   A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
   It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
   them are actively speaking.
   """
-  @type packet_filters_t() :: %{
-          (encoding_name :: atom()) => [Membrane.RTP.SessionBin.packet_filter_t()]
+  @type extensions_t() :: %{
+          (encoding_name :: atom() | :any) => [Membrane.RTP.SessionBin.extension_t()]
         }
 
   @typedoc """
@@ -195,11 +194,9 @@ defmodule Membrane.RTC.Engine do
   """
   @type options_t() :: [
           id: String.t(),
-          extension_options: extension_options_t(),
+          webrtc_extensions: webrtc_extensions_t(),
           network_options: network_options_t(),
-          packet_filters: %{
-            (encoding_name :: atom()) => [packet_filters_t()]
-          },
+          extensions: extensions_t(),
           payload_and_depayload_tracks?: boolean()
         ]
 
@@ -241,7 +238,8 @@ defmodule Membrane.RTC.Engine do
        peers: %{},
        endpoints: %{},
        options: options,
-       packet_filters: options[:packet_filters] || %{},
+       extensions: options[:extensions] || %{},
+       webrtc_extensions: options[:webrtc_extensions] || [],
        use_integrated_turn: options[:network_options][:use_integrated_turn] || false,
        integrated_turn_ip: options[:network_options][:integrated_turn_ip],
        payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
@@ -441,15 +439,12 @@ defmodule Membrane.RTC.Engine do
       fake => Membrane.Element.Fake.Sink.Buffers
     }
 
-    extensions = setup_extensions(encoding, state[:options][:extension_options])
-
-    packet_filters = state.packet_filters[encoding] || []
+    extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
 
     link_to_fake =
       link(endpoint_bin_name)
       |> via_out(Pad.ref(:output, track_id),
         options: [
-          packet_filters: packet_filters,
           extensions: extensions,
           use_depayloader?: state.payload_and_depayload_tracks?
         ]
@@ -667,6 +662,7 @@ defmodule Membrane.RTC.Engine do
       {:endpoint, config.id} => %EndpointBin{
         outbound_tracks: outbound_tracks,
         inbound_tracks: inbound_tracks,
+        extensions: state.webrtc_extensions,
         stun_servers: state.options[:network_options][:stun_servers] || [],
         turn_servers: [],
         use_integrated_turn: state.use_integrated_turn,
@@ -707,10 +703,6 @@ defmodule Membrane.RTC.Engine do
     do: Enum.flat_map(endpoints, fn {_id, endpoint} -> Endpoint.get_tracks(endpoint) end)
 
   defp get_outbound_tracks(_endpoints, false), do: []
-
-  defp setup_extensions(encoding, extension_options) do
-    if encoding == :OPUS and extension_options[:vad], do: [{:vad, Membrane.RTP.VAD}], else: []
-  end
 
   defp remove_peer(peer_id, ctx, state) do
     case do_remove_peer(peer_id, ctx, state) do
