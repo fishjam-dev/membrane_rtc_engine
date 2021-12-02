@@ -181,8 +181,7 @@ defmodule Membrane.RTC.Engine do
   @type network_options_t() :: [
           stun_servers: [stun_server_t()],
           turn_servers: [turn_server_t()],
-          use_integrated_turn: boolean(),
-          integrated_turn_ip: :inet.ip4_address() | nil,
+          integrated_turn_options: Membrane.ICE.Bin.integrated_turn_options_t(),
           dtls_pkey: binary(),
           dtls_cert: binary()
         ]
@@ -238,10 +237,10 @@ defmodule Membrane.RTC.Engine do
        peers: %{},
        endpoints: %{},
        options: options,
+       packet_filters: options[:packet_filters] || %{},
+       integrated_turn_options: options[:network_options][:integrated_turn_options],
        extensions: options[:extensions] || %{},
        webrtc_extensions: options[:webrtc_extensions] || [],
-       use_integrated_turn: options[:network_options][:use_integrated_turn] || false,
-       integrated_turn_ip: options[:network_options][:integrated_turn_ip],
        payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
        waiting_for_linking: %{}
      }}
@@ -546,12 +545,13 @@ defmodule Membrane.RTC.Engine do
     turns = get_turn_configs(peer_id, turns)
     state = put_in(state, [:peers, peer_id, :integrated_turn_servers], turns)
     peer = state.peers[peer_id]
+    enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
 
     MediaEvent.create_peer_accepted_event(
       peer_id,
       Map.delete(state.peers, peer_id),
       turns,
-      state.use_integrated_turn
+      enforce_turns?
     )
     |> dispatch()
 
@@ -664,9 +664,8 @@ defmodule Membrane.RTC.Engine do
         inbound_tracks: inbound_tracks,
         extensions: state.webrtc_extensions,
         stun_servers: state.options[:network_options][:stun_servers] || [],
+        integrated_turn_options: state.integrated_turn_options,
         turn_servers: [],
-        use_integrated_turn: state.use_integrated_turn,
-        integrated_turn_ip: state.integrated_turn_ip,
         handshake_opts: handshake_opts,
         log_metadata: [peer_id: config.id]
       }
