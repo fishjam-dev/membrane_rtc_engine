@@ -4,8 +4,8 @@ defmodule Membrane.RTC.EngineTest do
   alias Membrane.RTC.Engine
 
   setup do
-    extension_options = [
-      vad: true
+    webrtc_extensions = [
+      Membrane.WebRTC.Extension.VAD
     ]
 
     network_options = [
@@ -17,7 +17,7 @@ defmodule Membrane.RTC.EngineTest do
 
     options = [
       id: "test_sfu",
-      extension_options: extension_options,
+      webrtc_extensions: webrtc_extensions,
       network_options: network_options
     ]
 
