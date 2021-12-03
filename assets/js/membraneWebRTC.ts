@@ -3,6 +3,7 @@ import {
   SerializedMediaEvent,
   deserializeMediaEvent,
   generateMediaEvent,
+  generateCustomEvent,
   serializeMediaEvent,
 } from "./mediaEvent";
 import { v4 as uuidv4 } from "uuid";
@@ -339,6 +340,10 @@ export class MembraneWebRTC {
         this.callbacks.onTrackUpdated?.(trackContext);
         break;
 
+      case "custom":
+        this.handleMediaEvent(deserializedMediaEvent.data as MediaEvent);
+        break;
+
       case "error":
         this.callbacks.onConnectionError?.(deserializedMediaEvent.data.message);
         this.leave();
@@ -413,7 +418,7 @@ export class MembraneWebRTC {
         );
     }
 
-    let mediaEvent = generateMediaEvent("renegotiateTracks", {});
+    let mediaEvent = generateCustomEvent({ type: "renegotiateTracks" });
     this.sendMediaEvent(mediaEvent);
     return trackId;
   }
@@ -656,10 +661,13 @@ export class MembraneWebRTC {
       const offer = await this.connection.createOffer();
       await this.connection.setLocalDescription(offer);
 
-      let mediaEvent = generateMediaEvent("sdpOffer", {
-        sdpOffer: offer,
-        trackIdToTrackMetadata: this.getTrackIdToMetadata(),
-        midToTrackId: this.getMidToTrackId(),
+      let mediaEvent = generateCustomEvent({
+        type: "sdpOffer",
+        data: {
+          sdpOffer: offer,
+          trackIdToTrackMetadata: this.getTrackIdToMetadata(),
+          midToTrackId: this.getMidToTrackId(),
+        },
       });
       this.sendMediaEvent(mediaEvent);
     } catch (error) {
@@ -709,9 +717,12 @@ export class MembraneWebRTC {
   private onLocalCandidate = () => {
     return (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
-        let mediaEvent = generateMediaEvent("candidate", {
-          candidate: event.candidate.candidate,
-          sdpMLineIndex: event.candidate.sdpMLineIndex,
+        let mediaEvent = generateCustomEvent({
+          type: "candidate",
+          data: {
+            candidate: event.candidate.candidate,
+            sdpMLineIndex: event.candidate.sdpMLineIndex,
+          },
         });
         this.sendMediaEvent(mediaEvent);
       }

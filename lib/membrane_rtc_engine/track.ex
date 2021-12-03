@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.Track do
   alias ExSDP.Attribute.FMTP
 
   @enforce_keys [:type, :stream_id, :id, :fmtp]
-  defstruct @enforce_keys ++ [encoding: nil, format: nil, active?: true]
+  defstruct @enforce_keys ++ [encoding: nil, format: nil, active?: true, metadata: nil]
 
   @type id :: String.t()
   @type encoding :: atom()
@@ -28,6 +28,7 @@ defmodule Membrane.RTC.Engine.Track do
   of `encoding`. The other one can be any atom (e.g. `:RTP`).
   * `fmtp` - struct describing format specific parameters e.g. for H264 it contains `profile_level_id`
   * `active?` - indicates whether track is still available or not (because peer left a room)
+  * `metadata` - any data passed by user to be linked with this track
   """
   @type t :: %__MODULE__{
           type: :audio | :video,
@@ -36,7 +37,8 @@ defmodule Membrane.RTC.Engine.Track do
           encoding: encoding,
           format: format,
           fmtp: FMTP,
-          active?: boolean()
+          active?: boolean(),
+          metadata: any()
         }
 
   @doc """
@@ -51,7 +53,8 @@ defmodule Membrane.RTC.Engine.Track do
           id: String.t(),
           encoding: encoding,
           format: format,
-          fmtp: FMTP
+          fmtp: FMTP,
+          metadata: any()
         ) :: t
   def new(type, stream_id, opts \\ []) do
     id = Keyword.get(opts, :id, Base.encode16(:crypto.strong_rand_bytes(8)))
@@ -62,7 +65,8 @@ defmodule Membrane.RTC.Engine.Track do
       id: id,
       encoding: Keyword.get(opts, :encoding),
       format: Keyword.get(opts, :format),
-      fmtp: Keyword.get(opts, :fmtp)
+      fmtp: Keyword.get(opts, :fmtp),
+      metadata: Keyword.get(opts, :metadata)
     }
   end
 

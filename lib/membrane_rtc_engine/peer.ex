@@ -1,30 +1,25 @@
 defmodule Membrane.RTC.Engine.Peer do
   @moduledoc false
   use Bunch.Access
-  alias Membrane.RTC.Engine.Track
 
   @type id() :: any()
 
   @type t :: %__MODULE__{
           id: id(),
-          metadata: any(),
-          track_id_to_track_metadata: %{Track.id() => any()}
+          metadata: any()
         }
 
   defstruct id: nil,
-            metadata: nil,
-            track_id_to_track_metadata: %{}
+            metadata: nil
 
   @spec new(
           id :: id(),
-          metadata :: any(),
-          track_id_to_track_metadata :: %{Track.id() => any()}
+          metadata :: any()
         ) :: Peer.t()
-  def new(id, metadata, track_id_to_track_metadata) do
+  def new(id, metadata) do
     %__MODULE__{
       id: id,
-      metadata: metadata,
-      track_id_to_track_metadata: track_id_to_track_metadata
+      metadata: metadata
     }
   end
 end

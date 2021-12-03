@@ -82,9 +82,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
               owner: [
                 spec: pid(),
                 description: """
-                Pid of parent to which will be send notification from bin e.g
+                Pid of parent all notifications will be send to.
 
-                `{:vad_notification, val, endpoint}`
+                To see possible notifications please refer to module docs.
                 """
               ]
 
@@ -127,7 +127,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification({:new_tracks, tracks}, _from, _ctx, state) do
-    tracks = Enum.map(tracks, &to_rtc_track(&1))
+    tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
     publish_notification = Engine.publish({:new_tracks, tracks})
     {{:ok, publish_notification}, %{state | inbound_tracks: inbound_tracks}}
@@ -165,6 +165,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_notification(
+        {:signal, _notification} = media_event,
+        _element,
+        _ctx,
+        state
+      ) do
+    notification = Engine.custom_event(serialize(media_event))
+    {{:ok, notification}, state}
+  end
+
+  @impl true
   def handle_notification(notification, _element, _ctx, state),
     do: {{:ok, notify: notification}, state}
 
@@ -184,6 +195,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     {{:ok, forward: [endpoint_bin: {:add_tracks, webrtc_tracks}]},
      %{state | outbound_tracks: outbound_tracks}}
+  end
+
+  @impl true
+  def handle_other({:custom, event}, _ctx, state) do
+    {:ok, data} = deserialize(event)
+    handle_custom_media_event(data, state)
   end
 
   @impl true
@@ -225,6 +242,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {{:ok, spec: spec}, state}
   end
 
+  defp handle_custom_media_event(%{type: :sdp_offer, data: data}, state) do
+    state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
+    msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
+    {{:ok, forward: [endpoint_bin: msg]}, state}
+  end
+
+  defp handle_custom_media_event(%{type: :candidate, data: data}, state) do
+    msg = {:signal, {:candidate, data.candidate}}
+    {{:ok, forward: [endpoint_bin: msg]}, state}
+  end
+
+  defp handle_custom_media_event(%{type: :renegotiate_tracks}, state) do
+    msg = {:signal, :renegotiate_tracks}
+    {{:ok, forward: [endpoint_bin: msg]}, state}
+  end
+
   defp update_tracks(tracks, track_id_to_track),
     do:
       Enum.reduce(tracks, track_id_to_track, fn track, acc ->
@@ -235,7 +268,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     if encoding == :OPUS and extension_options[:vad], do: [{:vad, Membrane.RTP.VAD}], else: []
   end
 
-  defp to_rtc_track(%WebRTC.Track{} = track) do
+  defp to_rtc_track(%WebRTC.Track{} = track, track_id_to_metadata) do
     %Engine.Track{
       type: track.type,
       stream_id: track.stream_id,
@@ -243,8 +276,103 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       encoding: track.encoding,
       format: [:RTP, :raw],
       fmtp: track.fmtp,
-      active?: track.status != :disabled
+      active?: track.status != :disabled,
+      metadata: Map.get(track_id_to_metadata, track.id)
     }
+  end
+
+  defp serialize({:signal, {:sdp_answer, answer, mid_to_track_id}}),
+    do: %{
+      type: "sdpAnswer",
+      data: %{
+        type: "answer",
+        sdp: answer,
+        midToTrackId: mid_to_track_id
+      }
+    }
+
+  defp serialize({:signal, {:offer_data, tracks_types}}),
+    do: %{
+      type: "offerData",
+      data: tracks_types
+    }
+
+  defp serialize({:signal, {:candidate, candidate, sdp_m_line_index}}),
+    do: %{
+      type: "candidate",
+      data: %{
+        candidate: candidate,
+        sdpMLineIndex: sdp_m_line_index,
+        sdpMid: nil,
+        usernameFragment: nil
+      }
+    }
+
+  defp serialize({:signal, {:sdp_offer, offer}}),
+    do: %{
+      type: "sdpOffer",
+      data: %{
+        type: "offer",
+        sdp: offer
+      }
+    }
+
+  defp deserialize(%{"type" => "renegotiateTracks"}) do
+    {:ok, %{type: :renegotiate_tracks}}
+  end
+
+  defp deserialize(%{"type" => "candidate"} = event) do
+    case event do
+      %{
+        "type" => "candidate",
+        "data" => %{
+          "candidate" => candidate,
+          "sdpMLineIndex" => sdp_m_line_index
+        }
+      } ->
+        {:ok,
+         %{
+           type: :candidate,
+           data: %{
+             candidate: candidate,
+             sdp_m_line_index: sdp_m_line_index
+           }
+         }}
+
+      _other ->
+        {:error, :invalid_media_event}
+    end
+  end
+
+  defp deserialize(%{"type" => "sdpOffer"} = event) do
+    case(event) do
+      %{
+        "type" => "sdpOffer",
+        "data" => %{
+          "sdpOffer" => %{
+            "type" => "offer",
+            "sdp" => sdp
+          },
+          "trackIdToTrackMetadata" => track_id_to_track_metadata,
+          "midToTrackId" => mid_to_track_id
+        }
+      } ->
+        {:ok,
+         %{
+           type: :sdp_offer,
+           data: %{
+             sdp_offer: %{
+               type: :offer,
+               sdp: sdp
+             },
+             track_id_to_track_metadata: track_id_to_track_metadata,
+             mid_to_track_id: mid_to_track_id
+           }
+         }}
+
+      _other ->
+        {:error, :invalid_media_event}
+    end
   end
 
   defp to_webrtc_track(%Engine.Track{} = track) do
