@@ -237,8 +237,8 @@ defmodule Membrane.RTC.Engine do
        peers: %{},
        endpoints: %{},
        options: options,
-       packet_filters: options[:packet_filters] || %{},
-       integrated_turn_options: options[:network_options][:integrated_turn_options],
+       integrated_turn_options:
+         options[:network_options][:integrated_turn_options] || [use_integrated_turn: false],
        extensions: options[:extensions] || %{},
        webrtc_extensions: options[:webrtc_extensions] || [],
        payload_and_depayload_tracks?: options[:payload_and_depayload_tracks?] || false,
