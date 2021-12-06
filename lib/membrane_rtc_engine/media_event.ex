@@ -5,35 +5,18 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   @type to_t() :: peer_id_t() | :broadcast
   @type rtc_media_event_t() :: {:rtc_media_event, to_t(), binary()}
 
-  @spec create_peer_accepted_event(peer_id_t(), map(), list(), boolean()) :: :: rtc_media_event_t()
-  def create_peer_accepted_event(peer_id, peers, integrated_turn_servers, enforce_turns?) do
+  @spec create_peer_accepted_event(peer_id_t(), map()) :: rtc_media_event_t()
+  def create_peer_accepted_event(peer_id, peers) do
     peers =
       Enum.map(peers, fn {id, peer} ->
         %{id: id, metadata: peer.metadata, trackIdToMetadata: peer.track_id_to_track_metadata}
       end)
 
-    integrated_turn_servers =
-      Enum.map(integrated_turn_servers, fn turn ->
-        addr = :inet.ntoa(turn.mocked_server_addr) |> to_string()
-
-        %{
-          serverAddr: addr,
-          serverPort: turn.server_port,
-          transport: turn.relay_type,
-          password: turn.password,
-          username: turn.username
-        }
-      end)
-
-    ice_transport_policy = if enforce_turns?, do: "relay", else: "all"
-
     %{
       type: "peerAccepted",
       data: %{
         id: peer_id,
-        peersInRoom: peers,
-        integratedTurnServers: integrated_turn_servers,
-        iceTransportPolicy: ice_transport_policy
+        peersInRoom: peers
       }
     }
     |> do_create(peer_id)
@@ -52,7 +35,8 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       data: %{
         peer: %{
           id: peer_id,
-          metadata: peer.metadata
+          metadata: peer.metadata,
+          trackIdToMetadata: peer.track_id_to_track_metadata
         }
       }
     }

@@ -210,34 +210,6 @@ export class MembraneWebRTC {
           deserializedMediaEvent.data.peersInRoom
         );
 
-        const turnServers = deserializedMediaEvent.data.integratedTurnServers;
-        if (!this.rtcConfig.iceServers) {
-          this.rtcConfig.iceServers = [];
-        }
-
-        const iceTransportPolicy = deserializedMediaEvent.data.iceTransportPolicy;
-        if (iceTransportPolicy === "relay") {
-          this.rtcConfig.iceTransportPolicy = "relay";
-
-          turnServers.forEach((turnServer: any) => {
-            const rtcIceServer: RTCIceServer = {
-              credential: turnServer.password,
-              credentialType: "password",
-              urls: "turn".concat(
-                ":",
-                turnServer.serverAddr,
-                ":",
-                turnServer.serverPort,
-                "?transport=",
-                turnServer.transport
-              ),
-              username: turnServer.username,
-            };
-
-            this.rtcConfig.iceServers!.push(rtcIceServer);
-          });
-        }
-
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
           this.addPeer(peer);
@@ -258,7 +230,14 @@ export class MembraneWebRTC {
     let data;
     switch (deserializedMediaEvent.type) {
       case "offerData":
-        const offerData = new Map<string, number>(Object.entries(deserializedMediaEvent.data));
+        const turnServers = deserializedMediaEvent.data.integratedTurnServers;
+        const icePolicy = deserializedMediaEvent.data.iceTransportPolicy;
+        this.setTurns(turnServers, icePolicy);
+
+        const offerData = new Map<string, number>(
+          Object.entries(deserializedMediaEvent.data.tracksTypes)
+        );
+
         this.onOfferData(offerData);
         break;
 
@@ -753,6 +732,34 @@ export class MembraneWebRTC {
 
       this.callbacks.onTrackReady?.(trackContext);
     };
+  };
+
+  private setTurns = (turnServers: any[], iceTransportPolicy: "relay" | "all"): void => {
+    if (!this.rtcConfig.iceServers) {
+      this.rtcConfig.iceServers = [];
+    }
+
+    if (iceTransportPolicy === "relay") {
+      this.rtcConfig.iceTransportPolicy = "relay";
+
+      turnServers.forEach((turnServer: any) => {
+        const rtcIceServer: RTCIceServer = {
+          credential: turnServer.password,
+          credentialType: "password",
+          urls: "turn".concat(
+            ":",
+            turnServer.serverAddr,
+            ":",
+            turnServer.serverPort,
+            "?transport=",
+            turnServer.transport
+          ),
+          username: turnServer.username,
+        };
+
+        this.rtcConfig.iceServers!.push(rtcIceServer);
+      });
+    }
   };
 
   private addPeer = (peer: Peer): void => {

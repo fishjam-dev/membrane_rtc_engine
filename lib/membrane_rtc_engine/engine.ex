@@ -144,58 +144,11 @@ defmodule Membrane.RTC.Engine do
   use Membrane.Pipeline
   import Membrane.RTC.Utils
 
-  alias Membrane.ICE.TurnUtils
   alias Membrane.RTC.Engine.{MediaEvent, Endpoint, Track, Peer}
 
   require Membrane.Logger
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
-
-  @type stun_server_t() :: ExLibnice.stun_server()
-  @type turn_server_t() :: ExLibnice.relay_info()
-
-  @typedoc """
-  List of WebRTC extensions to use.
-
-  At this moment only VAD (RFC 6464) is supported.
-  Enabling it will cause SFU sending `{:vad_notification, val, endpoint_id}` messages.
-  """
-  @type webrtc_extensions_t() :: [Membrane.WebRTC.Extension.t()]
-
-  @typedoc """
-  A map pointing from encoding names to lists of extensions that should be used for given encodings.
-  Encoding "`:any`" indicates that extensions should be applied regardless of encoding.
-
-  A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
-  It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
-  them are actively speaking.
-  """
-  @type extensions_t() :: %{
-          (encoding_name :: atom() | :any) => [Membrane.RTP.SessionBin.extension_t()]
-        }
-
-  @typedoc """
-  SFU network configuration options.
-
-  `dtls_pkey` and `dtls_cert` can be used e.g. when there are a lot of SFU instances
-  and all of them need to use the same certificate and key.
-
-  Example configuration can look like this:
-
-  ```elixir
-  network_options: [
-    stun_servers: [
-      %{server_addr: "stun.l.google.com", server_port: 19_302}
-    ]
-  ]
-  """
-  @type network_options_t() :: [
-          stun_servers: [stun_server_t()],
-          turn_servers: [turn_server_t()],
-          integrated_turn_options: Membrane.ICE.Bin.integrated_turn_options_t(),
-          dtls_pkey: binary(),
-          dtls_cert: binary()
-        ]
 
   @typedoc """
   RTC Engine configuration options.
@@ -203,10 +156,7 @@ defmodule Membrane.RTC.Engine do
   `id` is used by logger. If not provided it will be generated.
   """
   @type options_t() :: [
-          id: String.t(),
-          webrtc_extensions: webrtc_extensions_t(),
-          extensions: extensions_t(),
-          network_options: network_options_t()
+          id: String.t()
         ]
 
   @typedoc """
@@ -382,11 +332,6 @@ defmodule Membrane.RTC.Engine do
        id: options[:id],
        peers: %{},
        endpoints: %{},
-       options: options,
-       integrated_turn_options:
-         options[:network_options][:integrated_turn_options] || [use_integrated_turn: false],
-       extensions: options[:extensions] || %{},
-       webrtc_extensions: options[:webrtc_extensions] || [],
        waiting_for_linking: %{},
        filters: %{},
        subscriptions: %{}
@@ -599,8 +544,6 @@ defmodule Membrane.RTC.Engine do
       filter_tee_fake => Membrane.Element.Fake.Sink.Buffers
     }
 
-    # extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
-
     link_to_fake =
       link(endpoint_bin_name)
       |> via_out(Pad.ref(:output, track_id))
@@ -732,33 +675,10 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  @impl true
-  def handle_notification({:integrated_turn_servers, turns}, {:endpoint, peer_id}, _ctx, state) do
-    turns = get_turn_configs(peer_id, turns)
-    state = put_in(state, [:peers, peer_id, :integrated_turn_servers], turns)
-    peer = state.peers[peer_id]
-    enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
-
-    peers =
-      Map.new(state.peers, fn {peer_id, peer} ->
-        endpoint = Map.get(state.endpoints, peer_id)
-        track_id_to_metadata = Endpoint.get_track_id_to_metadata(endpoint)
-        peer = Map.put(peer, :track_id_to_track_metadata, track_id_to_metadata)
-        {peer_id, peer}
-      end)
-
-    MediaEvent.create_peer_accepted_event(
-      peer_id,
-      Map.delete(peers, peer_id),
-      turns,
-      enforce_turns?
-    )
-    |> dispatch()
-
-    MediaEvent.create_peer_joined_event(peer_id, peer)
-    |> dispatch()
-
-    {:ok, state}
+  defp put_track_id_to_track_metadata_in_peer(peer, endpoints) do
+    endpoint = Map.get(endpoints, peer.id)
+    track_id_to_metadata = Endpoint.get_track_id_to_metadata(endpoint)
+    Map.put(peer, :track_id_to_track_metadata, track_id_to_metadata)
   end
 
   defp link_inbound_track(track_id, tee, filter_tee, waiting_for_linking, ctx, state) do
@@ -833,6 +753,21 @@ defmodule Membrane.RTC.Engine do
         )
 
       state = put_in(state, [:peers, peer_id], peer)
+
+      peers =
+        Map.new(state.peers, fn {peer_id, peer} ->
+          peer = put_track_id_to_track_metadata_in_peer(peer, state.endpoints)
+          {peer_id, peer}
+        end)
+
+      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(peers, peer_id))
+      |> dispatch()
+
+      peer = put_track_id_to_track_metadata_in_peer(peer, state.endpoints)
+
+      MediaEvent.create_peer_joined_event(peer_id, peer)
+      |> dispatch()
+
       {[], state}
     end
   end
@@ -862,20 +797,6 @@ defmodule Membrane.RTC.Engine do
     state = put_in(state.endpoints[config.id], endpoint)
 
     {[spec: spec] ++ action, state}
-  end
-
-  defp get_turn_configs(name, turn_servers) do
-    Enum.map(turn_servers, fn
-      %{secret: secret} = turn_server ->
-        {username, password} = TurnUtils.generate_credentials(name, secret)
-
-        Map.delete(turn_server, :secret)
-        |> Map.put(:username, username)
-        |> Map.put(:password, password)
-
-      other ->
-        other
-    end)
   end
 
   defp get_outbound_tracks(endpoints),

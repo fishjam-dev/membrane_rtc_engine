@@ -6,6 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   """
   use Membrane.Bin
 
+  alias Membrane.ICE.TurnUtils
   alias Membrane.WebRTC.{SDP, EndpointBin}
   alias Membrane.WebRTC
   alias Membrane.RTC.Engine
@@ -13,15 +14,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @type stun_server_t() :: ExLibnice.stun_server()
   @type turn_server_t() :: ExLibnice.relay_info()
 
-  @type extension_options_t() :: [
-          vad: boolean()
-        ]
-
-  @type packet_filters_t() :: %{
-          (encoding_name :: atom()) => [Membrane.RTP.SessionBin.packet_filter_t()]
-        }
-
-  def_options stun_servers: [
+  def_options id: [
+                spec: String.t(),
+                description: "Id of endpoint"
+              ],
+              stun_servers: [
                 type: :list,
                 spec: [ExLibnice.stun_server()],
                 default: [],
@@ -58,26 +55,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 default: [],
                 description: "Logger metadata used for endpoint bin and all its descendants"
               ],
-              extension_options: [
-                spec: extension_options_t(),
-                default: [vad: false],
+              webrtc_extensions: [
+                spec: [Membrane.WebRTC.Extension.t()],
+                default: [],
                 description: """
-                List of RTP extensions to use.
+                List of WebRTC extensions to use.
 
-                At this moment only `vad` extension is supported.
+                At this moment only VAD (RFC 6464) is supported.
                 Enabling it will cause SFU sending `{:vad_notification, val, endpoint_id}` messages.
                 """
               ],
-              packet_filters: [
-                spec: packet_filters_t(),
+              extensions: [
+                spec: %{
+                  (encoding_name :: atom() | :any) => [Membrane.RTP.SessionBin.extension_t()]
+                },
                 default: %{},
                 description: """
-                A map pointing from encoding names to lists of packet filters that should be used for given encodings.
+                A map pointing from encoding names to lists of extensions that should be used for given encodings.
+                Encoding "`:any`" indicates that extensions should be applied regardless of encoding.
 
                 A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
                 It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
                 them are actively speaking.
                 """
+              ],
+              integrated_turn_options: [
+                spec: Membrane.ICE.Bin.integrated_turn_options_t(),
+                default: [use_integrated_turn: false]
               ],
               owner: [
                 spec: pid(),
@@ -107,7 +111,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       log_metadata: opts.log_metadata,
       filter_codecs: opts.filter_codecs,
       inbound_tracks: [],
-      outbound_tracks: []
+      outbound_tracks: [],
+      extensions: opts.webrtc_extensions || %{},
+      integrated_turn_options: opts.integrated_turn_options
     }
 
     spec = %ParentSpec{
@@ -115,14 +121,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     }
 
     state = %{
-      extensions: opts.extension_options,
-      packet_filters: opts.packet_filters || %{},
+      id: opts.id,
       outbound_tracks: %{},
       inbound_tracks: %{},
+      extensions: opts.extensions || [],
+      webrtc_extensions: opts.webrtc_extensions || %{},
+      integrated_turn_options: opts.integrated_turn_options,
       owner: opts.owner
     }
 
     {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
+  end
+
+  @impl true
+  def handle_notification(
+        {:integrated_turn_servers, turns},
+        _from,
+        _ctx,
+        state
+      ) do
+    enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
+
+    {{:ok, notify: {:integrated_turn_servers, turns, enforce_turns?}}, state}
   end
 
   @impl true
@@ -162,6 +182,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_notification({:vad, val}, {:endpoint, endpoint_id}, _ctx, state) do
     send(state.owner, {:vad_notification, val, endpoint_id})
     {:ok, state}
+  end
+
+  @impl true
+  def handle_notification(
+        {:signal, {:offer_data, media_count, turns}},
+        _element,
+        _ctx,
+        state
+      ) do
+    turns = get_turn_configs(state.id, turns)
+    enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
+
+    media_event = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
+    notification = Engine.custom_event(serialize(media_event))
+    {{:ok, notification}, state}
   end
 
   @impl true
@@ -222,15 +257,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_pad_added(Pad.ref(:output, track_id) = pad, _ctx, state) do
     %{encoding: encoding} = Map.get(state.inbound_tracks, track_id)
-    extensions = setup_extensions(encoding, state[:options][:extension_options])
-    packet_filters = state.packet_filters[encoding] || []
+    extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
 
     spec = %ParentSpec{
       links: [
         link(:endpoint_bin)
         |> via_out(pad,
           options: [
-            packet_filters: packet_filters,
             extensions: extensions,
             use_depayloader?: false
           ]
@@ -258,15 +291,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {{:ok, forward: [endpoint_bin: msg]}, state}
   end
 
+  defp get_turn_configs(name, turn_servers) do
+    Enum.map(turn_servers, fn
+      %{secret: secret} = turn_server ->
+        {username, password} = TurnUtils.generate_credentials(name, secret)
+
+        Map.delete(turn_server, :secret)
+        |> Map.put(:username, username)
+        |> Map.put(:password, password)
+
+      other ->
+        other
+    end)
+  end
+
   defp update_tracks(tracks, track_id_to_track),
     do:
       Enum.reduce(tracks, track_id_to_track, fn track, acc ->
         Map.put(acc, track.id, track)
       end)
-
-  defp setup_extensions(encoding, extension_options) do
-    if encoding == :OPUS and extension_options[:vad], do: [{:vad, Membrane.RTP.VAD}], else: []
-  end
 
   defp to_rtc_track(%WebRTC.Track{} = track, track_id_to_metadata) do
     %Engine.Track{
@@ -291,11 +334,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-  defp serialize({:signal, {:offer_data, tracks_types}}),
-    do: %{
+  defp serialize({:signal, {:offer_data, tracks_types, turns, enforce_turns?}}) do
+    integrated_turn_servers =
+      Enum.map(turns, fn turn ->
+        addr = :inet.ntoa(turn.mocked_server_addr) |> to_string()
+
+        %{
+          serverAddr: addr,
+          serverPort: turn.server_port,
+          transport: turn.relay_type,
+          password: turn.password,
+          username: turn.username
+        }
+      end)
+
+    %{
       type: "offerData",
-      data: tracks_types
+      data: %{
+        tracksTypes: tracks_types,
+        integratedTurnServers: integrated_turn_servers,
+        iceTransportPolicy: if(enforce_turns?, do: "relay", else: "all")
+      }
     }
+  end
 
   defp serialize({:signal, {:candidate, candidate, sdp_m_line_index}}),
     do: %{

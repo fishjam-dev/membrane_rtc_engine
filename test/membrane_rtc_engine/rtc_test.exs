@@ -47,7 +47,7 @@ defmodule Membrane.RTC.EngineTest do
         }
         |> Jason.encode!()
 
-      send(rtc_engine, {:media_event, peer_id, media_event})
+      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
       assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
     end
   end
@@ -91,6 +91,7 @@ defmodule Membrane.RTC.EngineTest do
         end
 
       bin = %WebRTC{
+        id: peer_id,
         owner: self(),
         stun_servers: [],
         turn_servers: [],
@@ -115,7 +116,7 @@ defmodule Membrane.RTC.EngineTest do
         }
         |> Jason.encode!()
 
-      send(rtc_engine, {:media_event, peer_id, media_event})
+      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
       assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
       Engine.accept_peer(rtc_engine, peer_id)
       assert_receive {_from, {:rtc_media_event, ^peer_id, media_event}}, 1000
@@ -151,9 +152,9 @@ defmodule Membrane.RTC.EngineTest do
         }
         |> Jason.encode!()
 
-      send(rtc_engine, {:media_event, peer_id, media_event})
+      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
       assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
-      send(rtc_engine, {:deny_new_peer, peer_id, data: metadata})
+      Engine.deny_peer(rtc_engine, peer_id, data: metadata)
       assert_receive {_from, {:rtc_media_event, ^peer_id, media_event}}
 
       assert %{"type" => "peerDenied", "data" => %{"reason" => "bob smells"}} ==
