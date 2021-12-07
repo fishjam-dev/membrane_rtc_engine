@@ -2,6 +2,7 @@ defmodule Membrane.RTC.EngineTest do
   use ExUnit.Case
 
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Endpoint.WebRTC
 
   setup do
     webrtc_extensions = [
@@ -16,20 +17,20 @@ defmodule Membrane.RTC.EngineTest do
     ]
 
     options = [
-      id: "test_sfu",
+      id: "test_rtc",
       webrtc_extensions: webrtc_extensions,
       network_options: network_options
     ]
 
     {:ok, pid} = Engine.start_link(options, [])
 
-    send(pid, {:register, self()})
+    Engine.register(pid, self())
 
-    [sfu_engine: pid]
+    [rtc_engine: pid]
   end
 
   describe "joining to a room" do
-    test "triggers :new_peer notification when media event is valid", %{sfu_engine: sfu_engine} do
+    test "triggers :new_peer notification when media event is valid", %{rtc_engine: rtc_engine} do
       peer_id = "sample_id"
 
       metadata = %{
@@ -46,7 +47,7 @@ defmodule Membrane.RTC.EngineTest do
         }
         |> Jason.encode!()
 
-      send(sfu_engine, {:media_event, peer_id, media_event})
+      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
       assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
     end
   end
@@ -55,11 +56,54 @@ defmodule Membrane.RTC.EngineTest do
   # Skipped due to bug occuring, when starting CNode in not distributed Erlang
   @tag :skip
   describe "accepting a new peer" do
-    test "triggers peerAccepted event", %{sfu_engine: sfu_engine} do
+    test "triggers peerAccepted event", %{rtc_engine: rtc_engine} do
       peer_id = "sample_id"
 
       metadata = %{
         "displayName" => "Bob"
+      }
+
+      state = %{
+        network_options: [
+          stun_servers: [
+            %{server_addr: "stun.l.google.com", server_port: 19_302}
+          ],
+          turn_servers: [],
+          dtls_pkey: Application.get_env(:membrane_videoroom_demo, :dtls_pkey),
+          dtls_cert: Application.get_env(:membrane_videoroom_demo, :dtls_cert)
+        ]
+      }
+
+      handshake_opts =
+        if state.network_options[:dtls_pkey] &&
+             state.network_options[:dtls_cert] do
+          [
+            client_mode: false,
+            dtls_srtp: true,
+            pkey: state.network_options[:dtls_pkey],
+            cert: state.network_options[:dtls_cert]
+          ]
+        else
+          [
+            client_mode: false,
+            dtls_srtp: true
+          ]
+        end
+
+      bin = %WebRTC{
+        ice_name: peer_id,
+        owner: self(),
+        stun_servers: [],
+        turn_servers: [],
+        handshake_opts: handshake_opts,
+        log_metadata: [peer_id: peer_id],
+        filter_codecs: fn {rtp, fmtp} ->
+          case rtp.encoding do
+            "opus" -> true
+            "H264" -> fmtp.profile_level_id === 0x42E01F
+            _unsupported_codec -> false
+          end
+        end
       }
 
       media_event =
@@ -72,10 +116,10 @@ defmodule Membrane.RTC.EngineTest do
         }
         |> Jason.encode!()
 
-      send(sfu_engine, {:media_event, peer_id, media_event})
+      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
       assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
-      send(sfu_engine, {:accept_new_peer, peer_id})
-      assert_receive {_from, {:sfu_media_event, ^peer_id, media_event}}, 1000
+      Engine.accept_peer(rtc_engine, peer_id)
+      assert_receive {_from, {:rtc_media_event, ^peer_id, media_event}}, 1000
 
       assert %{
                "type" => "peerAccepted",
@@ -91,7 +135,7 @@ defmodule Membrane.RTC.EngineTest do
   end
 
   describe "denying a new peer" do
-    test "triggers peerDenied event", %{sfu_engine: sfu_engine} do
+    test "triggers peerDenied event", %{rtc_engine: rtc_engine} do
       peer_id = "sample_id"
 
       metadata = %{
@@ -108,10 +152,10 @@ defmodule Membrane.RTC.EngineTest do
         }
         |> Jason.encode!()
 
-      send(sfu_engine, {:media_event, peer_id, media_event})
+      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
       assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
-      send(sfu_engine, {:deny_new_peer, peer_id, data: metadata})
-      assert_receive {_from, {:sfu_media_event, ^peer_id, media_event}}
+      Engine.deny_peer(rtc_engine, peer_id, data: metadata)
+      assert_receive {_from, {:rtc_media_event, ^peer_id, media_event}}
 
       assert %{"type" => "peerDenied", "data" => %{"reason" => "bob smells"}} ==
                Jason.decode!(media_event)

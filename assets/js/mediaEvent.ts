@@ -21,3 +21,7 @@ export function generateMediaEvent(type: string, data?: any): MediaEvent {
   }
   return event;
 }
+
+export function generateCustomEvent(data?: any): MediaEvent {
+  return generateMediaEvent("custom", data);
+}

@@ -39,13 +39,20 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, github: "membraneframework/membrane_core", override: true},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
+      {:membrane_webrtc_plugin,
+       github: "membraneframework/membrane_webrtc_plugin", optional: true},
+      {:membrane_http_adaptive_stream_plugin,
+       github: "membraneframework/membrane_http_adaptive_stream_plugin", optional: true},
+      {:membrane_mp4_plugin, "~> 0.9.0", optional: true},
+      {:membrane_aac_plugin, "~> 0.8.0", optional: true},
+      {:membrane_aac_format, "~> 0.5.0", optional: true, override: true},
+      {:membrane_aac_fdk_plugin, "~> 0.8.0", optional: true},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false}
+      {:credo, "~> 1.4", only: :dev, runtime: false, override: true}
     ]
   end
 
@@ -75,7 +82,13 @@ defmodule Membrane.RTC.Engine.MixProject do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.RTC.Engine]
+      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint],
+      groups_for_modules: [
+        Endpoints: [
+          Membrane.RTC.Engine.Endpoint.WebRTC,
+          Membrane.RTC.Engine.Endpoint.HLS
+        ]
+      ]
     ]
   end
 

@@ -3,6 +3,7 @@ import {
   SerializedMediaEvent,
   deserializeMediaEvent,
   generateMediaEvent,
+  generateCustomEvent,
   serializeMediaEvent,
 } from "./mediaEvent";
 import { v4 as uuidv4 } from "uuid";
@@ -209,34 +210,6 @@ export class MembraneWebRTC {
           deserializedMediaEvent.data.peersInRoom
         );
 
-        const turnServers = deserializedMediaEvent.data.integratedTurnServers;
-        if (!this.rtcConfig.iceServers) {
-          this.rtcConfig.iceServers = [];
-        }
-
-        const iceTransportPolicy = deserializedMediaEvent.data.iceTransportPolicy;
-        if (iceTransportPolicy === "relay") {
-          this.rtcConfig.iceTransportPolicy = "relay";
-
-          turnServers.forEach((turnServer: any) => {
-            const rtcIceServer: RTCIceServer = {
-              credential: turnServer.password,
-              credentialType: "password",
-              urls: "turn".concat(
-                ":",
-                turnServer.serverAddr,
-                ":",
-                turnServer.serverPort,
-                "?transport=",
-                turnServer.transport
-              ),
-              username: turnServer.username,
-            };
-
-            this.rtcConfig.iceServers!.push(rtcIceServer);
-          });
-        }
-
         let peers = deserializedMediaEvent.data.peersInRoom as Peer[];
         peers.forEach((peer) => {
           this.addPeer(peer);
@@ -257,7 +230,14 @@ export class MembraneWebRTC {
     let data;
     switch (deserializedMediaEvent.type) {
       case "offerData":
-        const offerData = new Map<string, number>(Object.entries(deserializedMediaEvent.data));
+        const turnServers = deserializedMediaEvent.data.integratedTurnServers;
+        const icePolicy = deserializedMediaEvent.data.iceTransportPolicy;
+        this.setTurns(turnServers, icePolicy);
+
+        const offerData = new Map<string, number>(
+          Object.entries(deserializedMediaEvent.data.tracksTypes)
+        );
+
         this.onOfferData(offerData);
         break;
 
@@ -339,6 +319,10 @@ export class MembraneWebRTC {
         this.callbacks.onTrackUpdated?.(trackContext);
         break;
 
+      case "custom":
+        this.handleMediaEvent(deserializedMediaEvent.data as MediaEvent);
+        break;
+
       case "error":
         this.callbacks.onConnectionError?.(deserializedMediaEvent.data.message);
         this.leave();
@@ -413,7 +397,7 @@ export class MembraneWebRTC {
         );
     }
 
-    let mediaEvent = generateMediaEvent("renegotiateTracks", {});
+    let mediaEvent = generateCustomEvent({ type: "renegotiateTracks" });
     this.sendMediaEvent(mediaEvent);
     return trackId;
   }
@@ -656,10 +640,13 @@ export class MembraneWebRTC {
       const offer = await this.connection.createOffer();
       await this.connection.setLocalDescription(offer);
 
-      let mediaEvent = generateMediaEvent("sdpOffer", {
-        sdpOffer: offer,
-        trackIdToTrackMetadata: this.getTrackIdToMetadata(),
-        midToTrackId: this.getMidToTrackId(),
+      let mediaEvent = generateCustomEvent({
+        type: "sdpOffer",
+        data: {
+          sdpOffer: offer,
+          trackIdToTrackMetadata: this.getTrackIdToMetadata(),
+          midToTrackId: this.getMidToTrackId(),
+        },
       });
       this.sendMediaEvent(mediaEvent);
     } catch (error) {
@@ -709,9 +696,12 @@ export class MembraneWebRTC {
   private onLocalCandidate = () => {
     return (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
-        let mediaEvent = generateMediaEvent("candidate", {
-          candidate: event.candidate.candidate,
-          sdpMLineIndex: event.candidate.sdpMLineIndex,
+        let mediaEvent = generateCustomEvent({
+          type: "candidate",
+          data: {
+            candidate: event.candidate.candidate,
+            sdpMLineIndex: event.candidate.sdpMLineIndex,
+          },
         });
         this.sendMediaEvent(mediaEvent);
       }
@@ -744,9 +734,39 @@ export class MembraneWebRTC {
     };
   };
 
+  private setTurns = (turnServers: any[], iceTransportPolicy: "relay" | "all"): void => {
+    if (!this.rtcConfig.iceServers) {
+      this.rtcConfig.iceServers = [];
+    }
+
+    if (iceTransportPolicy === "relay") {
+      this.rtcConfig.iceTransportPolicy = "relay";
+
+      turnServers.forEach((turnServer: any) => {
+        const rtcIceServer: RTCIceServer = {
+          credential: turnServer.password,
+          credentialType: "password",
+          urls: "turn".concat(
+            ":",
+            turnServer.serverAddr,
+            ":",
+            turnServer.serverPort,
+            "?transport=",
+            turnServer.transport
+          ),
+          username: turnServer.username,
+        };
+
+        this.rtcConfig.iceServers!.push(rtcIceServer);
+      });
+    }
+  };
+
   private addPeer = (peer: Peer): void => {
     // #TODO remove this line after fixing deserialization
-    peer.trackIdToMetadata = new Map(Object.entries(peer.trackIdToMetadata));
+    if (peer.hasOwnProperty("trackIdToMetadata"))
+      peer.trackIdToMetadata = new Map(Object.entries(peer.trackIdToMetadata));
+    else peer.trackIdToMetadata = new Map();
     this.idToPeer.set(peer.id, peer);
   };
 
