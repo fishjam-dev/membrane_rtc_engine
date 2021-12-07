@@ -675,12 +675,6 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  defp put_track_id_to_track_metadata_in_peer(peer, endpoints) do
-    endpoint = Map.get(endpoints, peer.id)
-    track_id_to_metadata = Endpoint.get_track_id_to_metadata(endpoint)
-    Map.put(peer, :track_id_to_track_metadata, track_id_to_metadata)
-  end
-
   defp link_inbound_track(track_id, tee, filter_tee, waiting_for_linking, ctx, state) do
     reduce_children(ctx, {[], waiting_for_linking}, fn
       {:endpoint, endpoint_id}, {new_links, waiting_for_linking} ->
@@ -754,16 +748,12 @@ defmodule Membrane.RTC.Engine do
 
       state = put_in(state, [:peers, peer_id], peer)
 
-      peers =
-        Map.new(state.peers, fn {peer_id, peer} ->
-          peer = put_track_id_to_track_metadata_in_peer(peer, state.endpoints)
-          {peer_id, peer}
-        end)
-
-      MediaEvent.create_peer_accepted_event(peer_id, Map.delete(peers, peer_id))
+      MediaEvent.create_peer_accepted_event(
+        peer_id,
+        Map.delete(state.peers, peer_id),
+        state.endpoints
+      )
       |> dispatch()
-
-      peer = put_track_id_to_track_metadata_in_peer(peer, state.endpoints)
 
       MediaEvent.create_peer_joined_event(peer_id, peer)
       |> dispatch()

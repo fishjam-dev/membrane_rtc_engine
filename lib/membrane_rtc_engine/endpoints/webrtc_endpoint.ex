@@ -14,9 +14,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @type stun_server_t() :: ExLibnice.stun_server()
   @type turn_server_t() :: ExLibnice.relay_info()
 
-  def_options id: [
+  def_options ice_name: [
                 spec: String.t(),
-                description: "Id of endpoint"
+                description: "Ice name is used in creating credentials for ice connnection"
               ],
               stun_servers: [
                 type: :list,
@@ -121,7 +121,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     }
 
     state = %{
-      id: opts.id,
+      ice_name: opts.ice_name,
       outbound_tracks: %{},
       inbound_tracks: %{},
       extensions: opts.extensions || [],
@@ -191,7 +191,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
-    turns = get_turn_configs(state.id, turns)
+    turns = get_turn_configs(state.ice_name, turns)
     enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
 
     media_event = {:signal, {:offer_data, media_count, turns, enforce_turns?}}

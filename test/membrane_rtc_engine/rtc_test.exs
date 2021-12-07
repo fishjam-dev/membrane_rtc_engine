@@ -91,7 +91,7 @@ defmodule Membrane.RTC.EngineTest do
         end
 
       bin = %WebRTC{
-        id: peer_id,
+        ice_name: peer_id,
         owner: self(),
         stun_servers: [],
         turn_servers: [],

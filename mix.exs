@@ -40,9 +40,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       {:membrane_core, github: "membraneframework/membrane_core", override: true},
       {:membrane_webrtc_plugin,
-       github: "membraneframework/membrane_webrtc_plugin",
-       branch: "modular_rtc_engine",
-       optional: true},
+       github: "membraneframework/membrane_webrtc_plugin", optional: true},
       {:membrane_http_adaptive_stream_plugin,
        github: "membraneframework/membrane_http_adaptive_stream_plugin", optional: true},
       {:membrane_mp4_plugin, "~> 0.9.0", optional: true},

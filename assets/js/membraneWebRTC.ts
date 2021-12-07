@@ -764,7 +764,9 @@ export class MembraneWebRTC {
 
   private addPeer = (peer: Peer): void => {
     // #TODO remove this line after fixing deserialization
-    peer.trackIdToMetadata = new Map(Object.entries(peer.trackIdToMetadata));
+    if (peer.hasOwnProperty("trackIdToMetadata"))
+      peer.trackIdToMetadata = new Map(Object.entries(peer.trackIdToMetadata));
+    else peer.trackIdToMetadata = new Map();
     this.idToPeer.set(peer.id, peer);
   };
 

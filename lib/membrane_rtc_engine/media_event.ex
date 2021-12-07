@@ -1,15 +1,18 @@
 defmodule Membrane.RTC.Engine.MediaEvent do
   @moduledoc false
 
+  alias Membrane.RTC.Engine.Endpoint
+
   @type peer_id_t() :: String.t()
   @type to_t() :: peer_id_t() | :broadcast
   @type rtc_media_event_t() :: {:rtc_media_event, to_t(), binary()}
 
-  @spec create_peer_accepted_event(peer_id_t(), map()) :: rtc_media_event_t()
-  def create_peer_accepted_event(peer_id, peers) do
+  @spec create_peer_accepted_event(peer_id_t(), map(), [Endpoint.t()]) :: rtc_media_event_t()
+  def create_peer_accepted_event(peer_id, peers, endpoints) do
     peers =
       Enum.map(peers, fn {id, peer} ->
-        %{id: id, metadata: peer.metadata, trackIdToMetadata: peer.track_id_to_track_metadata}
+        track_id_to_track_metadata = Endpoint.get_track_id_to_metadata(endpoints[id])
+        %{id: id, metadata: peer.metadata, trackIdToMetadata: track_id_to_track_metadata}
       end)
 
     %{
@@ -35,8 +38,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       data: %{
         peer: %{
           id: peer_id,
-          metadata: peer.metadata,
-          trackIdToMetadata: peer.track_id_to_track_metadata
+          metadata: peer.metadata
         }
       }
     }
