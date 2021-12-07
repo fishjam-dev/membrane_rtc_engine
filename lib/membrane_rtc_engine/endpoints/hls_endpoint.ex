@@ -1,6 +1,7 @@
-if Code.ensure_loaded?(Membrane.H264.FFmpeg) and
-     Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.SinkBin) and
-     Code.ensure_loaded?(Membrane.AAC.FDK) do
+if Enum.all?(
+     [Membrane.H264.FFmpeg, Membrane.HTTPAdaptiveStream.SinkBin, Membrane.AAC.FDK],
+     &Code.ensure_loaded?/1
+   ) do
   defmodule Membrane.RTC.Engine.Endpoint.HLS do
     @moduledoc """
     An Endpoint responsible for converting incoming tracks to HLS playlist.
