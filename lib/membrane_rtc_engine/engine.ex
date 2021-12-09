@@ -440,10 +440,8 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp handle_media_event(%{type: :custom, data: event}, peer_id, _ctx, state) do
-    actions = [
-      forward: {{:endpoint, peer_id}, {:custom, event}}
-    ]
+  defp handle_media_event(%{type: :custom, data: event}, peer_id, ctx, state) do
+    actions = forward_msg_to_child({:endpoint, peer_id}, {:custom, event}, ctx)
 
     {actions, state}
   end
@@ -452,8 +450,8 @@ defmodule Membrane.RTC.Engine do
     remove_peer(peer_id, ctx, state)
   end
 
-  defp handle_media_event(%{type: :renegotiate_tracks}, peer_id, _ctx, state) do
-    actions = [forward: {{:endpoint, peer_id}, {:signal, :renegotiate_tracks}}]
+  defp handle_media_event(%{type: :renegotiate_tracks}, peer_id, ctx, state) do
+    actions = forward_msg_to_child({:endpoint, peer_id}, {:signal, :renegotiate_tracks}, ctx)
     {actions, state}
   end
 

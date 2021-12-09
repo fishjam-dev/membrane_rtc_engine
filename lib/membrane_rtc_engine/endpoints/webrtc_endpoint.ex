@@ -6,6 +6,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     It is responsible for sending and receiving media tracks from other WebRTC peer (e.g. web browser).
     """
     use Membrane.Bin
+    import Membrane.RTC.Utils
 
     alias Membrane.ICE.TurnUtils
     alias Membrane.WebRTC.{SDP, EndpointBin}
@@ -180,8 +181,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification({:vad, val}, {:endpoint, endpoint_id}, _ctx, state) do
-      send(state.owner, {:vad_notification, val, endpoint_id})
+    def handle_notification({:vad, val}, :endpoint_bin, _ctx, state) do
+      send(state.owner, {:vad_notification, val, state.ice_name})
       {:ok, state}
     end
 
@@ -216,7 +217,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       do: {{:ok, notify: notification}, state}
 
     @impl true
-    def handle_other({:new_tracks, tracks}, _ctx, state) do
+    def handle_other({:new_tracks, tracks}, ctx, state) do
       # Don't subscribe for new tracks yet.
       # We will do this after ice restart is finished.
       # Notification :negotiation_done  will inform us about it
@@ -229,19 +230,19 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
       outbound_tracks = update_tracks(tracks, state.outbound_tracks)
 
-      {{:ok, forward: [endpoint_bin: {:add_tracks, webrtc_tracks}]},
+      {{:ok, forward_msg_to_child(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
        %{state | outbound_tracks: outbound_tracks}}
     end
 
     @impl true
-    def handle_other({:custom, event}, _ctx, state) do
+    def handle_other({:custom, event}, ctx, state) do
       {:ok, data} = deserialize(event)
-      handle_custom_media_event(data, state)
+      handle_custom_media_event(data, ctx, state)
     end
 
     @impl true
-    def handle_other(msg, _ctx, state) do
-      {{:ok, forward: [endpoint_bin: msg]}, state}
+    def handle_other(msg, ctx, state) do
+      {{:ok, forward_msg_to_child(:endpoint_bin, msg, ctx)}, state}
     end
 
     @impl true
@@ -276,20 +277,20 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       {{:ok, spec: spec}, state}
     end
 
-    defp handle_custom_media_event(%{type: :sdp_offer, data: data}, state) do
+    defp handle_custom_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
       state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
       msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
-      {{:ok, forward: [endpoint_bin: msg]}, state}
+      {{:ok, forward_msg_to_child(:endpoint_bin, msg, ctx)}, state}
     end
 
-    defp handle_custom_media_event(%{type: :candidate, data: data}, state) do
+    defp handle_custom_media_event(%{type: :candidate, data: data}, ctx, state) do
       msg = {:signal, {:candidate, data.candidate}}
-      {{:ok, forward: [endpoint_bin: msg]}, state}
+      {{:ok, forward_msg_to_child(:endpoint_bin, msg, ctx)}, state}
     end
 
-    defp handle_custom_media_event(%{type: :renegotiate_tracks}, state) do
+    defp handle_custom_media_event(%{type: :renegotiate_tracks}, ctx, state) do
       msg = {:signal, :renegotiate_tracks}
-      {{:ok, forward: [endpoint_bin: msg]}, state}
+      {{:ok, forward_msg_to_child(:endpoint_bin, msg, ctx)}, state}
     end
 
     defp get_turn_configs(name, turn_servers) do
