@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.Track do
   alias ExSDP.Attribute.FMTP
 
   @enforce_keys [:type, :stream_id, :id, :fmtp]
-  defstruct @enforce_keys ++ [encoding: nil, format: nil, active?: true, metadata: nil]
+  defstruct @enforce_keys ++ [encoding: nil, format: nil, active?: true, metadata: nil, ctx: %{}]
 
   @type id :: String.t()
   @type encoding :: atom()
@@ -38,7 +38,8 @@ defmodule Membrane.RTC.Engine.Track do
           format: format,
           fmtp: FMTP,
           active?: boolean(),
-          metadata: any()
+          metadata: any(),
+          ctx: map()
         }
 
   @doc """
@@ -54,7 +55,8 @@ defmodule Membrane.RTC.Engine.Track do
           encoding: encoding,
           format: format,
           fmtp: FMTP,
-          metadata: any()
+          metadata: any(),
+          ctx: map()
         ) :: t
   def new(type, stream_id, opts \\ []) do
     id = Keyword.get(opts, :id, Base.encode16(:crypto.strong_rand_bytes(8)))
@@ -66,7 +68,8 @@ defmodule Membrane.RTC.Engine.Track do
       encoding: Keyword.get(opts, :encoding),
       format: Keyword.get(opts, :format),
       fmtp: Keyword.get(opts, :fmtp),
-      metadata: Keyword.get(opts, :metadata)
+      metadata: Keyword.get(opts, :metadata),
+      ctx: Keyword.get(opts, :ctx, %{})
     }
   end
 
