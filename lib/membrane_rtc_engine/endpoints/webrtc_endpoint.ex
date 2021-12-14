@@ -113,7 +113,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         filter_codecs: opts.filter_codecs,
         inbound_tracks: [],
         outbound_tracks: [],
-        extensions: opts.webrtc_extensions || %{},
+        extensions: opts.webrtc_extensions || [],
         integrated_turn_options: opts.integrated_turn_options
       }
 
@@ -125,8 +125,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         ice_name: opts.ice_name,
         outbound_tracks: %{},
         inbound_tracks: %{},
-        extensions: opts.extensions || [],
-        webrtc_extensions: opts.webrtc_extensions || %{},
+        extensions: opts.extensions || %{},
         integrated_turn_options: opts.integrated_turn_options,
         owner: opts.owner
       }
@@ -180,7 +179,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification({:vad, val}, {:endpoint, endpoint_id}, _ctx, state) do
+    def handle_notification({:vad, val}, :endpoint_bin, _ctx, state) do
       send(state.owner, {:vad_notification, val, endpoint_id})
       {:ok, state}
     end
