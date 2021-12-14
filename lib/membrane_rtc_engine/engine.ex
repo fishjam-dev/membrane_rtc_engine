@@ -142,6 +142,7 @@ defmodule Membrane.RTC.Engine do
   ```
   """
   use Membrane.Pipeline
+  use OpenTelemetryDecorator
   import Membrane.RTC.Utils
 
   alias Membrane.RTC.Engine.{MediaEvent, Endpoint, Track, Peer}
@@ -355,24 +356,28 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.other.register", include: [[:state, :id]])
   def handle_other({:register, pid}, _ctx, state) do
     Registry.register(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
   @impl true
+  @decorate trace("engine.other.unregister", include: [[:state, :id]])
   def handle_other({:unregister, pid}, _ctx, state) do
     Registry.unregister_match(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
   @impl true
+  @decorate trace("engine.other.remove_peer", include: [[:state, :id]])
   def handle_other({:remove_peer, id}, ctx, state) do
     {actions, state} = remove_peer(id, ctx, state)
     {{:ok, actions}, state}
   end
 
   @impl true
+  @decorate trace("engine.other.add_endpoint", include: [[:state, :id]])
   def handle_other({:add_endpoint, endpoint, [peer_id: peer_id, node: node]}, ctx, state) do
     endpoint_params = %{endpoint: endpoint, peer_node: node}
 
@@ -390,6 +395,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.other.add_endpoint", include: [[:state, :id]])
   def handle_other({:add_endpoint, endpoint, [endpoint_id: id, node: node]}, ctx, state) do
     {actions, state} =
       setup_endpoint(
@@ -402,6 +408,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.other.add_peer", include: [[:state, :id]])
   def handle_other({:add_peer, peer_id, data}, _ctx, state) do
     {actions, state} = do_accept_new_peer(peer_id, data, state)
 
@@ -409,6 +416,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.other.remove_endpoint", include: [[:state, :id]])
   def handle_other({:remove_endpoint, id}, ctx, state) do
     case(do_remove_endpoint(id, ctx, state)) do
       {:absent, [], state} ->
@@ -421,6 +429,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.other.media_event", include: [[:state, :id]])
   def handle_other({:media_event, from, data}, ctx, state) do
     case MediaEvent.deserialize(data) do
       {:ok, event} ->
@@ -525,6 +534,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.notification.custom_media_event", include: [[:state, :id]])
   def handle_notification({:custom, message}, {:endpoint, peer_id}, _ctx, state) do
     MediaEvent.create_custom_event(peer_id, message)
     |> dispatch()
@@ -538,6 +548,9 @@ defmodule Membrane.RTC.Engine do
   #
   # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
   @impl true
+  @decorate trace("engine.notification.track_ready",
+              include: [:track_id, :encoding, [:state, :id]]
+            )
   def handle_notification(
         {:track_ready, track_id, encoding, depayloading_filter},
         endpoint_bin_name,
@@ -610,6 +623,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.notification.subscribe", include: [:endpoint_id, [:state, :id]])
   def handle_notification(
         {:subscribe, tracks},
         {:endpoint, endpoint_id},
@@ -640,6 +654,9 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.notification.publish.new_tracks",
+              include: [:endpoint_id, [:state, :id]]
+            )
   def handle_notification(
         {:publish, {:new_tracks, tracks}},
         {:endpoint, endpoint_id},
@@ -669,6 +686,9 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  @decorate trace("engine.notification.publish.removed_tracks",
+              include: [:endpoint_id, [:state, :id]]
+            )
   def handle_notification(
         {:publish, {:removed_tracks, tracks}},
         {:endpoint, endpoint_id},
