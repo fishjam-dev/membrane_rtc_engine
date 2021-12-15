@@ -18,6 +18,14 @@ if Enum.all?(
                   spec: Path.t(),
                   description: "Path to directory under which HLS output will be saved",
                   default: "hls_output"
+                ],
+                owner: [
+                  spec: pid(),
+                  description: """
+                  Pid of parent all notifications will be send to.
+
+                  These notifications are
+                  """
                 ]
 
     @impl true
@@ -25,7 +33,8 @@ if Enum.all?(
       state = %{
         tracks: %{},
         stream_ids: MapSet.new(),
-        output_directory: opts.output_directory
+        output_directory: opts.output_directory,
+        owner: opts.owner
       }
 
       {:ok, state}
@@ -46,6 +55,19 @@ if Enum.all?(
     @impl true
     def handle_other(msg, _ctx, state) do
       Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
+      {:ok, state}
+    end
+
+    def handle_notification(
+          {:track_playable, content_type},
+          {:hls_sink_bin, stream_id},
+          _ctx,
+          state
+        ) do
+      # notify about playable just when video becomes available
+
+      send(state.owner, {:playlist_playable, content_type, stream_id})
+
       {:ok, state}
     end
 
