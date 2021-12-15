@@ -59,7 +59,7 @@ if Enum.all?(
     end
 
     def handle_notification(
-          {:track_playable, content_type},
+          {:track_playable, {content_type, _track_id}},
           {:hls_sink_bin, stream_id},
           _ctx,
           state
@@ -127,17 +127,17 @@ if Enum.all?(
           |> to({:opus_decoder, track_id})
           |> to({:aac_encoder, track_id})
           |> to({:aac_parser, track_id})
-          |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
+          |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
           |> to({:hls_sink_bin, stream_id})
         ]
       }
 
-    defp hls_links_and_children(link_builder, :AAC, _track_id, stream_id),
+    defp hls_links_and_children(link_builder, :AAC, track_id, stream_id),
       do: %ParentSpec{
         children: %{},
         links: [
           link_builder
-          |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
+          |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
           |> to({:hls_sink_bin, stream_id})
         ]
       }
@@ -154,7 +154,7 @@ if Enum.all?(
         links: [
           link_builder
           |> to({:video_parser, track_id})
-          |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
+          |> via_in(Pad.ref(:input, {:video, track_id}), options: [encoding: :H264])
           |> to({:hls_sink_bin, stream_id})
         ]
       }
