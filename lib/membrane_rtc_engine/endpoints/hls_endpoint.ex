@@ -65,9 +65,18 @@ if Enum.all?(
           state
         ) do
       # notify about playable just when video becomes available
-
       send(state.owner, {:playlist_playable, content_type, stream_id})
+      {:ok, state}
+    end
 
+    def handle_notification(
+          {:cleanup, clean_function},
+          {:hls_sink_bin, stream_id},
+          _ctx,
+          state
+        ) do
+      # notify about playable just when video becomes available
+      send(state.owner, {:cleanup, clean_function, stream_id})
       {:ok, state}
     end
 
