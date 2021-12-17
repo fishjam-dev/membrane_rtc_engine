@@ -179,8 +179,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification({:vad, val}, :endpoint_bin, _ctx, state) do
-      send(state.owner, {:vad_notification, val, state.ice_name})
+    def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
+      send(state.owner, {:vad_notification, val, ctx.name})
       {:ok, state}
     end
 
