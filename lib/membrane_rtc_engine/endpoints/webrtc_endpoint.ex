@@ -181,8 +181,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification({:vad, val}, :endpoint_bin, _ctx, state) do
-      send(state.owner, {:vad_notification, val, state.ice_name})
+    def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
+      send(state.owner, {:vad_notification, val, ctx.name})
       {:ok, state}
     end
 
@@ -230,7 +230,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
       outbound_tracks = update_tracks(tracks, state.outbound_tracks)
 
-      {{:ok, forward_msg_to_child(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
+      {{:ok, forward(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
        %{state | outbound_tracks: outbound_tracks}}
     end
 
@@ -242,7 +242,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_other(msg, ctx, state) do
-      {{:ok, forward_msg_to_child(:endpoint_bin, msg, ctx)}, state}
+      {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
     @impl true
@@ -280,17 +280,17 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     defp handle_custom_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
       state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
       msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
-      {{:ok, forward_msg_to_child(:endpoint_bin, msg, ctx)}, state}
+      {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
     defp handle_custom_media_event(%{type: :candidate, data: data}, ctx, state) do
       msg = {:signal, {:candidate, data.candidate}}
-      {{:ok, forward_msg_to_child(:endpoint_bin, msg, ctx)}, state}
+      {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
     defp handle_custom_media_event(%{type: :renegotiate_tracks}, ctx, state) do
       msg = {:signal, :renegotiate_tracks}
-      {{:ok, forward_msg_to_child(:endpoint_bin, msg, ctx)}, state}
+      {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
     defp get_turn_configs(name, turn_servers) do

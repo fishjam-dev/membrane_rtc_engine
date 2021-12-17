@@ -19,12 +19,12 @@ defmodule Membrane.RTC.Utils do
     ctx.children |> Map.keys() |> Enum.flat_map(fun)
   end
 
-  @spec forward_msg_to_child(
+  @spec forward(
           child_name :: any(),
           msg :: any(),
           ctx :: Membrane.Pipeline.CallbackContext.t()
         ) :: [Membrane.Element.Action.notify_t()]
-  def forward_msg_to_child(child_name, msg, ctx) do
+  def forward(child_name, msg, ctx) do
     child = find_child(ctx, pattern: ^child_name)
 
     if child do

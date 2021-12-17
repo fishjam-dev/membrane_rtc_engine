@@ -461,7 +461,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(%{type: :custom, data: event}, peer_id, ctx, state) do
-    actions = forward_msg_to_child({:endpoint, peer_id}, {:custom, event}, ctx)
+    actions = forward({:endpoint, peer_id}, {:custom, event}, ctx)
 
     {actions, state}
   end
@@ -471,7 +471,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(%{type: :renegotiate_tracks}, peer_id, ctx, state) do
-    actions = forward_msg_to_child({:endpoint, peer_id}, {:signal, :renegotiate_tracks}, ctx)
+    actions = forward({:endpoint, peer_id}, {:signal, :renegotiate_tracks}, ctx)
     {actions, state}
   end
 
