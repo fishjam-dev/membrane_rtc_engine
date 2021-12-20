@@ -265,6 +265,19 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
+  Adds peer to the RTC Engine
+  It is needed when you want send media to other peers in Room e.g.: WebRTC peers.
+  """
+  @spec add_peer(
+          pid :: pid(),
+          peer_id :: String.t(),
+          data :: any()
+        ) :: none()
+  def add_peer(pid, peer_id, data \\ %{}) do
+    send(pid, {:add_peer, peer_id, data})
+  end
+
+  @doc """
   Removes endpoint from the RTC Engine
   """
   @spec remove_endpoint(
@@ -386,6 +399,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  def handle_other({:add_peer, peer_id, data}, _ctx, state) do
+    {actions, state} = do_accept_new_peer(peer_id, data, state)
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   def handle_other({:remove_endpoint, id}, ctx, state) do
     case(do_remove_endpoint(id, ctx, state)) do
       {:absent, [], state} ->
@@ -440,10 +460,8 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp handle_media_event(%{type: :custom, data: event}, peer_id, _ctx, state) do
-    actions = [
-      forward: {{:endpoint, peer_id}, {:custom, event}}
-    ]
+  defp handle_media_event(%{type: :custom, data: event}, peer_id, ctx, state) do
+    actions = forward({:endpoint, peer_id}, {:custom, event}, ctx)
 
     {actions, state}
   end
@@ -452,8 +470,8 @@ defmodule Membrane.RTC.Engine do
     remove_peer(peer_id, ctx, state)
   end
 
-  defp handle_media_event(%{type: :renegotiate_tracks}, peer_id, _ctx, state) do
-    actions = [forward: {{:endpoint, peer_id}, {:signal, :renegotiate_tracks}}]
+  defp handle_media_event(%{type: :renegotiate_tracks}, peer_id, ctx, state) do
+    actions = forward({:endpoint, peer_id}, {:signal, :renegotiate_tracks}, ctx)
     {actions, state}
   end
 
@@ -743,7 +761,7 @@ defmodule Membrane.RTC.Engine do
       peer =
         Peer.new(
           peer_id,
-          data.metadata
+          Map.get(data, :metadata, %{})
         )
 
       state = put_in(state, [:peers, peer_id], peer)
