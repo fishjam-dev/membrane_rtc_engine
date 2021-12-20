@@ -46,7 +46,8 @@ defmodule Membrane.RTC.Engine do
     ```
 
   * publish or subscribe for some tracks using `publish/1` or `subscribe/1` respectively.
-    Calling `publish/1` will send message in form of `{:new_tracks, tracks}`
+    `publish/1` returns some actions which have to be returend from Membrane callback.
+    Those actions will cause RTC Engine to send message in form of `{:new_tracks, tracks}`
     where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
     When an Endpoint receives such message it can subscribe for new tracks by calling `subscribe/1`.
     Endpoint will be notified about track readiness it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback.
@@ -73,7 +74,13 @@ defmodule Membrane.RTC.Engine do
   ## Peers
 
   Each peer represents some user that can posses some metadata.
-  At the moment, the only way to create a peer is sending proper media event from client library.
+  Peer can be added in two ways:
+  * by sending proper media event from client library
+  * using `add_peer/3`
+
+  Adding a peer will cause RTC Engine to emit Media Event which will inform connected clients about new peer.
+
+  Each Endpoint you want it to send some tracks from RTC Engine to Membrane client library has to be assigned to some peer.
 
   #### Peer id
 
@@ -321,8 +328,16 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
+  Removes endpoint from the RTC Engine
+  """
+  @spec remove_endpoint(
+          pid :: pid(),
+          id :: String.t()
+        ) :: none()
+  def remove_endpoint(rtc_engine, id), do: send(rtc_engine, {:remove_endpoint, id})
+
+  @doc """
   Adds peer to the RTC Engine
-  It is needed when you want send media to other peers in Room e.g.: WebRTC peers.
   """
   @spec add_peer(
           pid :: pid(),
@@ -334,13 +349,10 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
-  Removes endpoint from the RTC Engine
+  Removes peer from RTC Engine.
   """
-  @spec remove_endpoint(
-          pid :: pid(),
-          id :: String.t()
-        ) :: none()
-  def remove_endpoint(rtc_engine, id), do: send(rtc_engine, {:remove_endpoint, id})
+  @spec remove_peer(rtc_engine :: pid(), peer_id :: any()) :: none()
+  def remove_peer(rtc_engine, peer_id), do: send(rtc_engine, {:remove_peer, peer_id})
 
   @doc """
   Allows peer for joining to the RTC Engine
@@ -378,12 +390,6 @@ defmodule Membrane.RTC.Engine do
   """
   @spec unregister(rtc_engine :: pid(), who :: pid()) :: none()
   def unregister(rtc_engine, who \\ self()), do: send(rtc_engine, {:unregister, who})
-
-  @doc """
-  Removes peer from RTC Engine.
-  """
-  @spec remove_peer(rtc_engine :: pid(), peer_id :: any()) :: none()
-  def remove_peer(rtc_engine, peer_id), do: send(rtc_engine, {:remove_peer, peer_id})
 
   @doc """
   Sends Media Event to RTC Engine.
