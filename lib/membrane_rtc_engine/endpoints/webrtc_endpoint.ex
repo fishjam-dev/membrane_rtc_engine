@@ -120,7 +120,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         inbound_tracks: [],
         outbound_tracks: [],
         extensions: opts.webrtc_extensions || [],
-        integrated_turn_options: opts.integrated_turn_options
+        integrated_turn_options: opts.integrated_turn_options,
         trace_context: opts.trace_context,
         trace_metadata: [name: opts.ice_name]
       }
