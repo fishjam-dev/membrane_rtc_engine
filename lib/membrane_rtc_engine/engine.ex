@@ -341,7 +341,7 @@ defmodule Membrane.RTC.Engine do
   def handle_init(options) do
     play(self())
 
-    trace_ctx = Membrane.RTC.Utils.create_otel_context("rtc: #{options[:id]}")
+    trace_ctx = Membrane.RTC.Utils.create_otel_context("rtc:#{options[:id]}")
 
     {{:ok, log_metadata: [sfu: options[:id]]},
      %{
