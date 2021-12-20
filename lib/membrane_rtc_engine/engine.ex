@@ -343,7 +343,7 @@ defmodule Membrane.RTC.Engine do
 
     trace_ctx = Membrane.RTC.Utils.create_otel_context("rtc:#{options[:id]}")
 
-    {{:ok, log_metadata: [sfu: options[:id]]},
+    {{:ok, log_metadata: [rtc: options[:id]]},
      %{
        id: options[:id],
        trace_context: trace_ctx,
