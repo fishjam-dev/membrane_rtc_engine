@@ -1,5 +1,5 @@
 if Enum.all?(
-     [Membrane.H264.FFmpeg, Membrane.HTTPAdaptiveStream.SinkBin, Membrane.AAC.FDK],
+     [Membrane.H264.FFmpeg.Parser, Membrane.HTTPAdaptiveStream.SinkBin, Membrane.AAC.FDK.Encoder],
      &Code.ensure_loaded?/1
    ) do
   defmodule Membrane.RTC.Engine.Endpoint.HLS do
