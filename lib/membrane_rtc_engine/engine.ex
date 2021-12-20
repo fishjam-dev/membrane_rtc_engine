@@ -2,111 +2,17 @@ defmodule Membrane.RTC.Engine do
   @moduledoc """
   RTC Engine implementation.
 
-  RTC Engine is an abstraction layer responsible for linking together different types of `Endpoints`.
-  From implementation point of view RTC Engine is a `Membrane.Pipeline`.
-
-  ## Endpoints
-
-  `Endpoints` are `Membrane.Bin`s able to publish own tracks and subscribe for tracks from other Endpoints.
-  One can thought about Endpoint as an entity responsible for handling some specifc task.
-  Endpoint can be added and removed using `add_endpoint/3` and `remove_endpoint/1` respectively.
-
-  There are basically two types of Endpoints:
-  * Standalone Endpoints - they are in most cases spawned only once per RTC Engine instance and they are not associated with any peer.
-  * Peer Endpoints - they are associated with some peer.
-  Associating Endpoint with Peer will cause RTC Engine sending some Media Events to client library
-  e.g. one which indicates which tracks belong to which peer.
-
-  Currently RTC Engine ships with implementation of two Endpoints:
-  * `#{inspect(__MODULE__)}.Endpoint.WebRTC` which is responsible for establishing connection with some WebRTC
-  peer (mainly browser) and exchanging media with it. WebRTC Endpoint is a Peer Endpoint.
-  * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
-  saving them to a file by creating HLS playlist. HLS Endpoint is a Standalone Endpoint.
-
-  User can also implement custom Endpoints.
-
-  #### Implementing custom RTC Engine Endpoint
-
-  Each RTC Engine Endpoint has to:
-  * implement `Membrane.Bin` behavior
-  * specify input, output or both input and output pads depnding on what it is intended to do.
-    For example, if Endpoint will not publish any tracks but only subscribe for tracks from other Endpoints it can specify only input pads.
-    Pads should have following form
-
-    ```elixir
-      def_input_pad :input,
-        demand_unit: :buffers,
-        caps: :any,
-        availability: :on_request
-
-      def_output_pad :output,
-        demand_unit: :buffers,
-        caps: :any,
-        availability: :on_request
-    ```
-
-  * publish or subscribe for some tracks using `publish/1` or `subscribe/1` respectively.
-    `publish/1` returns some actions which have to be returend from Membrane callback.
-    Those actions will cause RTC Engine to send message in form of `{:new_tracks, tracks}`
-    where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
-    When an Endpoint receives such message it can subscribe for new tracks by calling `subscribe/1`.
-    Endpoint will be notified about track readiness it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback.
-    Example implementation of `handle_pad_added` callback can look like this
-
-    ```elixir
-      @impl true
-      def handle_pad_added(Pad.ref(:input, _track_id) = pad, _ctx, state) do
-        links = [
-          link_bin_input(pad)
-          |> via_in(pad)
-          |> to(:my_element)
-        ]
-
-        {{:ok, spec: %ParentSpec{links: links}}, state}
-      end
-    ```
-
-    Where `:my_element` is a custom Membrane element responsible for processing track.
-
-    Endpoint will be also notified when some tracks it subscribed for are removed with
-    `{:removed_tracks, tracks}` message where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0`.
-
-  ## Peers
-
-  Each peer represents some user that can posses some metadata.
-  Peer can be added in two ways:
-  * by sending proper media event from client library
-  * using `add_peer/3`
-
-  Adding a peer will cause RTC Engine to emit Media Event which will inform connected clients about new peer.
-
-  Each Endpoint you want it to send some tracks from RTC Engine to Membrane client library has to be assigned to some peer.
-
-  #### Peer id
-
-  Peer ids must be assigned by application code. This is not done by the RTC Engine or its client library.
-  Ids can be assigned when a peer initializes its signaling channel.
-
-  Assuming we use a Phoenix channel as signaling layer:
-
-  ```elixir
-  def join("room:" <> room_id, _params, socket) do
-    # ...
-    peer_id = UUID.uuid4()
-    {:ok, assign(socket, %{room_id: room_id, room: room, peer_id: peer_id})}
-  end
-  ```
-
-  ## Messages
+  One RTC Engine instance is responsible for managing one room in which
+  all tracks of one peer are forwarded to all other peers.
 
   The RTC Engine works by sending and receiving messages.
   All messages are described below.
   To receive RTC Engine messages you have to register your process so that RTC Engine will
-  know where to send them.
+  know where to send its messages.
 
-  #### Registering for messages
+  ## Registering for messages
 
-  Registration can be done by using `register/2` e.g.
+  Registration can be done by using `Engine.register` e.g.
 
   ```elixir
   Engine.register(rtc_pid, self())
@@ -127,43 +33,13 @@ defmodule Membrane.RTC.Engine do
   You can register multiple processes to receive messages from an RTC Engine instance.
   In such a case each message will be sent to each registered process.
 
-  #### Messages format
-
-  Each message the RTC Engine sends is a two-element tuple `{rtc_pid, msg}` where
-  `rtc_pid` is the pid of the RTC Engine instance that sent message, and `msg` can be any data.
-
-  Notice that thanks to presence of `rtc_pid` you can create multiple RTC Engine instances.
-
-  Example RTC Engine message:
-
-  ```elixir
-  {_rtc_pid, {:new_peer, peer_id, metadata}}
-  ```
-
-  #### RTC Engine sends following messages
-
-  * `{:rtc_media_event, to, event}` - a Media Event that should be transported to the client
-  library. When `from` is `:broadcast`, the Media Event should be sent to all peers. When
-  `from` is a `peer_id`, the Media Event should be sent to that specified peer.
-  * `{:new_peer, peer_id, metadata}` - sent when a new peer tries to join
-  to an RTC Engine instance. `metadata` is any data passed by the client library while joining.
-  You can reply to this message using: `accept_peer/2` and `deny_peer/2` or `deny_peer/3`
-  * `{:peer_left, peer_id}` - sent when the peer with `peer_id` leaves an RTC Engine instance
-
-  #### RTC Engine receives following messages
-
-  User does not send messages to the RTC Engine manually.
-  Instead, it invokes functions like `accept_peer/2`, `add_endpoint/3` or `register/2`
-  which under the hood send proper message to the RTC Engine.
-
   ## Media Events
 
-  In some cases (at the moment when using `#{inspect(__MODULE__)}.Endpoint.WebRTC`), the RTC Engine needs to communicate
-  with its client library.
+  The RTC Engine needs to communicate with Membrane client libraries.
   This communication is done via `Media Event` messages.
   Media Events are blackbox messages that carry data important for the
-  RTC Engine and its client library, but not for the user. Example Media Events are
-  `peerJoined`, `peerLeft`, `tracksAdded` or `tracksRemoved`.
+  RTC Engine and client libraries, but not for the user. Example Media Events are
+  SDP offers, ICE candidates, and information about new peers.
 
   An application is obligated to transport Media Events from an RTC Engine instance to
   its client library, and vice versa.
@@ -174,7 +50,7 @@ defmodule Membrane.RTC.Engine do
   when the messages should be sent to specified peer. The `event` is encoded in binary format,
   so it is ready to send without modification.
 
-  Feeding an RTC Engine instance with Media Events from a client library can be done using `receive_media_event/2`.
+  Feeding an RTC Engine instance with Media Events from a client library can be done using `Engine.receive_media_event`.
   Assuming the user process is a GenServer, the Media Event can be received by `c:GenServer.handle_info/2` and
   conveyed to the RTC Engine in the following way:
 
@@ -195,6 +71,73 @@ defmodule Membrane.RTC.Engine do
   def handle_in("mediaEvent", %{"data" => event}, socket) do
     Engine.receive_media_event(socket.assigns.room, socket.assigns.peer_id, event)
     {:noreply, socket}
+  end
+  ```
+
+  ## Messages
+
+  Each message the RTC Engine sends is a two-element tuple `{rtc_pid, msg}` where
+  `rtc_pid` is the pid of the RTC Engine instance that sent message, and `msg` can be any data.
+
+  Notice that thanks to presence of `rtc_pid` you can create multiple RTC Engine instances.
+
+  Example RTC Engine message:
+
+  ```elixir
+  {_rtc_pid, {:vad_notification, val, peer_id}}
+  ```
+
+  #### RTC Engine sends following messages
+
+  * `{:rtc_media_event, to, event}` - a Media Event that should be transported to the client
+  library. When `from` is `:broadcast`, the Media Event should be sent to all peers. When
+  `from` is a `peer_id`, the Media Event should be sent to that specified peer.
+  * `{:new_peer, peer_id, metadata}` - sent when a new peer tries to join
+  to an RTC Engine instance. `metadata` is any data passed by the client library while joining.
+   You can reply to this message using: `Engine.accept_peer` or `Engine.deny_peer`
+  * `{:peer_left, peer_id}` - sent when the peer with `peer_id` leaves an RTC Engine instance
+
+
+  ## Endpoints
+
+  RTC engine allow to pass custom implementation of endpoint. Endpoint is element which is able to link to with others elements.
+  In most common case Endpoint is wrapper on some bin e.g HLS_endpoint is using sink_bin and
+  Webrtc_endpoint is using Endpoint_bin from webrtc_plugin.
+
+  It is possible add endpont outside of mechanism to :accept_new_peer e.g.
+  ```elixir
+    Engine.add_endpoint(rtc_pid,endpoint_id,endpoint)
+  ```
+
+  #### How to implement your custom endpoint
+
+  To receive tracks from rtc_engine your endpoint have to reply on message `{:new_tracks, tracks}` with subscription notification.
+  To generate it you can use subscribe function from this module.
+
+  To send tracks to rtc_engine your endpoint have to send two messages to rtc_engine.
+  * First is `{:new_tracks, tracks}` publish notification. Which inform that this endpoint want to send this tracks.
+  * Second is `{:track_ready, track_id, encoding, depayloading_filter}` message. It inform that first packets of
+  track with this id and this encoding arrived. Also you have to pass depayloading filter element which is responsible for
+  convert this track in his specific format to raw.
+
+  To create publish notification you can use publish function from this module.
+
+  Your endpoint will receive this messages:
+  * `{:new_tracks, tracks}` - it will be received when some peer announce that it will send new tracks
+  * `{:removed_tracks, tracks}` - it will be received when e.g some peer left room
+
+  ## Peer id
+
+  Peer ids must be assigned by application code. This is not done by the RTC Engine or its client library.
+  Ids can be assigned when a peer initializes its signaling channel.
+
+  Assuming we use a Phoenix channel as signaling layer:
+
+  ```elixir
+  def join("room:" <> room_id, _params, socket) do
+    # ...
+    peer_id = UUID.uuid4()
+    {:ok, assign(socket, %{room_id: room_id, room: room, peer_id: peer_id})}
   end
   ```
   """
@@ -230,15 +173,9 @@ defmodule Membrane.RTC.Engine do
           node: node()
         ]
 
-  @typedoc """
-  A lot of RTC Engine functions return some notifications that has to be then returned from Membrane callback.
-  """
-  @type notifications_t() :: [Membrane.Element.Action.notify_t()]
+  @type notifications :: [Membrane.Element.Action.notify_t()]
 
-  @typedoc """
-  Types of messages that can be published to other Endpoints.
-  """
-  @type publish_message_t() :: [{:new_tracks, [Track.t()]} | {:removed_tracks, [Track.t()]}]
+  @type tracks_messages :: [{:new_tracks, [Track.t()]} | {:removed_tracks, [Track.t()]}]
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
           GenServer.on_start()
@@ -271,43 +208,43 @@ defmodule Membrane.RTC.Engine do
   @doc """
   Creates Membrane action that will publish message about tracks to all other endpoints in RTC Engine.
 
-  This function returns `t:notifications_t/0` that should be returned from Membrane callback.
+  This function returns `t:notifications/0` that should be returned from Membrane callback.
   """
-  @spec publish(msg :: publish_message_t()) :: notifications_t()
+  @spec publish(msg :: tracks_messages()) :: notifications()
   def publish(msg), do: [notify: {:publish, msg}]
 
   @doc """
   Creates Membrane action that will make subscribtion for tracks in given format.
 
-  Endpoint  will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
+  Endpoint  will be notified about track readiness in `Membrane.Bin.handle_pad_added` callback.
   `tracks` is a list in form of pairs `{track_id, track_format}`, where `track_id` is id of track this endpoint subscribes for
   and `track_format` is the format of track that this endpoint is willing to receive.
-  If `track_format` is `:raw` Endpoint will receive track in `t:#{inspect(__MODULE__)}.Track.encoding/0` format.
+  If `track_format` is `:raw` Endpoint will receive track in `Track.encoding()` format.
 
-  This function returns `t:notifications_t/0` that should be returned from Membrane callback.
+  This function returns `t:notifications/0` that should be returned from Membrane callback.
   """
-  @spec subscribe([{Track.id(), Track.format()}]) :: notifications_t()
+  @spec subscribe([{Track.id(), Track.format()}]) :: notifications
   def subscribe(tracks), do: [notify: {:subscribe, tracks}]
 
   @doc """
   Creates Membrane action that will inform RTC Engine about track readiness.
 
-  This function returns `t:notifications_t/0` that should be returned from Membrane callback.
+  This function returns `t:notifications/0` that should be returned from Membrane callback.
   """
   @spec track_ready(
           track_id :: Track.id(),
           encoding :: Track.encoding(),
           depayloading_filter :: Membrane.ParentSpec.child_spec_t()
-        ) :: notifications_t()
+        ) :: notifications()
   def track_ready(track_id, encoding, depayloading_filter),
     do: [notify: {:track_ready, track_id, encoding, depayloading_filter}]
 
   @doc """
-  Creates Membrane action that will send custom Media Event.
+  Creates Membrane action that will send custom media event.
 
-  This function returns `t:notifications_t/0` that should be returned from Membrane callback.
+  This function returns `t:notifications/0` that should be returned from Membrane callback.
   """
-  @spec custom_event(track_id :: map()) :: notifications_t()
+  @spec custom_event(track_id :: map()) :: notifications()
   def custom_event(media_event),
     do: [notify: {:custom, media_event}]
 
@@ -329,16 +266,8 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
-  Removes endpoint from the RTC Engine
-  """
-  @spec remove_endpoint(
-          pid :: pid(),
-          id :: String.t()
-        ) :: none()
-  def remove_endpoint(rtc_engine, id), do: send(rtc_engine, {:remove_endpoint, id})
-
-  @doc """
   Adds peer to the RTC Engine
+  It is needed when you want send media to other peers in Room e.g.: WebRTC peers.
   """
   @spec add_peer(
           pid :: pid(),
@@ -350,10 +279,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
-  Removes peer from RTC Engine.
+  Removes endpoint from the RTC Engine
   """
-  @spec remove_peer(rtc_engine :: pid(), peer_id :: any()) :: none()
-  def remove_peer(rtc_engine, peer_id), do: send(rtc_engine, {:remove_peer, peer_id})
+  @spec remove_endpoint(
+          pid :: pid(),
+          id :: String.t()
+        ) :: none()
+  def remove_endpoint(rtc_engine, id), do: send(rtc_engine, {:remove_endpoint, id})
 
   @doc """
   Allows peer for joining to the RTC Engine
@@ -373,7 +305,7 @@ defmodule Membrane.RTC.Engine do
   def deny_peer(pid, peer_id), do: send(pid, {:deny_new_peer, peer_id})
 
   @doc """
-  The same as `deny_peer/2` but allows for passing any data that will be returned to the client.
+  The same as `deny_peer/1` but allows for passing any data that will be returned to the client.
 
   This can be used for passing reason of peer refusal.
   """
@@ -393,7 +325,13 @@ defmodule Membrane.RTC.Engine do
   def unregister(rtc_engine, who \\ self()), do: send(rtc_engine, {:unregister, who})
 
   @doc """
-  Sends Media Event to RTC Engine.
+  Removes peer from RTC engine.
+  """
+  @spec send_remove_peer(rtc_engine :: pid(), peer_id :: any()) :: none()
+  def send_remove_peer(rtc_engine, peer_id), do: send(rtc_engine, {:remove_peer, peer_id})
+
+  @doc """
+  Send media_event to RTC engine.
   """
   @spec receive_media_event(rtc_engine :: pid(), media_event :: {:media_event, pid(), any()}) ::
           none()
