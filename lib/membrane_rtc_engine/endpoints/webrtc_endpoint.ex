@@ -64,7 +64,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   List of WebRTC extensions to use.
 
                   At this moment only VAD (RFC 6464) is supported.
-                  Enabling it will cause SFU sending `{:vad_notification, val, endpoint_id}` messages.
+                  Enabling it will cause RTC Engine sending `{:vad_notification, val, endpoint_id}` messages.
                   """
                 ],
                 extensions: [
