@@ -29,7 +29,7 @@ defmodule Membrane.RTC.Engine.Track do
   * `fmtp` - struct describing format specific parameters e.g. for H264 it contains `profile_level_id`
   * `active?` - indicates whether track is still available or not (because peer left a room)
   * `metadata` - any data passed by user to be linked with this track
-  * `ctx` - any data needed to construct protocol-specific Track struct. e.g.: for WebRTC.Track it will be extensions
+  * `ctx` - any data Endpoints need to associate with `#{inspect(__MODULE__)}.t()` for internal usage
   """
   @type t :: %__MODULE__{
           type: :audio | :video,
