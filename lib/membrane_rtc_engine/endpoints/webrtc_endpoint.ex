@@ -114,7 +114,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         filter_codecs: opts.filter_codecs,
         inbound_tracks: [],
         outbound_tracks: [],
-        extensions: opts.webrtc_extensions || %{},
+        extensions: opts.webrtc_extensions || [],
         integrated_turn_options: opts.integrated_turn_options
       }
 
@@ -126,8 +126,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         ice_name: opts.ice_name,
         outbound_tracks: %{},
         inbound_tracks: %{},
-        extensions: opts.extensions || [],
-        webrtc_extensions: opts.webrtc_extensions || %{},
+        extensions: opts.extensions || %{},
         integrated_turn_options: opts.integrated_turn_options,
         owner: opts.owner
       }
@@ -313,19 +312,6 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           Map.put(acc, track.id, track)
         end)
 
-    defp to_rtc_track(%WebRTC.Track{} = track, track_id_to_metadata) do
-      %Engine.Track{
-        type: track.type,
-        stream_id: track.stream_id,
-        id: track.id,
-        encoding: track.encoding,
-        format: [:RTP, :raw],
-        fmtp: track.fmtp,
-        active?: track.status != :disabled,
-        metadata: Map.get(track_id_to_metadata, track.id)
-      }
-    end
-
     defp serialize({:signal, {:sdp_answer, answer, mid_to_track_id}}),
       do: %{
         type: "sdpAnswer",
@@ -438,8 +424,26 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       end
     end
 
+    defp to_rtc_track(%WebRTC.Track{} = track, track_id_to_metadata) do
+      extension_key = WebRTC.Extension
+
+      %Engine.Track{
+        type: track.type,
+        stream_id: track.stream_id,
+        id: track.id,
+        encoding: track.encoding,
+        format: [:RTP, :raw],
+        fmtp: track.fmtp,
+        active?: track.status != :disabled,
+        metadata: Map.get(track_id_to_metadata, track.id),
+        ctx: %{extension_key => track.extmaps}
+      }
+    end
+
     defp to_webrtc_track(%Engine.Track{} = track) do
       track = if track.active?, do: track, else: Map.put(track, :status, :disabled)
+      extmaps = Map.get(track.ctx, WebRTC.Extension, [])
+      track = Map.put(track, :extmaps, extmaps)
       WebRTC.Track.new(track.type, track.stream_id, to_keyword_list(track))
     end
 
