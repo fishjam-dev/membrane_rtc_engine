@@ -92,6 +92,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
                   To see possible notifications please refer to module docs.
                   """
+                ],
+                trace_context: [
+                  spec: :list,
+                  default: [],
+                  description: "Trace context for otel propagation"
                 ]
 
     def_input_pad :input,
@@ -115,7 +120,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         inbound_tracks: [],
         outbound_tracks: [],
         extensions: opts.webrtc_extensions || [],
-        integrated_turn_options: opts.integrated_turn_options
+        integrated_turn_options: opts.integrated_turn_options,
+        trace_context: opts.trace_context,
+        trace_metadata: [name: opts.ice_name]
       }
 
       spec = %ParentSpec{
