@@ -9,16 +9,16 @@ defmodule Membrane.RTC.Engine do
 
   The RTC Engine works by sending messages which notify user logic about important events like
   "There is a new peer, do you want to accept it?".
-  All messages are described below.
   To receive RTC Engine messages you have to register your process so that RTC Engine will
   know where to send them.
+  All messages RTC Engine can emit are described in `#{inspect(__MODULE__)}.Message` docs.
 
   #### Registering for messages
 
   Registration can be done using `register/2` e.g.
 
   ```elixir
-  Engine.register(rtc_pid, self())
+  Engine.register(rtc_engine, self())
   ```
 
   This will register your process to receive RTC Engine messages.
@@ -27,39 +27,14 @@ defmodule Membrane.RTC.Engine do
 
   ```elixir
   @impl true
-  def handle_info({rtc_engine, {:new_peer, peer_id, metadata}}, state) do
-    Engine.accept_peer(rtc_engine, peer_id)
+  def handle_info(%Message.NewPeer{rtc_engine: rtc_engine, peer: peer}, state) do
+    Engine.accept_peer(rtc_engine, peer.id)
     {:noreply, state}
   end
   ```
 
   You can register multiple processes to receive messages from an RTC Engine instance.
   In such a case each message will be sent to each registered process.
-
-  #### Messages format
-
-  Each message the RTC Engine sends is a two-element tuple `{rtc_pid, msg}` where
-  `rtc_pid` is the PID of the RTC Engine instance that sent a message, and `msg` can be any data.
-
-  Notice that thanks to the presence of `rtc_pid` you can create multiple RTC Engine instances.
-
-  Example RTC Engine message:
-
-  ```elixir
-  {rtc_pid, {:new_peer, peer_id, metadata}}
-  ```
-
-  #### RTC Engine sends the following messages
-
-  * `{:rtc_media_event, to, event}` - a Media Event that should be transported to the Client
-  Library. When `from` is `:broadcast`, the Media Event should be sent to all peers. When
-  `from` is a `peer_id`, the Media Event should be sent to that specified peer.
-  You can read more about Media Events and Client Libraries in subsequent sections.
-  * `{:new_peer, peer_id, metadata}` - sent when a new peer from Client Library tries to join
-  to an RTC Engine instance. `metadata` is any data passed by the Client Library while joining.
-  You can reply to this message using: `accept_peer/2` and `deny_peer/2` or `deny_peer/3`.
-  You can read more about Client Libraries in subsequent sections.
-  * `{:peer_left, peer_id}` - sent when the peer with `peer_id` leaves an RTC Engine instance.
 
   ## Client Libraries
 
@@ -240,7 +215,7 @@ defmodule Membrane.RTC.Engine do
   use Membrane.Pipeline
   import Membrane.RTC.Utils
 
-  alias Membrane.RTC.Engine.{MediaEvent, Endpoint, Track, Peer}
+  alias Membrane.RTC.Engine.{Endpoint, MediaEvent, Message, Track, Peer}
 
   require Membrane.Logger
 
@@ -500,9 +475,8 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_other({:add_peer, peer_id, data}, _ctx, state) do
-    {actions, state} = do_accept_new_peer(peer_id, data, state)
-
+  def handle_other({:add_peer, peer}, _ctx, state) do
+    {actions, state} = do_accept_new_peer(peer, state)
     {{:ok, actions}, state}
   end
 
@@ -537,24 +511,27 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(%{type: :join, data: data}, peer_id, _ctx, state) do
-    dispatch({:new_peer, peer_id, data.metadata})
+    peer = Peer.new(peer_id, data.metadata || %{})
+    dispatch(%Message.NewPeer{rtc_engine: self(), peer: peer})
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        do_accept_new_peer(peer_id, data, state)
+        do_accept_new_peer(peer, state)
 
       {:accept_new_peer, peer_id} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
         {[], state}
 
       {:deny_new_peer, peer_id} ->
-        MediaEvent.create_peer_denied_event(peer_id)
+        MediaEvent.create_peer_denied_event()
+        |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
         |> dispatch()
 
         {[], state}
 
       {:deny_new_peer, peer_id, data: data} ->
-        MediaEvent.create_peer_denied_event(peer_id, data)
+        MediaEvent.create_peer_denied_event(data)
+        |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
         |> dispatch()
 
         {[], state}
@@ -588,7 +565,8 @@ defmodule Membrane.RTC.Engine do
       updated_peer = %{peer | metadata: metadata}
       state = put_in(state, [:peers, peer_id], updated_peer)
 
-      MediaEvent.create_peer_updated_event(peer_id, updated_peer)
+      MediaEvent.create_peer_updated_event(updated_peer)
+      |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
       |> dispatch()
 
       {[], state}
@@ -614,6 +592,7 @@ defmodule Membrane.RTC.Engine do
       state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
       MediaEvent.create_track_updated_event(endpoint_id, track_id, track_metadata)
+      |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
       |> dispatch()
 
       {[], state}
@@ -624,7 +603,8 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_notification({:custom, message}, {:endpoint, peer_id}, _ctx, state) do
-    MediaEvent.create_custom_event(peer_id, message)
+    MediaEvent.create_custom_event(message)
+    |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
     |> dispatch()
 
     {:ok, state}
@@ -761,6 +741,7 @@ defmodule Membrane.RTC.Engine do
     track_id_to_track_metadata = Endpoint.get_track_id_to_metadata(endpoint)
 
     MediaEvent.create_tracks_added_event(endpoint_id, track_id_to_track_metadata)
+    |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
     |> dispatch()
 
     {{:ok, tracks_msgs}, state}
@@ -789,6 +770,7 @@ defmodule Membrane.RTC.Engine do
     track_ids = Enum.map(tracks, & &1.id)
 
     MediaEvent.create_tracks_removed_event(endpoint_id, track_ids)
+    |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
     |> dispatch()
 
     {{:ok, tracks_msgs}, state}
@@ -850,31 +832,27 @@ defmodule Membrane.RTC.Engine do
 
   defp dispatch(msg) do
     Registry.dispatch(get_registry_name(), self(), fn entries ->
-      for {_, pid} <- entries, do: send(pid, {self(), msg})
+      for {_, pid} <- entries, do: send(pid, msg)
     end)
   end
 
-  defp do_accept_new_peer(peer_id, data, state) do
-    if Map.has_key?(state.peers, peer_id) do
-      Membrane.Logger.warn("Peer with id: #{inspect(peer_id)} has already been added")
+  defp do_accept_new_peer(peer, state) do
+    if Map.has_key?(state.peers, peer.id) do
+      Membrane.Logger.warn("Peer with id: #{inspect(peer.id)} has already been added")
       {[], state}
     else
-      peer =
-        Peer.new(
-          peer_id,
-          Map.get(data, :metadata, %{})
-        )
-
-      state = put_in(state, [:peers, peer_id], peer)
+      state = put_in(state, [:peers, peer.id], peer)
 
       MediaEvent.create_peer_accepted_event(
-        peer_id,
-        Map.delete(state.peers, peer_id),
+        peer.id,
+        Map.delete(state.peers, peer.id),
         state.endpoints
       )
+      |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer.id, data: &1})
       |> dispatch()
 
-      MediaEvent.create_peer_joined_event(peer_id, peer)
+      MediaEvent.create_peer_joined_event(peer)
+      |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
       |> dispatch()
 
       {[], state}
@@ -919,6 +897,7 @@ defmodule Membrane.RTC.Engine do
 
       {:present, actions, state} ->
         MediaEvent.create_peer_left_event(peer_id)
+        |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
         |> dispatch()
 
         {actions, state}

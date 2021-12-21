@@ -82,11 +82,16 @@ defmodule Membrane.RTC.Engine.MixProject do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint],
+      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
       groups_for_modules: [
         Endpoints: [
           Membrane.RTC.Engine.Endpoint.WebRTC,
           Membrane.RTC.Engine.Endpoint.HLS
+        ],
+        Messages: [
+          Membrane.RTC.Engine.Message,
+          Membrane.RTC.Engine.Message.MediaEvent,
+          Membrane.RTC.Engine.Message.NewPeer
         ]
       ]
     ]
