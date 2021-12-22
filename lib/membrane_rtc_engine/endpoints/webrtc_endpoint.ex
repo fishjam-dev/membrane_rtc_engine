@@ -195,18 +195,18 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       turns = get_turn_configs(state.ice_name, turns)
       enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
 
-      media_event = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
-      {{:ok, notify: {:custom, serialize(media_event)}}, state}
+      media_event_data = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
+      {{:ok, notify: {:generate_custom_media_event, serialize(media_event_data)}}, state}
     end
 
     @impl true
     def handle_notification(
-          {:signal, _notification} = media_event,
+          {:signal, _notification} = media_event_data,
           _element,
           _ctx,
           state
         ) do
-      {{:ok, notify: {:custom, serialize(media_event)}}, state}
+      {{:ok, notify: {:generate_custom_media_event, serialize(media_event_data)}}, state}
     end
 
     @impl true
@@ -232,7 +232,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_other({:custom, event}, ctx, state) do
+    def handle_other({:custom_media_event, event}, ctx, state) do
       {:ok, data} = deserialize(event)
       handle_custom_media_event(data, ctx, state)
     end

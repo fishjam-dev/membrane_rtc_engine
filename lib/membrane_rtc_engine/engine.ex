@@ -266,9 +266,10 @@ defmodule Membrane.RTC.Engine do
             depayloading_filter :: Membrane.ParentSpec.child_spec_t()}}
 
   @typedoc """
-  Membrane action that will send custom Media Event.
+  Membrane action that will send Custom Media Event.
   """
-  @type custom_event_action_t() :: {:notify, {:custom, media_event :: binary()}}
+  @type generate_custom_media_event_action_t() ::
+          {:notify, {:generate_custom_media_event, data :: binary()}}
 
   @typedoc """
   Types of messages that can be published to other Endpoints.
@@ -518,7 +519,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(%{type: :custom, data: event}, peer_id, ctx, state) do
-    actions = forward({:endpoint, peer_id}, {:custom, event}, ctx)
+    actions = forward({:endpoint, peer_id}, {:custom_media_event, event}, ctx)
 
     {actions, state}
   end
@@ -581,8 +582,8 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification({:custom, message}, {:endpoint, peer_id}, _ctx, state) do
-    MediaEvent.create_custom_event(message)
+  def handle_notification({:generate_custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
+    MediaEvent.create_custom_event(data)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
     |> dispatch()
 
