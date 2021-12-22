@@ -502,7 +502,7 @@ export class MembraneWebRTC {
     const trackContext = this.localTrackIdToTrack.get(trackId)!;
     const sender = this.findSender(trackContext.track!!.id);
     this.connection!.removeTrack(sender);
-    let mediaEvent = generateMediaEvent("renegotiateTracks", {});
+    let mediaEvent = generateCustomEvent({ type: "renegotiateTracks" });
     this.sendMediaEvent(mediaEvent);
   }
 
