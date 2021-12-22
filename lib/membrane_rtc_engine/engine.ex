@@ -186,11 +186,10 @@ defmodule Membrane.RTC.Engine do
 
   Where `caps` are `t:Membrane.Caps.t()` or `:any`.
 
-  * publish or subscribe for some tracks using `publish/1` or `subscribe/1` respectively.
-  `publish/1` returns some actions which have to be returned from Membrane callback.
-  Those actions will cause RTC Engine to send a message in form of `{:new_tracks, tracks}`
+  * publish or subscribe for some tracks using actions `t:publish_action_t/0` or `t:subscribe_action_t/0` respectively.
+  The first will cause RTC Engine to send a message in form of `{:new_tracks, tracks}`
   where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
-  When an Endpoint receives such a message it can subscribe for new tracks by calling `subscribe/1`.
+  When an Endpoint receives such a message it can subscribe for new tracks by returning action `t:subscribe_action_t/0`.
   An Endpoint will be notified about track readiness it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback.
   An example implementation of `handle_pad_added` callback can look like this
 
@@ -244,14 +243,37 @@ defmodule Membrane.RTC.Engine do
         ]
 
   @typedoc """
-  A lot of RTC Engine functions return some notifications that has to be then returned from Membrane callback.
+  Membrane action that will cause RTC Engine to publish some message to all other endpoints.
   """
-  @type notifications_t() :: [Membrane.Element.Action.notify_t()]
+  @type publish_action_t() :: {:notify, {:publish, publish_message_t()}}
+
+  @typedoc """
+  Membrane action that make subscribtion for tracks in given format.
+
+  Endpoint  will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
+  `tracks` is a list in form of pairs `{track_id, track_format}`, where `track_id` is id of track this endpoint subscribes for
+  and `track_format` is the format of track that this endpoint is willing to receive.
+  If `track_format` is `:raw` Endpoint will receive track in `t:#{inspect(__MODULE__)}.Track.encoding/0` format.
+  """
+  @type subscribe_action_t() :: {:notify, {:subscribe, tracks :: [{Track.id(), Track.format()}]}}
+
+  @typedoc """
+  Membrane action that will inform RTC Engine about track readiness.
+  """
+  @type track_ready_action_t() ::
+          {:notify,
+           {:track_ready, Track.id(), Track.encoding(),
+            depayloading_filter :: Membrane.ParentSpec.child_spec_t()}}
+
+  @typedoc """
+  Membrane action that will send custom Media Event.
+  """
+  @type custom_event_action_t() :: {:notify, {:custom, media_event :: binary()}}
 
   @typedoc """
   Types of messages that can be published to other Endpoints.
   """
-  @type publish_message_t() :: [{:new_tracks, [Track.t()]} | {:removed_tracks, [Track.t()]}]
+  @type publish_message_t() :: {:new_tracks, [Track.t()]} | {:removed_tracks, [Track.t()]}
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
           GenServer.on_start()
@@ -280,49 +302,6 @@ defmodule Membrane.RTC.Engine do
 
   @spec get_registry_name() :: atom()
   def get_registry_name(), do: @registry_name
-
-  @doc """
-  Creates Membrane action that will publish message about tracks to all other endpoints in RTC Engine.
-
-  This function returns `t:notifications_t/0` that should be returned from Membrane callback.
-  """
-  @spec publish(msg :: publish_message_t()) :: notifications_t()
-  def publish(msg), do: [notify: {:publish, msg}]
-
-  @doc """
-  Creates Membrane action that will make subscribtion for tracks in given format.
-
-  Endpoint  will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
-  `tracks` is a list in form of pairs `{track_id, track_format}`, where `track_id` is id of track this endpoint subscribes for
-  and `track_format` is the format of track that this endpoint is willing to receive.
-  If `track_format` is `:raw` Endpoint will receive track in `t:#{inspect(__MODULE__)}.Track.encoding/0` format.
-
-  This function returns `t:notifications_t/0` that should be returned from Membrane callback.
-  """
-  @spec subscribe([{Track.id(), Track.format()}]) :: notifications_t()
-  def subscribe(tracks), do: [notify: {:subscribe, tracks}]
-
-  @doc """
-  Creates Membrane action that will inform RTC Engine about track readiness.
-
-  This function returns `t:notifications_t/0` that should be returned from Membrane callback.
-  """
-  @spec track_ready(
-          track_id :: Track.id(),
-          encoding :: Track.encoding(),
-          depayloading_filter :: Membrane.ParentSpec.child_spec_t()
-        ) :: notifications_t()
-  def track_ready(track_id, encoding, depayloading_filter),
-    do: [notify: {:track_ready, track_id, encoding, depayloading_filter}]
-
-  @doc """
-  Creates Membrane action that will send custom Media Event.
-
-  This function returns `t:notifications_t/0` that should be returned from Membrane callback.
-  """
-  @spec custom_event(track_id :: map()) :: notifications_t()
-  def custom_event(media_event),
-    do: [notify: {:custom, media_event}]
 
   @doc """
   Adds endpoint to the RTC Engine

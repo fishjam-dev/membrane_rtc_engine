@@ -150,8 +150,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     def handle_notification({:new_tracks, tracks}, _from, _ctx, state) do
       tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
       inbound_tracks = update_tracks(tracks, state.inbound_tracks)
-      publish_notification = Engine.publish({:new_tracks, tracks})
-      {{:ok, publish_notification}, %{state | inbound_tracks: inbound_tracks}}
+
+      {{:ok, notify: {:publish, {:new_tracks, tracks}}},
+       %{state | inbound_tracks: inbound_tracks}}
     end
 
     @impl true
@@ -169,14 +170,13 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           _ctx,
           state
         ) do
-      {{:ok, Engine.track_ready(track_id, encoding, depayloading_filter)}, state}
+      {{:ok, notify: {:track_ready, track_id, encoding, depayloading_filter}}, state}
     end
 
     @impl true
     def handle_notification({:negotiation_done, new_outbound_tracks}, _from, _ctx, state) do
       tracks = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
-      subscriptions = Engine.subscribe(tracks)
-      {{:ok, subscriptions}, state}
+      {{:ok, notify: {:subscribe, tracks}}, state}
     end
 
     @impl true
@@ -196,8 +196,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
 
       media_event = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
-      notification = Engine.custom_event(serialize(media_event))
-      {{:ok, notification}, state}
+      {{:ok, notify: {:custom, serialize(media_event)}}, state}
     end
 
     @impl true
@@ -207,8 +206,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           _ctx,
           state
         ) do
-      notification = Engine.custom_event(serialize(media_event))
-      {{:ok, notification}, state}
+      {{:ok, notify: {:custom, serialize(media_event)}}, state}
     end
 
     @impl true
