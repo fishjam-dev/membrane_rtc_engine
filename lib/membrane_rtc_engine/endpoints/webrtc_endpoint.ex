@@ -163,10 +163,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_notification({:removed_tracks, tracks}, _from, _ctx, state) do
-      {tracks, outbound_tracks} = update_tracks(tracks, state.inbound_tracks)
+      tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+      inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
       {{:ok, notify: {:publish, {:removed_tracks, tracks}}},
-       %{state | outbound_tracks: outbound_tracks}}
+       %{state | inbound_tracks: inbound_tracks}}
     end
 
     @impl true
