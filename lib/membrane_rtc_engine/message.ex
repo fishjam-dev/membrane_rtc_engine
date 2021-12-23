@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.Message do
     """
 
     @typedoc """
-    Describes Media Event Message structure.
+    Describes MediaEvent Message structure.
 
     * `rtc_engine` - pid of RTC Engine instance which emitted this message
     * `to` - informs where this Media Event should be sent. If set to `:broadcast`, the Media Event
@@ -41,10 +41,30 @@ defmodule Membrane.RTC.Engine.Message do
     """
 
     @typedoc """
-    Describes New Peer Message structure.
+    Describes NewPeer Message structure.
 
     * `rtc_engine` - pid of RTC Engine instance which emitted this message
-    * `peer` - struct describing a new peer trying to join to RTC Engine
+    * `peer` - peer that tries to join to RTC Engine
+    """
+    @type t() :: %__MODULE__{
+            rtc_engine: pid(),
+            peer: Peer.t()
+          }
+
+    @enforce_keys [:rtc_engine, :peer]
+    defstruct @enforce_keys
+  end
+
+  defmodule PeerLeft do
+    @moduledoc """
+    Message emmitted when a peer left RTC Engine.
+    """
+
+    @typedoc """
+    Describes PeerLeft Message structure.
+
+    * `rtc_engine` - pid of RTC Engine instance which emitted this message
+    * `peer` - peer that left RTC Engine
     """
     @type t() :: %__MODULE__{
             rtc_engine: pid(),

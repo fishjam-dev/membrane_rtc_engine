@@ -14,7 +14,7 @@ defmodule Membrane.RTC.Engine.Peer do
   @enforce_keys [:id]
   defstruct @enforce_keys ++ [:metadata]
 
-  @spec new(id :: id(), metadata :: any()) :: Peer.t()
+  @spec new(id :: id(), metadata :: any()) :: t()
   def new(id, metadata) do
     %__MODULE__{
       id: id,

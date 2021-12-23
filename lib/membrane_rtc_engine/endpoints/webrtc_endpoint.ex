@@ -12,6 +12,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     alias Membrane.WebRTC.{SDP, EndpointBin}
     alias Membrane.WebRTC
     alias Membrane.RTC.Engine
+    alias ExSDP.Attribute.FMTP
+    alias ExSDP.Attribute.RTPMapping
 
     @type stun_server_t() :: ExLibnice.stun_server()
     @type turn_server_t() :: ExLibnice.relay_info()

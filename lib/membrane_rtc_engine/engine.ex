@@ -327,8 +327,11 @@ defmodule Membrane.RTC.Engine do
   @spec remove_endpoint(
           pid :: pid(),
           id :: String.t()
-        ) :: none()
-  def remove_endpoint(rtc_engine, id), do: send(rtc_engine, {:remove_endpoint, id})
+        ) :: :ok
+  def remove_endpoint(rtc_engine, id) do
+    send(rtc_engine, {:remove_endpoint, id})
+    :ok
+  end
 
   @doc """
   Adds peer to the RTC Engine
@@ -337,16 +340,20 @@ defmodule Membrane.RTC.Engine do
           pid :: pid(),
           peer_id :: String.t(),
           data :: any()
-        ) :: none()
+        ) :: :ok
   def add_peer(pid, peer_id, data \\ %{}) do
     send(pid, {:add_peer, peer_id, data})
+    :ok
   end
 
   @doc """
   Removes peer from RTC Engine.
   """
-  @spec remove_peer(rtc_engine :: pid(), peer_id :: any()) :: none()
-  def remove_peer(rtc_engine, peer_id), do: send(rtc_engine, {:remove_peer, peer_id})
+  @spec remove_peer(rtc_engine :: pid(), peer_id :: any()) :: :ok
+  def remove_peer(rtc_engine, peer_id) do
+    send(rtc_engine, {:remove_peer, peer_id})
+    :ok
+  end
 
   @doc """
   Allows peer for joining to the RTC Engine
@@ -354,43 +361,59 @@ defmodule Membrane.RTC.Engine do
   @spec accept_peer(
           pid :: pid(),
           peer_id :: String.t()
-        ) ::
-          none()
-  def accept_peer(pid, peer_id),
-    do: send(pid, {:accept_new_peer, peer_id})
+        ) :: :ok
+  def accept_peer(pid, peer_id) do
+    send(pid, {:accept_new_peer, peer_id})
+    :ok
+  end
 
   @doc """
   Deny peer from joining to the RTC Engine.
   """
-  @spec deny_peer(pid :: pid(), peer_id :: String.t()) :: none()
-  def deny_peer(pid, peer_id), do: send(pid, {:deny_new_peer, peer_id})
+  @spec deny_peer(pid :: pid(), peer_id :: String.t()) :: :ok
+  def deny_peer(pid, peer_id) do
+    send(pid, {:deny_new_peer, peer_id})
+    :ok
+  end
 
   @doc """
   The same as `deny_peer/2` but allows for passing any data that will be returned to the client.
 
   This can be used for passing reason of peer refusal.
   """
-  @spec deny_peer(pid :: pid(), peer_id :: String.t(), data: any()) :: none()
-  def deny_peer(pid, peer_id, data), do: send(pid, {:deny_new_peer, peer_id, data})
+  @spec deny_peer(pid :: pid(), peer_id :: String.t(), data: any()) :: :ok
+  def deny_peer(pid, peer_id, data) do
+    send(pid, {:deny_new_peer, peer_id, data})
+    :ok
+  end
 
   @doc """
   Registers process with pid `who` for receiving messages from RTC Engine
   """
-  @spec register(rtc_engine :: pid(), who :: pid()) :: none()
-  def register(rtc_engine, who \\ self()), do: send(rtc_engine, {:register, who})
+  @spec register(rtc_engine :: pid(), who :: pid()) :: :ok
+  def register(rtc_engine, who \\ self()) do
+    send(rtc_engine, {:register, who})
+    :ok
+  end
 
   @doc """
   Unregisters process with pid `who` from receiving messages from RTC Engine
   """
-  @spec unregister(rtc_engine :: pid(), who :: pid()) :: none()
-  def unregister(rtc_engine, who \\ self()), do: send(rtc_engine, {:unregister, who})
+  @spec unregister(rtc_engine :: pid(), who :: pid()) :: :ok
+  def unregister(rtc_engine, who \\ self()) do
+    send(rtc_engine, {:unregister, who})
+    :ok
+  end
 
   @doc """
   Sends Media Event to RTC Engine.
   """
   @spec receive_media_event(rtc_engine :: pid(), media_event :: {:media_event, pid(), any()}) ::
-          none()
-  def receive_media_event(rtc_engine, media_event), do: send(rtc_engine, media_event)
+          :ok
+  def receive_media_event(rtc_engine, media_event) do
+    send(rtc_engine, media_event)
+    :ok
+  end
 
   @impl true
   def handle_init(options) do
@@ -525,12 +548,10 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(%{type: :leave}, peer_id, ctx, state) do
-    remove_peer(peer_id, ctx, state)
-  end
+    %Message.PeerLeft{rtc_engine: self(), peer: state.peers[peer_id]}
+    |> dispatch()
 
-  defp handle_media_event(%{type: :renegotiate_tracks}, peer_id, ctx, state) do
-    actions = forward({:endpoint, peer_id}, {:signal, :renegotiate_tracks}, ctx)
-    {actions, state}
+    remove_peer(peer_id, ctx, state)
   end
 
   defp handle_media_event(
