@@ -18,7 +18,6 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
       expected_media_event = %{
         type: :join,
         data: %{
-          receive_media: true,
           metadata: %{"displayName" => "Bob"}
         }
       }
@@ -30,10 +29,10 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
       raw_media_event =
         %{
           "type" => "join",
-          "data" => %{
-            # missing receiveMedia field
-            "metadata" => %{"displayName" => "Bob"}
-          }
+          "data" =>
+            %{
+              # missing metadata field
+            }
         }
         |> Jason.encode!()
 

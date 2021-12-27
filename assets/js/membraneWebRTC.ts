@@ -33,10 +33,6 @@ export interface Peer {
 export interface MembraneWebRTCConfig {
   callbacks: Callbacks;
   rtcConfig?: RTCConfiguration;
-  /**
-   * Determines wheater user want to receive media from other peers.
-   */
-  receiveMedia?: boolean;
 }
 
 /**
@@ -127,8 +123,6 @@ export interface Callbacks {
  * Main class that is responsible for connecting to the SFU server, sending and receiving media.
  */
 export class MembraneWebRTC {
-  private receiveMedia: boolean;
-
   private localTracksWithStreams: {
     track: MediaStreamTrack;
     stream: MediaStream;
@@ -150,10 +144,7 @@ export class MembraneWebRTC {
   private readonly callbacks: Callbacks;
 
   constructor(config: MembraneWebRTCConfig) {
-    const { receiveMedia = true, callbacks, rtcConfig } = config;
-
-    this.receiveMedia = receiveMedia;
-
+    const { callbacks, rtcConfig } = config;
     this.callbacks = callbacks;
     this.rtcConfig = rtcConfig || this.rtcConfig;
   }
@@ -175,7 +166,6 @@ export class MembraneWebRTC {
     try {
       this.localPeer.metadata = peerMetadata;
       let mediaEvent = generateMediaEvent("join", {
-        receiveMedia: this.receiveMedia,
         metadata: peerMetadata,
       });
       this.sendMediaEvent(mediaEvent);

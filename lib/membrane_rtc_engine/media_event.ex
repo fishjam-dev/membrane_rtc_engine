@@ -142,7 +142,6 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       %{
         "type" => "join",
         "data" => %{
-          "receiveMedia" => receive_media,
           "metadata" => metadata
         }
       } ->
@@ -150,7 +149,6 @@ defmodule Membrane.RTC.Engine.MediaEvent do
          %{
            type: :join,
            data: %{
-             receive_media: receive_media,
              metadata: metadata
            }
          }}
