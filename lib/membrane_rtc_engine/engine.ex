@@ -122,27 +122,6 @@ defmodule Membrane.RTC.Engine do
   Peer ids must be assigned by application code. This is not done by the RTC Engine or its client library.
   Ids can be assigned when a peer initializes its signaling layer.
 
-  Assuming we use a Phoenix channel as a signaling layer:
-
-  ```elixir
-  def join("room:" <> room_id, _params, socket) do
-    # ...
-    peer_id = UUID.uuid4()
-    {:ok, assign(socket, %{room_id: room_id, room: room, peer_id: peer_id})}
-  end
-  ```
-
-  Then, when we receive the first Media Event we can pass it to the process maitaining
-  RTC Engine instance in the following way:
-
-  ```elixir
-  @impl true
-  def handle_in("mediaEvent", %{"data" => event}, socket) do
-    send(socket.assigns.room, {:media_event, socket.assigns.peer_id, event})
-    {:noreply, socket}
-  end
-  ```
-
   ## Endpoints
 
   `Endpoints` are `Membrane.Bin`s able to publish their own tracks and subscribe for tracks from other Endpoints.
