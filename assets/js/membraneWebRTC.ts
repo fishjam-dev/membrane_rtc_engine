@@ -515,6 +515,23 @@ export class MembraneWebRTC {
     this.sendMediaEvent(mediaEvent);
   }
 
+  /**
+   * Prioritize a track in connection to be always forward to browser.
+   * @param {string} trackId - Id of video track to prioritize.
+   */
+  public prioritizeTrack(trackId: string) {
+    let mediaEvent = generateCustomEvent({ type: "prioritizeTrack", data: { trackId } });
+    this.sendMediaEvent(mediaEvent);
+  }
+  /**
+   * Unprioritize a track.
+   * @param {string} trackId - Id of video track to unprioritize.
+   */
+  public unprioritizeTrack(trackId: string) {
+    let mediaEvent = generateCustomEvent({ type: "unprioritizeTrack", data: { trackId } });
+    this.sendMediaEvent(mediaEvent);
+  }
+
   private findSender(trackId: string): RTCRtpSender {
     return this.connection!.getSenders().find(
       (sender) => sender.track && sender!.track!.id === trackId

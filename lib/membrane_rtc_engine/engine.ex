@@ -784,6 +784,44 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
+  @impl true
+  @decorate trace("engine.notification.publish.prioritized",
+              include: [:endpoint_id, [:state, :id]]
+            )
+  def handle_notification(
+        {:publish, {:prioritized_tracks, audio_tracks}},
+        {:endpoint, endpoint_id},
+        ctx,
+        state
+      ) do
+    audio_track_id_to_video_tracks =
+      Enum.reduce(state.endpoints, %{}, fn {_endpoint_id, endpoint}, acc ->
+        case Endpoint.get_audio_tracks(endpoint) do
+          [] ->
+            acc
+
+          [audio_track | _] ->
+            video_tracks_id = endpoint |> Endpoint.get_video_tracks() |> Enum.map(& &1.id)
+            Map.put(acc, audio_track.id, video_tracks_id)
+        end
+      end)
+
+    prioritized_video_tracks =
+      Enum.flat_map(audio_tracks, fn audio_track ->
+        Map.get(audio_track_id_to_video_tracks, audio_track.id, [])
+      end)
+
+    tracks_msgs =
+      do_publish(
+        state.endpoints,
+        ctx,
+        {:prioritized_tracks, prioritized_video_tracks},
+        {:endpoint, endpoint_id}
+      )
+
+    {{:ok, tracks_msgs}, state}
+  end
+
   defp link_inbound_track(track_id, tee, filter_tee, waiting_for_linking, ctx, state) do
     reduce_children(ctx, {[], waiting_for_linking}, fn
       {:endpoint, endpoint_id}, {new_links, waiting_for_linking} ->

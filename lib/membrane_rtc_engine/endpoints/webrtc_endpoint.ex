@@ -107,10 +107,14 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                 trace_context: [
                   spec: :list,
                   default: [],
-                  description: "Trace context for otel propagation
-
-                  Traces from EndpointBin will be attached to this context.
-                  "
+                  description: "Trace context for otel propagation"
+                ],
+                ets_name: [
+                  spec: String.t(),
+                  default: "room",
+                  description: """
+                    Ets table name needed for SpeakersDetector
+                  """
                 ]
 
     def_input_pad :input,
@@ -137,7 +141,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
         trace_context: opts.trace_context,
-        trace_metadata: [name: opts.ice_name]
+        trace_metadata: [name: opts.ice_name],
+        video_tracks_limit: 1
       }
 
       spec = %ParentSpec{
@@ -152,7 +157,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
         integrated_turn_domain: opts.integrated_turn_domain,
-        owner: opts.owner
+        owner: opts.owner,
+        ets_name: :"#{opts.ets_name}"
       }
 
       {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
@@ -205,6 +211,22 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
+      # Idea to go when silence change sign to negative, when :speech change to positivie. In SpeakersDetector increment value.
+      # Only check when increment if you don't change sign
+
+      [audio_track | _] =
+        state.inbound_tracks
+        |> Enum.map(fn {_track_id, track} -> track end)
+        |> Enum.filter(&(&1.type == :audio))
+
+      value =
+        case :ets.lookup(state.ets_name, audio_track.id) do
+          [] -> 0
+          [{_track_id, value} | _] -> value
+        end
+
+      :ets.insert(state.ets_name, {audio_track.id, -1 * value + 1})
+
       send(state.owner, {:vad_notification, val, ctx.name})
       {:ok, state}
     end
@@ -314,6 +336,16 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
+    defp handle_custom_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
+      msg = {:signal, :prioritize_track, data.track_id}
+      {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+    end
+
+    defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, ctx, state) do
+      msg = {:signal, :unprioritize_track, data.track_id}
+      {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+    end
+
     defp get_turn_configs(turn_servers, state) do
       Enum.map(turn_servers, fn
         %{secret: secret} = turn_server ->
@@ -397,6 +429,20 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     defp deserialize(%{"type" => "renegotiateTracks"}) do
       {:ok, %{type: :renegotiate_tracks}}
+    end
+
+    defp deserialize(%{"type" => "prioritizeTrack"} = event) do
+      case event do
+        %{"type" => "prioritizeTrack", "data" => %{"trackId" => track_id}} ->
+          {:ok, %{type: :prioritize_track, data: %{track_id: track_id}}}
+      end
+    end
+
+    defp deserialize(%{"type" => "unprioritizeTrack"} = event) do
+      case event do
+        %{"type" => "unprioritizeTrack", "data" => %{"trackId" => track_id}} ->
+          {:ok, %{type: :unprioritize_track, data: %{track_id: track_id}}}
+      end
     end
 
     defp deserialize(%{"type" => "candidate"} = event) do
