@@ -198,7 +198,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
 
       media_event_data = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
-      {{:ok, notify: {:generate_custom_media_event, serialize(media_event_data)}}, state}
+      {{:ok, notify: {:custom_media_event, serialize(media_event_data)}}, state}
     end
 
     @impl true
@@ -208,7 +208,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           _ctx,
           state
         ) do
-      {{:ok, notify: {:generate_custom_media_event, serialize(media_event_data)}}, state}
+      {{:ok, notify: {:custom_media_event, serialize(media_event_data)}}, state}
     end
 
     @impl true

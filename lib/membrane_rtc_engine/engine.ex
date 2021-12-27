@@ -8,12 +8,12 @@ defmodule Membrane.RTC.Engine do
   ## Messages
 
   The RTC Engine works by sending messages which notify user logic about important events like
-  "There is a new peer, do you want to accept it?".
+  "There is a new peer, would you like to to accept it?".
   To receive RTC Engine messages you have to register your process so that RTC Engine will
   know where to send them.
   All messages RTC Engine can emit are described in `#{inspect(__MODULE__)}.Message` docs.
 
-  #### Registering for messages
+  ### Registering for messages
 
   Registration can be done using `register/2` e.g.
 
@@ -47,7 +47,7 @@ defmodule Membrane.RTC.Engine do
   In the case of WebRTC Client Library, these are e.g. `onPeerJoined` or `onTrackAdded`.
   When RTC Engine receives Media Event it can emit some messages e.g. `t:#{inspect(__MODULE__)}.Message.NewPeer.t/0`.
   More about Media Events can be read in subsequent sections.
-  Below there is a figure showing the architecture of the RTC Engine which works in conjunction with some Client Library.
+  Below there is a figure showing the architecture of the RTC Engine working in conjunction with some Client Library.
 
   ```txt
       +--------------------------------- media events -----------------------------+
@@ -63,7 +63,7 @@ defmodule Membrane.RTC.Engine do
 
 
 
-  #### Media Events
+  ### Media Events
 
   Media Events are blackbox messages that carry data important for the
   RTC Engine and its Client Library, but not for the user.
@@ -96,7 +96,7 @@ defmodule Membrane.RTC.Engine do
   ```
 
   What is important, Membrane RTC Engine doesn't impose usage of any specific transport layer for carrying
-  Media Events through the Network.
+  Media Events through the network.
   You can e.g. use Phoenix and its channels.
   This can look like this:
 
@@ -117,9 +117,7 @@ defmodule Membrane.RTC.Engine do
 
   Adding a peer will cause RTC Engine to emit Media Event which will notify connected clients about new peer.
 
-  Each Endpoint you want it to send some tracks from RTC Engine to Membrane client library has to be assigned to some peer.
-
-  #### Peer id
+  ### Peer id
 
   Peer ids must be assigned by application code. This is not done by the RTC Engine or its client library.
   Ids can be assigned when a peer initializes its signaling layer.
@@ -134,8 +132,8 @@ defmodule Membrane.RTC.Engine do
   end
   ```
 
-  Then, when we receive the first Media Event we can pass it to the RTC Engine
-  int the following way:
+  Then, when we receive the first Media Event we can pass it to the process maitaining
+  RTC Engine instance in the following way:
 
   ```elixir
   @impl true
@@ -154,7 +152,7 @@ defmodule Membrane.RTC.Engine do
   There are two types of Endpoints:
   * Standalone Endpoints - they are in most cases spawned only once per RTC Engine instance and they are not associated with any peer.
   * Peer Endpoints - they are associated with some peer.
-  Associating Endpoint with Peer will cause RTC Engine to send some Media Events to a Client Library
+  Associating Endpoint with Peer will cause RTC Engine to send some Media Events to the Enpoint's Client Library
   e.g. one which indicates which tracks belong to which peer.
 
   Currently RTC Engine ships with the implementation of two Endpoints:
@@ -165,7 +163,7 @@ defmodule Membrane.RTC.Engine do
 
   User can also implement custom Endpoints.
 
-  #### Implementing custom RTC Engine Endpoint
+  ### Implementing custom RTC Engine Endpoint
 
   Each RTC Engine Endpoint has to:
   * implement `Membrane.Bin` behavior
@@ -268,10 +266,9 @@ defmodule Membrane.RTC.Engine do
             depayloading_filter :: Membrane.ParentSpec.child_spec_t()}}
 
   @typedoc """
-  Membrane action that will send Custom Media Event.
+  Membrane action that will generate Custom Media Event.
   """
-  @type generate_custom_media_event_action_t() ::
-          {:notify, {:generate_custom_media_event, data :: binary()}}
+  @type custom_media_event_action_t() :: {:notify, {:custom_media_event, data :: binary()}}
 
   @typedoc """
   Types of messages that can be published to other Endpoints.
@@ -605,7 +602,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification({:generate_custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
+  def handle_notification({:custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
     MediaEvent.create_custom_event(data)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
     |> dispatch()
