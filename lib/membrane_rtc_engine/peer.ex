@@ -1,5 +1,7 @@
 defmodule Membrane.RTC.Engine.Peer do
-  @moduledoc false
+  @moduledoc """
+  Module describing Peer.
+  """
   use Bunch.Access
 
   @type id() :: any()
@@ -9,13 +11,10 @@ defmodule Membrane.RTC.Engine.Peer do
           metadata: any()
         }
 
-  defstruct id: nil,
-            metadata: nil
+  @enforce_keys [:id]
+  defstruct @enforce_keys ++ [:metadata]
 
-  @spec new(
-          id :: id(),
-          metadata :: any()
-        ) :: Peer.t()
+  @spec new(id :: id(), metadata :: any()) :: t()
   def new(id, metadata) do
     %__MODULE__{
       id: id,

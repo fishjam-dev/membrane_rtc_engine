@@ -2,12 +2,11 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   @moduledoc false
 
   alias Membrane.RTC.Engine.Endpoint
+  alias Membrane.RTC.Engine.Peer
 
-  @type peer_id_t() :: String.t()
-  @type to_t() :: peer_id_t() | :broadcast
-  @type rtc_media_event_t() :: {:rtc_media_event, to_t(), binary()}
+  @type rtc_media_event_t() :: binary()
 
-  @spec create_peer_accepted_event(peer_id_t(), map(), [Endpoint.t()]) :: rtc_media_event_t()
+  @spec create_peer_accepted_event(Peer.id(), map(), [Endpoint.t()]) :: rtc_media_event_t()
   def create_peer_accepted_event(peer_id, peers, endpoints) do
     peers =
       Enum.map(peers, fn {id, peer} ->
@@ -22,30 +21,30 @@ defmodule Membrane.RTC.Engine.MediaEvent do
         peersInRoom: peers
       }
     }
-    |> do_create(peer_id)
+    |> serialize()
   end
 
-  @spec create_peer_denied_event(peer_id_t(), map()) :: rtc_media_event_t()
-  def create_peer_denied_event(peer_id, metadata \\ %{}) do
+  @spec create_peer_denied_event(map()) :: rtc_media_event_t()
+  def create_peer_denied_event(metadata \\ %{}) do
     %{type: "peerDenied", data: metadata}
-    |> do_create(peer_id)
+    |> serialize()
   end
 
-  @spec create_peer_joined_event(peer_id_t(), map()) :: rtc_media_event_t()
-  def create_peer_joined_event(peer_id, peer) do
+  @spec create_peer_joined_event(Peer.t()) :: rtc_media_event_t()
+  def create_peer_joined_event(peer) do
     %{
       type: "peerJoined",
       data: %{
         peer: %{
-          id: peer_id,
+          id: peer.id,
           metadata: peer.metadata
         }
       }
     }
-    |> do_create(:broadcast)
+    |> serialize()
   end
 
-  @spec create_peer_left_event(peer_id_t()) :: rtc_media_event_t()
+  @spec create_peer_left_event(Peer.id()) :: rtc_media_event_t()
   def create_peer_left_event(peer_id) do
     %{
       type: "peerLeft",
@@ -53,10 +52,10 @@ defmodule Membrane.RTC.Engine.MediaEvent do
         peerId: peer_id
       }
     }
-    |> do_create(:broadcast)
+    |> serialize()
   end
 
-  @spec create_tracks_added_event(peer_id_t(), map()) ::
+  @spec create_tracks_added_event(Peer.id(), map()) ::
           rtc_media_event_t()
   def create_tracks_added_event(peer_id, track_id_to_metadata) do
     %{
@@ -66,10 +65,10 @@ defmodule Membrane.RTC.Engine.MediaEvent do
         trackIdToMetadata: track_id_to_metadata
       }
     }
-    |> do_create(:broadcast)
+    |> serialize()
   end
 
-  @spec create_tracks_removed_event(peer_id_t(), [String.t()]) ::
+  @spec create_tracks_removed_event(Peer.id(), [String.t()]) ::
           rtc_media_event_t()
   def create_tracks_removed_event(peer_id, track_ids) do
     %{
@@ -79,22 +78,22 @@ defmodule Membrane.RTC.Engine.MediaEvent do
         trackIds: track_ids
       }
     }
-    |> do_create(:broadcast)
+    |> serialize()
   end
 
-  @spec create_peer_updated_event(peer_id_t(), map()) :: rtc_media_event_t()
-  def create_peer_updated_event(peer_id, peer) do
+  @spec create_peer_updated_event(Peer.t()) :: rtc_media_event_t()
+  def create_peer_updated_event(peer) do
     %{
       type: "peerUpdated",
       data: %{
-        peerId: peer_id,
+        peerId: peer.id,
         metadata: peer.metadata
       }
     }
-    |> do_create(:broadcast)
+    |> serialize()
   end
 
-  @spec create_track_updated_event(peer_id_t(), String.t(), map()) :: rtc_media_event_t()
+  @spec create_track_updated_event(Peer.id(), String.t(), map()) :: rtc_media_event_t()
   def create_track_updated_event(peer_id, track_id, metadata) do
     %{
       type: "trackUpdated",
@@ -104,33 +103,27 @@ defmodule Membrane.RTC.Engine.MediaEvent do
         metadata: metadata
       }
     }
-    |> do_create(:broadcast)
+    |> serialize()
   end
 
-  @spec create_custom_event(peer_id_t(), map()) :: rtc_media_event_t()
-  def create_custom_event(peer_id, msg) do
+  @spec create_custom_event(map()) :: rtc_media_event_t()
+  def create_custom_event(msg) do
     %{
       type: "custom",
       data: msg
     }
-    |> do_create(peer_id)
+    |> serialize()
   end
 
-  @spec create_error_event(to_t(), String.t()) :: rtc_media_event_t()
-  def create_error_event(to, msg) do
+  @spec create_error_event(String.t()) :: rtc_media_event_t()
+  def create_error_event(msg) do
     %{
       type: "error",
       data: %{
         message: msg
       }
     }
-    |> do_create(to)
-  end
-
-  defp do_create(event, to) do
-    event
     |> serialize()
-    |> then(fn event -> {:rtc_media_event, to, event} end)
   end
 
   @spec serialize(map()) :: binary()
@@ -149,7 +142,6 @@ defmodule Membrane.RTC.Engine.MediaEvent do
       %{
         "type" => "join",
         "data" => %{
-          "receiveMedia" => receive_media,
           "metadata" => metadata
         }
       } ->
@@ -157,7 +149,6 @@ defmodule Membrane.RTC.Engine.MediaEvent do
          %{
            type: :join,
            data: %{
-             receive_media: receive_media,
              metadata: metadata
            }
          }}

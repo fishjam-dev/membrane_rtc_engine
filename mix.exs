@@ -22,7 +22,20 @@ defmodule Membrane.RTC.Engine.MixProject do
       name: "Membrane RTC Engine",
       source_url: @github_url,
       homepage_url: "https://membraneframework.org",
-      docs: docs()
+      docs: docs(),
+
+      # dialyzer
+      # this is because of optional dependencies
+      # they are not included in PLT
+      dialyzer: [
+        plt_add_apps: [
+          :ex_libnice,
+          :ex_sdp,
+          :membrane_rtp_plugin,
+          :membrane_ice_plugin,
+          :membrane_webrtc_plugin
+        ]
+      ]
     ]
   end
 
@@ -49,6 +62,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_aac_fdk_plugin, "~> 0.8.0", optional: true},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
+      {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
@@ -85,11 +99,17 @@ defmodule Membrane.RTC.Engine.MixProject do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint],
+      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
       groups_for_modules: [
         Endpoints: [
           Membrane.RTC.Engine.Endpoint.WebRTC,
           Membrane.RTC.Engine.Endpoint.HLS
+        ],
+        Messages: [
+          Membrane.RTC.Engine.Message,
+          Membrane.RTC.Engine.Message.MediaEvent,
+          Membrane.RTC.Engine.Message.NewPeer,
+          Membrane.RTC.Engine.Message.PeerLeft
         ]
       ]
     ]

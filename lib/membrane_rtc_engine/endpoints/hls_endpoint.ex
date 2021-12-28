@@ -1,5 +1,5 @@
 if Enum.all?(
-     [Membrane.H264.FFmpeg, Membrane.HTTPAdaptiveStream.SinkBin, Membrane.AAC.FDK],
+     [Membrane.H264.FFmpeg.Parser, Membrane.HTTPAdaptiveStream.SinkBin, Membrane.AAC.FDK.Encoder],
      &Code.ensure_loaded?/1
    ) do
   defmodule Membrane.RTC.Engine.Endpoint.HLS do
@@ -7,7 +7,6 @@ if Enum.all?(
     An Endpoint responsible for converting incoming tracks to HLS playlist.
     """
     use Membrane.Bin
-    alias Membrane.RTC.Engine
     require Membrane.Logger
 
     def_input_pad :input,
@@ -40,8 +39,8 @@ if Enum.all?(
         Enum.filter(tracks, fn track -> :raw in track.format end)
         |> Enum.map(fn track -> {track.id, :raw} end)
 
-      actions = Engine.subscribe(subscriptions)
-      {{:ok, actions}, Map.update!(state, :tracks, &Map.merge(&1, new_tracks))}
+      {{:ok, notify: {:subscribe, subscriptions}},
+       Map.update!(state, :tracks, &Map.merge(&1, new_tracks))}
     end
 
     @impl true

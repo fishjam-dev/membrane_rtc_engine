@@ -2,6 +2,7 @@ defmodule Membrane.RTC.EngineTest do
   use ExUnit.Case
 
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.{Message, Peer}
   alias Membrane.RTC.Engine.Endpoint.WebRTC
 
   setup do
@@ -47,8 +48,13 @@ defmodule Membrane.RTC.EngineTest do
         }
         |> Jason.encode!()
 
+      peer = %Peer{
+        id: peer_id,
+        metadata: metadata
+      }
+
       Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-      assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
+      assert_receive %Message.NewPeer{rtc_engine: ^rtc_engine, peer: ^peer}
     end
   end
 
@@ -152,13 +158,18 @@ defmodule Membrane.RTC.EngineTest do
         }
         |> Jason.encode!()
 
+      peer = %Peer{
+        id: peer_id,
+        metadata: metadata
+      }
+
       Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-      assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
+      assert_receive %Message.NewPeer{rtc_engine: ^rtc_engine, peer: ^peer}
       Engine.deny_peer(rtc_engine, peer_id, data: metadata)
-      assert_receive {_from, {:rtc_media_event, ^peer_id, media_event}}
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: ^peer_id, data: data}
 
       assert %{"type" => "peerDenied", "data" => %{"reason" => "bob smells"}} ==
-               Jason.decode!(media_event)
+               Jason.decode!(data)
     end
   end
 end
