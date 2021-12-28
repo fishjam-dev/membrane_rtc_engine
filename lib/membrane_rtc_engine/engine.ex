@@ -432,16 +432,26 @@ defmodule Membrane.RTC.Engine do
   @impl true
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
+    endpoint_id = opts[:endpoint_id] || opts[:peer_id]
 
-    if peer_id != nil and !Map.has_key?(state.peers, peer_id) do
-      Membrane.Logger.warn(
-        "You can't attach endpoint to peer with id #{peer_id}, because this peer doesn't exist"
-      )
+    cond do
+      Map.has_key?(state.endpoints, endpoint_id) ->
+        Membrane.Logger.warn(
+          "Cannot add Endpoint with id #{inspect(endpoint_id)} as it already exists"
+        )
 
-      {:ok, state}
-    else
-      {actions, state} = setup_endpoint(endpoint, opts, state)
-      {{:ok, actions}, state}
+        {:ok, state}
+
+      peer_id != nil and !Map.has_key?(state.peers, peer_id) ->
+        Membrane.Logger.warn(
+          "Cannot attach Endpoint to peer with id #{peer_id} as such peer does not exist"
+        )
+
+        {:ok, state}
+
+      true ->
+        {actions, state} = setup_endpoint(endpoint, opts, state)
+        {{:ok, actions}, state}
     end
   end
 
