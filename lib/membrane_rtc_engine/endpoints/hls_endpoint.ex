@@ -24,7 +24,9 @@ if Enum.all?(
                   description: """
                   Pid of parent all notifications will be send to.
 
-                  These notifications are
+                  These notifications are:
+                    * `{:playlist_playable, content_type, stream_id}`
+                    * `{:cleanup, clean_function, stream_id}`
                   """
                 ]
 
@@ -75,7 +77,7 @@ if Enum.all?(
           _ctx,
           state
         ) do
-      # notify about playable just when video becomes available
+      # notify about possibility to cleanup as the stream is finished.
       send(state.owner, {:cleanup, clean_function, stream_id})
       {:ok, state}
     end

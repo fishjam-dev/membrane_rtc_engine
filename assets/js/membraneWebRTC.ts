@@ -55,7 +55,7 @@ export interface TrackContext {
    */
   trackId: string;
   /**
-   * Flag indicates if track should be added as simulcast, that info was passed in {@link addTrack}.
+   * Flag indicating whether track is a simulcast one or not.
    */
   isSimulcast: boolean;
   /**
