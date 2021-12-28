@@ -66,7 +66,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false, override: true}
+      {:credo, "~> 1.4", only: :dev, runtime: false, override: true},
+      {:opentelemetry_api, "~> 1.0.0-rc.3"},
+      {:opentelemetry, "~> 1.0.0-rc.3"},
+      {:open_telemetry_decorator, "~> 1.0.0-rc.3"}
     ]
   end
 

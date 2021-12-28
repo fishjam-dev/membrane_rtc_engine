@@ -66,7 +66,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   List of WebRTC extensions to use.
 
                   At this moment only VAD (RFC 6464) is supported.
-                  Enabling it will cause SFU sending `{:vad_notification, val, endpoint_id}` messages.
+                  Enabling it will cause RTC Engine sending `{:vad_notification, val, endpoint_id}` messages.
                   """
                 ],
                 extensions: [
@@ -94,6 +94,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
                   To see possible notifications please refer to module docs.
                   """
+                ],
+                trace_context: [
+                  spec: :list,
+                  default: [],
+                  description: "Trace context for otel propagation"
                 ]
 
     def_input_pad :input,
@@ -117,7 +122,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         inbound_tracks: [],
         outbound_tracks: [],
         extensions: opts.webrtc_extensions || [],
-        integrated_turn_options: opts.integrated_turn_options
+        integrated_turn_options: opts.integrated_turn_options,
+        trace_context: opts.trace_context,
+        trace_metadata: [name: opts.ice_name]
       }
 
       spec = %ParentSpec{
@@ -159,10 +166,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_notification({:removed_tracks, tracks}, _from, _ctx, state) do
-      {tracks, outbound_tracks} = update_tracks(tracks, state.inbound_tracks)
+      tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+      inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
       {{:ok, notify: {:publish, {:removed_tracks, tracks}}},
-       %{state | outbound_tracks: outbound_tracks}}
+       %{state | inbound_tracks: inbound_tracks}}
     end
 
     @impl true

@@ -1,12 +1,12 @@
 {
-  "name": "membrane-sfu",
+  "name": "membrane_rtc_engine",
   "version": "0.1.0",
-  "description": "Client library for Membrane SFU.",
+  "description": "Client library for Membrane RTC Engine.",
   "license": "Apache 2.0",
   "author": "Membrane Team",
   "repository": {
     "type": "git",
-    "url": "git://github.com/membraneframework/membrane_sfu.git"
+    "url": "git://github.com/membraneframework/membrane_rtc_engine.git"
   },
   "scripts": {
     "ts-types": " tsc --emitDeclarationOnly --outDir ../priv/static",

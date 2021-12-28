@@ -120,7 +120,7 @@ export interface Callbacks {
 }
 
 /**
- * Main class that is responsible for connecting to the SFU server, sending and receiving media.
+ * Main class that is responsible for connecting to the RTC Engine, sending and receiving media.
  */
 export class MembraneWebRTC {
   private localTracksWithStreams: {
@@ -150,7 +150,7 @@ export class MembraneWebRTC {
   }
 
   /**
-   * Tries to join to the SFU server. If user is accepted then {@link onJoinSuccess}
+   * Tries to join to the RTC Engine. If user is accepted then {@link onJoinSuccess}
    * will be called. In other case {@link onJoinError} is invoked.
    *
    * @param peerMetadata - Any information that other peers will receive in {@link onPeerJoined}
@@ -175,8 +175,8 @@ export class MembraneWebRTC {
     }
   };
   /**
-   * Feeds media event received from SFU server to {@link MembraneWebRTC}.
-   * This function should be called whenever some media event from SFU server
+   * Feeds media event received from RTC Engine to {@link MembraneWebRTC}.
+   * This function should be called whenever some media event from RTC Engine
    * was received and can result in {@link MembraneWebRTC} generating some other
    * media events.
    *
@@ -184,7 +184,7 @@ export class MembraneWebRTC {
    *
    * @example
    * This example assumes pheonix channels as signalling layer.
-   * As pheonix channels require objects, SFU server encapsulates binary data into
+   * As phoenix channels require objects, RTC Engine encapsulates binary data into
    * map with one field that is converted to object with one field on the TS side.
    * ```ts
    * webrtcChannel.on("mediaEvent", (event) => webrtc.receiveMediaEvent(event.data));
@@ -321,7 +321,7 @@ export class MembraneWebRTC {
   };
 
   /**
-   * Adds track that will be sent to the SFU server.
+   * Adds track that will be sent to the RTC Engine.
    * @param track - Audio or video track e.g. from your microphone or camera.
    * @param stream  - Stream that this track belongs to.
    * @param trackMetadata - Any information about this track that other peers will
@@ -393,7 +393,7 @@ export class MembraneWebRTC {
   }
 
   /**
-   * Replaces a track that is being sent to the SFU server.
+   * Replaces a track that is being sent to the RTC Engine.
    * @param track - Audio or video track.
    * @param {string} trackId - Id of audio or video track to replace.
    * @param {MediaStreamTrack} newTrack
@@ -462,7 +462,7 @@ export class MembraneWebRTC {
   }
 
   /**
-   * Remove a track from connection that was being sent to the SFU server.
+   * Remove a track from connection that was being sent to the RTC Engine.
    * @param {string} trackId - Id of audio or video track to remove.
    * @example
    * ```ts
@@ -492,7 +492,7 @@ export class MembraneWebRTC {
     const trackContext = this.localTrackIdToTrack.get(trackId)!;
     const sender = this.findSender(trackContext.track!!.id);
     this.connection!.removeTrack(sender);
-    let mediaEvent = generateMediaEvent("renegotiateTracks", {});
+    let mediaEvent = generateCustomEvent({ type: "renegotiateTracks" });
     this.sendMediaEvent(mediaEvent);
   }
 
@@ -561,7 +561,7 @@ export class MembraneWebRTC {
    * Leaves the room. This function should be called when user leaves the room
    * in a clean way e.g. by clicking a dedicated, custom button `disconnect`.
    * As a result there will be generated one more media event that should be
-   * sent to the SFU server. Thanks to it each other peer will be notified
+   * sent to the RTC Engine. Thanks to it each other peer will be notified
    * that peer left in {@link onPeerLeft},
    */
   public leave = () => {
