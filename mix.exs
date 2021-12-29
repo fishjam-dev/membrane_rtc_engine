@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.1.0-alpha.2"
+  @version "0.1.0"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
@@ -51,17 +51,15 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_core, github: "membraneframework/membrane_core", override: true},
-      {:membrane_webrtc_plugin,
-       github: "membraneframework/membrane_webrtc_plugin", optional: true},
-      {:membrane_http_adaptive_stream_plugin,
-       github: "membraneframework/membrane_http_adaptive_stream_plugin", optional: true},
+      {:membrane_core, "~> 0.8.0"},
+      {:membrane_webrtc_plugin, "~> 0.2.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.4.0", optional: true},
       {:membrane_mp4_plugin, "~> 0.9.0", optional: true},
       {:membrane_aac_plugin, "~> 0.9.0", optional: true},
       {:membrane_aac_format, "~> 0.5.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.9.0", optional: true},
-      {:membrane_element_tee, "~> 0.5.0"},
-      {:membrane_element_fake, "~> 0.5.0"},
+      {:membrane_element_tee, "~> 0.6.0"},
+      {:membrane_element_fake, "~> 0.6.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
