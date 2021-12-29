@@ -28,6 +28,13 @@ if Enum.all?(
                     * `{:playlist_playable, content_type, stream_id}`
                     * `{:cleanup, clean_function, stream_id}`
                   """
+                ],
+                framerate: [
+                  spec: integer(),
+                  description: """
+                  Framerate of tracks
+                  """,
+                  default: 30
                 ]
 
     @impl true
@@ -36,7 +43,8 @@ if Enum.all?(
         tracks: %{},
         stream_ids: MapSet.new(),
         output_directory: opts.output_directory,
-        owner: opts.owner
+        owner: opts.owner,
+        framerate: opts.framerate
       }
 
       {:ok, state}
@@ -99,7 +107,14 @@ if Enum.all?(
       File.rm_rf(directory)
       File.mkdir_p!(directory)
 
-      spec = hls_links_and_children(link_builder, track.encoding, track_id, track.stream_id)
+      spec =
+        hls_links_and_children(
+          link_builder,
+          track.encoding,
+          track_id,
+          track.stream_id,
+          state.framerate
+        )
 
       {spec, state} =
         if MapSet.member?(state.stream_ids, track.stream_id) do
@@ -126,7 +141,7 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id),
+    defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id, _framerate),
       do: %ParentSpec{
         children: %{
           {:opus_decoder, track_id} => Membrane.Opus.Decoder,
@@ -143,7 +158,7 @@ if Enum.all?(
         ]
       }
 
-    defp hls_links_and_children(link_builder, :AAC, track_id, stream_id),
+    defp hls_links_and_children(link_builder, :AAC, track_id, stream_id, _framerate),
       do: %ParentSpec{
         children: %{},
         links: [
@@ -153,11 +168,11 @@ if Enum.all?(
         ]
       }
 
-    defp hls_links_and_children(link_builder, :H264, track_id, stream_id),
+    defp hls_links_and_children(link_builder, :H264, track_id, stream_id, framerate),
       do: %ParentSpec{
         children: %{
           {:video_parser, track_id} => %Membrane.H264.FFmpeg.Parser{
-            framerate: {30, 1},
+            framerate: {framerate, 1},
             alignment: :au,
             attach_nalus?: true
           }
