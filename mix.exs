@@ -57,9 +57,9 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_http_adaptive_stream_plugin,
        github: "membraneframework/membrane_http_adaptive_stream_plugin", optional: true},
       {:membrane_mp4_plugin, "~> 0.9.0", optional: true},
-      {:membrane_aac_plugin, "~> 0.8.0", optional: true},
-      {:membrane_aac_format, "~> 0.5.0", optional: true, override: true},
-      {:membrane_aac_fdk_plugin, "~> 0.8.0", optional: true},
+      {:membrane_aac_plugin, "~> 0.9.0", optional: true},
+      {:membrane_aac_format, "~> 0.5.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.9.0", optional: true},
       {:membrane_element_tee, "~> 0.5.0"},
       {:membrane_element_fake, "~> 0.5.0"},
       {:uuid, "~> 1.1"},
@@ -67,9 +67,11 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false, override: true},
-      {:opentelemetry_api, "~> 1.0.0-rc.3"},
-      {:opentelemetry, "~> 1.0.0-rc.3"},
-      {:open_telemetry_decorator, "~> 1.0.0-rc.3"}
+
+      # Otel
+      {:opentelemetry_api, "~> 0.6.0"},
+      {:opentelemetry, "~> 0.6.0"},
+      {:open_telemetry_decorator, "~> 0.5.4"}
     ]
   end
 
