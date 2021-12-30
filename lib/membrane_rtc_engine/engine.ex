@@ -406,7 +406,7 @@ defmodule Membrane.RTC.Engine do
     {{:ok, log_metadata: [rtc: options[:id]]},
      %{
        id: options[:id],
-       component_path: Membrane.ComponentPath.get_formatted() |> IO.inspect,
+       component_path: Membrane.ComponentPath.get_formatted(),
        trace_context: trace_ctx,
        peers: %{},
        endpoints: %{},
