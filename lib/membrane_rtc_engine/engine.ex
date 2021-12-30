@@ -406,6 +406,7 @@ defmodule Membrane.RTC.Engine do
     {{:ok, log_metadata: [rtc: options[:id]]},
      %{
        id: options[:id],
+       component_path: Membrane.ComponentPath.get_formatted() |> IO.inspect,
        trace_context: trace_ctx,
        peers: %{},
        endpoints: %{},
@@ -437,7 +438,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  @decorate trace("engine.other.add_endpoint", include: [[:state, :id]])
+  @decorate trace("engine.other.add_endpoint", include: [[:state, :component_path], [:state, :id]])
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
     endpoint_id = opts[:endpoint_id] || opts[:peer_id]
