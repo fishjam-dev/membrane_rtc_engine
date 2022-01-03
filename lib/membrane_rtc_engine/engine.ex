@@ -318,13 +318,9 @@ defmodule Membrane.RTC.Engine do
   @doc """
   Adds peer to the RTC Engine
   """
-  @spec add_peer(
-          pid :: pid(),
-          peer_id :: String.t(),
-          data :: any()
-        ) :: :ok
-  def add_peer(pid, peer_id, data \\ %{}) do
-    send(pid, {:add_peer, peer_id, data})
+  @spec add_peer(pid :: pid(), peer :: Peer.t()) :: :ok
+  def add_peer(pid, peer) do
+    send(pid, {:add_peer, peer})
     :ok
   end
 
