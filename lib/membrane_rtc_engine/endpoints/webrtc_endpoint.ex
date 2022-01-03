@@ -109,12 +109,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   default: [],
                   description: "Trace context for otel propagation"
                 ],
-                ets_name: [
-                  spec: String.t(),
-                  default: "room",
-                  description: """
-                    Ets table name needed for SpeakersDetector
-                  """
+                transaction_manager: [
+                  spec: pid() | nil,
+                  default: nil,
+                  description:
+                    "Pid of transaction manager to which proper notification will be sent"
                 ]
 
     def_input_pad :input,
@@ -211,23 +210,16 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
-      # Idea to go when silence change sign to negative, when :speech change to positivie. In SpeakersDetector increment value.
-      # Only check when increment if you don't change sign
-
       [audio_track | _] =
         state.inbound_tracks
         |> Enum.map(fn {_track_id, track} -> track end)
         |> Enum.filter(&(&1.type == :audio))
 
-      value =
-        case :ets.lookup(state.ets_name, audio_track.id) do
-          [] -> 0
-          [{_track_id, value} | _] -> value
-        end
-
-      :ets.insert(state.ets_name, {audio_track.id, -1 * value + 1})
-
       send(state.owner, {:vad_notification, val, ctx.name})
+
+      if state.transaction_manager != nil,
+        do: send(state.transaction_manager, {:vad_notification, audio_track.id, val})
+
       {:ok, state}
     end
 
@@ -424,6 +416,15 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         data: %{
           type: "offer",
           sdp: offer
+        }
+      }
+
+    defp serialize({:signal, {:prioritized_tracks, enabled_tracks, disabled_tracks}}),
+      do: %{
+        type: "prioritizedTracks",
+        data: %{
+          enabledTracks: enabled_tracks,
+          disabledTracks: disabled_tracks
         }
       }
 

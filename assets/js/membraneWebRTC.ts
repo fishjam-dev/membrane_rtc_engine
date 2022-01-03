@@ -122,6 +122,11 @@ export interface Callbacks {
    * Called in case of errors related to multimedia session e.g. ICE connection.
    */
   onConnectionError?: (message: string) => void;
+
+  /**
+   * Called in situtation when priority of video tracks changed.
+   */
+  onTracksPriorityChanged?: (enabledTracks: TrackContext[], disabledTracks: TrackContext[]) => void;
 }
 
 /**
@@ -274,6 +279,17 @@ export class MembraneWebRTC {
       case "sdpAnswer":
         this.midToTrackId = new Map(Object.entries(deserializedMediaEvent.data.midToTrackId));
         this.onAnswer(deserializedMediaEvent.data);
+        break;
+
+      case "prioritizedTracks":
+        const enabledTracks = (deserializedMediaEvent.data.enabledTracks as string[]).map(
+          (trackId) => this.trackIdToTrack.get(trackId)!!
+        );
+        const disabledTracks = (deserializedMediaEvent.data.disabledTracks as string[]).map(
+          (trackId) => this.trackIdToTrack.get(trackId)!!
+        );
+
+        this.callbacks.onTracksPriorityChanged?.(enabledTracks, disabledTracks);
         break;
 
       case "candidate":
