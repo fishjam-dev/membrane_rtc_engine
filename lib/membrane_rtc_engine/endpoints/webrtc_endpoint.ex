@@ -8,7 +8,6 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     use Membrane.Bin
     import Membrane.RTC.Utils
 
-    alias Membrane.ICE.TurnUtils
     alias Membrane.WebRTC.{SDP, EndpointBin}
     alias Membrane.WebRTC
     alias Membrane.RTC.Engine
@@ -303,7 +302,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     defp get_turn_configs(name, turn_servers) do
       Enum.map(turn_servers, fn
         %{secret: secret} = turn_server ->
-          {username, password} = TurnUtils.generate_credentials(name, secret)
+          {username, password} = generate_turn_credentials(name, secret)
 
           Map.delete(turn_server, :secret)
           |> Map.put(:username, username)
