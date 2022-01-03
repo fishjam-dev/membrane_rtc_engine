@@ -84,7 +84,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   """
                 ],
                 integrated_turn_options: [
-                  spec: Membrane.ICE.Bin.integrated_turn_options_t(),
+                  spec: Membrane.TURN.Endpoint.integrated_turn_options_t(),
                   default: [use_integrated_turn: false]
                 ],
                 owner: [
