@@ -7,7 +7,7 @@ defmodule Membrane.RTC.Engine.Message do
   """
   alias Membrane.RTC.Engine.Peer
 
-  @type t() :: __MODULE__.MediaEvent.t() | __MODULE__.NewPeer.t()
+  @type t() :: __MODULE__.MediaEvent.t() | __MODULE__.NewPeer.t() | __MODULE__.PeerLeft.t()
 
   defmodule MediaEvent do
     @moduledoc """
