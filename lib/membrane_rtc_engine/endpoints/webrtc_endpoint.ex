@@ -109,11 +109,14 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   default: [],
                   description: "Trace context for otel propagation"
                 ],
-                transaction_manager: [
-                  spec: pid() | nil,
+                video_tracks_limit: [
+                  spec: integer() | nil,
                   default: nil,
-                  description:
-                    "Pid of transaction manager to which proper notification will be sent"
+                  description: "Limit of video tracks.
+
+                  This variable indicate how many video tracks should be enabled in TrackFilter and forward to browser.
+                  If `nil` all video tracks will be forwarded to browser.
+                  "
                 ]
 
     def_input_pad :input,
@@ -140,8 +143,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
         trace_context: opts.trace_context,
-        trace_metadata: [name: opts.ice_name],
-        video_tracks_limit: 1
+        trace_metadata: [name: opts.ice_name]
       }
 
       spec = %ParentSpec{
@@ -157,7 +159,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         integrated_turn_options: opts.integrated_turn_options,
         integrated_turn_domain: opts.integrated_turn_domain,
         owner: opts.owner,
-        ets_name: :"#{opts.ets_name}"
+        video_tracks_limit: opts.video_tracks_limit
       }
 
       {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
@@ -175,9 +177,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification({:new_tracks, tracks}, _from, _ctx, state) do
+    def handle_notification({:new_tracks, tracks}, _from, ctx, state) do
       tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
       inbound_tracks = update_tracks(tracks, state.inbound_tracks)
+
+      send_if_not_nil(state.track_manager, {:new_tracks, ctx.name, tracks})
 
       {{:ok, notify: {:publish, {:new_tracks, tracks}}},
        %{state | inbound_tracks: inbound_tracks}}
@@ -203,8 +207,12 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification({:negotiation_done, new_outbound_tracks}, _from, _ctx, state) do
-      tracks = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
+    def handle_notification({:negotiation_done, new_outbound_tracks}, _from, ctx, state) do
+      subscribed_tracks =
+        Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+
+      tracks = Enum.map(subscribed_tracks, fn track -> {track.id, :RTP} end)
+      send_if_not_nil(state.track_manager, {:subscribe_tracks, ctx.name, subscribed_tracks})
       {{:ok, notify: {:subscribe, tracks}}, state}
     end
 
@@ -217,8 +225,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
       send(state.owner, {:vad_notification, val, ctx.name})
 
-      if state.transaction_manager != nil,
-        do: send(state.transaction_manager, {:vad_notification, audio_track.id, val})
+      send_if_not_nil(state.track_manager, {:vad_notification, audio_track.id, val})
 
       {:ok, state}
     end
@@ -267,6 +274,12 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
       {{:ok, forward(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
        %{state | outbound_tracks: outbound_tracks}}
+    end
+
+    @impl true
+    def handle_other({:track_manager, track_manager_pid}, ctx, state) do
+      send_if_not_nil(track_manager_pid, {:register_endpoint, ctx.name, state.video_tracks_limit})
+      {:ok, Map.put(state, :track_manager, track_manager_pid)}
     end
 
     @impl true
