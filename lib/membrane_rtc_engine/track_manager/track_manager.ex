@@ -3,37 +3,53 @@ defmodule Membrane.RTC.Engine.TrackManager do
   TBD
   """
   use GenServer
-  alias Membrane.RTC.Engine.EndpointManager
+  alias Membrane.RTC.Engine.{SpeakersDetector, EndpointManager}
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
   end
 
   @impl true
-  def init(ets_name) do
+  def init(opts) do
+    engine_pid = opts[:engine]
+    ets_name = opts[:ets_name]
     ets_name = :"#{ets_name}"
     :ets.new(ets_name, [:set, :public, :named_table])
-    {:ok, %{silence_stack: [], speech_stack: [], endpoints: %{}, ets_name: ets_name}}
+    {:ok, pid} = GenServer.start_link(SpeakersDetector, ets_name: ets_name, track_manager: self())
+
+    {:ok,
+     %{
+       endpoints: %{},
+       ets_name: ets_name,
+       engine: engine_pid,
+       speakers_detector: pid,
+       calculating_priority?: false,
+       vads: []
+     }}
   end
 
   @impl true
   def handle_info({:vad_notification, audio_track_id, :speech}, state) do
-    {silence_stack, speech_stack} =
-      move_from_stack_to_stack(state.silence_stack, state.speech_stack, audio_track_id)
+    state =
+      if state.calculating_priority? do
+        %{state | vads: [{:speech, audio_track_id} | state.vads]}
+      else
+        send(state.speakers_detector, {:vad, state.vads, state.endpoints})
+        %{state | vads: [], calculating_priority?: true}
+      end
 
-    ordered_tracks = calculate_new_tracks_priority(state.endpoints, speech_stack ++ silence_stack)
-
-    insert_tracks_priority_per_track(ordered_tracks, Map.values(state.endpoints), state.ets_name)
-
-    {:noreply, %{state | silence_stack: silence_stack, speech_stack: speech_stack}}
+    {:noreply, state}
   end
 
   @impl true
   def handle_info({:vad_notification, audio_track_id, :silence}, state) do
-    {speech_stack, silence_stack} =
-      move_from_stack_to_stack(state.speech_stack, state.silence_stack, audio_track_id)
+    {:noreply, %{state | vads: [{:silence, audio_track_id} | state.vads]}}
+  end
 
-    {:noreply, %{state | silence_stack: silence_stack, speech_stack: speech_stack}}
+  @impl true
+  def handle_info({:vad_response, endpoint_to_tracks}, state) do
+    send(state.engine, {:tracks_priority, endpoint_to_tracks})
+    {:noreply, state}
   end
 
   @impl true
@@ -84,29 +100,42 @@ defmodule Membrane.RTC.Engine.TrackManager do
     {:noreply, %{state | endpoints: endpoints}}
   end
 
-  defp calculate_new_tracks_priority(endpoints, ordered_tracks) do
-    for audio_track <- ordered_tracks,
-        {_endpoint_id, endpoint} <- endpoints,
-        video_track <- EndpointManager.map_audio_to_video(endpoint, audio_track),
-        do: video_track
+  @impl true
+  def handle_info({:prioritize_track, endpoint_name, track_id}, state) do
+    endpoints =
+      Map.update!(
+        state.endpoints,
+        endpoint_name,
+        &EndpointManager.add_prioritized_track(&1, track_id)
+      )
+
+    {:noreply, %{state | endpoints: endpoints}}
   end
 
-  defp move_from_stack_to_stack(from_stack, to_stack, track_id) do
-    from_stack = Enum.reject(from_stack, &(&1 == track_id))
-    to_stack = [track_id | to_stack]
-    {from_stack, to_stack}
+  @impl true
+  def handle_info({:unprioritize_track, endpoint_name, track_id}, state) do
+    endpoints =
+      Map.update!(
+        state.endpoints,
+        endpoint_name,
+        &EndpointManager.remove_prioritized_track(&1, track_id)
+      )
+
+    {:noreply, %{state | endpoints: endpoints}}
   end
 
-  defp insert_tracks_priority_per_track(ordered_tracks, endpoints, ets_name) do
-    track_id_to_endpoints =
-      for endpoint <- endpoints,
-          received_track <- EndpointManager.calculate_tracks_priority(endpoint, ordered_tracks),
-          reduce: %{} do
-        acc -> Map.update(acc, received_track, [endpoint.id], &[endpoint.id | &1])
-      end
+  @impl true
+  def handle_info(
+        {:prefered_video_sizes, endpoint_name, big_screens, small_screens, same_size?},
+        state
+      ) do
+    endpoints =
+      update_in(
+        state.endpoints,
+        [endpoint_name, :screen_sizes],
+        &%{&1 | same_size?: same_size?, big_screens: big_screens, small_screens: small_screens}
+      )
 
-    Enum.map(track_id_to_endpoints, fn {track_id, endpoints} ->
-      :ets.insert(ets_name, {track_id, endpoints})
-    end)
+    {:noreply, %{state | endpoints: endpoints}}
   end
 end

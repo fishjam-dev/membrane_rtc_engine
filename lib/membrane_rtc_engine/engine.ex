@@ -418,7 +418,7 @@ defmodule Membrane.RTC.Engine do
 
     track_manager =
       if options[:track_manager?] do
-        {:ok, pid} = GenServer.start_link(TrackManager, options[:id])
+        {:ok, pid} = GenServer.start_link(TrackManager, ets_name: options[:id], engine: self())
         pid
       else
         nil
@@ -450,6 +450,18 @@ defmodule Membrane.RTC.Engine do
   @decorate trace("engine.other.unregister", include: [[:state, :id]])
   def handle_other({:unregister, pid}, _ctx, state) do
     Registry.unregister_match(get_registry_name(), self(), pid)
+    {:ok, state}
+  end
+
+  @impl true
+  @decorate trace("engine.other.tracks_priority", include: [[:state, :id]])
+  def handle_other({:tracks_priority, endpoint_to_tracks}, _ctx, state) do
+    Enum.map(endpoint_to_tracks, fn {{:endpoint, endpoint_id}, tracks} ->
+      MediaEvent.create_tracks_priority_event(tracks)
+      |> then(&%Message.MediaEvent{rtc_engine: self(), to: endpoint_id, data: &1})
+      |> dispatch()
+    end)
+
     {:ok, state}
   end
 

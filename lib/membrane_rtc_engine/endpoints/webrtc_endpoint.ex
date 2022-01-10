@@ -341,14 +341,22 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
-    defp handle_custom_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
-      msg = {:signal, :prioritize_track, data.track_id}
-      {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+    defp handle_custom_media_event(%{type: :prioritize_track, data: data}, _ctx, state) do
+      msg = {:prioritize_track, data.track_id}
+      send_if_not_nil(state.track_manager, msg)
+      {:ok, state}
     end
 
-    defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, ctx, state) do
-      msg = {:signal, :unprioritize_track, data.track_id}
-      {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+    defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, _ctx, state) do
+      msg = {:unprioritize_track, data.track_id}
+      send_if_not_nil(state.track_manager, msg)
+      {:ok, state}
+    end
+
+    defp handle_custom_media_event(%{type: :prefered_video_sizes, data: data}, _ctx, state) do
+      msg = {:prefered_video_sizes, data.big_screens, data.small_screens, data.same_size?}
+      send_if_not_nil(state.track_manager, msg)
+      {:ok, state}
     end
 
     defp get_turn_configs(turn_servers, state) do
@@ -432,15 +440,6 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         }
       }
 
-    defp serialize({:signal, {:prioritized_tracks, enabled_tracks, disabled_tracks}}),
-      do: %{
-        type: "prioritizedTracks",
-        data: %{
-          enabledTracks: enabled_tracks,
-          disabledTracks: disabled_tracks
-        }
-      }
-
     defp deserialize(%{"type" => "renegotiateTracks"}) do
       {:ok, %{type: :renegotiate_tracks}}
     end
@@ -456,6 +455,28 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       case event do
         %{"type" => "unprioritizeTrack", "data" => %{"trackId" => track_id}} ->
           {:ok, %{type: :unprioritize_track, data: %{track_id: track_id}}}
+      end
+    end
+
+    defp deserialize(%{"type" => "preferedVideoSizes"} = event) do
+      case event do
+        %{
+          "type" => "preferedVideoSizes",
+          "data" => %{
+            "bigScreens" => big_screens,
+            "smallScreens" => small_screens,
+            "allSameSize" => same_size?
+          }
+        } ->
+          {:ok,
+           %{
+             type: :prefered_video_sizes,
+             data: %{
+               big_screens: big_screens,
+               small_screens: small_screens,
+               same_size?: same_size?
+             }
+           }}
       end
     end
 

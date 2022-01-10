@@ -281,17 +281,6 @@ export class MembraneWebRTC {
         this.onAnswer(deserializedMediaEvent.data);
         break;
 
-      case "prioritizedTracks":
-        const enabledTracks = (deserializedMediaEvent.data.enabledTracks as string[]).map(
-          (trackId) => this.trackIdToTrack.get(trackId)!!
-        );
-        const disabledTracks = (deserializedMediaEvent.data.disabledTracks as string[]).map(
-          (trackId) => this.trackIdToTrack.get(trackId)!!
-        );
-
-        this.callbacks.onTracksPriorityChanged?.(enabledTracks, disabledTracks);
-        break;
-
       case "candidate":
         this.onRemoteCandidate(deserializedMediaEvent.data);
         break;
@@ -329,6 +318,17 @@ export class MembraneWebRTC {
         const trackContext = this.trackIdToTrack.get(trackId)!;
         trackContext.metadata = trackMetadata;
         this.callbacks.onTrackUpdated?.(trackContext);
+        break;
+
+      case "tracksPriority":
+        const enabledTracks = (deserializedMediaEvent.data.tracks as string[]).map(
+          (trackId) => this.trackIdToTrack.get(trackId)!!
+        );
+        const disabledTracks = Array.from(this.trackIdToTrack.values()).filter(
+          (track) => !enabledTracks.includes(track)
+        );
+
+        this.callbacks.onTracksPriorityChanged?.(enabledTracks, disabledTracks);
         break;
 
       case "custom":
@@ -545,6 +545,22 @@ export class MembraneWebRTC {
    */
   public unprioritizeTrack(trackId: string) {
     let mediaEvent = generateCustomEvent({ type: "unprioritizeTrack", data: { trackId } });
+    this.sendMediaEvent(mediaEvent);
+  }
+
+  /**
+   *
+   * @param {string} trackId - Id of video track to unprioritize.
+   */
+  public setPreferedVideoSizes(
+    bigScreens: number,
+    smallScreens: number,
+    allSameSize: boolean = false
+  ) {
+    let mediaEvent = generateCustomEvent({
+      type: "preferedVideoSizes",
+      data: { bigScreens, smallScreens, allSameSize },
+    });
     this.sendMediaEvent(mediaEvent);
   }
 

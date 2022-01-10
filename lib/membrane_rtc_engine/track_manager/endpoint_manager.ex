@@ -4,7 +4,13 @@ defmodule Membrane.RTC.Engine.EndpointManager do
   alias Membrane.RTC.Engine.Track
 
   @enforce_keys [:id, :video_tracks_limit]
-  defstruct @enforce_keys ++ [inbound_tracks: %{}, outbound_tracks: %{}, prioritized_tracks: []]
+  defstruct @enforce_keys ++
+              [
+                inbound_tracks: %{},
+                outbound_tracks: %{},
+                prioritized_tracks: [],
+                screens_sizes: %{same_size?: true, big_screens: nil, small_screens: nil}
+              ]
 
   @type id :: String.t()
 
@@ -13,7 +19,12 @@ defmodule Membrane.RTC.Engine.EndpointManager do
           inbound_tracks: %{Track.id() => Track.t()},
           outbound_tracks: %{Track.id() => Track.t()},
           video_tracks_limit: integer() | nil,
-          prioritized_tracks: [String.t()]
+          prioritized_tracks: [String.t()],
+          screens_sizes: %{
+            same_size?: boolean(),
+            big_screens: nil | integer(),
+            small_screens: nil | integer()
+          }
         }
 
   @doc """
@@ -75,6 +86,16 @@ defmodule Membrane.RTC.Engine.EndpointManager do
     ordered_tracks = ordered_tracks |> Enum.take(video_tracks_limit) |> Enum.map(& &1.id)
 
     endpoint.prioritized_tracks ++ ordered_tracks
+  end
+
+  @spec add_prioritized_track(endpoint :: t(), track_id :: Track.id()) :: t()
+  def add_prioritized_track(endpoint, track_id) do
+    %{endpoint | prioritized_tracks: [track_id | endpoint.prioritized_tracks]}
+  end
+
+  @spec remove_prioritized_track(endpoint :: t(), track_id :: Track.id()) :: t()
+  def remove_prioritized_track(endpoint, track_id) do
+    %{endpoint | prioritized_tracks: Enum.reject(endpoint.prioritized_tracks, &(&1 == track_id))}
   end
 
   defp update_tracks(tracks, track_id_to_track) do
