@@ -98,6 +98,11 @@ defmodule Membrane.RTC.Engine.EndpointManager do
     %{endpoint | prioritized_tracks: Enum.reject(endpoint.prioritized_tracks, &(&1 == track_id))}
   end
 
+  @spec get_video_tracks(endpoint :: t()) :: [Track.t()]
+  def get_video_tracks(endpoint) do
+    endpoint.inbound_tracks |> Map.values() |> Enum.filter(&(&1.type == :video))
+  end
+
   defp update_tracks(tracks, track_id_to_track) do
     Enum.reduce(tracks, track_id_to_track, fn track, acc ->
       Map.put(acc, track.id, track)

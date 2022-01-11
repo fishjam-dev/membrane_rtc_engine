@@ -19,9 +19,9 @@ defmodule Membrane.RTC.Utils do
     end
   end
 
-  defmacro filter_pads(ctx, pattern: pattern) do
+  defmacro filter_children(ctx, pattern: pattern) do
     quote do
-      unquote(ctx).pads |> Map.values() |> Enum.filter(&match?(unquote(pattern), &1.other_ref))
+      unquote(ctx).children |> Map.keys() |> Enum.filter(&match?(unquote(pattern), &1))
     end
   end
 

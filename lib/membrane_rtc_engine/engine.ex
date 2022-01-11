@@ -455,14 +455,20 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   @decorate trace("engine.other.tracks_priority", include: [[:state, :id]])
-  def handle_other({:tracks_priority, endpoint_to_tracks}, _ctx, state) do
-    Enum.map(endpoint_to_tracks, fn {{:endpoint, endpoint_id}, tracks} ->
-      MediaEvent.create_tracks_priority_event(tracks)
-      |> then(&%Message.MediaEvent{rtc_engine: self(), to: endpoint_id, data: &1})
-      |> dispatch()
-    end)
+  def handle_other({:tracks_priority, endpoint_to_tracks}, ctx, state) do
+    _msgs =
+      Enum.map(endpoint_to_tracks, fn {{:endpoint, endpoint_id}, tracks} ->
+        MediaEvent.create_tracks_priority_event(tracks)
+        |> then(&%Message.MediaEvent{rtc_engine: self(), to: endpoint_id, data: &1})
+        |> dispatch()
+      end)
 
-    {:ok, state}
+    tee_actions =
+      ctx
+      |> filter_children(pattern: {:tee, _tee_name})
+      |> Enum.flat_map(&[forward: {&1, :update_forward}])
+
+    {{:ok, tee_actions}, state}
   end
 
   @impl true

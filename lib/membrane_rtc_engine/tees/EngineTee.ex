@@ -1,6 +1,4 @@
 defmodule Membrane.RTC.Engine.Tee do
-  use Membrane.Filter
-
   @moduledoc """
   Element for forwarding buffers to at least one output pad
 
@@ -9,8 +7,13 @@ defmodule Membrane.RTC.Engine.Tee do
   * `:copy` - is a dynamic pad that can be linked to any number of elements (including 0) and works in push mode
 
   The `:master` pad dictates the speed of processing data and any element (or elements) connected to `:copy` pad
-  will receive the same data as `:master`
+  will receive the same data as `:master`.
+
+  It has got built-in mechanism for limiting forwarding video buffers.
+  It reads from ETS table on which pads it should forward buffers.
   """
+
+  use Membrane.Filter
 
   def_options track_id: [
                 spec: String.t(),
@@ -93,6 +96,11 @@ defmodule Membrane.RTC.Engine.Tee do
   @impl true
   def handle_demand(:master, size, :buffers, _ctx, state) do
     {{:ok, demand: {:input, size}}, state}
+  end
+
+  @impl true
+  def handle_other(:update_forward, _ctx, state) do
+    {:ok, %{state | forward_to: get_new_forward_to(state.ets_name, state.track_id)}}
   end
 
   defp get_new_forward_to(ets_name, track_id) do

@@ -5,6 +5,12 @@ defmodule Membrane.RTC.Engine.TrackManager do
   use GenServer
   alias Membrane.RTC.Engine.{SpeakersDetector, EndpointManager}
 
+  @type options_t :: [
+          ets_name: String.t(),
+          engine: pid()
+        ]
+
+  @spec start_link(opts :: options_t()) :: GenServer.on_start()
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
   end
@@ -29,26 +35,20 @@ defmodule Membrane.RTC.Engine.TrackManager do
   end
 
   @impl true
-  def handle_info({:vad_notification, audio_track_id, :speech}, state) do
-    state =
-      if state.calculating_priority? do
-        %{state | vads: [{:speech, audio_track_id} | state.vads]}
-      else
-        send(state.speakers_detector, {:vad, state.vads, state.endpoints})
-        %{state | vads: [], calculating_priority?: true}
-      end
-
+  def handle_info({:vad_notification, endpoint_name, :speech}, state) do
+    state = maybe_calculating_priority(state, [{:speech, endpoint_name} | state.vads])
     {:noreply, state}
   end
 
-  @impl true
-  def handle_info({:vad_notification, audio_track_id, :silence}, state) do
-    {:noreply, %{state | vads: [{:silence, audio_track_id} | state.vads]}}
+  def handle_info({:vad_notification, endpoint_name, :silence}, state) do
+    {:noreply, %{state | vads: [{:silence, endpoint_name, System.monotonic_time()} | state.vads]}}
   end
 
   @impl true
   def handle_info({:vad_response, endpoint_to_tracks}, state) do
     send(state.engine, {:tracks_priority, endpoint_to_tracks})
+    state = %{state | calculating_priority?: false}
+    state = maybe_calculating_priority(state)
     {:noreply, state}
   end
 
@@ -61,7 +61,7 @@ defmodule Membrane.RTC.Engine.TrackManager do
         EndpointManager.new(endpoint_name, video_tracks_limit)
       )
 
-    {:noreply, %{state | endpoints: endpoints}}
+    {:noreply, %{state | endpoints: endpoints, vads: [{:register, endpoint_name} | state.vads]}}
   end
 
   @impl true
@@ -109,6 +109,8 @@ defmodule Membrane.RTC.Engine.TrackManager do
         &EndpointManager.add_prioritized_track(&1, track_id)
       )
 
+    state = maybe_calculating_priority(state, [nil | state.vads])
+
     {:noreply, %{state | endpoints: endpoints}}
   end
 
@@ -137,5 +139,18 @@ defmodule Membrane.RTC.Engine.TrackManager do
       )
 
     {:noreply, %{state | endpoints: endpoints}}
+  end
+
+  defp maybe_calculating_priority(state, vads \\ nil) do
+    vads = vads || state.vads
+
+    vads = Enum.reverse(vads)
+
+    if not state.calculating_priority? and Enum.count(vads) > 0 do
+      send(state.speakers_detector, {:vad, state.vads, state.endpoints})
+      %{state | vads: [], calculating_priority?: true}
+    else
+      %{state | vads: vads}
+    end
   end
 end

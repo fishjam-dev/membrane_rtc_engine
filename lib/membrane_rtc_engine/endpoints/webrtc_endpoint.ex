@@ -218,14 +218,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
-      [audio_track | _] =
-        state.inbound_tracks
-        |> Enum.map(fn {_track_id, track} -> track end)
-        |> Enum.filter(&(&1.type == :audio))
-
       send(state.owner, {:vad_notification, val, ctx.name})
 
-      send_if_not_nil(state.track_manager, {:vad_notification, audio_track.id, val})
+      send_if_not_nil(state.track_manager, {:vad_notification, ctx.name, val})
 
       {:ok, state}
     end
@@ -341,14 +336,14 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
-    defp handle_custom_media_event(%{type: :prioritize_track, data: data}, _ctx, state) do
-      msg = {:prioritize_track, data.track_id}
+    defp handle_custom_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
+      msg = {:prioritize_track, ctx.name, data.track_id}
       send_if_not_nil(state.track_manager, msg)
       {:ok, state}
     end
 
-    defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, _ctx, state) do
-      msg = {:unprioritize_track, data.track_id}
+    defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, ctx, state) do
+      msg = {:unprioritize_track, ctx.name, data.track_id}
       send_if_not_nil(state.track_manager, msg)
       {:ok, state}
     end

@@ -4,6 +4,12 @@ defmodule Membrane.RTC.Engine.SpeakersDetector do
   use GenServer
   alias Membrane.RTC.Engine.EndpointManager
 
+  @type options_t :: [
+          ets_name: atom(),
+          track_manager: pid()
+        ]
+
+  @spec start_link(opts :: options_t()) :: GenServer.on_start()
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
   end
@@ -14,50 +20,58 @@ defmodule Membrane.RTC.Engine.SpeakersDetector do
      %{
        ets_name: opts[:ets_name],
        track_manager: opts[:track_manager],
-       silence_stack: [],
-       speech_stack: []
+       endpoint_name_to_end_of_speech: %{}
      }}
   end
 
   @impl true
   def handle_info({:vad, notifications, endpoints}, state) do
-    {speech_stack, silence_stack} =
-      Enum.reduce(notifications, {state.speech_stack, state.silence_stack}, fn
-        {:speech, track_id}, {speech_stack, silence_stack} ->
-          {silence_stack, speech_stack} =
-            move_from_stack_to_stack(silence_stack, speech_stack, track_id)
+    endpoint_name_to_end_of_speech =
+      Enum.reduce(notifications, state.endpoint_name_to_end_of_speech, fn
+        {:speech, endpoint_name}, acc ->
+          Map.put(acc, endpoint_name, :speaking)
 
-          {speech_stack, silence_stack}
+        {:silence, endpoint_name, timestamp}, acc ->
+          Map.put(acc, endpoint_name, timestamp)
 
-        {:silence, track_id}, {speech_stack, silence_stack} ->
-          {speech_stack, silence_stack} =
-            move_from_stack_to_stack(speech_stack, silence_stack, track_id)
+        {:register, endpoint_name}, acc ->
+          Map.put_new(acc, endpoint_name, nil)
 
-          {speech_stack, silence_stack}
+        _other, acc ->
+          acc
       end)
 
-    ordered_tracks = calculate_new_tracks_priority(endpoints, speech_stack ++ silence_stack)
+    current_time = System.monotonic_time()
 
-    endpoint_name_to_tracks = endpoint_to_receive_tracks(ordered_tracks, Map.values(endpoints))
+    ordered_endpoints_name =
+      endpoint_name_to_end_of_speech
+      |> Enum.map(fn
+        {endpoint_name, :speaking} -> {endpoint_name, 1}
+        {endpoint_name, nil} -> {endpoint_name, 0}
+        {endpoint_name, timestamp} -> {endpoint_name, timestamp / current_time}
+      end)
+      |> Enum.sort_by(fn {_endpoint_name, time} -> time end)
+      |> Enum.map(fn {endpoint_name, _time} -> endpoint_name end)
 
-    insert_tracks_priority_per_track(endpoint_name_to_tracks, state.ets_name)
+    ordered_tracks = calculate_new_tracks_priority(endpoints, ordered_endpoints_name)
+
+    endpoints = Map.values(endpoints)
+
+    endpoint_name_to_tracks = endpoint_to_receive_tracks(ordered_tracks, endpoints)
+
+    all_video_tracks = Enum.flat_map(endpoints, &EndpointManager.get_video_tracks/1)
+
+    insert_tracks_priority_per_track(endpoint_name_to_tracks, all_video_tracks, state.ets_name)
 
     send(state.track_manager, {:vad_response, endpoint_name_to_tracks})
 
-    {:noreply, state}
+    {:noreply, %{state | endpoint_name_to_end_of_speech: endpoint_name_to_end_of_speech}}
   end
 
-  defp move_from_stack_to_stack(from_stack, to_stack, track_id) do
-    from_stack = Enum.reject(from_stack, &(&1 == track_id))
-    to_stack = [track_id | to_stack]
-    {from_stack, to_stack}
-  end
-
-  defp calculate_new_tracks_priority(endpoints, ordered_tracks) do
-    for audio_track <- ordered_tracks,
-        {_endpoint_id, endpoint} <- endpoints,
-        video_track <- EndpointManager.map_audio_to_video(endpoint, audio_track),
-        do: video_track
+  defp calculate_new_tracks_priority(endpoints, ordered_endpoints_name) do
+    Enum.flat_map(ordered_endpoints_name, fn endpoint_name ->
+      endpoints |> Map.get(endpoint_name) |> EndpointManager.get_video_tracks()
+    end)
   end
 
   defp endpoint_to_receive_tracks(ordered_tracks, endpoints) do
@@ -68,12 +82,15 @@ defmodule Membrane.RTC.Engine.SpeakersDetector do
     end
   end
 
-  defp insert_tracks_priority_per_track(endpoint_name_to_tracks, ets_name) do
+  defp insert_tracks_priority_per_track(endpoint_name_to_tracks, all_video_tracks, ets_name) do
+    track_id_to_endpoints = Map.new(all_video_tracks, &{&1.id, []})
+
     track_id_to_endpoints =
       for {endpoint_name, tracks} <- endpoint_name_to_tracks,
           received_track <- tracks,
-          reduce: %{} do
-        acc -> Map.update(acc, received_track, [endpoint_name], &[endpoint_name | &1])
+          reduce: track_id_to_endpoints do
+        acc ->
+          Map.update(acc, received_track, [endpoint_name], &[endpoint_name | &1])
       end
 
     Enum.map(track_id_to_endpoints, fn {track_id, endpoints} ->
