@@ -34,7 +34,17 @@ if Enum.all?(
                   description: """
                   Framerate of tracks
                   """,
-                  default: 30
+                  default: {30, 1}
+                ],
+                hls_mode: [
+                  spec: :separate_av | :muxed_av,
+                  default: :muxed_av,
+                  description: """
+                  Defines output mode for `Membrane.HTTPAdaptiveStream.SinkBin`.
+
+                  - `:separate_av` - audio and video tracks will be separated
+                  - `:muxed_av` - audio will be attached to every video track
+                  """
                 ]
 
     @impl true
@@ -44,7 +54,8 @@ if Enum.all?(
         stream_ids: MapSet.new(),
         output_directory: opts.output_directory,
         owner: opts.owner,
-        framerate: opts.framerate
+        framerate: opts.framerate,
+        hls_mode: opts.hls_mode
       }
 
       {:ok, state}
@@ -127,7 +138,8 @@ if Enum.all?(
             persist?: false,
             storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
               directory: directory
-            }
+            },
+            hls_mode: state.hls_mode
           }
 
           new_spec = %{
