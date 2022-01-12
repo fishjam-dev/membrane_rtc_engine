@@ -674,7 +674,12 @@ defmodule Membrane.RTC.Engine do
     track = state.endpoints |> Map.get(endpoint_id) |> Endpoint.get_track_by_id(track_id)
 
     children = %{
-      endpoint_tee => %Tee{ets_name: state.id, track_id: track_id, type: track.type},
+      endpoint_tee =>
+        if state.track_manager != nil do
+          %Tee{ets_name: state.id, track_id: track_id, type: track.type}
+        else
+          Membrane.Element.Tee.Master
+        end,
       fake => Membrane.Element.Fake.Sink.Buffers,
       filter => depayloading_filter,
       filter_tee => Membrane.Element.Tee.Master,
@@ -988,6 +993,8 @@ defmodule Membrane.RTC.Engine do
         MediaEvent.create_peer_left_event(peer_id)
         |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
         |> dispatch()
+
+        send_if_not_nil(state.track_manager, {:unregister, {:endpoint, peer_id}})
 
         {actions, state}
     end

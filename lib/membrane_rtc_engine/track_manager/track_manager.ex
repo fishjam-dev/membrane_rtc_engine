@@ -65,6 +65,17 @@ defmodule Membrane.RTC.Engine.TrackManager do
   end
 
   @impl true
+  def handle_info({:unregister_endpoint, endpoint_name}, state) do
+    endpoints =
+      Map.delete(
+        state.endpoints,
+        endpoint_name
+      )
+
+    {:noreply, %{state | endpoints: endpoints, vads: [{:unregister, endpoint_name} | state.vads]}}
+  end
+
+  @impl true
   def handle_info({:new_tracks, endpoint_name, tracks}, state) do
     endpoints =
       Map.update!(

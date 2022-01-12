@@ -37,6 +37,9 @@ defmodule Membrane.RTC.Engine.SpeakersDetector do
         {:register, endpoint_name}, acc ->
           Map.put_new(acc, endpoint_name, nil)
 
+        {:unregister, endpoint_name}, acc ->
+          Map.put(acc, endpoint_name, nil)
+
         _other, acc ->
           acc
       end)
