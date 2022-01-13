@@ -82,9 +82,14 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   them are actively speaking.
                   """
                 ],
+                use_integrated_turn: [
+                  spec: boolean(),
+                  default: false,
+                  description: "Set to `true`, to use integrated TURN instead of libnice"
+                ],
                 integrated_turn_options: [
                   spec: Membrane.TURN.Endpoint.integrated_turn_options_t(),
-                  default: [use_integrated_turn: false]
+                  default: []
                 ],
                 owner: [
                   spec: pid(),
@@ -121,6 +126,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         inbound_tracks: [],
         outbound_tracks: [],
         extensions: opts.webrtc_extensions || [],
+        use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
         trace_context: opts.trace_context,
         trace_metadata: [name: opts.ice_name]
@@ -135,6 +141,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         outbound_tracks: %{},
         inbound_tracks: %{},
         extensions: opts.extensions || %{},
+        use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
         owner: opts.owner
       }
@@ -149,8 +156,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           _ctx,
           state
         ) do
-      enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
-
+      enforce_turns? = state.use_integrated_turn || false
       {{:ok, notify: {:integrated_turn_servers, turns, enforce_turns?}}, state}
     end
 
@@ -202,7 +208,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           state
         ) do
       turns = get_turn_configs(state.ice_name, turns)
-      enforce_turns? = state.integrated_turn_options[:use_integrated_turn] || false
+      enforce_turns? = state.use_integrated_turn || false
 
       media_event_data = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
       {{:ok, notify: {:custom_media_event, serialize(media_event_data)}}, state}
@@ -347,7 +353,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         type: "offerData",
         data: %{
           tracksTypes: tracks_types,
-          integratedTurnServers: integrated_turn_servers,
+          integratedTurnServers:
+            integrated_turn_servers |> IO.inspect(label: "integrated_turn_servers"),
           iceTransportPolicy: if(enforce_turns?, do: "relay", else: "all")
         }
       }
