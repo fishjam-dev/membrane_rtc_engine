@@ -87,6 +87,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   default: false,
                   description: "Set to `true`, to use integrated TURN instead of libnice"
                 ],
+                integrated_turn_domain: [
+                  spec: binary() | nil,
+                  description: "Domain address of integrated TURN Servers. Required for TLS TURN"
+                ],
                 integrated_turn_options: [
                   spec: Membrane.TURN.Endpoint.integrated_turn_options_t(),
                   default: []
@@ -143,6 +147,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         extensions: opts.extensions || %{},
         use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
+        integrated_turn_domain: opts.integrated_turn_domain,
         owner: opts.owner
       }
 
@@ -211,7 +216,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       enforce_turns? = state.use_integrated_turn || false
 
       media_event_data = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
-      {{:ok, notify: {:custom_media_event, serialize(media_event_data)}}, state}
+      {{:ok, notify: {:custom_media_event, serialize(media_event_data, state)}}, state}
     end
 
     @impl true
@@ -221,7 +226,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           _ctx,
           state
         ) do
-      {{:ok, notify: {:custom_media_event, serialize(media_event_data)}}, state}
+      {{:ok, notify: {:custom_media_event, serialize(media_event_data, state)}}, state}
     end
 
     @impl true
@@ -325,7 +330,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           Map.put(acc, track.id, track)
         end)
 
-    defp serialize({:signal, {:sdp_answer, answer, mid_to_track_id}}),
+    defp serialize({:signal, {:sdp_answer, answer, mid_to_track_id}}, _state),
       do: %{
         type: "sdpAnswer",
         data: %{
@@ -335,10 +340,13 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         }
       }
 
-    defp serialize({:signal, {:offer_data, tracks_types, turns, enforce_turns?}}) do
+    defp serialize({:signal, {:offer_data, tracks_types, turns, enforce_turns?}}, state) do
       integrated_turn_servers =
         Enum.map(turns, fn turn ->
-          addr = :inet.ntoa(turn.mocked_server_addr) |> to_string()
+          addr =
+            if state.integrated_turn_domain,
+              do: state.integrated_turn_domain,
+              else: :inet.ntoa(turn.mocked_server_addr) |> to_string()
 
           %{
             serverAddr: addr,
@@ -360,7 +368,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       }
     end
 
-    defp serialize({:signal, {:candidate, candidate, sdp_m_line_index}}),
+    defp serialize({:signal, {:candidate, candidate, sdp_m_line_index}}, _state),
       do: %{
         type: "candidate",
         data: %{
@@ -371,7 +379,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         }
       }
 
-    defp serialize({:signal, {:sdp_offer, offer}}),
+    defp serialize({:signal, {:sdp_offer, offer}}, _state),
       do: %{
         type: "sdpOffer",
         data: %{
