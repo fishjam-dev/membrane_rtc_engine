@@ -353,8 +353,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         type: "offerData",
         data: %{
           tracksTypes: tracks_types,
-          integratedTurnServers:
-            integrated_turn_servers |> IO.inspect(label: "integrated_turn_servers"),
+          integratedTurnServers: integrated_turn_servers,
           iceTransportPolicy: if(enforce_turns?, do: "relay", else: "all")
         }
       }
