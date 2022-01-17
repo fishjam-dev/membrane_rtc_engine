@@ -184,7 +184,7 @@ if Enum.all?(
       do: %ParentSpec{
         children: %{
           {:video_parser, track_id} => %Membrane.H264.FFmpeg.Parser{
-            framerate: {framerate, 1},
+            framerate: framerate,
             alignment: :au,
             attach_nalus?: true
           }
