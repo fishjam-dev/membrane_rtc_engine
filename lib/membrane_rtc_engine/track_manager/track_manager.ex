@@ -120,9 +120,11 @@ defmodule Membrane.RTC.Engine.TrackManager do
         &EndpointManager.add_prioritized_track(&1, track_id)
       )
 
-    state = maybe_calculating_priority(state, [nil | state.vads])
+    state = %{state | endpoints: endpoints}
 
-    {:noreply, %{state | endpoints: endpoints}}
+    state = maybe_calculating_priority(state, [:prioritize_track | state.vads])
+
+    {:noreply, state}
   end
 
   @impl true
@@ -139,14 +141,21 @@ defmodule Membrane.RTC.Engine.TrackManager do
 
   @impl true
   def handle_info(
-        {:prefered_video_sizes, endpoint_name, big_screens, small_screens, same_size?},
+        {:prefered_video_sizes, endpoint_name, big_screens, medium_screens, small_screens,
+         same_size?},
         state
       ) do
     endpoints =
       update_in(
         state.endpoints,
         [endpoint_name, :screen_sizes],
-        &%{&1 | same_size?: same_size?, big_screens: big_screens, small_screens: small_screens}
+        &%{
+          &1
+          | same_size?: same_size?,
+            big_screens: big_screens,
+            medium_screens: medium_screens,
+            small_screens: small_screens
+        }
       )
 
     {:noreply, %{state | endpoints: endpoints}}
@@ -158,7 +167,7 @@ defmodule Membrane.RTC.Engine.TrackManager do
     vads = Enum.reverse(vads)
 
     if not state.calculating_priority? and Enum.count(vads) > 0 do
-      send(state.speakers_detector, {:vad, state.vads, state.endpoints})
+      send(state.speakers_detector, {:calculcate_track_priorities, vads, state.endpoints})
       %{state | vads: [], calculating_priority?: true}
     else
       %{state | vads: vads}

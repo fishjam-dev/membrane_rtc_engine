@@ -555,11 +555,12 @@ export class MembraneWebRTC {
   public setPreferedVideoSizes(
     bigScreens: number,
     smallScreens: number,
+    mediumScreens: number = 0,
     allSameSize: boolean = false
   ) {
     let mediaEvent = generateCustomEvent({
       type: "preferedVideoSizes",
-      data: { bigScreens, smallScreens, allSameSize },
+      data: { bigScreens, mediumScreens, smallScreens, allSameSize },
     });
     this.sendMediaEvent(mediaEvent);
   }

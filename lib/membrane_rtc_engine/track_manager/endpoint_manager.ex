@@ -23,6 +23,7 @@ defmodule Membrane.RTC.Engine.EndpointManager do
           screens_sizes: %{
             same_size?: boolean(),
             big_screens: nil | integer(),
+            medium_screens: nil | integer(),
             small_screens: nil | integer()
           }
         }
@@ -99,6 +100,10 @@ defmodule Membrane.RTC.Engine.EndpointManager do
   end
 
   @spec get_video_tracks(endpoint :: t()) :: [Track.t()]
+  def get_video_tracks(nil) do
+    []
+  end
+
   def get_video_tracks(endpoint) do
     endpoint.inbound_tracks |> Map.values() |> Enum.filter(&(&1.type == :video))
   end

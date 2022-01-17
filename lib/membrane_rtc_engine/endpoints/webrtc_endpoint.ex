@@ -349,7 +349,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     defp handle_custom_media_event(%{type: :prefered_video_sizes, data: data}, _ctx, state) do
-      msg = {:prefered_video_sizes, data.big_screens, data.small_screens, data.same_size?}
+      msg =
+        {:prefered_video_sizes, data.big_screens, data.medium_screens, data.small_screens,
+         data.same_size?}
+
       send_if_not_nil(state.track_manager, msg)
       {:ok, state}
     end
@@ -459,6 +462,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           "type" => "preferedVideoSizes",
           "data" => %{
             "bigScreens" => big_screens,
+            "mediumScreens" => medium_screens,
             "smallScreens" => small_screens,
             "allSameSize" => same_size?
           }
@@ -468,6 +472,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
              type: :prefered_video_sizes,
              data: %{
                big_screens: big_screens,
+               medium_screens: medium_screens,
                small_screens: small_screens,
                same_size?: same_size?
              }

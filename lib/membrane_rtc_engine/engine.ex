@@ -994,7 +994,7 @@ defmodule Membrane.RTC.Engine do
         |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
         |> dispatch()
 
-        send_if_not_nil(state.track_manager, {:unregister, {:endpoint, peer_id}})
+        send_if_not_nil(state.track_manager, {:unregister_endpoint, {:endpoint, peer_id}})
 
         {actions, state}
     end
