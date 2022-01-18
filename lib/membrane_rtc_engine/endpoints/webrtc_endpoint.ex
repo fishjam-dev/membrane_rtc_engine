@@ -112,11 +112,12 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                 video_tracks_limit: [
                   spec: integer() | nil,
                   default: nil,
-                  description: "Limit of video tracks.
+                  description: """
+                  Maximal number of video tracks that will be sent to the the browser at the same time.
 
-                  This variable indicate how many video tracks should be enabled in TrackFilter and forward to browser.
-                  If `nil` all video tracks will be forwarded to browser.
-                  "
+                  This variable indicates how many video tracks should be sent to the browser at the same time.
+                  If `nil` all video tracks this `#{inspect(__MODULE__)}` receives will be sent.
+                  """
                 ]
 
     def_input_pad :input,
@@ -181,7 +182,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
       inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
-      send_if_not_nil(state.track_manager, {:new_tracks, ctx.name, tracks})
+      send_if_not_nil(state.track_manager, {:add_inbound_tracks, ctx.name, tracks})
 
       {{:ok, notify: {:publish, {:new_tracks, tracks}}},
        %{state | inbound_tracks: inbound_tracks}}
@@ -208,12 +209,12 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_notification({:negotiation_done, new_outbound_tracks}, _from, ctx, state) do
-      subscribed_tracks =
+      new_outbound_tracks =
         Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
 
-      tracks = Enum.map(subscribed_tracks, fn track -> {track.id, :RTP} end)
-      send_if_not_nil(state.track_manager, {:subscribe_tracks, ctx.name, subscribed_tracks})
-      {{:ok, notify: {:subscribe, tracks}}, state}
+      subscriptions = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
+      send_if_not_nil(state.track_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
+      {{:ok, notify: {:subscribe, subscriptions}}, state}
     end
 
     @impl true

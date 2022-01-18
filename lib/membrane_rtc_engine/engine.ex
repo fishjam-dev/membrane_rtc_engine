@@ -418,7 +418,7 @@ defmodule Membrane.RTC.Engine do
 
     track_manager =
       if options[:track_manager?] do
-        {:ok, pid} = GenServer.start_link(TrackManager, ets_name: options[:id], engine: self())
+        {:ok, pid} = TrackManager.start_link(ets_name: options[:id], engine: self())
         pid
       else
         nil
@@ -466,7 +466,7 @@ defmodule Membrane.RTC.Engine do
     tee_actions =
       ctx
       |> filter_children(pattern: {:tee, _tee_name})
-      |> Enum.flat_map(&[forward: {&1, :update_forward}])
+      |> Enum.flat_map(&[forward: {&1, :track_priorities_updated}])
 
     {{:ok, tee_actions}, state}
   end
@@ -822,44 +822,6 @@ defmodule Membrane.RTC.Engine do
     MediaEvent.create_tracks_removed_event(endpoint_id, track_ids)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
     |> dispatch()
-
-    {{:ok, tracks_msgs}, state}
-  end
-
-  @impl true
-  @decorate trace("engine.notification.publish.prioritized",
-              include: [:endpoint_id, [:state, :id]]
-            )
-  def handle_notification(
-        {:publish, {:prioritized_tracks, audio_tracks}},
-        {:endpoint, endpoint_id},
-        ctx,
-        state
-      ) do
-    audio_track_id_to_video_tracks =
-      Enum.reduce(state.endpoints, %{}, fn {_endpoint_id, endpoint}, acc ->
-        case Endpoint.get_audio_tracks(endpoint) do
-          [] ->
-            acc
-
-          [audio_track | _] ->
-            video_tracks_id = endpoint |> Endpoint.get_video_tracks() |> Enum.map(& &1.id)
-            Map.put(acc, audio_track.id, video_tracks_id)
-        end
-      end)
-
-    prioritized_video_tracks =
-      Enum.flat_map(audio_tracks, fn audio_track ->
-        Map.get(audio_track_id_to_video_tracks, audio_track.id, [])
-      end)
-
-    tracks_msgs =
-      do_publish(
-        state.endpoints,
-        ctx,
-        {:prioritized_tracks, prioritized_video_tracks},
-        {:endpoint, endpoint_id}
-      )
 
     {{:ok, tracks_msgs}, state}
   end

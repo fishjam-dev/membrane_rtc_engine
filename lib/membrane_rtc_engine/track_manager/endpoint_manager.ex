@@ -42,21 +42,29 @@ defmodule Membrane.RTC.Engine.EndpointManager do
     }
   end
 
-  @spec add_tracks(endpoint :: t(), tracks :: [Track.t()], which_tracks :: atom()) :: t()
-  def add_tracks(endpoint, tracks, which_tracks) do
-    track_id_to_track = Map.fetch!(endpoint, which_tracks)
+  @spec add_tracks(
+          endpoint :: t(),
+          tracks :: [Track.t()],
+          type :: :inbound_tracks | :outbound_tracks
+        ) :: t()
+  def add_tracks(endpoint, tracks, type) do
+    track_id_to_track = Map.fetch!(endpoint, type)
     track_id_to_track = update_tracks(tracks, track_id_to_track)
-    Map.put(endpoint, which_tracks, track_id_to_track)
+    Map.update!(endpoint, type, track_id_to_track)
   end
 
-  @spec remove_tracks(endpoint :: t(), tracks :: [Track.t()], which_tracks :: atom()) :: t()
-  def remove_tracks(endpoint, tracks, which_tracks) do
-    track_id_to_track = Map.fetch!(endpoint, which_tracks)
+  @spec remove_tracks(
+          endpoint :: t(),
+          tracks :: [Track.t()],
+          type :: :inbound_tracks | :outbound_tracks
+        ) :: t()
+  def remove_tracks(endpoint, tracks, type) do
+    track_id_to_track = Map.fetch!(endpoint, type)
 
     track_id_to_track =
       Enum.reduce(tracks, track_id_to_track, fn track, acc -> Map.pop(acc, track.id) end)
 
-    Map.put(endpoint, which_tracks, track_id_to_track)
+    Map.update!(endpoint, type, track_id_to_track)
   end
 
   @spec map_audio_to_video(endpoint_manager :: t(), track_id :: Track.id()) :: [Track.t()]
@@ -70,8 +78,10 @@ defmodule Membrane.RTC.Engine.EndpointManager do
     end
   end
 
-  @spec calculate_tracks_priority(endpoint :: t(), ordered_tracks :: [Track.id()]) :: [Track.id()]
-  def calculate_tracks_priority(endpoint, ordered_tracks) do
+  @spec calculate_track_priorities(endpoint :: t(), ordered_tracks :: [Track.id()]) :: [
+          Track.id()
+        ]
+  def calculate_track_priorities(endpoint, ordered_tracks) do
     ordered_tracks =
       Enum.reject(ordered_tracks, fn track ->
         Map.has_key?(endpoint.inbound_tracks, track.id) or track.id in endpoint.prioritized_tracks
@@ -89,22 +99,22 @@ defmodule Membrane.RTC.Engine.EndpointManager do
     endpoint.prioritized_tracks ++ ordered_tracks
   end
 
-  @spec add_prioritized_track(endpoint :: t(), track_id :: Track.id()) :: t()
-  def add_prioritized_track(endpoint, track_id) do
+  @spec prioritize_track(endpoint :: t(), track_id :: Track.id()) :: t()
+  def prioritize_track(endpoint, track_id) do
     %{endpoint | prioritized_tracks: [track_id | endpoint.prioritized_tracks]}
   end
 
-  @spec remove_prioritized_track(endpoint :: t(), track_id :: Track.id()) :: t()
-  def remove_prioritized_track(endpoint, track_id) do
+  @spec unprioritize_track(endpoint :: t(), track_id :: Track.id()) :: t()
+  def unprioritize_track(endpoint, track_id) do
     %{endpoint | prioritized_tracks: Enum.reject(endpoint.prioritized_tracks, &(&1 == track_id))}
   end
 
-  @spec get_video_tracks(endpoint :: t()) :: [Track.t()]
-  def get_video_tracks(nil) do
+  @spec get_inbound_video_tracks(endpoint :: t()) :: [Track.t()]
+  def get_inbound_video_tracks(nil) do
     []
   end
 
-  def get_video_tracks(endpoint) do
+  def get_inbound_video_tracks(endpoint) do
     endpoint.inbound_tracks |> Map.values() |> Enum.filter(&(&1.type == :video))
   end
 

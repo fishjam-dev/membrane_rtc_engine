@@ -125,6 +125,8 @@ export interface Callbacks {
 
   /**
    * Called in situtation when priority of video tracks changed.
+   * enabledTracks - list of tracks which will be sent to client from SFU
+   * disabledTracks - list of tracks which will not be sent to client from SFU
    */
   onTracksPriorityChanged?: (enabledTracks: TrackContext[], disabledTracks: TrackContext[]) => void;
 }
@@ -532,7 +534,7 @@ export class MembraneWebRTC {
   }
 
   /**
-   * Prioritize a track in connection to be always forward to browser.
+   * Prioritizes a track in connection to be always sent to browser.
    * @param {string} trackId - Id of video track to prioritize.
    */
   public prioritizeTrack(trackId: string) {
@@ -540,7 +542,7 @@ export class MembraneWebRTC {
     this.sendMediaEvent(mediaEvent);
   }
   /**
-   * Unprioritize a track.
+   * Unprioritizes a track.
    * @param {string} trackId - Id of video track to unprioritize.
    */
   public unprioritizeTrack(trackId: string) {
@@ -550,7 +552,13 @@ export class MembraneWebRTC {
 
   /**
    *
-   * @param {string} trackId - Id of video track to unprioritize.
+   * @param {number} bigScreens - number of screens with big size
+   * (if simulcast used this will limit number of tracks sent with highest quality).
+   * @param {number} smallScreens - number of screens with small size
+   * (if simulcast used this will limit number of tracks sent with lowest quality).
+   * @param {number} mediumScreens - number of screens with medium size
+   * (if simulcast used this will limit number of tracks sent with medium quality).
+   * @param {boolean} allSameSize - flag if all screens should use same quality
    */
   public setPreferedVideoSizes(
     bigScreens: number,

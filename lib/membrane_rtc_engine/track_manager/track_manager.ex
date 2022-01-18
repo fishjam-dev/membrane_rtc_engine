@@ -21,11 +21,11 @@ defmodule Membrane.RTC.Engine.TrackManager do
     ets_name = opts[:ets_name]
     ets_name = :"#{ets_name}"
     :ets.new(ets_name, [:set, :public, :named_table])
-    {:ok, pid} = GenServer.start_link(SpeakersDetector, ets_name: ets_name, track_manager: self())
+    {:ok, pid} = SpeakersDetector.start_link(ets_name: ets_name, track_manager: self())
 
     {:ok,
      %{
-       endpoints: %{},
+       endpoint_managers: %{},
        ets_name: ets_name,
        engine: engine_pid,
        speakers_detector: pid,
@@ -36,10 +36,11 @@ defmodule Membrane.RTC.Engine.TrackManager do
 
   @impl true
   def handle_info({:vad_notification, endpoint_name, :speech}, state) do
-    state = maybe_calculating_priority(state, [{:speech, endpoint_name} | state.vads])
+    state = maybe_calculate_priority(state, [{:speech, endpoint_name} | state.vads])
     {:noreply, state}
   end
 
+  @impl true
   def handle_info({:vad_notification, endpoint_name, :silence}, state) do
     {:noreply, %{state | vads: [{:silence, endpoint_name, System.monotonic_time()} | state.vads]}}
   end
@@ -48,7 +49,7 @@ defmodule Membrane.RTC.Engine.TrackManager do
   def handle_info({:vad_response, endpoint_to_tracks}, state) do
     send(state.engine, {:tracks_priority, endpoint_to_tracks})
     state = %{state | calculating_priority?: false}
-    state = maybe_calculating_priority(state)
+    state = maybe_calculate_priority(state)
     {:noreply, state}
   end
 
@@ -61,7 +62,7 @@ defmodule Membrane.RTC.Engine.TrackManager do
         EndpointManager.new(endpoint_name, video_tracks_limit)
       )
 
-    {:noreply, %{state | endpoints: endpoints, vads: [{:register, endpoint_name} | state.vads]}}
+    {:noreply, %{state | endpoints: endpoints}}
   end
 
   @impl true
@@ -72,11 +73,14 @@ defmodule Membrane.RTC.Engine.TrackManager do
         endpoint_name
       )
 
-    {:noreply, %{state | endpoints: endpoints, vads: [{:unregister, endpoint_name} | state.vads]}}
+    state = %{state | endpoints: endpoints}
+    state = maybe_calculate_priority(state, [{:unregister, endpoint_name} | state.vads])
+
+    {:noreply, state}
   end
 
   @impl true
-  def handle_info({:new_tracks, endpoint_name, tracks}, state) do
+  def handle_info({:add_inbound_tracks, endpoint_name, tracks}, state) do
     endpoints =
       Map.update!(
         state.endpoints,
@@ -84,7 +88,10 @@ defmodule Membrane.RTC.Engine.TrackManager do
         &EndpointManager.add_tracks(&1, tracks, :inbound_tracks)
       )
 
-    {:noreply, %{state | endpoints: endpoints}}
+    state = %{state | endpoints: endpoints}
+    state = maybe_calculate_priority(state, [{:new_track, endpoint_name} | state.vads])
+
+    {:noreply, state}
   end
 
   @impl true
@@ -117,12 +124,12 @@ defmodule Membrane.RTC.Engine.TrackManager do
       Map.update!(
         state.endpoints,
         endpoint_name,
-        &EndpointManager.add_prioritized_track(&1, track_id)
+        &EndpointManager.prioritize_track(&1, track_id)
       )
 
     state = %{state | endpoints: endpoints}
 
-    state = maybe_calculating_priority(state, [:prioritize_track | state.vads])
+    state = maybe_calculate_priority(state, [:prioritize_track | state.vads])
 
     {:noreply, state}
   end
@@ -133,7 +140,7 @@ defmodule Membrane.RTC.Engine.TrackManager do
       Map.update!(
         state.endpoints,
         endpoint_name,
-        &EndpointManager.remove_prioritized_track(&1, track_id)
+        &EndpointManager.unprioritize_track(&1, track_id)
       )
 
     {:noreply, %{state | endpoints: endpoints}}
@@ -161,7 +168,7 @@ defmodule Membrane.RTC.Engine.TrackManager do
     {:noreply, %{state | endpoints: endpoints}}
   end
 
-  defp maybe_calculating_priority(state, vads \\ nil) do
+  defp maybe_calculate_priority(state, vads \\ nil) do
     vads = vads || state.vads
 
     vads = Enum.reverse(vads)

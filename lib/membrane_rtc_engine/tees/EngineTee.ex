@@ -70,8 +70,7 @@ defmodule Membrane.RTC.Engine.Tee do
         _ctx,
         %{type: :video, counter: 1000} = state
       ) do
-    {{:ok, forward: buffer},
-     %{state | counter: 0, forward_to: get_new_forward_to(state.ets_name, state.track_id)}}
+    {{:ok, forward: buffer}, %{state | counter: 0}}
   end
 
   @impl true
@@ -102,17 +101,16 @@ defmodule Membrane.RTC.Engine.Tee do
   end
 
   @impl true
-  def handle_other(:update_forward, _ctx, state) do
-    {:ok, %{state | forward_to: get_new_forward_to(state.ets_name, state.track_id)}}
-  end
+  def handle_other(:track_priorities_updated, _ctx, state) do
+    forward_to =
+      case :ets.lookup(state.ets_name, state.track_id) do
+        [{_track_id, endpoint_names} | _] ->
+          MapSet.new(endpoint_names)
 
-  defp get_new_forward_to(ets_name, track_id) do
-    case :ets.lookup(ets_name, track_id) do
-      [{_track_id, value} | _] ->
-        MapSet.new(value)
+        [] ->
+          MapSet.new()
+      end
 
-      [] ->
-        MapSet.new()
-    end
+    {:ok, %{state | forward_to: forward_to}}
   end
 end

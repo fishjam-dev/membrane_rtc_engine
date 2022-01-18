@@ -25,7 +25,7 @@ defmodule Membrane.RTC.Engine.SpeakersDetector do
   end
 
   @impl true
-  def handle_info({:calculcate_track_priorities, notifications, endpoints}, state) do
+  def handle_info({:calculcate_track_priorities, notifications, endpoint_managers}, state) do
     ends_of_speach =
       Enum.reduce(notifications, state.ends_of_speach, fn
         {:speech, endpoint_name}, acc ->
@@ -34,11 +34,11 @@ defmodule Membrane.RTC.Engine.SpeakersDetector do
         {:silence, endpoint_name, timestamp}, acc ->
           Map.put(acc, endpoint_name, timestamp)
 
-        {:register, endpoint_name}, acc ->
+        {:new_track, endpoint_name}, acc ->
           Map.put_new(acc, endpoint_name, nil)
 
         {:unregister, endpoint_name}, acc ->
-          Map.put(acc, endpoint_name, nil)
+          Map.delete(acc, endpoint_name)
 
         _other, acc ->
           acc
@@ -46,7 +46,7 @@ defmodule Membrane.RTC.Engine.SpeakersDetector do
 
     current_time = System.monotonic_time()
 
-    ordered_endpoints_name =
+    ordered_endpoint_names =
       ends_of_speach
       |> Enum.map(fn
         {endpoint_name, :speaking} -> {endpoint_name, 1}
@@ -56,33 +56,38 @@ defmodule Membrane.RTC.Engine.SpeakersDetector do
       |> Enum.sort_by(fn {_endpoint_name, time} -> time end)
       |> Enum.map(fn {endpoint_name, _time} -> endpoint_name end)
 
-    ordered_tracks = calculate_new_tracks_priority(endpoints, ordered_endpoints_name)
+    ordered_tracks =
+      Enum.flat_map(ordered_endpoint_names, fn endpoint_name ->
+        endpoint_managers |> Map.get(endpoint_name) |> EndpointManager.get_inbound_video_tracks()
+      end)
 
-    endpoints = Map.values(endpoints)
+    endpoint_managers = Map.values(endpoint_managers)
 
-    endpoint_name_to_tracks =
-      for endpoint <- endpoints,
-          received_track <- EndpointManager.calculate_tracks_priority(endpoint, ordered_tracks),
+    track_priorities =
+      for endpoint_manager <- endpoint_managers,
+          endpoint_track_priorities <-
+            EndpointManager.calculate_track_priorities(endpoint_manager, ordered_tracks),
           reduce: %{} do
-        acc -> Map.update(acc, endpoint.id, [received_track], &[received_track | &1])
+        acc ->
+          Map.update(
+            acc,
+            endpoint_manager.id,
+            [endpoint_track_priorities],
+            &[endpoint_track_priorities | &1]
+          )
       end
 
-    all_video_tracks = Enum.flat_map(endpoints, &EndpointManager.get_video_tracks/1)
+    all_video_tracks =
+      Enum.flat_map(endpoint_managers, &EndpointManager.get_inbound_video_tracks/1)
 
-    insert_tracks_priority_per_track(endpoint_name_to_tracks, all_video_tracks, state.ets_name)
+    update_ets(track_priorities, all_video_tracks, state.ets_name)
 
-    send(state.track_manager, {:vad_response, endpoint_name_to_tracks})
+    send(state.track_manager, {:track_priorities, track_priorities})
 
     {:noreply, %{state | ends_of_speach: ends_of_speach}}
   end
 
-  defp calculate_new_tracks_priority(endpoints, ordered_endpoints_name) do
-    Enum.flat_map(ordered_endpoints_name, fn endpoint_name ->
-      endpoints |> Map.get(endpoint_name) |> EndpointManager.get_video_tracks()
-    end)
-  end
-
-  defp insert_tracks_priority_per_track(endpoint_name_to_tracks, all_video_tracks, ets_name) do
+  defp update_ets(endpoint_name_to_tracks, all_video_tracks, ets_name) do
     track_id_to_endpoints = Map.new(all_video_tracks, &{&1.id, []})
 
     track_id_to_endpoints =
