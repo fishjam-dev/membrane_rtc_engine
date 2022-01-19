@@ -460,7 +460,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       WebRTC.Track.new(track.type, track.stream_id, to_keyword_list(track))
     end
 
-    defp to_keyword_list(%_{} = struct), do: Map.from_struct(struct) |> to_keyword_list()
+    defp to_keyword_list(%Engine.Track{} = struct),
+      do: Map.from_struct(struct) |> to_keyword_list()
 
     defp to_keyword_list(%{} = map), do: Enum.map(map, fn {key, value} -> {key, value} end)
   end

@@ -18,6 +18,33 @@ if Enum.all?(
                   spec: Path.t(),
                   description: "Path to directory under which HLS output will be saved",
                   default: "hls_output"
+                ],
+                owner: [
+                  spec: pid(),
+                  description: """
+                  Pid of parent all notifications will be send to.
+
+                  These notifications are:
+                    * `{:playlist_playable, content_type, stream_id}`
+                    * `{:cleanup, clean_function, stream_id}`
+                  """
+                ],
+                framerate: [
+                  spec: integer(),
+                  description: """
+                  Framerate of tracks
+                  """,
+                  default: {30, 1}
+                ],
+                hls_mode: [
+                  spec: :separate_av | :muxed_av,
+                  default: :muxed_av,
+                  description: """
+                  Defines output mode for `Membrane.HTTPAdaptiveStream.SinkBin`.
+
+                  - `:separate_av` - audio and video tracks will be separated
+                  - `:muxed_av` - audio will be attached to every video track
+                  """
                 ]
 
     @impl true
@@ -25,7 +52,10 @@ if Enum.all?(
       state = %{
         tracks: %{},
         stream_ids: MapSet.new(),
-        output_directory: opts.output_directory
+        output_directory: opts.output_directory,
+        owner: opts.owner,
+        framerate: opts.framerate,
+        hls_mode: opts.hls_mode
       }
 
       {:ok, state}
@@ -49,6 +79,28 @@ if Enum.all?(
       {:ok, state}
     end
 
+    def handle_notification(
+          {:track_playable, {content_type, _track_id}},
+          {:hls_sink_bin, stream_id},
+          _ctx,
+          state
+        ) do
+      # notify about playable just when video becomes available
+      send(state.owner, {:playlist_playable, content_type, stream_id})
+      {:ok, state}
+    end
+
+    def handle_notification(
+          {:cleanup, clean_function},
+          {:hls_sink_bin, stream_id},
+          _ctx,
+          state
+        ) do
+      # notify about possibility to cleanup as the stream is finished.
+      send(state.owner, {:cleanup, clean_function, stream_id})
+      {:ok, state}
+    end
+
     @impl true
     def handle_notification(notification, _element, _context, state) do
       Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
@@ -66,7 +118,14 @@ if Enum.all?(
       File.rm_rf(directory)
       File.mkdir_p!(directory)
 
-      spec = hls_links_and_children(link_builder, track.encoding, track_id, track.stream_id)
+      spec =
+        hls_links_and_children(
+          link_builder,
+          track.encoding,
+          track_id,
+          track.stream_id,
+          state.framerate
+        )
 
       {spec, state} =
         if MapSet.member?(state.stream_ids, track.stream_id) do
@@ -79,7 +138,8 @@ if Enum.all?(
             persist?: false,
             storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
               directory: directory
-            }
+            },
+            hls_mode: state.hls_mode
           }
 
           new_spec = %{
@@ -93,7 +153,7 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id),
+    defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id, _framerate),
       do: %ParentSpec{
         children: %{
           {:opus_decoder, track_id} => Membrane.Opus.Decoder,
@@ -105,26 +165,26 @@ if Enum.all?(
           |> to({:opus_decoder, track_id})
           |> to({:aac_encoder, track_id})
           |> to({:aac_parser, track_id})
-          |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
+          |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
           |> to({:hls_sink_bin, stream_id})
         ]
       }
 
-    defp hls_links_and_children(link_builder, :AAC, _track_id, stream_id),
+    defp hls_links_and_children(link_builder, :AAC, track_id, stream_id, _framerate),
       do: %ParentSpec{
         children: %{},
         links: [
           link_builder
-          |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
+          |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
           |> to({:hls_sink_bin, stream_id})
         ]
       }
 
-    defp hls_links_and_children(link_builder, :H264, track_id, stream_id),
+    defp hls_links_and_children(link_builder, :H264, track_id, stream_id, framerate),
       do: %ParentSpec{
         children: %{
           {:video_parser, track_id} => %Membrane.H264.FFmpeg.Parser{
-            framerate: {30, 1},
+            framerate: framerate,
             alignment: :au,
             attach_nalus?: true
           }
@@ -132,7 +192,7 @@ if Enum.all?(
         links: [
           link_builder
           |> to({:video_parser, track_id})
-          |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
+          |> via_in(Pad.ref(:input, {:video, track_id}), options: [encoding: :H264])
           |> to({:hls_sink_bin, stream_id})
         ]
       }
