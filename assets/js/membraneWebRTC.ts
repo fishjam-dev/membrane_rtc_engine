@@ -7,6 +7,7 @@ import {
   serializeMediaEvent,
 } from "./mediaEvent";
 import { v4 as uuidv4 } from "uuid";
+import { simulcastConfig } from "./const";
 
 /**
  * Interface describing Peer.
@@ -53,6 +54,10 @@ export interface TrackContext {
    * It is WebRTC agnostic i.e. it does not contain `mid` or `stream id`.
    */
   trackId: string;
+  /**
+   * Flag indicating whether track is a simulcast one or not.
+   */
+  isSimulcast: boolean;
   /**
    * Any info that was passed in {@link addTrack}.
    */
@@ -245,6 +250,7 @@ export class MembraneWebRTC {
               stream: null,
               track: null,
               trackId,
+              isSimulcast: false,
               metadata,
               peer,
             };
@@ -361,23 +367,26 @@ export class MembraneWebRTC {
   public addTrack(
     track: MediaStreamTrack,
     stream: MediaStream,
-    trackMetadata: any = new Map()
+    trackMetadata: any = new Map(),
+    isSimulcast: boolean = false
   ): string {
     if (this.getPeerId() === "") throw "Cannot add tracks before being accepted by the server";
     const trackId = this.getTrackId(uuidv4());
     this.localTracksWithStreams.push({ track, stream });
 
     this.localPeer.trackIdToMetadata.set(trackId, trackMetadata);
-    this.localTrackIdToTrack.set(trackId, {
+    const trackContext = {
       track,
       stream,
       trackId,
       peer: this.localPeer,
       metadata: trackMetadata,
-    });
+      isSimulcast,
+    };
+    this.localTrackIdToTrack.set(trackId, trackContext);
 
     if (this.connection) {
-      this.connection.addTrack(track, stream);
+      this.addTrackToConnection(trackContext);
 
       this.connection
         .getTransceivers()
@@ -391,6 +400,16 @@ export class MembraneWebRTC {
     this.sendMediaEvent(mediaEvent);
     return trackId;
   }
+
+  private addTrackToConnection = (trackContext: TrackContext) => {
+    if (trackContext.isSimulcast) {
+      const track = trackContext.track!!;
+      this.connection!.addTransceiver(
+        track,
+        track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig
+      );
+    } else this.connection!.addTrack(trackContext.track!!, trackContext.stream!!);
+  };
 
   /**
    * Replaces a track that is being sent to the RTC Engine.
@@ -652,14 +671,17 @@ export class MembraneWebRTC {
     return trackIdToMetadata;
   };
 
+  private checkIfTrackBelongToPeer = (trackId: string, peer: Peer) =>
+    Array.from(peer.trackIdToMetadata.keys()).some((track) => trackId.startsWith(track));
+
   private onOfferData = async (offerData: Map<string, number>) => {
     if (!this.connection) {
       this.connection = new RTCPeerConnection(this.rtcConfig);
       this.connection.onicecandidate = this.onLocalCandidate();
 
-      this.localTracksWithStreams.forEach(({ track, stream }) => {
-        this.connection!.addTrack(track, stream);
-      });
+      Array.from(this.localTrackIdToTrack.values()).forEach((trackContext) =>
+        this.addTrackToConnection(trackContext)
+      );
 
       this.connection.getTransceivers().forEach((trans) => (trans.direction = "sendonly"));
     } else {
@@ -705,8 +727,10 @@ export class MembraneWebRTC {
 
       const trackId = this.midToTrackId.get(mid)!;
 
+      if (this.checkIfTrackBelongToPeer(trackId, this.localPeer)) return;
+
       const peer = Array.from(this.idToPeer.values()).filter((peer) =>
-        Array.from(peer.trackIdToMetadata.keys()).includes(trackId)
+        this.checkIfTrackBelongToPeer(trackId, peer)
       )[0];
 
       const metadata = peer.trackIdToMetadata.get(trackId);
@@ -716,6 +740,7 @@ export class MembraneWebRTC {
         peer: peer,
         trackId,
         metadata,
+        isSimulcast: false,
       };
 
       this.trackIdToTrack.set(trackId, trackContext);

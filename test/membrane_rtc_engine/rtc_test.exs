@@ -6,21 +6,8 @@ defmodule Membrane.RTC.EngineTest do
   alias Membrane.RTC.Engine.Endpoint.WebRTC
 
   setup do
-    webrtc_extensions = [
-      Membrane.WebRTC.Extension.VAD
-    ]
-
-    network_options = [
-      stun_servers: [
-        %{server_addr: "stun.l.google.com", server_port: 19_302}
-      ],
-      turn_servers: []
-    ]
-
     options = [
-      id: "test_rtc",
-      webrtc_extensions: webrtc_extensions,
-      network_options: network_options
+      id: "test_rtc"
     ]
 
     {:ok, pid} = Engine.start_link(options, [])
@@ -154,6 +141,28 @@ defmodule Membrane.RTC.EngineTest do
 
       assert %{"type" => "peerDenied", "data" => %{"reason" => "bob smells"}} ==
                Jason.decode!(data)
+    end
+  end
+
+  describe "adding a new peer" do
+    test "triggers peerAccepted and peerJoined events", %{rtc_engine: rtc_engine} do
+      peer_id = "test_peer"
+      metadata = %{display_name: "test_peer"}
+      peer = Peer.new(peer_id, metadata)
+      :ok = Engine.add_peer(rtc_engine, peer)
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: ^peer_id, data: data}
+
+      assert %{"type" => "peerAccepted", "data" => %{"id" => peer_id, "peersInRoom" => []}} ==
+               Jason.decode!(data)
+
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+      assert %{
+               "type" => "peerJoined",
+               "data" => %{
+                 "peer" => %{"id" => peer_id, "metadata" => %{"display_name" => "test_peer"}}
+               }
+             } == Jason.decode!(data)
     end
   end
 end
