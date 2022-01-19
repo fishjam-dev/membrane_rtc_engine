@@ -53,9 +53,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       {:membrane_core, "~> 0.8.0"},
       {:membrane_webrtc_plugin,
-       github: "membraneframework/membrane_webrtc_plugin",
-       branch: "removing-libnice",
-       optional: true},
+       github: "membraneframework/membrane_webrtc_plugin", optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.4.0", optional: true},
       {:membrane_mp4_plugin, "~> 0.9.0", optional: true},
       {:membrane_aac_plugin, "~> 0.9.0", optional: true},
