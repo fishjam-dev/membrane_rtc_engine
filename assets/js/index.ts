@@ -8,6 +8,7 @@ export {
   MembraneWebRTCConfig,
   MembraneWebRTC,
   TrackContext,
+  TrackEncoding,
   Callbacks,
   BandwidthLimit,
 } from "./membraneWebRTC";

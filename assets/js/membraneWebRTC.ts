@@ -72,6 +72,13 @@ export interface TrackContext {
 }
 
 /**
+ * Type describing possible track encodings.
+ * At the moment, if track was added as a simulcast one ({@link addTrack})
+ * it will be transmitted to the server in two versions - low and high.
+ */
+export type TrackEncoding = "l" | "h";
+
+/**
  * Callbacks that has to be implemented by user.
  */
 export interface Callbacks {
@@ -136,6 +143,21 @@ export interface Callbacks {
    * @param disabledTracks - list of tracks which will not be sent to client from SFU
    */
   onTracksPriorityChanged?: (enabledTracks: TrackContext[], disabledTracks: TrackContext[]) => void;
+
+  /**
+   * Called each time track encoding has changed.
+   *
+   * Track encoding can change in the following cases:
+   * * when user requested a change
+   * * when there was a significant change in network bandwidth and client library is
+   * no longer able to receive given encoding
+   * * when sender stopped sending some encoding (because of bandwidth change)
+   *
+   * @param {string} peerId - id of peer that owns track
+   * @param {string} trackId - id of track that changed encoding
+   * @param {TrackEncoding} encoding - new encoding
+   */
+  onTrackEncodingChanged?: (peerId: string, trackId: string, encoding: TrackEncoding) => void;
 }
 
 /**
@@ -339,6 +361,12 @@ export class MembraneWebRTC {
         );
 
         this.callbacks.onTracksPriorityChanged?.(enabledTracks, disabledTracks);
+      case "encodingSwitched":
+        this.callbacks.onTrackEncodingChanged?.(
+          deserializedMediaEvent.data.peerId,
+          deserializedMediaEvent.data.trackId,
+          deserializedMediaEvent.data.encoding
+        );
         break;
 
       case "custom":
@@ -359,6 +387,11 @@ export class MembraneWebRTC {
    * @param trackMetadata - Any information about this track that other peers will
    * receive in {@link onPeerJoined}. E.g. this can source of the track - wheather it's
    * screensharing, webcam or some other media device.
+   * @param isSimulcast - Defines whether track should be simulcasted or not.
+   * At the moment simulcast track is sent in two versions - low and high.
+   * High resolution is the original track resolution while the low resolution
+   * is the original track resoultion scaled down by 4.
+   * Those settings are not configurable at the moment.
    * @returns {string} Returns id of added track
    * @example
    * ```ts
@@ -570,7 +603,7 @@ export class MembraneWebRTC {
   }
 
   /**
-   * Remove a track from connection that was being sent to the RTC Engine.
+   * Removes a track from connection that was being sent to the RTC Engine.
    * @param {string} trackId - Id of audio or video track to remove.
    * @example
    * ```ts
@@ -643,6 +676,62 @@ export class MembraneWebRTC {
       data: { bigScreens, mediumScreens, smallScreens, allSameSize },
     });
     this.sendMediaEvent(mediaEvent);
+  }
+
+  /**
+   * Selects track encoding that server should send to the client library.
+   * @param {string} peerId - id of peer that owns track
+   * @param {string} trackId - id of track
+   * @param {TrackEncoding} encoding - encoding to receive
+   * @example
+   * ```ts
+   * webrtc.selectTrackEncoding(incomingTrackCtx.peer.id, incomingTrackCtx.trackId, "l")
+   * ```
+   */
+  public selectTrackEncoding(peerId: string, trackId: string, encoding: TrackEncoding) {
+    let mediaEvent = generateCustomEvent({
+      type: "selectEncoding",
+      data: { peerId: peerId, trackId: trackId, encoding: encoding },
+    });
+    this.sendMediaEvent(mediaEvent);
+  }
+
+  /**
+   * Enables track encoding so that it will be sent to the server.
+   * @param {string} trackId - id of track
+   * @param {TrackEncoding} encoding - encoding that will be enabled
+   * @example
+   * ```ts
+   * const trackId = webrtc.addTrack(track, stream, {}, true);
+   * webrtc.disableTrackEncoding(trackId, "l");
+   * // wait some time
+   * webrtc.enableTrackEncoding(trackId, "l");
+   * ```
+   */
+  public enableTrackEncoding(trackId: string, encoding: TrackEncoding) {
+    let track = this.localTrackIdToTrack.get(trackId)?.track;
+    let sender = this.connection?.getSenders().filter((sender) => sender.track === track)[0];
+    let params = sender?.getParameters();
+    params!.encodings.filter((en) => en.rid == encoding)[0].active = true;
+    sender?.setParameters(params!);
+  }
+
+  /**
+   * Disables track encoding so that it will be no longer sent to the server.
+   * @param {string} trackId - id of track
+   * @param {rackEncoding} encoding - encoding that will be disabled
+   * @example
+   * ```ts
+   * const trackId = webrtc.addTrack(track, stream, {}, true);
+   * webrtc.disableTrackEncoding(trackId, "l");
+   * ```
+   */
+  public disableTrackEncoding(trackId: string, encoding: TrackEncoding) {
+    let track = this.localTrackIdToTrack.get(trackId)?.track;
+    let sender = this.connection?.getSenders().filter((sender) => sender.track === track)[0];
+    let params = sender?.getParameters();
+    params!.encodings.filter((en) => en.rid == encoding)[0].active = false;
+    sender?.setParameters(params!);
   }
 
   private findSender(trackId: string): RTCRtpSender {
@@ -858,7 +947,6 @@ export class MembraneWebRTC {
       const mid = event.transceiver.mid!;
 
       const trackId = this.midToTrackId.get(mid)!;
-
       if (this.checkIfTrackBelongToPeer(trackId, this.localPeer)) return;
 
       const peer = Array.from(this.idToPeer.values()).filter((peer) =>

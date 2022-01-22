@@ -203,6 +203,7 @@ defmodule Membrane.RTC.Engine do
   }
 
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee
 
   require Membrane.Logger
 
@@ -664,25 +665,67 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @decorate trace("engine.notification.custom_media_event", include: [[:state, :id]])
-  defp do_handle_notification({:custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
+  @impl true
+  def handle_notification(
+        {:encoding_switched, receiver_endpoint_id, encoding},
+        {:tee, {sender_endpoint_id, track_id}},
+        _ctx,
+        state
+      ) do
+    # send event that endpoint with id `sender_endpoint_id` is sending encoding `encoding` for track
+    # `track_id` now
+
+    data = %{
+      type: :encodingSwitched,
+      data: %{
+        peerId: sender_endpoint_id,
+        trackId: track_id,
+        encoding: encoding
+      }
+    }
+
     MediaEvent.create_custom_event(data)
-    |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
+    |> then(&%Message.MediaEvent{rtc_engine: self(), to: receiver_endpoint_id, data: &1})
     |> dispatch()
 
     {:ok, state}
   end
 
+  defp do_handle_notification(
+         {:select_encoding, {peer_id, track_id, encoding}},
+         {:endpoint, requester},
+         _ctx,
+         state
+       ) do
+    endpoint = Map.get(state.endpoints, peer_id)
+
+    video_track = Endpoint.get_track_by_id(endpoint, track_id)
+
+    if video_track do
+      tee = {:tee, {peer_id, track_id}}
+      actions = [forward: {tee, {:select_encoding, {requester, encoding}}}]
+      {{:ok, actions}, state}
+    else
+      Membrane.Logger.warn("""
+      Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
+      track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
+      given peer does not have track with given id. Ignoring.
+      """)
+
+      {:ok, state}
+    end
+  end
+
   # NOTE: When `payload_and_depayload_tracks?` options is set to false we may still want to depayload
   # some streams just in one place to e.g. dump them to HLS or perform any actions on depayloaded
-  # media without adding payload/depaload elements to all EndpointBins (performing unnecessary work).
+  # media without adding payload/depayload elements to all EndpointBins (performing unnecessary work).
   #
   # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
   @decorate trace("engine.notification.track_ready",
               include: [:track_id, :encoding, [:state, :id]]
             )
   defp do_handle_notification(
-         {:track_ready, track_id, encoding, depayloading_filter},
+         {:track_ready, track_id, rid, encoding, depayloading_filter},
          endpoint_bin_name,
          ctx,
          state
@@ -700,19 +743,39 @@ defmodule Membrane.RTC.Engine do
 
     track = state.endpoints |> Map.get(endpoint_id) |> Endpoint.get_track_by_id(track_id)
 
+    tee_exists? = Map.has_key?(ctx.children, endpoint_tee)
+
+    %Track{clock_rate: clock_rate} =
+      Map.get(state.endpoints, endpoint_id)
+      |> Endpoint.get_track_by_id(track_id)
+
     children = %{
       endpoint_tee =>
-        if state.display_manager != nil do
-          %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
-        else
-          Membrane.Tee.PushOutput
+        cond do
+          rid != nil ->
+            %SimulcastTee{clock_rate: clock_rate}
+
+          state.display_manager != nil ->
+            %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
+
+          true ->
+            Membrane.Tee.PushOutput
         end
     }
 
+    children = if tee_exists?, do: %{}, else: children
+
     link_to_tee =
-      link(endpoint_bin_name)
-      |> via_out(Pad.ref(:output, track_id))
-      |> to(endpoint_tee)
+      if rid do
+        link(endpoint_bin_name)
+        |> via_out(Pad.ref(:output, {track_id, rid}))
+        |> via_in(Pad.ref(:input, rid))
+        |> to(endpoint_tee)
+      else
+        link(endpoint_bin_name)
+        |> via_out(Pad.ref(:output, {track_id, rid}))
+        |> to(endpoint_tee)
+      end
 
     {waiting_for_linking, parent_spec} =
       link_inbound_track(
@@ -840,6 +903,15 @@ defmodule Membrane.RTC.Engine do
     tracks_children = Enum.flat_map(tracks, &get_track_elements(endpoint_id, &1.id, ctx))
 
     {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
+  end
+
+  @decorate trace("engine.notification.custom_media_event", include: [[:state, :id]])
+  defp do_handle_notification({:custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
+    MediaEvent.create_custom_event(data)
+    |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
+    |> dispatch()
+
+    {:ok, state}
   end
 
   defp link_inbound_track(track_id, endpoint_track_ids, waiting_for_linking, ctx, state) do

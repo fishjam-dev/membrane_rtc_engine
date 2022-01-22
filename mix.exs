@@ -59,6 +59,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_mp4_plugin, "~> 0.11.0", optional: true},
       {:membrane_aac_plugin, "~> 0.11.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.9.0", optional: true},
+      {:membrane_rtp_vp8_plugin, "~> 0.2.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 0.7.0", override: true},

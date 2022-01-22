@@ -6,6 +6,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     It is responsible for sending and receiving media tracks from other WebRTC peer (e.g. web browser).
     """
     use Membrane.Bin
+
     import Membrane.RTC.Utils
 
     alias Membrane.WebRTC.{SDP, EndpointBin}
@@ -14,8 +15,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     alias ExSDP.Attribute.FMTP
     alias ExSDP.Attribute.RTPMapping
 
+    require Membrane.Logger
+
     @type stun_server_t() :: ExLibnice.stun_server()
     @type turn_server_t() :: ExLibnice.relay_info()
+    @type encoding_t() :: String.t()
 
     def_options ice_name: [
                   spec: String.t(),
@@ -213,12 +217,12 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_notification(
-          {:new_track, track_id, encoding, depayloading_filter},
+          {:new_track, track_id, rid, encoding, depayloading_filter},
           _from,
           _ctx,
           state
         ) do
-      {{:ok, notify: {:track_ready, track_id, encoding, depayloading_filter}}, state}
+      {{:ok, notify: {:track_ready, track_id, rid, encoding, depayloading_filter}}, state}
     end
 
     @impl true
@@ -298,8 +302,14 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     @impl true
     def handle_other({:custom_media_event, event}, ctx, state) do
-      {:ok, data} = deserialize(event)
-      handle_custom_media_event(data, ctx, state)
+      case deserialize(event) do
+        {:ok, data} ->
+          handle_custom_media_event(data, ctx, state)
+
+        {:error, :invalid_media_event} ->
+          Membrane.Logger.warn("Invalid media event #{inspect(event)}. Ignoring.")
+          {:ok, state}
+      end
     end
 
     @impl true
@@ -319,7 +329,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_pad_added(Pad.ref(:output, track_id) = pad, _ctx, state) do
+    def handle_pad_added(Pad.ref(:output, {track_id, _rid}) = pad, _ctx, state) do
       %{encoding: encoding} = Map.get(state.inbound_tracks, track_id)
       extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
 
@@ -374,6 +384,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
       send_if_not_nil(state.display_manager, msg)
       {:ok, state}
+    end
+
+    defp handle_custom_media_event(%{type: :select_encoding, data: data}, _ctx, state) do
+      {{:ok, notify: {:select_encoding, {data.peer_id, data.track_id, data.encoding}}}, state}
     end
 
     defp get_turn_configs(turn_servers, state) do
@@ -553,6 +567,27 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       end
     end
 
+    defp deserialize(%{"type" => "selectEncoding"} = event) do
+      case event do
+        %{
+          "type" => "selectEncoding",
+          "data" => %{
+            "peerId" => peer_id,
+            "trackId" => track_id,
+            "encoding" => encoding
+          }
+        } ->
+          {:ok,
+           %{
+             type: :select_encoding,
+             data: %{peer_id: peer_id, track_id: track_id, encoding: encoding}
+           }}
+
+        _other ->
+          {:error, :invalid_media_event}
+      end
+    end
+
     defp to_rtc_track(%WebRTC.Track{} = track, track_id_to_metadata) do
       extension_key = WebRTC.Extension
 
@@ -561,6 +596,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         stream_id: track.stream_id,
         id: track.id,
         encoding: track.encoding,
+        clock_rate: track.rtp_mapping.clock_rate,
         format: [:RTP, :raw],
         fmtp: track.fmtp,
         active?: track.status != :disabled,

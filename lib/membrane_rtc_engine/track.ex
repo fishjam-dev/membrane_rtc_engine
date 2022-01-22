@@ -1,3 +1,4 @@
+# credo:disable-for-this-file Credo.Check.Design.TagTODO
 defmodule Membrane.RTC.Engine.Track do
   @moduledoc """
   Module representing media track.
@@ -9,7 +10,16 @@ defmodule Membrane.RTC.Engine.Track do
   alias ExSDP.Attribute.FMTP
 
   @enforce_keys [:type, :stream_id, :id, :fmtp]
-  defstruct @enforce_keys ++ [encoding: nil, format: nil, active?: true, metadata: nil, ctx: %{}]
+  # TODO should clock rate be optional?
+  defstruct @enforce_keys ++
+              [
+                encoding: nil,
+                clock_rate: nil,
+                format: nil,
+                active?: true,
+                metadata: nil,
+                ctx: %{}
+              ]
 
   @type id :: String.t()
   @type encoding :: atom()
@@ -23,6 +33,7 @@ defmodule Membrane.RTC.Engine.Track do
   number of tracks.
   * `id` - track id
   * `encoding` - track encoding
+  * `clock_rate` - track clock rate
   * `format` - list of available track formats. At this moment max two formats can be specified.
   One of them has to be `:raw` which indicates that other Endpoints will receive this track in format
   of `encoding`. The other one can be any atom (e.g. `:RTP`).
@@ -36,6 +47,7 @@ defmodule Membrane.RTC.Engine.Track do
           stream_id: String.t(),
           id: id,
           encoding: encoding,
+          clock_rate: non_neg_integer(),
           format: format,
           fmtp: FMTP,
           active?: boolean(),
@@ -54,6 +66,7 @@ defmodule Membrane.RTC.Engine.Track do
           stream_id :: String.t(),
           id: String.t(),
           encoding: encoding,
+          clock_rate: non_neg_integer(),
           format: format,
           fmtp: FMTP,
           metadata: any(),
@@ -67,6 +80,7 @@ defmodule Membrane.RTC.Engine.Track do
       stream_id: stream_id,
       id: id,
       encoding: Keyword.get(opts, :encoding),
+      clock_rate: Keyword.get(opts, :clock_rate),
       format: Keyword.get(opts, :format),
       fmtp: Keyword.get(opts, :fmtp),
       metadata: Keyword.get(opts, :metadata),
