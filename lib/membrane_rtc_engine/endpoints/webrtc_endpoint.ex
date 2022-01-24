@@ -87,6 +87,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   default: false,
                   description: "Set to `true`, to use integrated TURN instead of libnice"
                 ],
+                integrated_turn_domain: [
+                  spec: binary() | nil,
+                  description: "Domain address of integrated TURN Servers. Required for TLS TURN"
+                ],
                 integrated_turn_options: [
                   spec: Membrane.TURN.Endpoint.integrated_turn_options_t(),
                   default: []
@@ -143,6 +147,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         extensions: opts.extensions || %{},
         use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
+        integrated_turn_domain: opts.integrated_turn_domain,
         owner: opts.owner
       }
 
@@ -207,7 +212,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           _ctx,
           state
         ) do
-      turns = get_turn_configs(state.ice_name, turns)
+      turns = get_turn_configs(turns, state)
       enforce_turns? = state.use_integrated_turn || false
 
       media_event_data = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
@@ -305,12 +310,16 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
-    defp get_turn_configs(name, turn_servers) do
+    defp get_turn_configs(turn_servers, state) do
       Enum.map(turn_servers, fn
         %{secret: secret} = turn_server ->
-          {username, password} = generate_turn_credentials(name, secret)
+          {username, password} = generate_turn_credentials(state.ice_name, secret)
 
-          Map.delete(turn_server, :secret)
+          case state.integrated_turn_domain do
+            nil -> turn_server
+            domain -> Map.put(turn_server, :domain_name, domain)
+          end
+          |> Map.delete(:secret)
           |> Map.put(:username, username)
           |> Map.put(:password, password)
 
@@ -338,7 +347,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     defp serialize({:signal, {:offer_data, tracks_types, turns, enforce_turns?}}) do
       integrated_turn_servers =
         Enum.map(turns, fn turn ->
-          addr = :inet.ntoa(turn.mocked_server_addr) |> to_string()
+          addr =
+            if turn[:domain_name],
+              do: turn[:domain_name],
+              else: :inet.ntoa(turn.mocked_server_addr) |> to_string()
 
           %{
             serverAddr: addr,

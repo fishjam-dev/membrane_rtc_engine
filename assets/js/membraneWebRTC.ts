@@ -758,16 +758,25 @@ export class MembraneWebRTC {
       this.rtcConfig.iceTransportPolicy = "relay";
 
       turnServers.forEach((turnServer: any) => {
+        var transport, uri;
+        if (turnServer.transport == "tls") {
+          transport = "tcp";
+          uri = "turns";
+        } else {
+          transport = turnServer.transport;
+          uri = "turn";
+        }
+
         const rtcIceServer: RTCIceServer = {
           credential: turnServer.password,
           credentialType: "password",
-          urls: "turn".concat(
+          urls: uri.concat(
             ":",
             turnServer.serverAddr,
             ":",
             turnServer.serverPort,
             "?transport=",
-            turnServer.transport
+            transport
           ),
           username: turnServer.username,
         };
