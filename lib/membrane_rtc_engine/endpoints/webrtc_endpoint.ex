@@ -131,9 +131,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         outbound_tracks: [],
         extensions: opts.webrtc_extensions || [],
         use_integrated_turn: opts.use_integrated_turn,
-        integrated_turn_options: opts.integrated_turn_options,
-        trace_context: opts.trace_context,
-        trace_metadata: [name: opts.ice_name]
+        integrated_turn_options: opts.integrated_turn_options
       }
 
       spec = %ParentSpec{
@@ -255,6 +253,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     def handle_other({:custom_media_event, event}, ctx, state) do
       {:ok, data} = deserialize(event)
       handle_custom_media_event(data, ctx, state)
+    end
+
+    @impl true
+    def handle_other({:trace_ctx, trace_ctx}, _ctx, state) do
+      {{:ok, forward: {:endpoint_bin, {:trace_ctx, trace_ctx, [name: state.ice_name]}}}, state}
     end
 
     @impl true

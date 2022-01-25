@@ -197,4 +197,6 @@ if Enum.all?(
         ]
       }
   end
+else
+  raise "Membrane.H264.FFmpeg.Parser or Membrane.HTTPAdaptiveStream.SinkBin or Membrane.AAC.FDK.Encoder not loaded"
 end

@@ -867,10 +867,13 @@ defmodule Membrane.RTC.Engine do
     endpoint_name = {:endpoint, endpoint_id}
 
     children = %{
-      endpoint_name => Map.put(endpoint_entry, :trace_context, state.trace_context)
+      endpoint_name => endpoint_entry
     }
 
-    action = [forward: {endpoint_name, {:new_tracks, outbound_tracks}}]
+    action = [
+      forward: {endpoint_name, {:new_tracks, outbound_tracks}},
+      forward: {endpoint_name, {:trace_context, state.trace_context}}
+    ]
 
     state = put_in(state, [:waiting_for_linking, endpoint_id], MapSet.new())
 
