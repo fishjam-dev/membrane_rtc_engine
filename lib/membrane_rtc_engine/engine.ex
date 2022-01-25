@@ -203,9 +203,13 @@ defmodule Membrane.RTC.Engine do
   RTC Engine configuration options.
 
   `id` is used by logger. If not provided it will be generated.
+  `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
+  Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
+
   """
   @type options_t() :: [
-          id: String.t()
+          id: String.t(),
+          trace_ctx: OpenTelemetry.Ctx.t()
         ]
 
   @typedoc """
@@ -402,7 +406,12 @@ defmodule Membrane.RTC.Engine do
   def handle_init(options) do
     play(self())
 
-    trace_ctx = Membrane.RTC.Utils.create_otel_context("rtc:#{options[:id]}")
+    trace_ctx =
+      if Keyword.has_key?(options, :trace_ctx) do
+        OpenTelemetry.Ctx.attach(options[:trace_ctx])
+      else
+        Membrane.RTC.Utils.create_otel_context("rtc:#{options[:id]}")
+      end
 
     {{:ok, log_metadata: [rtc: options[:id]]},
      %{
@@ -875,10 +884,7 @@ defmodule Membrane.RTC.Engine do
       endpoint_name => endpoint_entry
     }
 
-    action = [
-      forward: {endpoint_name, {:new_tracks, outbound_tracks}},
-      forward: {endpoint_name, {:trace_context, state.trace_context}}
-    ]
+    action = [forward: {endpoint_name, {:new_tracks, outbound_tracks}}]
 
     state = put_in(state, [:waiting_for_linking, endpoint_id], MapSet.new())
 

@@ -107,7 +107,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                 trace_context: [
                   spec: :list,
                   default: [],
-                  description: "Trace context for otel propagation"
+                  description: "Trace context for otel propagation
+
+                  Traces from EndpointBin will be attach to this context.
+                  "
                 ]
 
     def_input_pad :input,
@@ -132,7 +135,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         outbound_tracks: [],
         extensions: opts.webrtc_extensions || [],
         use_integrated_turn: opts.use_integrated_turn,
-        integrated_turn_options: opts.integrated_turn_options
+        integrated_turn_options: opts.integrated_turn_options,
+        trace_context: opts.trace_context,
+        trace_metadata: [name: opts.ice_name]
       }
 
       spec = %ParentSpec{
@@ -254,12 +259,6 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     def handle_other({:custom_media_event, event}, ctx, state) do
       {:ok, data} = deserialize(event)
       handle_custom_media_event(data, ctx, state)
-    end
-
-    @impl true
-    def handle_other({:trace_context, trace_ctx}, _ctx, state) do
-      {{:ok, forward: {:endpoint_bin, {:trace_context, trace_ctx, [name: state.ice_name]}}},
-       state}
     end
 
     @impl true
