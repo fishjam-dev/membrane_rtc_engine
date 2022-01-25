@@ -3,6 +3,9 @@ defmodule TestVideoroom.Room do
 
   use GenServer
 
+  alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Message
+  alias Membrane.RTC.Engine.Endpoint.WebRTC
   require Logger
 
   def start(opts) do
@@ -22,26 +25,27 @@ defmodule TestVideoroom.Room do
   end
 
   @impl true
-  def init(opts) do
+  def init(room_id) do
     Logger.info("Spawning room process: #{inspect(self())}")
 
-    sfu_options = [
-      id: opts[:room_id],
-      network_options: [
-        stun_servers: [
-          %{server_addr: "stun.l.google.com", server_port: 19_302}
-        ],
-        turn_servers: [],
-        dtls_pkey: Application.get_env(:membrane_videoroom_demo, :dtls_pkey),
-        dtls_cert: Application.get_env(:membrane_videoroom_demo, :dtls_cert)
-      ],
-      payload_and_depayload_tracks?: false
+    rtc_engine_options = [
+      id: room_id
     ]
 
-    {:ok, pid} = Membrane.RTC.Engine.start(sfu_options, [])
+    network_options = [
+      stun_servers: [
+        %{server_addr: "stun.l.google.com", server_port: 19_302}
+      ],
+      turn_servers: [],
+      dtls_pkey: Application.get_env(:membrane_videoroom_demo, :dtls_pkey),
+      dtls_cert: Application.get_env(:membrane_videoroom_demo, :dtls_cert)
+    ]
+
+    {:ok, pid} = Membrane.RTC.Engine.start(rtc_engine_options, [])
     Process.monitor(pid)
-    send(pid, {:register, self()})
-    {:ok, %{sfu_engine: pid, peer_channels: %{}, listeners: []}}
+    Engine.register(pid, self())
+
+    {:ok, %{rtc_engine: pid, peer_channels: %{}, network_options: network_options, listeners: []}}
   end
 
   @impl true
@@ -57,13 +61,13 @@ defmodule TestVideoroom.Room do
   end
 
   @impl true
-  def handle_info({_sfu_engine, {:sfu_media_event, :broadcast, event}}, state) do
+  def handle_info(%Message.MediaEvent{to: :broadcast, data: event}, state) do
     for {_peer_id, pid} <- state.peer_channels, do: send(pid, {:media_event, event})
     {:noreply, state}
   end
 
   @impl true
-  def handle_info({_sfu_engine, {:sfu_media_event, to, event}}, state) do
+  def handle_info(%Message.MediaEvent{to: to, data: event}, state) do
     if state.peer_channels[to] != nil do
       send(state.peer_channels[to], {:media_event, event})
     end
@@ -72,8 +76,36 @@ defmodule TestVideoroom.Room do
   end
 
   @impl true
-  def handle_info({sfu_engine, {:new_peer, peer_id, _metadata}}, state) do
-    send(sfu_engine, {:accept_new_peer, peer_id})
+  def handle_info(%Message.NewPeer{rtc_engine: rtc_engine, peer: peer}, state) do
+    handshake_opts =
+      if state.network_options[:dtls_pkey] &&
+           state.network_options[:dtls_cert] do
+        [
+          client_mode: false,
+          dtls_srtp: true,
+          pkey: state.network_options[:dtls_pkey],
+          cert: state.network_options[:dtls_cert]
+        ]
+      else
+        [
+          client_mode: false,
+          dtls_srtp: true
+        ]
+      end
+
+    endpoint = %WebRTC{
+      ice_name: peer.id,
+      extensions: %{},
+      owner: self(),
+      stun_servers: state.network_options[:stun_servers] || [],
+      turn_servers: state.network_options[:turn_servers] || [],
+      handshake_opts: handshake_opts,
+      log_metadata: [peer_id: peer.id]
+    }
+
+    Engine.accept_peer(rtc_engine, peer.id)
+
+    :ok = Engine.add_endpoint(rtc_engine, endpoint, peer_id: peer.id)
 
     for listener <- state.listeners do
       send(listener, {:room, :new_peer})
@@ -83,13 +115,13 @@ defmodule TestVideoroom.Room do
   end
 
   @impl true
-  def handle_info({_sfu_engine, {:peer_left, _peer_id}}, state) do
+  def handle_info(%Message.PeerLeft{peer: _peer}, state) do
     {:noreply, state}
   end
 
   @impl true
   def handle_info({:media_event, _from, _event} = msg, state) do
-    send(state.sfu_engine, msg)
+    Engine.receive_media_event(state.rtc_engine, msg)
     {:noreply, state}
   end
 
@@ -104,7 +136,7 @@ defmodule TestVideoroom.Room do
       state.peer_channels
       |> Enum.find(fn {_peer_id, peer_channel_pid} -> peer_channel_pid == pid end)
 
-    send(state.sfu_engine, {:remove_peer, peer_id})
+    Engine.remove_peer(state.rtc_engine, peer_id)
     {_elem, state} = pop_in(state, [:peer_channels, peer_id])
     {:noreply, state}
   end

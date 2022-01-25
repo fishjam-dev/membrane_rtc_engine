@@ -30,9 +30,6 @@ config :logger,
     [module: Membrane.SRTP.Encryptor, function: "handle_event/4", level_lower_than: :error]
   ]
 
-config :wallaby,
-  hackney_options: [timeout: 10_000, recv_timeout: 10_000]
-
 config :logger, level: :info
 
 config :phoenix, :json_library, Jason

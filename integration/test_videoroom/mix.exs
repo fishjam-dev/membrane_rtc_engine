@@ -32,15 +32,13 @@ defmodule TestVideoroom.MixProject do
       {:phoenix, "~> 1.6.2"},
       {:phoenix_html, "~> 3.0"},
       {:phoenix_live_view, "~> 0.17"},
-      {:esbuild, "~> 0.2", runtime: Mix.env() == :dev},
+      {:esbuild, "~> 0.4", runtime: Mix.env() == :dev},
       {:telemetry, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:plug_cowboy, "~> 2.5"},
-      # TODO: change to versioned package once a PR fixing http client headers are merged
-      # {:wallaby, "~> 0.29.0", runtime: false, only: :test},
-      {:wallaby,
-       github: "Qizot/wallaby", branch: "fix-http-client-headers", runtime: false, only: :test},
-      {:membrane_rtc_engine, path: "../../"}
+      {:membrane_rtc_engine, path: "../../"},
+      {:stampede, github: "geometerio/stampede-elixir"},
+      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"}
     ]
   end
 end
