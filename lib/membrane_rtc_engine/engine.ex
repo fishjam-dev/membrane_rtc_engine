@@ -295,11 +295,16 @@ defmodule Membrane.RTC.Engine do
           opts :: endpoint_options_t()
         ) :: :ok | :error
   def add_endpoint(pid, endpoint, opts) do
-    if Keyword.has_key?(opts, :endpoint_id) and Keyword.has_key?(opts, :peer_id) do
-      :error
-    else
-      send(pid, {:add_endpoint, endpoint, opts})
-      :ok
+    cond do
+      Keyword.has_key?(opts, :endpoint_id) and Keyword.has_key?(opts, :peer_id) ->
+        raise "You can't pass both option endpoint_id and peer_id"
+
+      not Keyword.has_key?(opts, :endpoint_id) and not Keyword.has_key?(opts, :peer_id) ->
+        raise "You didn't pass one option endpoint_id or peer_id"
+
+      true ->
+        send(pid, {:add_endpoint, endpoint, opts})
+        :ok
     end
   end
 

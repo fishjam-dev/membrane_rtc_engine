@@ -89,6 +89,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                 ],
                 integrated_turn_domain: [
                   spec: binary() | nil,
+                  default: nil,
                   description: "Domain address of integrated TURN Servers. Required for TLS TURN"
                 ],
                 integrated_turn_options: [
@@ -256,8 +257,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_other({:trace_ctx, trace_ctx}, _ctx, state) do
-      {{:ok, forward: {:endpoint_bin, {:trace_ctx, trace_ctx, [name: state.ice_name]}}}, state}
+    def handle_other({:trace_context, trace_ctx}, _ctx, state) do
+      {{:ok, forward: {:endpoint_bin, {:trace_context, trace_ctx, [name: state.ice_name]}}},
+       state}
     end
 
     @impl true
