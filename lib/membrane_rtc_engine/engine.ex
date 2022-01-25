@@ -209,7 +209,7 @@ defmodule Membrane.RTC.Engine do
   """
   @type options_t() :: [
           id: String.t(),
-          trace_ctx: OpenTelemetry.Ctx.t()
+          trace_ctx: map()
         ]
 
   @typedoc """
