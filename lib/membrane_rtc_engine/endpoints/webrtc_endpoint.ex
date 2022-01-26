@@ -109,7 +109,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   default: [],
                   description: "Trace context for otel propagation
 
-                  Traces from EndpointBin will be attach to this context.
+                  Traces from EndpointBin will be attached to this context.
                   "
                 ]
 

@@ -303,9 +303,6 @@ defmodule Membrane.RTC.Engine do
       Keyword.has_key?(opts, :endpoint_id) and Keyword.has_key?(opts, :peer_id) ->
         raise "You can't pass both option endpoint_id and peer_id"
 
-      not Keyword.has_key?(opts, :endpoint_id) and not Keyword.has_key?(opts, :peer_id) ->
-        raise "You didn't pass one option endpoint_id or peer_id"
-
       true ->
         send(pid, {:add_endpoint, endpoint, opts})
         :ok
@@ -451,7 +448,7 @@ defmodule Membrane.RTC.Engine do
   @decorate trace("engine.other.add_endpoint", include: [[:state, :component_path], [:state, :id]])
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
-    endpoint_id = opts[:endpoint_id] || opts[:peer_id]
+    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || "#{UUID.uuid4()}"
 
     cond do
       Map.has_key?(state.endpoints, endpoint_id) ->
