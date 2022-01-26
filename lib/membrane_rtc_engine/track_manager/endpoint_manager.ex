@@ -50,7 +50,7 @@ defmodule Membrane.RTC.Engine.EndpointManager do
   def add_tracks(endpoint, tracks, type) do
     track_id_to_track = Map.fetch!(endpoint, type)
     track_id_to_track = update_tracks(tracks, track_id_to_track)
-    Map.update!(endpoint, type, track_id_to_track)
+    Map.put(endpoint, type, track_id_to_track)
   end
 
   @spec remove_tracks(
@@ -64,7 +64,7 @@ defmodule Membrane.RTC.Engine.EndpointManager do
     track_id_to_track =
       Enum.reduce(tracks, track_id_to_track, fn track, acc -> Map.pop(acc, track.id) end)
 
-    Map.update!(endpoint, type, track_id_to_track)
+    Map.put(endpoint, type, track_id_to_track)
   end
 
   @spec map_audio_to_video(endpoint_manager :: t(), track_id :: Track.id()) :: [Track.t()]

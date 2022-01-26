@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Tee do
+defmodule Membrane.RTC.Engine.EngineTee do
   @moduledoc """
   Element for forwarding buffers to at least one output pad
 
@@ -11,6 +11,10 @@ defmodule Membrane.RTC.Engine.Tee do
 
   It has got built-in mechanism for limiting forwarding video buffers.
   It reads from ETS table on which pads it should forward buffers.
+
+  Counter is used for passing a single packets once in a while.
+  It is necessary for SRTP as they can update their ROCs
+  based on sequence numbers and when we drop to many packets we may roll it over.
   """
 
   use Membrane.Filter

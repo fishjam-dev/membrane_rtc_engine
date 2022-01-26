@@ -193,7 +193,7 @@ defmodule Membrane.RTC.Engine do
   use OpenTelemetryDecorator
   import Membrane.RTC.Utils
 
-  alias Membrane.RTC.Engine.{Endpoint, MediaEvent, Message, Track, Peer, TrackManager, Tee}
+  alias Membrane.RTC.Engine.{Endpoint, MediaEvent, Message, Track, Peer, TrackManager, EngineTee}
 
   require Membrane.Logger
 
@@ -455,7 +455,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   @decorate trace("engine.other.tracks_priority", include: [[:state, :id]])
-  def handle_other({:tracks_priority, endpoint_to_tracks}, ctx, state) do
+  def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
     _msgs =
       Enum.map(endpoint_to_tracks, fn {{:endpoint, endpoint_id}, tracks} ->
         MediaEvent.create_tracks_priority_event(tracks)
@@ -676,7 +676,7 @@ defmodule Membrane.RTC.Engine do
     children = %{
       endpoint_tee =>
         if state.track_manager != nil do
-          %Tee{ets_name: state.id, track_id: track_id, type: track.type}
+          %EngineTee{ets_name: state.id, track_id: track_id, type: track.type}
         else
           Membrane.Element.Tee.Master
         end,

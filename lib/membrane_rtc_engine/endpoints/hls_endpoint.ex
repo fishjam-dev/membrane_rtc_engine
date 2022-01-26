@@ -41,7 +41,7 @@ if Enum.all?(
                   """
                 ],
                 framerate: [
-                  spec: integer(),
+                  spec: {integer(), integer()},
                   description: """
                   Framerate of tracks
                   """,

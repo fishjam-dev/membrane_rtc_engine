@@ -125,8 +125,8 @@ export interface Callbacks {
 
   /**
    * Called in situtation when priority of video tracks changed.
-   * enabledTracks - list of tracks which will be sent to client from SFU
-   * disabledTracks - list of tracks which will not be sent to client from SFU
+   * @param enabledTracks - list of tracks which will be sent to client from SFU
+   * @param disabledTracks - list of tracks which will not be sent to client from SFU
    */
   onTracksPriorityChanged?: (enabledTracks: TrackContext[], disabledTracks: TrackContext[]) => void;
 }
@@ -551,14 +551,15 @@ export class MembraneWebRTC {
   }
 
   /**
+   * This function allow to adjust resolution and number of video tracks send by SFU to client UI.
    *
    * @param {number} bigScreens - number of screens with big size
-   * (if simulcast used this will limit number of tracks sent with highest quality).
+   * (if simulcast is used this will limit number of tracks sent with highest quality).
    * @param {number} smallScreens - number of screens with small size
-   * (if simulcast used this will limit number of tracks sent with lowest quality).
+   * (if simulcast is used this will limit number of tracks sent with lowest quality).
    * @param {number} mediumScreens - number of screens with medium size
-   * (if simulcast used this will limit number of tracks sent with medium quality).
-   * @param {boolean} allSameSize - flag if all screens should use same quality
+   * (if simulcast is used this will limit number of tracks sent with medium quality).
+   * @param {boolean} allSameSize - flag that indicates whether all screens should use the same quality
    */
   public setPreferedVideoSizes(
     bigScreens: number,
