@@ -11,11 +11,10 @@ if Enum.all?(
     @moduledoc """
     An Endpoint responsible for converting incoming tracks to HLS playlist.
 
-    This module require these plugins:
+    This module requires the following plugins to be present in your `mix.exs`:
     * membrane_http_adaptive_stream_plugin,
     * membrane_mp4_plugin,
     * membrane_aac_plugin,
-    * membrane_aac_format,
     * membrane_aac_fdk_plugin,
     """
     use Membrane.Bin

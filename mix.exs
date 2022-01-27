@@ -57,7 +57,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_http_adaptive_stream_plugin, "~> 0.5.0", optional: true},
       {:membrane_mp4_plugin, "~> 0.11.0", optional: true},
       {:membrane_aac_plugin, "~> 0.11.0", optional: true},
-      {:membrane_aac_format, "~> 0.6.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.9.0", optional: true},
       {:membrane_element_tee, "~> 0.6.0"},
       {:membrane_element_fake, "~> 0.6.0"},
