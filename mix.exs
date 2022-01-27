@@ -51,7 +51,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.8.0"},
+      {:membrane_core, github: "membraneframework/membrane_core", override: true},
       {:membrane_webrtc_plugin,
        github: "membraneframework/membrane_webrtc_plugin", optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.5.0", optional: true},
