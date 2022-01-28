@@ -89,6 +89,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                 ],
                 integrated_turn_domain: [
                   spec: binary() | nil,
+                  default: nil,
                   description: "Domain address of integrated TURN Servers. Required for TLS TURN"
                 ],
                 integrated_turn_options: [
@@ -106,7 +107,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                 trace_context: [
                   spec: :list,
                   default: [],
-                  description: "Trace context for otel propagation"
+                  description: "Trace context for otel propagation
+
+                  Traces from EndpointBin will be attached to this context.
+                  "
                 ]
 
     def_input_pad :input,

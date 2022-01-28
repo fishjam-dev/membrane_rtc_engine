@@ -51,7 +51,7 @@ defmodule Membrane.RTC.Utils do
       [
         {:"library.language", :erlang},
         {:"library.name", :membrane_rtc_engine},
-        {:"library.version", "semver:#{Application.spec(:membrane_rtc_engine, :vsn)}"}
+        {:"library.version", "server:#{Application.spec(:membrane_rtc_engine, :vsn)}"}
       ] ++ metadata
 
     root_span = Tracer.start_span(name)

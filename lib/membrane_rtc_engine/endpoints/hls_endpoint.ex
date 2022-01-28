@@ -1,10 +1,21 @@
 if Enum.all?(
-     [Membrane.H264.FFmpeg.Parser, Membrane.HTTPAdaptiveStream.SinkBin, Membrane.AAC.FDK.Encoder],
+     [
+       Membrane.H264.FFmpeg.Parser,
+       Membrane.HTTPAdaptiveStream.SinkBin,
+       Membrane.AAC.FDK.Encoder,
+       Membrane.AAC.Parser
+     ],
      &Code.ensure_loaded?/1
    ) do
   defmodule Membrane.RTC.Engine.Endpoint.HLS do
     @moduledoc """
     An Endpoint responsible for converting incoming tracks to HLS playlist.
+
+    This module requires the following plugins to be present in your `mix.exs`:
+    * membrane_http_adaptive_stream_plugin,
+    * membrane_mp4_plugin,
+    * membrane_aac_plugin,
+    * membrane_aac_fdk_plugin,
     """
     use Membrane.Bin
     require Membrane.Logger

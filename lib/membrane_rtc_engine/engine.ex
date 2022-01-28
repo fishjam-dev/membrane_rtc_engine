@@ -203,9 +203,13 @@ defmodule Membrane.RTC.Engine do
   RTC Engine configuration options.
 
   `id` is used by logger. If not provided it will be generated.
+  `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
+  Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
+
   """
   @type options_t() :: [
-          id: String.t()
+          id: String.t(),
+          trace_ctx: map()
         ]
 
   @typedoc """
@@ -295,8 +299,9 @@ defmodule Membrane.RTC.Engine do
           opts :: endpoint_options_t()
         ) :: :ok | :error
   def add_endpoint(pid, endpoint, opts) do
-    if Keyword.has_key?(opts, :endpoint_id) and Keyword.has_key?(opts, :peer_id) do
-      :error
+    if Keyword.has_key?(opts, :endpoint_id) and
+         Keyword.has_key?(opts, :peer_id) do
+      raise "You can't pass both option endpoint_id and peer_id"
     else
       send(pid, {:add_endpoint, endpoint, opts})
       :ok
@@ -397,7 +402,12 @@ defmodule Membrane.RTC.Engine do
   def handle_init(options) do
     play(self())
 
-    trace_ctx = Membrane.RTC.Utils.create_otel_context("rtc:#{options[:id]}")
+    trace_ctx =
+      if Keyword.has_key?(options, :trace_ctx) do
+        OpenTelemetry.Ctx.attach(options[:trace_ctx])
+      else
+        Membrane.RTC.Utils.create_otel_context("rtc:#{options[:id]}")
+      end
 
     {{:ok, log_metadata: [rtc: options[:id]]},
      %{
@@ -437,7 +447,7 @@ defmodule Membrane.RTC.Engine do
   @decorate trace("engine.other.add_endpoint", include: [[:state, :component_path], [:state, :id]])
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
-    endpoint_id = opts[:endpoint_id] || opts[:peer_id]
+    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || "#{UUID.uuid4()}"
 
     cond do
       Map.has_key?(state.endpoints, endpoint_id) ->
@@ -867,7 +877,7 @@ defmodule Membrane.RTC.Engine do
     endpoint_name = {:endpoint, endpoint_id}
 
     children = %{
-      endpoint_name => Map.put(endpoint_entry, :trace_context, state.trace_context)
+      endpoint_name => endpoint_entry
     }
 
     action = [forward: {endpoint_name, {:new_tracks, outbound_tracks}}]
