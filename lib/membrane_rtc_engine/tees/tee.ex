@@ -1,5 +1,7 @@
-defmodule Membrane.RTC.Engine.EngineTee do
-  @moduledoc """
+defmodule Membrane.RTC.Engine.Tee do
+  @moduledoc false
+
+  @doc """
   Element for forwarding buffers to at least one output pad
 
   It has one input pad `:input` and 2 output pads:

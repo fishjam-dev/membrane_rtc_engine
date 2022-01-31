@@ -182,7 +182,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
       inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
-      send_if_not_nil(state.track_manager, {:add_inbound_tracks, ctx.name, tracks})
+      send_if_not_nil(state.display_manager, {:add_inbound_tracks, ctx.name, tracks})
 
       {{:ok, notify: {:publish, {:new_tracks, tracks}}},
        %{state | inbound_tracks: inbound_tracks}}
@@ -213,7 +213,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
 
       subscriptions = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
-      send_if_not_nil(state.track_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
+      send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
       {{:ok, notify: {:subscribe, subscriptions}}, state}
     end
 
@@ -221,7 +221,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
       send(state.owner, {:vad_notification, val, ctx.name})
 
-      send_if_not_nil(state.track_manager, {:vad_notification, ctx.name, val})
+      send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, val})
 
       {:ok, state}
     end
@@ -273,9 +273,13 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_other({:track_manager, track_manager_pid}, ctx, state) do
-      send_if_not_nil(track_manager_pid, {:register_endpoint, ctx.name, state.video_tracks_limit})
-      {:ok, Map.put(state, :track_manager, track_manager_pid)}
+    def handle_other({:display_manager, display_manager_pid}, ctx, state) do
+      send_if_not_nil(
+        display_manager_pid,
+        {:register_endpoint, ctx.name, state.video_tracks_limit}
+      )
+
+      {:ok, Map.put(state, :display_manager, display_manager_pid)}
     end
 
     @impl true
@@ -339,13 +343,13 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     defp handle_custom_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
       msg = {:prioritize_track, ctx.name, data.track_id}
-      send_if_not_nil(state.track_manager, msg)
+      send_if_not_nil(state.display_manager, msg)
       {:ok, state}
     end
 
     defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, ctx, state) do
       msg = {:unprioritize_track, ctx.name, data.track_id}
-      send_if_not_nil(state.track_manager, msg)
+      send_if_not_nil(state.display_manager, msg)
       {:ok, state}
     end
 
@@ -354,7 +358,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         {:prefered_video_sizes, data.big_screens, data.medium_screens, data.small_screens,
          data.same_size?}
 
-      send_if_not_nil(state.track_manager, msg)
+      send_if_not_nil(state.display_manager, msg)
       {:ok, state}
     end
 

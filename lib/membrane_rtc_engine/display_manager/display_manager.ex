@@ -1,6 +1,11 @@
-defmodule Membrane.RTC.Engine.TrackManager do
+defmodule Membrane.RTC.Engine.DisplayManager do
   @moduledoc """
-  TBD
+  A GenServer responsible for deciding which track is sent to which peers.
+
+  It makes a decision based on metrics, which currently include only VAD notifications.
+  To calculate metrics DisplayManager needs to have a copy of the state of the room.
+  Each endpoints state is represented as EndpointManager. After calculating metrics it takes into account
+  client preferences puts results in the ETS table and sends a message to the RTC Engine that tees should update to whom they send buffers.
   """
   use GenServer
   alias Membrane.RTC.Engine.EndpointManager
@@ -21,6 +26,13 @@ defmodule Membrane.RTC.Engine.TrackManager do
     ets_name = opts[:ets_name]
     ets_name = :"#{ets_name}"
     :ets.new(ets_name, [:set, :public, :named_table])
+    display_manager = self()
+
+    speakers_detector =
+      Process.spawn(
+        fn -> speakers_detector_loop(display_manager, ets_name) end,
+        [:link]
+      )
 
     {:ok,
      %{
@@ -28,7 +40,8 @@ defmodule Membrane.RTC.Engine.TrackManager do
        ets_name: ets_name,
        engine: engine_pid,
        calculating_priority?: false,
-       vads: []
+       vads: [],
+       speakers_detector: speakers_detector
      }}
   end
 
@@ -173,21 +186,21 @@ defmodule Membrane.RTC.Engine.TrackManager do
     vads = Enum.reverse(vads)
 
     if not state.calculating_priority? and Enum.count(vads) > 0 do
-      track_manager = self()
-
-      Process.spawn(
-        fn ->
-          track_priorities =
-            calculate_tracks_priority(vads, state.endpoint_managers, state.ets_name)
-
-          send(track_manager, {:track_priorities, track_priorities})
-        end,
-        [:link]
-      )
+      send(state.speakers_detector, {:calculate_tracks_priority, vads, state.endpoint_managers})
 
       %{state | vads: [], calculating_priority?: true}
     else
       %{state | vads: vads}
+    end
+  end
+
+  defp speakers_detector_loop(display_manager_pid, ets_name) do
+    receive do
+      {:calculate_tracks_priority, vads, endpoint_managers} ->
+        track_priorities = calculate_tracks_priority(vads, endpoint_managers, ets_name)
+
+        send(display_manager_pid, {:track_priorities, track_priorities})
+        speakers_detector_loop(display_manager_pid, ets_name)
     end
   end
 

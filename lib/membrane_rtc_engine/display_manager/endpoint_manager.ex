@@ -33,8 +33,15 @@ defmodule Membrane.RTC.Engine.EndpointManager do
   """
   @spec new(
           endpoint_id :: id(),
-          video_tracks_limit :: integer()
-        ) :: t
+          video_tracks_limit :: integer() | nil
+        ) :: %__MODULE__{
+          id: id(),
+          inbound_tracks: %{},
+          outbound_tracks: %{},
+          video_tracks_limit: integer() | nil,
+          prioritized_tracks: [],
+          screens_sizes: %{same_size?: true, big_screens: nil, small_screens: nil}
+        }
   def new(endpoint_id, video_tracks_limit) do
     %__MODULE__{
       id: endpoint_id,

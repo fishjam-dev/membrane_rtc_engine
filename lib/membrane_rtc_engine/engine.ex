@@ -193,7 +193,15 @@ defmodule Membrane.RTC.Engine do
   use OpenTelemetryDecorator
   import Membrane.RTC.Utils
 
-  alias Membrane.RTC.Engine.{Endpoint, MediaEvent, Message, Track, Peer, TrackManager, EngineTee}
+  alias Membrane.RTC.Engine.{
+    Endpoint,
+    MediaEvent,
+    Message,
+    Track,
+    Peer,
+    DisplayManager,
+    Tee
+  }
 
   require Membrane.Logger
 
@@ -205,14 +213,13 @@ defmodule Membrane.RTC.Engine do
   `id` is used by logger. If not provided it will be generated.
   `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
   Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
-  `track_manager?` decide if `#{inspect(__MODULE__)}.TrackManager` should be spawned for engine.
-
-
+  `display_manager?` decide if `#{inspect(__MODULE__)}.DisplayManager` should be spawned for engine.
   """
+
   @type options_t() :: [
           id: String.t(),
           trace_ctx: map(),
-          track_manager?: boolean()
+          display_manager?: boolean()
         ]
 
   @typedoc """
@@ -276,9 +283,9 @@ defmodule Membrane.RTC.Engine do
 
   defp do_start(func, options, process_options) when func in [:start, :start_link] do
     id = options[:id] || "#{UUID.uuid4()}"
-    track_manager? = options[:track_manager?] || false
+    display_manager? = options[:display_manager?] || false
     options = Keyword.put(options, :id, id)
-    options = Keyword.put(options, :track_manager?, track_manager?)
+    options = Keyword.put(options, :display_manager?, display_manager?)
 
     Membrane.Logger.info("Starting a new RTC Engine instance with id: #{id}")
 
@@ -407,22 +414,19 @@ defmodule Membrane.RTC.Engine do
   def handle_init(options) do
     play(self())
 
-<<<<<<< HEAD
     trace_ctx =
       if Keyword.has_key?(options, :trace_ctx) do
         OpenTelemetry.Ctx.attach(options[:trace_ctx])
       else
         Membrane.RTC.Utils.create_otel_context("rtc:#{options[:id]}")
-=======
-    trace_ctx = create_otel_context("rtc:#{options[:id]}")
+      end
 
-    track_manager =
-      if options[:track_manager?] do
-        {:ok, pid} = TrackManager.start_link(ets_name: options[:id], engine: self())
+    display_manager =
+      if options[:display_manager?] do
+        {:ok, pid} = DisplayManager.start_link(ets_name: options[:id], engine: self())
         pid
       else
         nil
->>>>>>> d3bc34a (Wip RTCEngineTee)
       end
 
     {{:ok, log_metadata: [rtc: options[:id]]},
@@ -435,7 +439,7 @@ defmodule Membrane.RTC.Engine do
        waiting_for_linking: %{},
        filters: %{},
        subscriptions: %{},
-       track_manager: track_manager
+       display_manager: display_manager
      }}
   end
 
@@ -675,8 +679,8 @@ defmodule Membrane.RTC.Engine do
 
     children = %{
       endpoint_tee =>
-        if state.track_manager != nil do
-          %EngineTee{ets_name: state.id, track_id: track_id, type: track.type}
+        if state.display_manager != nil do
+          %Tee{ets_name: state.id, track_id: track_id, type: track.type}
         else
           Membrane.Element.Tee.Master
         end,
@@ -925,7 +929,7 @@ defmodule Membrane.RTC.Engine do
     }
 
     action = [
-      forward: {endpoint_name, {:track_manager, state.track_manager}},
+      forward: {endpoint_name, {:display_manager, state.display_manager}},
       forward: {endpoint_name, {:new_tracks, outbound_tracks}}
     ]
 
@@ -956,7 +960,7 @@ defmodule Membrane.RTC.Engine do
         |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
         |> dispatch()
 
-        send_if_not_nil(state.track_manager, {:unregister_endpoint, {:endpoint, peer_id}})
+        send_if_not_nil(state.display_manager, {:unregister_endpoint, {:endpoint, peer_id}})
 
         {actions, state}
     end

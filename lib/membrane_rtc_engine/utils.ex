@@ -58,7 +58,7 @@ defmodule Membrane.RTC.Utils do
     end
   end
 
-  @spec create_otel_context(name :: String.t(), metadata :: KeywordList.t()) :: any()
+  @spec create_otel_context(name :: String.t(), metadata :: [{atom(), any()}]) :: any()
   def create_otel_context(name, metadata \\ []) do
     metadata =
       [
