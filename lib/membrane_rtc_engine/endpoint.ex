@@ -39,7 +39,11 @@ defmodule Membrane.RTC.Engine.Endpoint do
 
   @spec get_track_id_to_metadata(endpoint :: t()) :: %{Track.id() => any}
   def get_track_id_to_metadata(%__MODULE__{} = endpoint),
-    do: Map.values(endpoint.inbound_tracks) |> Map.new(&{&1.id, &1.metadata})
+    do:
+      endpoint.inbound_tracks
+      |> Map.values()
+      |> Enum.filter(& &1.active?)
+      |> Map.new(&{&1.id, &1.metadata})
 
   def get_track_id_to_metadata(_endpoint), do: %{}
 

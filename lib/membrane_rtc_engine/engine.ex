@@ -869,7 +869,8 @@ defmodule Membrane.RTC.Engine do
 
   defp setup_endpoint(endpoint_entry, opts, state) do
     inbound_tracks = []
-    outbound_tracks = get_outbound_tracks(state.endpoints)
+
+    outbound_tracks = state.endpoints |> get_outbound_tracks() |> Enum.filter(& &1.active?)
 
     endpoint_id = opts[:endpoint_id] || opts[:peer_id]
     endpoint = Endpoint.new(endpoint_id, inbound_tracks)
