@@ -49,7 +49,7 @@ if Enum.all?(
                 ],
                 hls_mode: [
                   spec: :separate_av | :muxed_av,
-                  default: :muxed_av,
+                  default: :separate_av,
                   description: """
                   Defines output mode for `Membrane.HTTPAdaptiveStream.SinkBin`.
 
