@@ -1,12 +1,12 @@
 defmodule Membrane.RTC.Engine.DisplayManager do
-  @moduledoc """
-  A GenServer responsible for deciding which track is sent to which peers.
+  @moduledoc false
 
-  It makes a decision based on metrics, which currently include only VAD notifications.
-  To calculate metrics DisplayManager needs to have a copy of the state of the room.
-  Each endpoints state is represented as EndpointManager. After calculating metrics it takes into account
-  client preferences puts results in the ETS table and sends a message to the RTC Engine that tees should update to whom they send buffers.
-  """
+  # A GenServer responsible for deciding which track is sent to which peers.
+  # It makes a decision based on metrics, which currently include only VAD notifications.
+  # To calculate metrics DisplayManager needs to have a copy of the state of the room.
+  # Each endpoints state is represented as EndpointManager. After calculating metrics it takes into account
+  # client preferences puts results in the ETS table and sends a message to the RTC Engine that tees should update to whom they send buffers.
+
   use GenServer
   alias Membrane.RTC.Engine.EndpointManager
 
@@ -28,9 +28,9 @@ defmodule Membrane.RTC.Engine.DisplayManager do
     :ets.new(ets_name, [:set, :public, :named_table])
     display_manager = self()
 
-    speakers_detector =
+    track_priorities_calc =
       Process.spawn(
-        fn -> speakers_detector_loop(display_manager, ets_name) end,
+        fn -> track_priorities_calc_loop(display_manager, ets_name) end,
         [:link]
       )
 
@@ -41,7 +41,7 @@ defmodule Membrane.RTC.Engine.DisplayManager do
        engine: engine_pid,
        calculating_priority?: false,
        vads: [],
-       speakers_detector: speakers_detector
+       track_priorities_calc: track_priorities_calc
      }}
   end
 
@@ -186,7 +186,10 @@ defmodule Membrane.RTC.Engine.DisplayManager do
     vads = Enum.reverse(vads)
 
     if not state.calculating_priority? and Enum.count(vads) > 0 do
-      send(state.speakers_detector, {:calculate_tracks_priority, vads, state.endpoint_managers})
+      send(
+        state.track_priorities_calc,
+        {:calculate_tracks_priority, vads, state.endpoint_managers}
+      )
 
       %{state | vads: [], calculating_priority?: true}
     else
@@ -194,13 +197,13 @@ defmodule Membrane.RTC.Engine.DisplayManager do
     end
   end
 
-  defp speakers_detector_loop(display_manager_pid, ets_name) do
+  defp track_priorities_calc_loop(display_manager_pid, ets_name) do
     receive do
       {:calculate_tracks_priority, vads, endpoint_managers} ->
         track_priorities = calculate_tracks_priority(vads, endpoint_managers, ets_name)
 
         send(display_manager_pid, {:track_priorities, track_priorities})
-        speakers_detector_loop(display_manager_pid, ets_name)
+        track_priorities_calc_loop(display_manager_pid, ets_name)
     end
   end
 

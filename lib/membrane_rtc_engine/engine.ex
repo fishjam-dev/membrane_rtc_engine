@@ -199,9 +199,10 @@ defmodule Membrane.RTC.Engine do
     Message,
     Track,
     Peer,
-    DisplayManager,
-    Tee
+    DisplayManager
   }
+
+  alias Membrane.RTC.Engine
 
   require Membrane.Logger
 
@@ -210,10 +211,10 @@ defmodule Membrane.RTC.Engine do
   @typedoc """
   RTC Engine configuration options.
 
-  `id` is used by logger. If not provided it will be generated.
-  `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
+  * `id` is used by logger. If not provided it will be generated.
+  * `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
   Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
-  `display_manager?` decide if `#{inspect(__MODULE__)}.DisplayManager` should be spawned for engine.
+  * `display_manager?` - set to `true` if you want to limit number of tracks sent from `#{inspect(__MODULE__)}.Endpoint.WebRTC` to a browser.
   """
 
   @type options_t() :: [
@@ -680,7 +681,7 @@ defmodule Membrane.RTC.Engine do
     children = %{
       endpoint_tee =>
         if state.display_manager != nil do
-          %Tee{ets_name: state.id, track_id: track_id, type: track.type}
+          %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
         else
           Membrane.Element.Tee.Master
         end,
