@@ -62,6 +62,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_element_fake, "~> 0.6.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
+      {:unifex, "~> 0.7.0", override: true},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.24.2", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false, override: true},

@@ -107,10 +107,17 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                 trace_context: [
                   spec: :list,
                   default: [],
-                  description: "Trace context for otel propagation
+                  description: "Trace context for otel propagation"
+                ],
+                video_tracks_limit: [
+                  spec: integer() | nil,
+                  default: nil,
+                  description: """
+                  Maximal number of video tracks that will be sent to the the browser at the same time.
 
-                  Traces from EndpointBin will be attached to this context.
-                  "
+                  This variable indicates how many video tracks should be sent to the browser at the same time.
+                  If `nil` all video tracks this `#{inspect(__MODULE__)}` receives will be sent.
+                  """
                 ]
 
     def_input_pad :input,
@@ -152,7 +159,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
         integrated_turn_domain: opts.integrated_turn_domain,
-        owner: opts.owner
+        owner: opts.owner,
+        video_tracks_limit: opts.video_tracks_limit
       }
 
       {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
@@ -170,9 +178,11 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification({:new_tracks, tracks}, _from, _ctx, state) do
+    def handle_notification({:new_tracks, tracks}, _from, ctx, state) do
       tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
       inbound_tracks = update_tracks(tracks, state.inbound_tracks)
+
+      send_if_not_nil(state.display_manager, {:add_inbound_tracks, ctx.name, tracks})
 
       {{:ok, notify: {:publish, {:new_tracks, tracks}}},
        %{state | inbound_tracks: inbound_tracks}}
@@ -198,14 +208,21 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification({:negotiation_done, new_outbound_tracks}, _from, _ctx, state) do
-      tracks = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
-      {{:ok, notify: {:subscribe, tracks}}, state}
+    def handle_notification({:negotiation_done, new_outbound_tracks}, _from, ctx, state) do
+      new_outbound_tracks =
+        Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+
+      subscriptions = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
+      send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
+      {{:ok, notify: {:subscribe, subscriptions}}, state}
     end
 
     @impl true
     def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
       send(state.owner, {:vad_notification, val, ctx.name})
+
+      send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, val})
+
       {:ok, state}
     end
 
@@ -253,6 +270,16 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
       {{:ok, forward(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
        %{state | outbound_tracks: outbound_tracks}}
+    end
+
+    @impl true
+    def handle_other({:display_manager, display_manager_pid}, ctx, state) do
+      send_if_not_nil(
+        display_manager_pid,
+        {:register_endpoint, ctx.name, state.video_tracks_limit}
+      )
+
+      {:ok, Map.put(state, :display_manager, display_manager_pid)}
     end
 
     @impl true
@@ -312,6 +339,27 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     defp handle_custom_media_event(%{type: :renegotiate_tracks}, ctx, state) do
       msg = {:signal, :renegotiate_tracks}
       {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+    end
+
+    defp handle_custom_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
+      msg = {:prioritize_track, ctx.name, data.track_id}
+      send_if_not_nil(state.display_manager, msg)
+      {:ok, state}
+    end
+
+    defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, ctx, state) do
+      msg = {:unprioritize_track, ctx.name, data.track_id}
+      send_if_not_nil(state.display_manager, msg)
+      {:ok, state}
+    end
+
+    defp handle_custom_media_event(%{type: :prefered_video_sizes, data: data}, _ctx, state) do
+      msg =
+        {:prefered_video_sizes, data.big_screens, data.medium_screens, data.small_screens,
+         data.same_size?}
+
+      send_if_not_nil(state.display_manager, msg)
+      {:ok, state}
     end
 
     defp get_turn_configs(turn_servers, state) do
@@ -397,6 +445,44 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
     defp deserialize(%{"type" => "renegotiateTracks"}) do
       {:ok, %{type: :renegotiate_tracks}}
+    end
+
+    defp deserialize(%{"type" => "prioritizeTrack"} = event) do
+      case event do
+        %{"type" => "prioritizeTrack", "data" => %{"trackId" => track_id}} ->
+          {:ok, %{type: :prioritize_track, data: %{track_id: track_id}}}
+      end
+    end
+
+    defp deserialize(%{"type" => "unprioritizeTrack"} = event) do
+      case event do
+        %{"type" => "unprioritizeTrack", "data" => %{"trackId" => track_id}} ->
+          {:ok, %{type: :unprioritize_track, data: %{track_id: track_id}}}
+      end
+    end
+
+    defp deserialize(%{"type" => "preferedVideoSizes"} = event) do
+      case event do
+        %{
+          "type" => "preferedVideoSizes",
+          "data" => %{
+            "bigScreens" => big_screens,
+            "mediumScreens" => medium_screens,
+            "smallScreens" => small_screens,
+            "allSameSize" => same_size?
+          }
+        } ->
+          {:ok,
+           %{
+             type: :prefered_video_sizes,
+             data: %{
+               big_screens: big_screens,
+               medium_screens: medium_screens,
+               small_screens: small_screens,
+               same_size?: same_size?
+             }
+           }}
+      end
     end
 
     defp deserialize(%{"type" => "candidate"} = event) do

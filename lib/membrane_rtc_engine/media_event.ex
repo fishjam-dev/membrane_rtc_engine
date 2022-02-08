@@ -106,6 +106,17 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> serialize()
   end
 
+  @spec create_tracks_priority_event([String.t()]) :: rtc_media_event_t()
+  def create_tracks_priority_event(tracks) do
+    %{
+      type: "tracksPriority",
+      data: %{
+        tracks: tracks
+      }
+    }
+    |> serialize()
+  end
+
   @spec create_custom_event(map()) :: rtc_media_event_t()
   def create_custom_event(msg) do
     %{

@@ -19,6 +19,12 @@ defmodule Membrane.RTC.Utils do
     end
   end
 
+  defmacro filter_children(ctx, pattern: pattern) do
+    quote do
+      unquote(ctx).children |> Map.keys() |> Enum.filter(&match?(unquote(pattern), &1))
+    end
+  end
+
   @spec reduce_children(ctx :: ctx(), acc :: any(), fun :: fun()) ::
           any()
   def reduce_children(ctx, acc, fun) do
@@ -45,7 +51,14 @@ defmodule Membrane.RTC.Utils do
     end
   end
 
-  @spec create_otel_context(name :: String.t(), metadata :: KeywordList.t()) :: any()
+  @spec send_if_not_nil(pid :: pid() | nil, msg :: any()) :: any()
+  def send_if_not_nil(pid, msg) do
+    if pid != nil do
+      send(pid, msg)
+    end
+  end
+
+  @spec create_otel_context(name :: String.t(), metadata :: [{atom(), any()}]) :: any()
   def create_otel_context(name, metadata \\ []) do
     metadata =
       [
