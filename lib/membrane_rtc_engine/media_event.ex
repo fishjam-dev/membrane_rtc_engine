@@ -10,7 +10,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   def create_peer_accepted_event(peer_id, peers, endpoints) do
     peers =
       Enum.map(peers, fn {id, peer} ->
-        track_id_to_track_metadata = Endpoint.get_track_id_to_metadata(endpoints[id])
+        track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoints[id])
         %{id: id, metadata: peer.metadata, trackIdToMetadata: track_id_to_track_metadata}
       end)
 
