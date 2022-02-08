@@ -790,7 +790,7 @@ defmodule Membrane.RTC.Engine do
       )
 
     endpoint = get_in(state, [:endpoints, endpoint_id])
-    track_id_to_track_metadata = Endpoint.get_track_id_to_metadata(endpoint)
+    track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
 
     MediaEvent.create_tracks_added_event(endpoint_id, track_id_to_track_metadata)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
@@ -918,7 +918,8 @@ defmodule Membrane.RTC.Engine do
 
   defp setup_endpoint(endpoint_entry, opts, state) do
     inbound_tracks = []
-    outbound_tracks = get_outbound_tracks(state.endpoints)
+
+    outbound_tracks = state.endpoints |> get_outbound_tracks() |> Enum.filter(& &1.active?)
 
     endpoint_id = opts[:endpoint_id] || opts[:peer_id]
     endpoint = Endpoint.new(endpoint_id, inbound_tracks)
