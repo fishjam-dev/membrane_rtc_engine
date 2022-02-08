@@ -7,10 +7,11 @@ defmodule Membrane.RTC.Engine.Endpoint do
 
   @type t :: %__MODULE__{
           id: id(),
-          inbound_tracks: %{Track.id() => Track.t()}
+          inbound_tracks: %{Track.id() => Track.t()},
+          state: :created | :removed
         }
 
-  defstruct id: nil, inbound_tracks: %{}
+  defstruct id: nil, inbound_tracks: %{}, state: :created
 
   @spec new(id :: id(), inbound_tracks :: [Track.t()]) :: t()
   def new(id, inbound_tracks) do

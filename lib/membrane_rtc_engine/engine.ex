@@ -621,26 +621,42 @@ defmodule Membrane.RTC.Engine do
          _ctx,
          state
        ) do
-    endpoint = Map.get(state.endpoints, endpoint_id)
-    track = Endpoint.get_track_by_id(endpoint, track_id)
+    case(get_in(state, [:endpoints, endpoint_id, :state])) do
+      :created ->
+        endpoint = Map.get(state.endpoints, endpoint_id)
+        track = Endpoint.get_track_by_id(endpoint, track_id)
 
-    if track != nil and track.metadata != track_metadata do
-      endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
-      state = put_in(state, [:endpoints, endpoint_id], endpoint)
+        if track != nil and track.metadata != track_metadata do
+          endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
+          state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
-      MediaEvent.create_track_updated_event(endpoint_id, track_id, track_metadata)
-      |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-      |> dispatch()
+          MediaEvent.create_track_updated_event(endpoint_id, track_id, track_metadata)
+          |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
+          |> dispatch()
 
-      {[], state}
-    else
-      {[], state}
+          {[], state}
+        else
+          {[], state}
+        end
+
+      :removed ->
+        {:ok, state}
     end
   end
 
   @impl true
+  def handle_notification(notifcation, {:endpoint, endpoint_id} = from, ctx, state) do
+    case(get_in(state, [:endpoints, endpoint_id, :state])) do
+      :created ->
+        do_handle_notification(notifcation, from, ctx, state)
+
+      :removed ->
+        {:ok, state}
+    end
+  end
+
   @decorate trace("engine.notification.custom_media_event", include: [[:state, :id]])
-  def handle_notification({:custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
+  defp do_handle_notification({:custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
     MediaEvent.create_custom_event(data)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
     |> dispatch()
@@ -653,16 +669,15 @@ defmodule Membrane.RTC.Engine do
   # media without adding payload/depaload elements to all EndpointBins (performing unnecessary work).
   #
   # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
-  @impl true
   @decorate trace("engine.notification.track_ready",
               include: [:track_id, :encoding, [:state, :id]]
             )
-  def handle_notification(
-        {:track_ready, track_id, encoding, depayloading_filter},
-        endpoint_bin_name,
-        ctx,
-        state
-      ) do
+  defp do_handle_notification(
+         {:track_ready, track_id, encoding, depayloading_filter},
+         endpoint_bin_name,
+         ctx,
+         state
+       ) do
     Membrane.Logger.info(
       "New incoming #{encoding} track #{track_id} from #{inspect(endpoint_bin_name)}"
     )
@@ -721,14 +736,13 @@ defmodule Membrane.RTC.Engine do
     {{:ok, spec: spec}, state}
   end
 
-  @impl true
   @decorate trace("engine.notification.subscribe", include: [:endpoint_id, [:state, :id]])
-  def handle_notification(
-        {:subscribe, tracks},
-        {:endpoint, endpoint_id},
-        ctx,
-        state
-      ) do
+  defp do_handle_notification(
+         {:subscribe, tracks},
+         {:endpoint, endpoint_id},
+         ctx,
+         state
+       ) do
     {new_waiting_for_linking, parent_spec} = link_outbound_tracks(tracks, endpoint_id, ctx, state)
 
     state =
@@ -752,20 +766,21 @@ defmodule Membrane.RTC.Engine do
     {{:ok, [spec: parent_spec]}, state}
   end
 
-  @impl true
-  @decorate trace("engine.notification.publish.new_tracks",
-              include: [:endpoint_id, [:state, :id]]
-            )
-  def handle_notification(
-        {:publish, {:new_tracks, tracks}},
-        {:endpoint, endpoint_id},
-        ctx,
-        state
-      ) do
+  @decorate trace("engine.notification.publish.new_tracks", include: [:endpoint_id, [:state, :id]])
+  defp do_handle_notification(
+         {:publish, {:new_tracks, tracks}},
+         {:endpoint, endpoint_id},
+         ctx,
+         state
+       ) do
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
     state =
-      update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
+      update_in(
+        state,
+        [:endpoints, endpoint_id, :inbound_tracks],
+        &Map.merge(&1, id_to_track)
+      )
 
     tracks_msgs =
       do_publish(
@@ -785,20 +800,23 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  @impl true
   @decorate trace("engine.notification.publish.removed_tracks",
               include: [:endpoint_id, [:state, :id]]
             )
-  def handle_notification(
-        {:publish, {:removed_tracks, tracks}},
-        {:endpoint, endpoint_id},
-        ctx,
-        state
-      ) do
+  defp do_handle_notification(
+         {:publish, {:removed_tracks, tracks}},
+         {:endpoint, endpoint_id},
+         ctx,
+         state
+       ) do
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
     state =
-      update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
+      update_in(
+        state,
+        [:endpoints, endpoint_id, :inbound_tracks],
+        &Map.merge(&1, id_to_track)
+      )
 
     tracks_msgs =
       do_publish(
@@ -1026,9 +1044,11 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp do_remove_endpoint(peer_id, ctx, state) do
-    if Map.has_key?(state.endpoints, peer_id) do
+    if Map.has_key?(state.endpoints, peer_id) and Map.get(state.endpoints, peer_id) != :removed do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
+      endpoint = %{endpoint | inbound_tracks: Map.new(tracks, &{&1.id, &1}), state: :removed}
+      state = put_in(state, [:endpoints, peer_id], endpoint)
 
       tracks_msgs =
         do_publish(
