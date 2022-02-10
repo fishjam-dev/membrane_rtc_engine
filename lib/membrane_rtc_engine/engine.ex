@@ -487,7 +487,7 @@ defmodule Membrane.RTC.Engine do
   @decorate trace("engine.other.add_endpoint", include: [[:state, :component_path], [:state, :id]])
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
-    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || "#{UUID.uuid4()}"
+    endpoint_id = opts[:endpoint_id] || opts[:peer_id]
 
     cond do
       Map.has_key?(state.endpoints, endpoint_id) ->
@@ -967,7 +967,7 @@ defmodule Membrane.RTC.Engine do
 
     outbound_tracks = state.endpoints |> get_outbound_tracks() |> Enum.filter(& &1.active?)
 
-    endpoint_id = opts[:endpoint_id] || opts[:peer_id]
+    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || "#{UUID.uuid4()}"
     endpoint = Endpoint.new(endpoint_id, inbound_tracks)
 
     endpoint_name = {:endpoint, endpoint_id}
