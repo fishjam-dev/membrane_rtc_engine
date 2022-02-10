@@ -32,6 +32,8 @@ jobs:
       - run: cd assets && npm install
       - run: cd assets && npm run format:check
 
+      
+
 workflows:
   version: 2
   build:

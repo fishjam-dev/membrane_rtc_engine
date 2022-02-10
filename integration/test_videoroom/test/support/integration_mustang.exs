@@ -6,6 +6,8 @@ defmodule IntegrationMustang do
     page = browser |> Playwright.Browser.new_page()
     _response = Playwright.Page.goto(page, options.target_url)
 
+    Process.sleep(500)
+
     :ok = Playwright.Page.click(page, "[id=#{options.start_button}]")
 
     {browser, page}
@@ -36,6 +38,7 @@ defmodule IntegrationMustang do
     :ok = Playwright.Page.click(page, "[id=stop]")
     send(options.receiver, {options.id, :end})
     Playwright.Page.close(page)
+    Playwright.Browser.close(browser)
 
     browser
   end

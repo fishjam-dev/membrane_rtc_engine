@@ -36,9 +36,11 @@ defmodule TestVideoroom.MixProject do
       {:telemetry, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:plug_cowboy, "~> 2.5"},
+      {:cowlib, "~> 2.11", override: true},
       {:membrane_rtc_engine, path: "../../"},
       {:stampede, github: "geometerio/stampede-elixir"},
       {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"}
+      # {:membrane_webrtc_plugin, path: "../../deps/membrane_webrtc_plugin"}
     ]
   end
 end

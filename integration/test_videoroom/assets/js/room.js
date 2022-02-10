@@ -2,9 +2,9 @@ import {
   MembraneWebRTC,
   Peer,
   SerializedMediaEvent,
-} from "../../../../priv/static/index";
+} from "membrane_rtc_engine";
 
-import {Socket} from "phoenix";
+import { Socket } from "phoenix";
 
 const videos = document.querySelector("#videos");
 
@@ -66,8 +66,8 @@ class Room {
 
           video.srcObject = stream;
         },
-        onTrackAdded: (ctx) => {},
-        onTrackRemoved: (ctx) => {},
+        onTrackAdded: (ctx) => { },
+        onTrackRemoved: (ctx) => { },
         onPeerJoined: (peer) => {
           this.peers.push(peer);
           this.updateParticipantsList();
@@ -78,7 +78,7 @@ class Room {
           removeVideoElement(peer.id);
           this.updateParticipantsList();
         },
-        onPeerUpdated: (ctx) => {},
+        onPeerUpdated: (ctx) => { },
       },
     });
 

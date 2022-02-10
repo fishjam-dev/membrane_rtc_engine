@@ -1,31 +1,78 @@
-FROM python:3.8
+FROM elixir:1.12.2-alpine AS build
 
-# install google chrome
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-RUN sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-RUN apt-get -y update
-RUN apt-get install -y google-chrome-stable
+# install build dependencies
+RUN \
+    apk add --no-cache \
+    build-base \
+    npm \
+    git \
+    python3 \
+    make \
+    cmake \
+    openssl-dev \ 
+    libsrtp-dev \
+    libnice-dev \
+    ffmpeg-dev \
+    opus-dev \
+    clang-dev \
+    fdk-aac-dev 
 
-# install chromedriver
-RUN apt-get install -yqq unzip
-RUN wget -O /tmp/chromedriver.zip http://chromedriver.storage.googleapis.com/`curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE`/chromedriver_linux64.zip
-RUN unzip /tmp/chromedriver.zip chromedriver -d /usr/local/bin/
+ARG VERSION
+ENV VERSION=${VERSION}
+
+# Create build workdir
+WORKDIR /app
+
+# install hex + rebar
+RUN mix local.hex --force && \
+    mix local.rebar --force
+
+# RUN npm install playwright --save-dev
+
+# set build ENV
+ENV MIX_ENV=prod
+
+# install mix dependencies
+COPY mix.exs mix.lock ./
+RUN mix do deps.get, deps.compile
+
+# build assets
+COPY package.json package.json
+COPY package-lock.json package-lock.json
+COPY priv priv
+COPY assets/package.json assets/package-lock.json ./assets/
+RUN npm --prefix ./assets ci --progress=false --no-audit --loglevel=error
+
+COPY assets assets
+# RUN npm run --prefix ./assets deploy
+# RUN mix phx.digest
+RUN mix deps.get
 
 
-# Install base package
-RUN apt-get update
-RUN apt-get install -y wget git build-essential
+# compile and build release
+COPY lib lib
+# RUN mix do compile, release
+COPY integration integration
 
-# Install Erlang
-RUN wget http://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb
-RUN dpkg -i erlang-solutions_1.0_all.deb
-RUN apt-get update
-RUN apt-get install -y erlang
+WORKDIR /app/integration/test_videoroom
 
-# Install Elixir
-WORKDIR /tmp/elixir-build
-RUN git clone https://github.com/elixir-lang/elixir.git
-WORKDIR elixir
-RUN git checkout v0.14.2 && make && make install
+RUN mix deps.update --all 
+RUN mix deps.get
+RUN npm install --prefix=assets esbuild
+RUN npm install --prefix=assets ts-node
+RUN npm install --prefix=assets typescript 
+RUN npm i --prefix=assets 
 
+# RUN mix deps.compile
+# RUN mix phx.server
+RUN mix do compile, release
 
+# ENV HOME=/app
+
+# EXPOSE 4000
+
+# HEALTHCHECK CMD curl --fail http://localhost:4000 || exit 1  
+
+# CMD ["bin/membrane_videoroom_demo", "start"]
+
+# RUN mix test

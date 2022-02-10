@@ -1,7 +1,9 @@
 Code.require_file("../test_videoroom/test/support/integration_mustang.exs")
+Code.require_file("../test_videoroom/test/support/room_mustang.exs")
 
 defmodule TestVideoroom.Integration.ClientTest do
-  use TestVideoroomWeb.ConnCase, async: false
+  use TestVideoroomWeb.ConnCase, async: true
+
   @peers 4
   # in miliseconds
   @peer_delay 500
@@ -16,12 +18,10 @@ defmodule TestVideoroom.Integration.ClientTest do
   @start_with_mic "start-mic-only"
   @start_with_camera "start-camera-only"
   @start_with_nothing "start-none"
-  @stop_button "stop"
-  @stats_button "stats"
+  @browser_options %{count: 1, delay: @peer_delay, headless: true}
 
   @moduletag timeout: 180_000
   test "Users gradually joining and leaving can hear and see each other" do
-    options = %{count: 1, delay: @peer_delay}
     browsers_number = 4
 
     pid = self()
@@ -31,7 +31,7 @@ defmodule TestVideoroom.Integration.ClientTest do
     mustang_options = %{
       target_url: @room_url,
       linger: @peer_duration,
-      join_interval: 10_000,
+      join_interval: 5_000,
       start_button: @start_with_all,
       receiver: receiver,
       id: -1
@@ -39,8 +39,13 @@ defmodule TestVideoroom.Integration.ClientTest do
 
     for browser <- 0..(browsers_number - 1), into: [] do
       mustang_options = %{mustang_options | id: browser}
-      task = Task.async(fn -> Stampede.start({IntegrationMustang, mustang_options}, options) end)
-      Process.sleep(5_000)
+
+      task =
+        Task.async(fn ->
+          Stampede.start({IntegrationMustang, mustang_options}, @browser_options)
+        end)
+
+      Process.sleep(10_000)
       task
     end
     |> Task.await_many(:infinity)
@@ -68,7 +73,6 @@ defmodule TestVideoroom.Integration.ClientTest do
 
   @moduletag timeout: 180_000
   test "Users joining all at once can hear and see each other" do
-    options = %{count: 1, delay: @peer_delay}
     browsers_number = 4
 
     pid = self()
@@ -78,15 +82,25 @@ defmodule TestVideoroom.Integration.ClientTest do
     mustang_options = %{
       target_url: @room_url,
       linger: @peer_duration,
-      join_interval: 15_000,
+      join_interval: 10_000,
       start_button: @start_with_all,
       receiver: receiver,
       id: -1
     }
 
+    # Creating room earlier to avoid error :already_started
+    Task.async(fn ->
+      Stampede.start({RoomMustang, mustang_options}, @browser_options)
+    end)
+    |> Task.await(:infinity)
+
     for browser <- 0..(browsers_number - 1), into: [] do
       mustang_options = %{mustang_options | id: browser}
-      Task.async(fn -> Stampede.start({IntegrationMustang, mustang_options}, options) end)
+      Process.sleep(500)
+
+      Task.async(fn ->
+        Stampede.start({IntegrationMustang, mustang_options}, @browser_options)
+      end)
     end
     |> Task.await_many(:infinity)
 
@@ -109,7 +123,6 @@ defmodule TestVideoroom.Integration.ClientTest do
 
   @moduletag timeout: 180_000
   test "Users joining without either microphone, camera or both can see or hear other users" do
-    options = %{count: 1, delay: @peer_delay}
     browsers_number = 4
 
     pid = self()
@@ -125,15 +138,23 @@ defmodule TestVideoroom.Integration.ClientTest do
       id: -1
     }
 
-    buttons_with_id = Enum.with_index([@start_with_all, @start_with_camera, @start_with_mic])
+    buttons_with_id =
+      [@start_with_all, @start_with_camera, @start_with_mic, @start_with_nothing]
+      |> Enum.with_index()
+      |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
 
-    for {button, browser_id} <- buttons_with_id, into: [] do
+    for {browser_id, button} <- buttons_with_id, into: [] do
       specific_mustang = %{mustang_options | start_button: button, id: browser_id}
-      Task.async(fn -> Stampede.start({IntegrationMustang, specific_mustang}, options) end)
+
+      Process.sleep(1000)
+
+      Task.async(fn ->
+        Stampede.start({IntegrationMustang, specific_mustang}, @browser_options)
+      end)
     end
     |> Task.await_many(:infinity)
 
-    buttons = Map.new(buttons_with_id, fn {button, browser_id} -> {browser_id, button} end)
+    {_button, buttons_with_id} = Map.pop!(buttons_with_id, 3)
 
     receive do
       acc ->
@@ -141,9 +162,8 @@ defmodule TestVideoroom.Integration.ClientTest do
           case stage do
             :after_join ->
               Enum.all?(browsers, fn {browser_id, stats} ->
-                IO.inspect({browser_id, stats})
                 assert length(stats) == if(browser_id == 3, do: 3, else: 2)
-                {_value, new_buttons} = Map.pop(buttons, browser_id)
+                {_value, new_buttons} = Map.pop(buttons_with_id, browser_id)
                 new_buttons = Map.values(new_buttons)
                 assert which_streams_playing(stats, new_buttons)
               end)

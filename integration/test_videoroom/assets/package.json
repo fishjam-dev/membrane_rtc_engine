@@ -1,0 +1,12 @@
+{
+  "license": "MIT",
+  "dependencies": {
+    "esbuild": "^0.14.21",
+    "membrane_rtc_engine": "file:../../../assets",
+    "playwright": "^1.18.1",
+    "rimraf": "^3.0.2",
+    "ts-node": "^10.5.0",
+    "ts-types": "0.0.9",
+    "typescript": "^4.5.5"
+  }
+}
