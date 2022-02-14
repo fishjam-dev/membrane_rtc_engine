@@ -621,37 +621,33 @@ defmodule Membrane.RTC.Engine do
          _ctx,
          state
        ) do
-    case(get_in(state, [:endpoints, endpoint_id, :state])) do
-      :created ->
-        endpoint = Map.get(state.endpoints, endpoint_id)
-        track = Endpoint.get_track_by_id(endpoint, track_id)
+    if Map.has_key?(state.endpoints, endpoint_id) do
+      endpoint = Map.get(state.endpoints, endpoint_id)
+      track = Endpoint.get_track_by_id(endpoint, track_id)
 
-        if track != nil and track.metadata != track_metadata do
-          endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
-          state = put_in(state, [:endpoints, endpoint_id], endpoint)
+      if track != nil and track.metadata != track_metadata do
+        endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
+        state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
-          MediaEvent.create_track_updated_event(endpoint_id, track_id, track_metadata)
-          |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-          |> dispatch()
+        MediaEvent.create_track_updated_event(endpoint_id, track_id, track_metadata)
+        |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
+        |> dispatch()
 
-          {[], state}
-        else
-          {[], state}
-        end
-
-      :removed ->
-        {:ok, state}
+        {[], state}
+      else
+        {[], state}
+      end
+    else
+      {:ok, state}
     end
   end
 
   @impl true
   def handle_notification(notifcation, {:endpoint, endpoint_id} = from, ctx, state) do
-    case(get_in(state, [:endpoints, endpoint_id, :state])) do
-      :created ->
-        do_handle_notification(notifcation, from, ctx, state)
-
-      :removed ->
-        {:ok, state}
+    if Map.has_key?(state.endpoints, endpoint_id) do
+      do_handle_notification(notifcation, from, ctx, state)
+    else
+      {:ok, state}
     end
   end
 
@@ -832,7 +828,9 @@ defmodule Membrane.RTC.Engine do
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
     |> dispatch()
 
-    {{:ok, tracks_msgs}, state}
+    tracks_children = Enum.flat_map(tracks, &get_track_elements(endpoint_id, &1.id, ctx))
+
+    {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
   end
 
   defp link_inbound_track(track_id, endpoint_track_ids, waiting_for_linking, ctx, state) do
@@ -1044,11 +1042,9 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp do_remove_endpoint(peer_id, ctx, state) do
-    if Map.has_key?(state.endpoints, peer_id) and Map.get(state.endpoints, peer_id) != :removed do
+    if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
-      endpoint = %{endpoint | inbound_tracks: Map.new(tracks, &{&1.id, &1}), state: :removed}
-      state = put_in(state, [:endpoints, peer_id], endpoint)
 
       tracks_msgs =
         do_publish(
@@ -1075,20 +1071,25 @@ defmodule Membrane.RTC.Engine do
 
   defp find_children_for_endpoint(endpoint, peer_id, ctx) do
     children =
-      Endpoint.get_tracks(endpoint)
-      |> Enum.map(fn track -> track.id end)
-      |> Enum.flat_map(
-        &[
-          tee: {peer_id, &1},
-          fake: {peer_id, &1},
-          filter: {peer_id, &1},
-          filter_tee: {peer_id, &1},
-          filter_tee_fake: {peer_id, &1}
-        ]
-      )
-      |> Enum.filter(&Map.has_key?(ctx.children, &1))
+      endpoint
+      |> Endpoint.get_tracks()
+      |> Enum.flat_map(fn track -> get_track_elements(peer_id, track.id, ctx) end)
 
     [endpoint: peer_id] ++ children
+  end
+
+  defp get_track_elements(endpoint_id, track_id, ctx) do
+    {endpoint_id, track_id}
+    |> then(
+      &[
+        tee: &1,
+        fake: &1,
+        filter: &1,
+        filter_tee: &1,
+        filter_tee_fake: &1
+      ]
+    )
+    |> Enum.filter(&Map.has_key?(ctx.children, &1))
   end
 
   defp do_publish(_endpoints, _ctx, {_, []} = _tracks, _endpoint_bin), do: []
