@@ -1,78 +1,52 @@
-FROM elixir:1.12.2-alpine AS build
-
-# install build dependencies
-RUN \
-    apk add --no-cache \
-    build-base \
-    npm \
-    git \
-    python3 \
-    make \
-    cmake \
-    openssl-dev \ 
-    libsrtp-dev \
-    libnice-dev \
-    ffmpeg-dev \
-    opus-dev \
-    clang-dev \
-    fdk-aac-dev 
-
-ARG VERSION
-ENV VERSION=${VERSION}
+FROM membrane/membrane:latest AS build
 
 # Create build workdir
 WORKDIR /app
 
-# install hex + rebar
-RUN mix local.hex --force && \
-    mix local.rebar --force
-
-# RUN npm install playwright --save-dev
-
 # set build ENV
-ENV MIX_ENV=prod
+ENV MIX_ENV=test
 
 # install mix dependencies
 COPY mix.exs mix.lock ./
-RUN mix do deps.get, deps.compile
 
 # build assets
 COPY package.json package.json
-COPY package-lock.json package-lock.json
 COPY priv priv
-COPY assets/package.json assets/package-lock.json ./assets/
-RUN npm --prefix ./assets ci --progress=false --no-audit --loglevel=error
-
 COPY assets assets
-# RUN npm run --prefix ./assets deploy
-# RUN mix phx.digest
-RUN mix deps.get
 
-
-# compile and build release
+# get deps and install libraries
 COPY lib lib
-# RUN mix do compile, release
 COPY integration integration
+RUN mix deps.get
+RUN npm i esbuild --prefix=assets
+RUN npm i typescript --prefix=assets
+RUN npm ci --prefix=assets 
+RUN mix deps.compile
+
 
 WORKDIR /app/integration/test_videoroom
 
-RUN mix deps.update --all 
+# Remove local assets
+RUN rm -rf _build
+RUN rm -rf deps
+RUN rm -rf assets/node_modules
+RUN rm -rf priv
+
+
+# get deps and install libraries
+RUN mix deps.update --all
 RUN mix deps.get
-RUN npm install --prefix=assets esbuild
-RUN npm install --prefix=assets ts-node
-RUN npm install --prefix=assets typescript 
-RUN npm i --prefix=assets 
+RUN npm ci --prefix=assets
+RUN npm i playwright@1.18.1 --prefix=assets
+RUN npm i esbuild --prefix=assets
 
-# RUN mix deps.compile
-# RUN mix phx.server
-RUN mix do compile, release
+# Compile js app
+RUN mix esbuild default --minify
+RUN mix phx.digest
 
-# ENV HOME=/app
 
-# EXPOSE 4000
+EXPOSE 4001
 
-# HEALTHCHECK CMD curl --fail http://localhost:4000 || exit 1  
 
-# CMD ["bin/membrane_videoroom_demo", "start"]
-
-# RUN mix test
+WORKDIR /app
+CMD ["mix", "integration"]

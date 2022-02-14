@@ -1,8 +1,4 @@
-import {
-  MembraneWebRTC,
-  Peer,
-  SerializedMediaEvent,
-} from "membrane_rtc_engine";
+import { MembraneWebRTC, Peer, SerializedMediaEvent } from "membrane_rtc_engine";
 
 import { Socket } from "phoenix";
 
@@ -14,7 +10,6 @@ function addVideoElement(id) {
   video.autoplay = true;
   video.playsInline = true;
   videos.appendChild(video);
-
 }
 
 function removeVideoElement(id) {
@@ -47,9 +42,9 @@ class Room {
         onConnectionError: setErrorMessage,
         onJoinSuccess: (peerId, peersInRoom) => {
           if (this.localStream) {
-            this.localStream.getTracks().forEach((track) =>
-              this.webrtc.addTrack(track, this.localStream)
-            );
+            this.localStream
+              .getTracks()
+              .forEach((track) => this.webrtc.addTrack(track, this.localStream));
           }
 
           this.peers = peersInRoom;
@@ -66,8 +61,8 @@ class Room {
 
           video.srcObject = stream;
         },
-        onTrackAdded: (ctx) => { },
-        onTrackRemoved: (ctx) => { },
+        onTrackAdded: (ctx) => {},
+        onTrackRemoved: (ctx) => {},
         onPeerJoined: (peer) => {
           this.peers.push(peer);
           this.updateParticipantsList();
@@ -78,13 +73,11 @@ class Room {
           removeVideoElement(peer.id);
           this.updateParticipantsList();
         },
-        onPeerUpdated: (ctx) => { },
+        onPeerUpdated: (ctx) => {},
       },
     });
 
-    this.webrtcChannel.on("mediaEvent", (event) =>
-      this.webrtc.receiveMediaEvent(event.data)
-    );
+    this.webrtcChannel.on("mediaEvent", (event) => this.webrtc.receiveMediaEvent(event.data));
   }
 
   init = async () => {
@@ -104,7 +97,6 @@ class Room {
     }
   };
 
-
   updateParticipantsList = () => {
     const participantsNames = this.peers.map((p) => p.metadata.displayName);
 
@@ -123,5 +115,3 @@ class Room {
 }
 
 export default Room;
-
-

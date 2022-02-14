@@ -35,7 +35,7 @@ defmodule IntegrationMustang do
 
   @impl true
   def leave({browser, page}, options) do
-    :ok = Playwright.Page.click(page, "[id=stop]")
+    Playwright.Page.click(page, "[id=stop]")
     send(options.receiver, {options.id, :end})
     Playwright.Page.close(page)
     Playwright.Browser.close(browser)
@@ -45,13 +45,19 @@ defmodule IntegrationMustang do
 
   defp get_stats(page, receiver, browser_id, stage) do
     :ok = Playwright.Page.click(page, "[id=stats]")
-    Process.sleep(750)
+    Process.sleep(1_000)
 
     page
     |> Playwright.Page.text_content("[id=data]")
     |> case do
-      "uninitialized" -> {:error, :uninitialized}
-      data -> Jason.decode!(data)
+      "uninitialized" ->
+        {:error, :uninitialized}
+
+      "Room error." <> reason ->
+        {:error, reason}
+
+      data ->
+        Jason.decode!(data)
     end
     |> then(fn data -> send(receiver, {browser_id, stage, data}) end)
   end

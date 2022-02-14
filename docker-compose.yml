@@ -8,13 +8,22 @@ services:
       USE_INTEGRATED_TURN: "false"
       INTEGRATED_TURN_IP: "135.181.203.255"
       INTEGRATED_TURN_PORT_RANGE: "50000-50500"
-    ports: 
+    ports:
       - "50000-50500:50000-50500/tcp"
       - "50000-50500:50000-50500/udp"
-      
-  
+
+  web:
+    build: .
+    environment:
+      MIX_ENV: test
+    ports:
+      - "4000:4000"
+      - "4001:4001"
+    volumes:
+      - .:/home/app
+
 volumes:
   nginx-certs:
   nginx-vhost:
   nginx-data:
-  
+

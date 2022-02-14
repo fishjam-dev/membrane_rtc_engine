@@ -13,9 +13,6 @@ defmodule TestVideoroom.MixProject do
     ]
   end
 
-  # Configuration for the OTP application.
-  #
-  # Type `mix help compile.app` for more information.
   def application do
     [
       mod: {TestVideoroom.Application, []},
@@ -39,8 +36,7 @@ defmodule TestVideoroom.MixProject do
       {:cowlib, "~> 2.11", override: true},
       {:membrane_rtc_engine, path: "../../"},
       {:stampede, github: "geometerio/stampede-elixir"},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"}
-      # {:membrane_webrtc_plugin, path: "../../deps/membrane_webrtc_plugin"}
+      {:membrane_webrtc_plugin, path: "../../deps/membrane_webrtc_plugin", override: true}
     ]
   end
 end

@@ -1,8 +1,7 @@
 import Config
 
 config :test_videoroom, TestVideoroomWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4000],
-  check_origin: false,
+  http: [ip: {0, 0, 0, 0}, port: 4001],
   debug_errors: true,
   watchers: [
     # Start the esbuild watcher by calling Esbuild.install_and_run(:default, args)

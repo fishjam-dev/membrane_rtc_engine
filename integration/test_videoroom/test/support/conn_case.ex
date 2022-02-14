@@ -31,7 +31,7 @@ defmodule TestVideoroomWeb.ConnCase do
     end
   end
 
-  setup tags do
+  setup _tags do
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end

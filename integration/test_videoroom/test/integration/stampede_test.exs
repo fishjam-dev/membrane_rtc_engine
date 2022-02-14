@@ -1,18 +1,18 @@
 Code.require_file("../test_videoroom/test/support/integration_mustang.exs")
 Code.require_file("../test_videoroom/test/support/room_mustang.exs")
+Code.require_file("../test_videoroom/test/support/conn_case.ex")
 
 defmodule TestVideoroom.Integration.ClientTest do
   use TestVideoroomWeb.ConnCase, async: true
 
-  @peers 4
   # in miliseconds
   @peer_delay 500
   # in miliseconds
-  @peer_duration 50_000
-  @room_url "http://localhost:4000"
+  @peer_duration 60_000
+  @room_url "http://localhost:4001"
 
   # in miliseconds
-  @browser_delay 2_000
+  @join_interval 6_000
 
   @start_with_all "start-all"
   @start_with_mic "start-mic-only"
@@ -31,7 +31,7 @@ defmodule TestVideoroom.Integration.ClientTest do
     mustang_options = %{
       target_url: @room_url,
       linger: @peer_duration,
-      join_interval: 5_000,
+      join_interval: @join_interval,
       start_button: @start_with_all,
       receiver: receiver,
       id: -1
@@ -82,7 +82,7 @@ defmodule TestVideoroom.Integration.ClientTest do
     mustang_options = %{
       target_url: @room_url,
       linger: @peer_duration,
-      join_interval: 10_000,
+      join_interval: @join_interval,
       start_button: @start_with_all,
       receiver: receiver,
       id: -1
@@ -109,7 +109,7 @@ defmodule TestVideoroom.Integration.ClientTest do
         Enum.all?(acc, fn {stage, browsers} ->
           case stage do
             :after_join ->
-              Enum.all?(browsers, fn {browser_id, stats} ->
+              Enum.all?(browsers, fn {_browser_id, stats} ->
                 assert length(stats) == browsers_number - 1
                 assert Enum.all?(stats, &is_stream_playing(&1))
               end)
@@ -132,7 +132,7 @@ defmodule TestVideoroom.Integration.ClientTest do
     mustang_options = %{
       target_url: @room_url,
       linger: @peer_duration,
-      join_interval: 10_000,
+      join_interval: @join_interval,
       start_button: @start_with_all,
       receiver: receiver,
       id: -1

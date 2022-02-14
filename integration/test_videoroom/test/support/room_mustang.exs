@@ -8,13 +8,14 @@ defmodule RoomMustang do
 
     Process.sleep(500)
 
-    :ok = Playwright.Page.click(page, "[id=start-none]")
+    :ok = Playwright.Page.click(page, "[id=start-all]")
 
     {browser, page}
   end
 
   @impl true
-  def linger({_browser, _page} = ctx, options) do
+  def linger({_browser, _page} = ctx, _options) do
+    Process.sleep(1_000)
     ctx
   end
 
