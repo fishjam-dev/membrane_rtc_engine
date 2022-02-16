@@ -445,6 +445,19 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
+  def handle_playing_to_prepared(ctx, state) do
+    {actions, state} =
+      state.peers
+      |> Map.keys()
+      |> Enum.reduce({[], state}, fn peer_id, {all_actions, state} ->
+        {actions, state} = remove_peer(peer_id, ctx, state)
+        {all_actions ++ actions, state}
+      end)
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   @decorate trace("engine.other.register", include: [[:state, :id]])
   def handle_other({:register, pid}, _ctx, state) do
     Registry.register(get_registry_name(), self(), pid)
