@@ -118,6 +118,18 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   This variable indicates how many video tracks should be sent to the browser at the same time.
                   If `nil` all video tracks this `#{inspect(__MODULE__)}` receives will be sent.
                   """
+                ],
+                rtcp_receiver_report_interval: [
+                  spec: Membrane.Time.t() | nil,
+                  default: nil,
+                  description:
+                    "Receiver reports's generation interval, set to nil to avoid reports generation"
+                ],
+                rtcp_sender_report_interval: [
+                  spec: Membrane.Time.t() | nil,
+                  default: nil,
+                  description:
+                    "Sender reports's generation interval, set to nil to avoid reports generation"
                 ]
 
     def_input_pad :input,
@@ -144,7 +156,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         use_integrated_turn: opts.use_integrated_turn,
         integrated_turn_options: opts.integrated_turn_options,
         trace_context: opts.trace_context,
-        trace_metadata: [name: opts.ice_name]
+        trace_metadata: [name: opts.ice_name],
+        rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
+        rtcp_sender_report_interval: opts.rtcp_sender_report_interval
       }
 
       spec = %ParentSpec{

@@ -621,26 +621,38 @@ defmodule Membrane.RTC.Engine do
          _ctx,
          state
        ) do
-    endpoint = Map.get(state.endpoints, endpoint_id)
-    track = Endpoint.get_track_by_id(endpoint, track_id)
+    if Map.has_key?(state.endpoints, endpoint_id) do
+      endpoint = Map.get(state.endpoints, endpoint_id)
+      track = Endpoint.get_track_by_id(endpoint, track_id)
 
-    if track != nil and track.metadata != track_metadata do
-      endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
-      state = put_in(state, [:endpoints, endpoint_id], endpoint)
+      if track != nil and track.metadata != track_metadata do
+        endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
+        state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
-      MediaEvent.create_track_updated_event(endpoint_id, track_id, track_metadata)
-      |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-      |> dispatch()
+        MediaEvent.create_track_updated_event(endpoint_id, track_id, track_metadata)
+        |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
+        |> dispatch()
 
-      {[], state}
+        {[], state}
+      else
+        {[], state}
+      end
     else
-      {[], state}
+      {:ok, state}
     end
   end
 
   @impl true
+  def handle_notification(notifcation, {:endpoint, endpoint_id} = from, ctx, state) do
+    if Map.has_key?(state.endpoints, endpoint_id) do
+      do_handle_notification(notifcation, from, ctx, state)
+    else
+      {:ok, state}
+    end
+  end
+
   @decorate trace("engine.notification.custom_media_event", include: [[:state, :id]])
-  def handle_notification({:custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
+  defp do_handle_notification({:custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
     MediaEvent.create_custom_event(data)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
     |> dispatch()
@@ -653,16 +665,15 @@ defmodule Membrane.RTC.Engine do
   # media without adding payload/depaload elements to all EndpointBins (performing unnecessary work).
   #
   # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
-  @impl true
   @decorate trace("engine.notification.track_ready",
               include: [:track_id, :encoding, [:state, :id]]
             )
-  def handle_notification(
-        {:track_ready, track_id, encoding, depayloading_filter},
-        endpoint_bin_name,
-        ctx,
-        state
-      ) do
+  defp do_handle_notification(
+         {:track_ready, track_id, encoding, depayloading_filter},
+         endpoint_bin_name,
+         ctx,
+         state
+       ) do
     Membrane.Logger.info(
       "New incoming #{encoding} track #{track_id} from #{inspect(endpoint_bin_name)}"
     )
@@ -721,14 +732,13 @@ defmodule Membrane.RTC.Engine do
     {{:ok, spec: spec}, state}
   end
 
-  @impl true
   @decorate trace("engine.notification.subscribe", include: [:endpoint_id, [:state, :id]])
-  def handle_notification(
-        {:subscribe, tracks},
-        {:endpoint, endpoint_id},
-        ctx,
-        state
-      ) do
+  defp do_handle_notification(
+         {:subscribe, tracks},
+         {:endpoint, endpoint_id},
+         ctx,
+         state
+       ) do
     {new_waiting_for_linking, parent_spec} = link_outbound_tracks(tracks, endpoint_id, ctx, state)
 
     state =
@@ -752,20 +762,21 @@ defmodule Membrane.RTC.Engine do
     {{:ok, [spec: parent_spec]}, state}
   end
 
-  @impl true
-  @decorate trace("engine.notification.publish.new_tracks",
-              include: [:endpoint_id, [:state, :id]]
-            )
-  def handle_notification(
-        {:publish, {:new_tracks, tracks}},
-        {:endpoint, endpoint_id},
-        ctx,
-        state
-      ) do
+  @decorate trace("engine.notification.publish.new_tracks", include: [:endpoint_id, [:state, :id]])
+  defp do_handle_notification(
+         {:publish, {:new_tracks, tracks}},
+         {:endpoint, endpoint_id},
+         ctx,
+         state
+       ) do
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
     state =
-      update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
+      update_in(
+        state,
+        [:endpoints, endpoint_id, :inbound_tracks],
+        &Map.merge(&1, id_to_track)
+      )
 
     tracks_msgs =
       do_publish(
@@ -785,20 +796,23 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  @impl true
   @decorate trace("engine.notification.publish.removed_tracks",
               include: [:endpoint_id, [:state, :id]]
             )
-  def handle_notification(
-        {:publish, {:removed_tracks, tracks}},
-        {:endpoint, endpoint_id},
-        ctx,
-        state
-      ) do
+  defp do_handle_notification(
+         {:publish, {:removed_tracks, tracks}},
+         {:endpoint, endpoint_id},
+         ctx,
+         state
+       ) do
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
     state =
-      update_in(state, [:endpoints, endpoint_id, :inbound_tracks], &Map.merge(&1, id_to_track))
+      update_in(
+        state,
+        [:endpoints, endpoint_id, :inbound_tracks],
+        &Map.merge(&1, id_to_track)
+      )
 
     tracks_msgs =
       do_publish(
@@ -814,7 +828,9 @@ defmodule Membrane.RTC.Engine do
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
     |> dispatch()
 
-    {{:ok, tracks_msgs}, state}
+    tracks_children = Enum.flat_map(tracks, &get_track_elements(endpoint_id, &1.id, ctx))
+
+    {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
   end
 
   defp link_inbound_track(track_id, endpoint_track_ids, waiting_for_linking, ctx, state) do
@@ -1055,20 +1071,25 @@ defmodule Membrane.RTC.Engine do
 
   defp find_children_for_endpoint(endpoint, peer_id, ctx) do
     children =
-      Endpoint.get_tracks(endpoint)
-      |> Enum.map(fn track -> track.id end)
-      |> Enum.flat_map(
-        &[
-          tee: {peer_id, &1},
-          fake: {peer_id, &1},
-          filter: {peer_id, &1},
-          filter_tee: {peer_id, &1},
-          filter_tee_fake: {peer_id, &1}
-        ]
-      )
-      |> Enum.filter(&Map.has_key?(ctx.children, &1))
+      endpoint
+      |> Endpoint.get_tracks()
+      |> Enum.flat_map(fn track -> get_track_elements(peer_id, track.id, ctx) end)
 
     [endpoint: peer_id] ++ children
+  end
+
+  defp get_track_elements(endpoint_id, track_id, ctx) do
+    {endpoint_id, track_id}
+    |> then(
+      &[
+        tee: &1,
+        fake: &1,
+        filter: &1,
+        filter_tee: &1,
+        filter_tee_fake: &1
+      ]
+    )
+    |> Enum.filter(&Map.has_key?(ctx.children, &1))
   end
 
   defp do_publish(_endpoints, _ctx, {_, []} = _tracks, _endpoint_bin), do: []
