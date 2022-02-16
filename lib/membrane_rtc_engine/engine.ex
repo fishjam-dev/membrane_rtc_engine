@@ -684,7 +684,6 @@ defmodule Membrane.RTC.Engine do
 
     endpoint_track_ids = {endpoint_id, track_id}
     endpoint_tee = {:tee, endpoint_track_ids}
-    fake = {:fake, endpoint_track_ids}
 
     track = state.endpoints |> Map.get(endpoint_id) |> Endpoint.get_track_by_id(track_id)
 
@@ -693,17 +692,14 @@ defmodule Membrane.RTC.Engine do
         if state.display_manager != nil do
           %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
         else
-          Membrane.Element.Tee.Master
-        end,
-      fake => Membrane.Element.Fake.Sink.Buffers
+          Membrane.Tee.PushOutput
+        end
     }
 
-    link_to_fake =
+    link_to_tee =
       link(endpoint_bin_name)
       |> via_out(Pad.ref(:output, track_id))
       |> to(endpoint_tee)
-      |> via_out(:master)
-      |> to(fake)
 
     {waiting_for_linking, parent_spec} =
       link_inbound_track(
@@ -716,7 +712,7 @@ defmodule Membrane.RTC.Engine do
 
     spec = %ParentSpec{
       children: Map.merge(children, parent_spec.children),
-      links: [link_to_fake | parent_spec.links],
+      links: [link_to_tee | parent_spec.links],
       crash_group: {endpoint_id, :temporary}
     }
 
@@ -856,7 +852,7 @@ defmodule Membrane.RTC.Engine do
 
             new_link =
               link(format_specific_tee)
-              |> via_out(Pad.ref(:copy, endpoint_name))
+              |> via_out(Pad.ref(:output, endpoint_name))
               |> via_in(Pad.ref(:input, track_id))
               |> to(endpoint_name)
 
@@ -905,7 +901,7 @@ defmodule Membrane.RTC.Engine do
 
           new_link =
             link(format_specific_tee)
-            |> via_out(Pad.ref(:copy, endpoint_name))
+            |> via_out(Pad.ref(:output, endpoint_name))
             |> via_in(Pad.ref(:input, track_id))
             |> to({:endpoint, endpoint_id})
 
@@ -926,25 +922,20 @@ defmodule Membrane.RTC.Engine do
   defp prepare_filter_tee(track_id, endpoint_track_ids, state) do
     filter = {:filter, endpoint_track_ids}
     filter_tee = {:filter_tee, endpoint_track_ids}
-    filter_tee_fake = {:filter_tee_fake, endpoint_track_ids}
 
     depayloading_filter = get_in(state, [:filters, track_id])
 
     children = %{
       filter => depayloading_filter,
-      filter_tee => Membrane.Element.Tee.Master,
-      filter_tee_fake => Membrane.Element.Fake.Sink.Buffers
+      filter_tee => Membrane.Tee.PushOutput
     }
 
     endpoint_tee = {:tee, endpoint_track_ids}
 
     filter_link =
       link(endpoint_tee)
-      |> via_out(:copy)
       |> to(filter)
       |> to(filter_tee)
-      |> via_out(:master)
-      |> to(filter_tee_fake)
 
     {filter_tee, children, [filter_link]}
   end
@@ -1083,10 +1074,8 @@ defmodule Membrane.RTC.Engine do
     |> then(
       &[
         tee: &1,
-        fake: &1,
         filter: &1,
-        filter_tee: &1,
-        filter_tee_fake: &1
+        filter_tee: &1
       ]
     )
     |> Enum.filter(&Map.has_key?(ctx.children, &1))

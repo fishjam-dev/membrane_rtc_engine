@@ -1,14 +1,8 @@
 defmodule Membrane.RTC.Engine.Tee do
   @moduledoc false
 
-  # Element for forwarding buffers to at least one output pad
-
-  # It has one input pad `:input` and 2 output pads:
-  # * `:master` - is a static pad which is always available and works in pull mode
-  # * `:copy` - is a dynamic pad that can be linked to any number of elements (including 0) and works in push mode
-
-  # The `:master` pad dictates the speed of processing data and any element (or elements) connected to `:copy` pad
-  # will receive the same data as `:master`.
+  # Element for forwarding buffers to multiple output pads. If no output
+  # pad is linked, buffers are dropped.
 
   # It has got built-in mechanism for limiting forwarding video buffers.
   # It reads from ETS table on which pads it should forward buffers.
@@ -37,16 +31,11 @@ defmodule Membrane.RTC.Engine.Tee do
   def_input_pad :input,
     availability: :always,
     mode: :pull,
-    demand_unit: :buffers,
+    demand_mode: :auto,
     caps: :any
 
-  def_output_pad :master,
+  def_output_pad :output,
     availability: :always,
-    mode: :pull,
-    caps: :any
-
-  def_output_pad :copy,
-    availability: :on_request,
     mode: :push,
     caps: :any
 
@@ -93,15 +82,8 @@ defmodule Membrane.RTC.Engine.Tee do
           false
       end)
 
-    pads = pads ++ [:master]
     actions = Enum.map(pads, &{:buffer, {&1, buffer}})
-
     {{:ok, actions}, %{state | counter: state.counter + 1}}
-  end
-
-  @impl true
-  def handle_demand(:master, size, :buffers, _ctx, state) do
-    {{:ok, demand: {:input, size}}, state}
   end
 
   @impl true

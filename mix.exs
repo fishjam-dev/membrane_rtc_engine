@@ -51,15 +51,14 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.8.0"},
+      {:membrane_core, "~> 0.9.0", override: true},
+      {:membrane_tee_plugin, "~> 0.8.0", override: true},
       {:membrane_webrtc_plugin,
        github: "membraneframework/membrane_webrtc_plugin", optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.5.0", optional: true},
       {:membrane_mp4_plugin, "~> 0.11.0", optional: true},
       {:membrane_aac_plugin, "~> 0.11.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.9.0", optional: true},
-      {:membrane_element_tee, "~> 0.6.0"},
-      {:membrane_element_fake, "~> 0.6.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 0.7.0", override: true},
