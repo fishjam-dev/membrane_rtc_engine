@@ -414,7 +414,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       integrated_turn_servers =
         Enum.map(turns, fn turn ->
           addr =
-            if turn[:domain_name],
+            if turn.relay_type == :tls and turn[:domain_name],
               do: turn[:domain_name],
               else: :inet.ntoa(turn.mocked_server_addr) |> to_string()
 
