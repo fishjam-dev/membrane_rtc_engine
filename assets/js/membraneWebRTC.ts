@@ -122,6 +122,13 @@ export interface Callbacks {
    * Called in case of errors related to multimedia session e.g. ICE connection.
    */
   onConnectionError?: (message: string) => void;
+
+  /**
+   * Called when priority of video tracks have changed.
+   * @param enabledTracks - list of tracks which will be sent to client from SFU
+   * @param disabledTracks - list of tracks which will not be sent to client from SFU
+   */
+  onTracksPriorityChanged?: (enabledTracks: TrackContext[], disabledTracks: TrackContext[]) => void;
 }
 
 /**
@@ -313,6 +320,17 @@ export class MembraneWebRTC {
         const trackContext = this.trackIdToTrack.get(trackId)!;
         trackContext.metadata = trackMetadata;
         this.callbacks.onTrackUpdated?.(trackContext);
+        break;
+
+      case "tracksPriority":
+        const enabledTracks = (deserializedMediaEvent.data.tracks as string[]).map(
+          (trackId) => this.trackIdToTrack.get(trackId)!!
+        );
+        const disabledTracks = Array.from(this.trackIdToTrack.values()).filter(
+          (track) => !enabledTracks.includes(track)
+        );
+
+        this.callbacks.onTracksPriorityChanged?.(enabledTracks, disabledTracks);
         break;
 
       case "custom":
@@ -512,6 +530,47 @@ export class MembraneWebRTC {
     const sender = this.findSender(trackContext.track!!.id);
     this.connection!.removeTrack(sender);
     let mediaEvent = generateCustomEvent({ type: "renegotiateTracks" });
+    this.sendMediaEvent(mediaEvent);
+  }
+
+  /**
+   * Prioritizes a track in connection to be always sent to browser.
+   * @param {string} trackId - Id of video track to prioritize.
+   */
+  public prioritizeTrack(trackId: string) {
+    let mediaEvent = generateCustomEvent({ type: "prioritizeTrack", data: { trackId } });
+    this.sendMediaEvent(mediaEvent);
+  }
+  /**
+   * Unprioritizes a track.
+   * @param {string} trackId - Id of video track to unprioritize.
+   */
+  public unprioritizeTrack(trackId: string) {
+    let mediaEvent = generateCustomEvent({ type: "unprioritizeTrack", data: { trackId } });
+    this.sendMediaEvent(mediaEvent);
+  }
+
+  /**
+   * This function allows to adjust resolution and number of video tracks sent by an SFU to a client.
+   *
+   * @param {number} bigScreens - number of screens with big size
+   * (if simulcast is used this will limit number of tracks sent with highest quality).
+   * @param {number} smallScreens - number of screens with small size
+   * (if simulcast is used this will limit number of tracks sent with lowest quality).
+   * @param {number} mediumScreens - number of screens with medium size
+   * (if simulcast is used this will limit number of tracks sent with medium quality).
+   * @param {boolean} allSameSize - flag that indicates whether all screens should use the same quality
+   */
+  public setPreferedVideoSizes(
+    bigScreens: number,
+    smallScreens: number,
+    mediumScreens: number = 0,
+    allSameSize: boolean = false
+  ) {
+    let mediaEvent = generateCustomEvent({
+      type: "preferedVideoSizes",
+      data: { bigScreens, mediumScreens, smallScreens, allSameSize },
+    });
     this.sendMediaEvent(mediaEvent);
   }
 

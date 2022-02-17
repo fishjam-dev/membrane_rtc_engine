@@ -10,7 +10,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   def create_peer_accepted_event(peer_id, peers, endpoints) do
     peers =
       Enum.map(peers, fn {id, peer} ->
-        track_id_to_track_metadata = Endpoint.get_track_id_to_metadata(endpoints[id])
+        track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoints[id])
         %{id: id, metadata: peer.metadata, trackIdToMetadata: track_id_to_track_metadata}
       end)
 
@@ -101,6 +101,17 @@ defmodule Membrane.RTC.Engine.MediaEvent do
         peerId: peer_id,
         trackId: track_id,
         metadata: metadata
+      }
+    }
+    |> serialize()
+  end
+
+  @spec create_tracks_priority_event([String.t()]) :: rtc_media_event_t()
+  def create_tracks_priority_event(tracks) do
+    %{
+      type: "tracksPriority",
+      data: %{
+        tracks: tracks
       }
     }
     |> serialize()
