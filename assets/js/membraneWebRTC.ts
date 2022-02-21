@@ -296,7 +296,7 @@ export class MembraneWebRTC {
 
       case "peerLeft":
         peer = this.idToPeer.get(deserializedMediaEvent.data.peerId)!;
-        if (peer === undefined || peer.id === this.getPeerId()) return;
+        if (peer === undefined) return;
         Array.from(peer.trackIdToMetadata.keys()).forEach((trackId) =>
           this.callbacks.onTrackRemoved?.(this.trackIdToTrack.get(trackId)!)
         );
