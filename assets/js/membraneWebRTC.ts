@@ -267,7 +267,7 @@ export class MembraneWebRTC {
               isSimulcast: false,
               metadata,
               peer,
-              maxBandwidth: 0
+              maxBandwidth: 0,
             };
             this.trackIdToTrack.set(trackId, ctx);
             this.callbacks.onTrackAdded?.(ctx);
@@ -409,7 +409,7 @@ export class MembraneWebRTC {
       peer: this.localPeer,
       metadata: trackMetadata,
       isSimulcast,
-      maxBandwidth
+      maxBandwidth,
     };
     this.localTrackIdToTrack.set(trackId, trackContext);
 
@@ -434,14 +434,16 @@ export class MembraneWebRTC {
     let transceiverConfig: RTCRtpTransceiverInit;
 
     if (trackContext.isSimulcast) {
-      transceiverConfig = track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig
+      transceiverConfig = track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig;
     } else {
       transceiverConfig = {
         direction: "sendonly",
-        sendEncodings: [{
-          active: true,
-        }]
-      }
+        sendEncodings: [
+          {
+            active: true,
+          },
+        ],
+      };
 
       if (trackContext.maxBandwidth !== undefined && trackContext.maxBandwidth > 0) {
         transceiverConfig.sendEncodings![0].maxBitrate = trackContext.maxBandwidth;
@@ -523,14 +525,14 @@ export class MembraneWebRTC {
   /**
    * Updates maximum bandwidth for the track identified by trackId.
    * This value directly translates to quality of the stream and, in case of video, to the amount of RTP packets being sent.
-   * 
-   * @param {string} trackId 
-   * @param {BandwidthLimit} bandwidth 
+   *
+   * @param {string} trackId
+   * @param {BandwidthLimit} bandwidth
    * @returns {Promise<boolean>} success
    */
   setTrackBandwidth(trackId: string, bandwidth: BandwidthLimit): Promise<boolean> {
     const sender = this.findSender(trackId);
-    return this.doSetTrackBandwidth(sender, bandwidth)
+    return this.doSetTrackBandwidth(sender, bandwidth);
   }
 
   private doSetTrackBandwidth(sender: RTCRtpSender, bandwidth: BandwidthLimit): Promise<boolean> {
@@ -543,16 +545,15 @@ export class MembraneWebRTC {
     } else {
       parameters.encodings[0].maxBitrate = bandwidth * 1000;
     }
-    console.log(parameters)
-    return sender.setParameters(parameters)
+    console.log(parameters);
+    return sender
+      .setParameters(parameters)
       .then(() => true)
       .catch((error) => {
-        console.log(error)
-        return false
-      })
-
+        console.log(error);
+        return false;
+      });
   }
-
 
   /**
    * Remove a track from connection that was being sent to the RTC Engine.
@@ -855,7 +856,7 @@ export class MembraneWebRTC {
         peer: peer,
         trackId,
         metadata,
-        isSimulcast: false
+        isSimulcast: false,
       };
 
       this.trackIdToTrack.set(trackId, trackContext);
