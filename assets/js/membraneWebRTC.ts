@@ -526,6 +526,7 @@ export class MembraneWebRTC {
   /**
    * Updates maximum bandwidth for the track identified by trackId.
    * This value directly translates to quality of the stream and, in case of video, to the amount of RTP packets being sent.
+   * In case trackId points at the simulcast track, bandwidth is split between all of the variant streams proportionally to their resolution.
    *
    * @param {string} trackId
    * @param {BandwidthLimit} bandwidth
@@ -541,13 +542,16 @@ export class MembraneWebRTC {
     if (bandwidth === 0) {
       parameters.encodings.forEach((value) => delete value.maxBitrate);
     } else {
-      const denominator = parameters.encodings.reduce(
-        (acc, value) => acc + (value.scaleResolutionDownBy || 1),
+      const x_factor = parameters.encodings![0].scaleResolutionDownBy || 1;
+      const bitrate_parts = parameters.encodings.reduce(
+        (acc, value) => (acc + x_factor / (value.scaleResolutionDownBy || 1)) ^ 2,
         0
       );
+      const x_bitrate = (parameters.encodings![0].maxBitrate = bandwidth / bitrate_parts);
+
       parameters.encodings.forEach(
         (value) =>
-          (value.maxBitrate = (bandwidth * 1024 * (value.scaleResolutionDownBy || 1)) / denominator)
+          (value.maxBitrate = (x_bitrate * (x_factor / (value.scaleResolutionDownBy || 1))) ^ 2)
       );
     }
 
