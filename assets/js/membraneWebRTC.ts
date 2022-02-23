@@ -29,6 +29,11 @@ export interface Peer {
 }
 
 /**
+ * Type describing track's Bandwidth limit in kbps. 0 is interpreted as unlimited bandwidth.
+ */
+export type BandwidthLimit = number;
+
+/**
  * Config passed to {@link MembraneWebRTC}.
  */
 export interface MembraneWebRTCConfig {
@@ -37,7 +42,7 @@ export interface MembraneWebRTCConfig {
 }
 
 /**
- * Track's context i.e. all data that can be usful when operating on track.
+ * Track's context i.e. all data that can be useful when operating on track.
  */
 export interface TrackContext {
   track: MediaStreamTrack | null;
@@ -62,6 +67,8 @@ export interface TrackContext {
    * Any info that was passed in {@link addTrack}.
    */
   metadata: any;
+
+  maxBandwidth?: BandwidthLimit;
 }
 
 /**
@@ -260,6 +267,7 @@ export class MembraneWebRTC {
               isSimulcast: false,
               metadata,
               peer,
+              maxBandwidth: 0
             };
             this.trackIdToTrack.set(trackId, ctx);
             this.callbacks.onTrackAdded?.(ctx);
@@ -386,7 +394,8 @@ export class MembraneWebRTC {
     track: MediaStreamTrack,
     stream: MediaStream,
     trackMetadata: any = new Map(),
-    isSimulcast: boolean = false
+    isSimulcast: boolean = false,
+    maxBandwidth: BandwidthLimit = 0 // unlimited bandwidth
   ): string {
     if (this.getPeerId() === "") throw "Cannot add tracks before being accepted by the server";
     const trackId = this.getTrackId(uuidv4());
@@ -400,6 +409,7 @@ export class MembraneWebRTC {
       peer: this.localPeer,
       metadata: trackMetadata,
       isSimulcast,
+      maxBandwidth
     };
     this.localTrackIdToTrack.set(trackId, trackContext);
 
@@ -420,13 +430,25 @@ export class MembraneWebRTC {
   }
 
   private addTrackToConnection = (trackContext: TrackContext) => {
+    const track = trackContext.track!!;
+    let transceiverConfig: RTCRtpTransceiverInit;
+
     if (trackContext.isSimulcast) {
-      const track = trackContext.track!!;
-      this.connection!.addTransceiver(
-        track,
-        track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig
-      );
-    } else this.connection!.addTrack(trackContext.track!!, trackContext.stream!!);
+      transceiverConfig = track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig
+    } else {
+      transceiverConfig = {
+        direction: "sendonly",
+        sendEncodings: [{
+          active: true,
+        }]
+      }
+
+      if (trackContext.maxBandwidth !== undefined && trackContext.maxBandwidth > 0) {
+        transceiverConfig.sendEncodings![0].maxBitrate = trackContext.maxBandwidth;
+      }
+    }
+
+    this.connection!.addTransceiver(track, transceiverConfig);
   };
 
   /**
@@ -497,6 +519,40 @@ export class MembraneWebRTC {
 
     return false;
   }
+
+  /**
+   * Updates maximum bandwidth for the track identified by trackId.
+   * This value directly translates to quality of the stream and, in case of video, to the amount of RTP packets being sent.
+   * 
+   * @param {string} trackId 
+   * @param {BandwidthLimit} bandwidth 
+   * @returns {Promise<boolean>} success
+   */
+  setTrackBandwidth(trackId: string, bandwidth: BandwidthLimit): Promise<boolean> {
+    const sender = this.findSender(trackId);
+    return this.doSetTrackBandwidth(sender, bandwidth)
+  }
+
+  private doSetTrackBandwidth(sender: RTCRtpSender, bandwidth: BandwidthLimit): Promise<boolean> {
+    const parameters = sender.getParameters();
+    if (parameters.encodings.length === 0) {
+      parameters.encodings = [{}];
+    }
+    if (bandwidth === 0) {
+      delete parameters.encodings[0].maxBitrate;
+    } else {
+      parameters.encodings[0].maxBitrate = bandwidth * 1000;
+    }
+    console.log(parameters)
+    return sender.setParameters(parameters)
+      .then(() => true)
+      .catch((error) => {
+        console.log(error)
+        return false
+      })
+
+  }
+
 
   /**
    * Remove a track from connection that was being sent to the RTC Engine.
@@ -799,7 +855,7 @@ export class MembraneWebRTC {
         peer: peer,
         trackId,
         metadata,
-        isSimulcast: false,
+        isSimulcast: false
       };
 
       this.trackIdToTrack.set(trackId, trackContext);
