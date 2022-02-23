@@ -9,6 +9,7 @@ export {
   MembraneWebRTC,
   TrackContext,
   Callbacks,
+  BandwidthLimit,
 } from "./membraneWebRTC";
 
 export { SerializedMediaEvent } from "./mediaEvent";

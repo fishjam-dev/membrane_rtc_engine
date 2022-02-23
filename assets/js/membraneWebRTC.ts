@@ -419,8 +419,9 @@ export class MembraneWebRTC {
       this.connection
         .getTransceivers()
         .forEach(
-          (trans) =>
-            (trans.direction = trans.direction === "sendrecv" ? "sendonly" : trans.direction)
+          (transceiver) =>
+            (transceiver.direction =
+              transceiver.direction === "sendrecv" ? "sendonly" : transceiver.direction)
         );
     }
 
@@ -446,7 +447,7 @@ export class MembraneWebRTC {
       };
 
       if (trackContext.maxBandwidth !== undefined && trackContext.maxBandwidth > 0) {
-        transceiverConfig.sendEncodings![0].maxBitrate = trackContext.maxBandwidth;
+        transceiverConfig.sendEncodings![0].maxBitrate = trackContext.maxBandwidth * 1024; // convert to bps;
       }
     }
 
@@ -530,22 +531,26 @@ export class MembraneWebRTC {
    * @param {BandwidthLimit} bandwidth
    * @returns {Promise<boolean>} success
    */
-  setTrackBandwidth(trackId: string, bandwidth: BandwidthLimit): Promise<boolean> {
+  public setTrackBandwidth(trackId: string, bandwidth: BandwidthLimit): Promise<boolean> {
     const sender = this.findSender(trackId);
-    return this.doSetTrackBandwidth(sender, bandwidth);
-  }
-
-  private doSetTrackBandwidth(sender: RTCRtpSender, bandwidth: BandwidthLimit): Promise<boolean> {
     const parameters = sender.getParameters();
+
     if (parameters.encodings.length === 0) {
       parameters.encodings = [{}];
     }
     if (bandwidth === 0) {
-      delete parameters.encodings[0].maxBitrate;
+      parameters.encodings.forEach((value) => delete value.maxBitrate);
     } else {
-      parameters.encodings[0].maxBitrate = bandwidth * 1000;
+      const denominator = parameters.encodings.reduce(
+        (acc, value) => acc + (value.scaleResolutionDownBy || 1),
+        0
+      );
+      parameters.encodings.forEach(
+        (value) =>
+          (value.maxBitrate = (bandwidth * 1024 * (value.scaleResolutionDownBy || 1)) / denominator)
+      );
     }
-    console.log(parameters);
+
     return sender
       .setParameters(parameters)
       .then(() => true)
@@ -799,7 +804,9 @@ export class MembraneWebRTC {
         this.addTrackToConnection(trackContext)
       );
 
-      this.connection.getTransceivers().forEach((trans) => (trans.direction = "sendonly"));
+      this.connection
+        .getTransceivers()
+        .forEach((transceiver) => (transceiver.direction = "sendonly"));
     } else {
       await this.connection.restartIce();
     }
