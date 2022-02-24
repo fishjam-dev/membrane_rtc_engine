@@ -540,18 +540,23 @@ export class MembraneWebRTC {
       parameters.encodings = [{}];
     }
     if (bandwidth === 0) {
+      // bandwidth is unlimited, remove any constraints
       parameters.encodings.forEach((value) => delete value.maxBitrate);
     } else {
-      const x_factor = parameters.encodings![0].scaleResolutionDownBy || 1;
+      // We are solving the following equation:
+      // x + (k0/k1)^2 * x + (k0/k2)^2 * x + ... + (k0/kn)^2 * x = bandwidth
+      // where x is the bitrate for the first encoding, kn are scaleResolutionDownBy factors
+      // square is dictated by the fact that k0/kn is a scale factor, but we are interested in the total number of pixels in the image
+      const firstScaleDownBy = parameters.encodings![0].scaleResolutionDownBy || 1;
       const bitrate_parts = parameters.encodings.reduce(
-        (acc, value) => (acc + x_factor / (value.scaleResolutionDownBy || 1)) ^ 2,
+        (acc, value) => acc + (firstScaleDownBy / (value.scaleResolutionDownBy || 1)) ** 2,
         0
       );
-      const x_bitrate = (parameters.encodings![0].maxBitrate = bandwidth / bitrate_parts);
+      const x = bandwidth / bitrate_parts;
 
       parameters.encodings.forEach(
         (value) =>
-          (value.maxBitrate = (x_bitrate * (x_factor / (value.scaleResolutionDownBy || 1))) ^ 2)
+          (value.maxBitrate = x * (firstScaleDownBy / (value.scaleResolutionDownBy || 1))) ** 2
       );
     }
 
