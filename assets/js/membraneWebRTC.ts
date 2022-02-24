@@ -556,7 +556,7 @@ export class MembraneWebRTC {
 
       parameters.encodings.forEach(
         (value) =>
-          (value.maxBitrate = x * (firstScaleDownBy / (value.scaleResolutionDownBy || 1))) ** 2
+          (value.maxBitrate = x * (firstScaleDownBy / (value.scaleResolutionDownBy || 1)) ** 2)
       );
     }
 
