@@ -29,6 +29,11 @@ export interface Peer {
 }
 
 /**
+ * Type describing track's Bandwidth limit in kbps. 0 is interpreted as unlimited bandwidth.
+ */
+export type BandwidthLimit = number;
+
+/**
  * Config passed to {@link MembraneWebRTC}.
  */
 export interface MembraneWebRTCConfig {
@@ -37,7 +42,7 @@ export interface MembraneWebRTCConfig {
 }
 
 /**
- * Track's context i.e. all data that can be usful when operating on track.
+ * Track's context i.e. all data that can be useful when operating on track.
  */
 export interface TrackContext {
   track: MediaStreamTrack | null;
@@ -62,6 +67,8 @@ export interface TrackContext {
    * Any info that was passed in {@link addTrack}.
    */
   metadata: any;
+
+  maxBandwidth?: BandwidthLimit;
 }
 
 /**
@@ -260,6 +267,7 @@ export class MembraneWebRTC {
               isSimulcast: false,
               metadata,
               peer,
+              maxBandwidth: 0,
             };
             this.trackIdToTrack.set(trackId, ctx);
             this.callbacks.onTrackAdded?.(ctx);
@@ -386,7 +394,8 @@ export class MembraneWebRTC {
     track: MediaStreamTrack,
     stream: MediaStream,
     trackMetadata: any = new Map(),
-    isSimulcast: boolean = false
+    isSimulcast: boolean = false,
+    maxBandwidth: BandwidthLimit = 0 // unlimited bandwidth
   ): string {
     if (this.getPeerId() === "") throw "Cannot add tracks before being accepted by the server";
     const trackId = this.getTrackId(uuidv4());
@@ -400,6 +409,7 @@ export class MembraneWebRTC {
       peer: this.localPeer,
       metadata: trackMetadata,
       isSimulcast,
+      maxBandwidth,
     };
     this.localTrackIdToTrack.set(trackId, trackContext);
 
@@ -409,8 +419,9 @@ export class MembraneWebRTC {
       this.connection
         .getTransceivers()
         .forEach(
-          (trans) =>
-            (trans.direction = trans.direction === "sendrecv" ? "sendonly" : trans.direction)
+          (transceiver) =>
+            (transceiver.direction =
+              transceiver.direction === "sendrecv" ? "sendonly" : transceiver.direction)
         );
     }
 
@@ -420,13 +431,27 @@ export class MembraneWebRTC {
   }
 
   private addTrackToConnection = (trackContext: TrackContext) => {
+    const track = trackContext.track!!;
+    let transceiverConfig: RTCRtpTransceiverInit;
+
     if (trackContext.isSimulcast) {
-      const track = trackContext.track!!;
-      this.connection!.addTransceiver(
-        track,
-        track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig
-      );
-    } else this.connection!.addTrack(trackContext.track!!, trackContext.stream!!);
+      transceiverConfig = track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig;
+    } else {
+      transceiverConfig = {
+        direction: "sendonly",
+        sendEncodings: [
+          {
+            active: true,
+          },
+        ],
+      };
+
+      if (trackContext.maxBandwidth !== undefined && trackContext.maxBandwidth > 0) {
+        transceiverConfig.sendEncodings![0].maxBitrate = trackContext.maxBandwidth * 1024; // convert to bps;
+      }
+    }
+
+    this.connection!.addTransceiver(track, transceiverConfig);
   };
 
   /**
@@ -496,6 +521,52 @@ export class MembraneWebRTC {
     }
 
     return false;
+  }
+
+  /**
+   * Updates maximum bandwidth for the track identified by trackId.
+   * This value directly translates to quality of the stream and, in case of video, to the amount of RTP packets being sent.
+   * In case trackId points at the simulcast track, bandwidth is split between all of the variant streams proportionally to their resolution.
+   *
+   * @param {string} trackId
+   * @param {BandwidthLimit} bandwidth
+   * @returns {Promise<boolean>} success
+   */
+  public setTrackBandwidth(trackId: string, bandwidth: BandwidthLimit): Promise<boolean> {
+    const sender = this.findSender(trackId);
+    const parameters = sender.getParameters();
+
+    if (parameters.encodings.length === 0) {
+      parameters.encodings = [{}];
+    }
+    if (bandwidth === 0) {
+      // bandwidth is unlimited, remove any constraints
+      parameters.encodings.forEach((value) => delete value.maxBitrate);
+    } else {
+      // We are solving the following equation:
+      // x + (k0/k1)^2 * x + (k0/k2)^2 * x + ... + (k0/kn)^2 * x = bandwidth
+      // where x is the bitrate for the first encoding, kn are scaleResolutionDownBy factors
+      // square is dictated by the fact that k0/kn is a scale factor, but we are interested in the total number of pixels in the image
+      const firstScaleDownBy = parameters.encodings![0].scaleResolutionDownBy || 1;
+      const bitrate_parts = parameters.encodings.reduce(
+        (acc, value) => acc + (firstScaleDownBy / (value.scaleResolutionDownBy || 1)) ** 2,
+        0
+      );
+      const x = bandwidth / bitrate_parts;
+
+      parameters.encodings.forEach(
+        (value) =>
+          (value.maxBitrate = x * (firstScaleDownBy / (value.scaleResolutionDownBy || 1)) ** 2)
+      );
+    }
+
+    return sender
+      .setParameters(parameters)
+      .then(() => true)
+      .catch((error) => {
+        console.log(error);
+        return false;
+      });
   }
 
   /**
@@ -742,7 +813,9 @@ export class MembraneWebRTC {
         this.addTrackToConnection(trackContext)
       );
 
-      this.connection.getTransceivers().forEach((trans) => (trans.direction = "sendonly"));
+      this.connection
+        .getTransceivers()
+        .forEach((transceiver) => (transceiver.direction = "sendonly"));
     } else {
       await this.connection.restartIce();
     }
