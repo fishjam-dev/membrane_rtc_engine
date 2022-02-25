@@ -103,7 +103,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       groups_for_modules: [
         Endpoints: [
           Membrane.RTC.Engine.Endpoint.WebRTC,
-          Membrane.RTC.Engine.Endpoint.HLS
+          Membrane.RTC.Engine.Endpoint.HLS,
+          Membrane.RTC.Engine.Endpoint.Distributed
         ],
         Messages: [
           Membrane.RTC.Engine.Message,
