@@ -28,29 +28,20 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
 
   @impl true
   def handle_init(opts) do
-
     pair_id =
       case opts.pair_id do
         "ingress:" <> id -> id
         "egress:" <> id -> id
       end
 
-
-    # twin_node = Enum.find(opts[:nodes], fn n -> n != node() end)
-
-    #!
-
     Registry.register(__MODULE__, pair_id, opts.type)
-    IO.inspect(self(), label: "\n\n\n\n\nregistering myself #{[real_pair_id: pair_id, opts: opts] |> inspect(pretty: true)}")
 
-    # Process.register(self(), __MODULE__)
-
-    {:ok, %{
-      # twin: {__MODULE__, twin_node},
-      pair_id: pair_id,
-      type: opts.type,
-      tracks_from_twin: %{}
-    }}
+    {:ok,
+     %{
+       pair_id: pair_id,
+       type: opts.type,
+       tracks_from_twin: %{}
+     }}
   end
 
   @impl true
@@ -61,41 +52,24 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
 
   @impl true
   def handle_other({:demand_from_twin, pad, size, _unit}, ctx, state) do
-    # actions = [demand: {reverse_pad(pad), size}]
     {actions, state} = maybe_do_action(:demand, reverse_pad(pad), size, ctx, state)
     {{:ok, actions}, state}
   end
 
   @impl true
   def handle_prepared_to_playing(ctx, state) do
-    # send(state.twin, :twin_in_handle_prepared_to_playing)
-
-    # receive do
-    #   :twin_in_handle_prepared_to_playing ->
-    #     {:ok, state}
-    # after
-    #   5_000 ->
-    #     {{:error, :twin_distributed_endpoint_not_responding}, state}
-    # end
-
-    #!
     case Registry.lookup(__MODULE__, state.pair_id) do
       [{pid, _val}] when pid == self() ->
         receive do
           {:twin_in_handle_prepared_to_playing, twin} ->
-            IO.inspect(self(), label: "\n\n\n\n\nfirst twin A")
             {:ok, Map.put(state, :twin, twin)}
         after
           5_000 ->
-            IO.inspect(self(), label: "\n\n\n\n\nfirst twin B")
-
             {{:error, :twin_distributed_endpoint_not_responding}, state}
         end
 
       [{pid1, val1}, {pid2, val2}] ->
         twin = if self() == pid1, do: pid2, else: pid1
-        IO.inspect(self(), label: "\n\n\n\n\nsecond twin")
-
         send(twin, {:twin_in_handle_prepared_to_playing, self()})
         {:ok, Map.put(state, :twin, twin)}
     end
@@ -126,18 +100,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
 
   @impl true
   def handle_write(Pad.ref(:input, _track_id) = pad, payload, _ctx, state) do
-    send(state.twin, {:buffer_from_twin, pad, payload})
-
     # maybe add sending demands
-    # {{:ok, demand: pad}, state}
+
+    send(state.twin, {:buffer_from_twin, pad, payload})
     {:ok, state}
   end
 
   @impl true
   def handle_other({:buffer_from_twin, pad, payload}, ctx, state) do
-    # actions = [buffer: {reverse_pad(pad), payload}]
     {actions, state} = maybe_do_action(:buffer, reverse_pad(pad), payload, ctx, state)
-
     {{:ok, actions}, state}
   end
 
@@ -150,16 +121,20 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
   def handle_other({:new_tracks, tracks}, _ctx, %{type: :output} = state) do
     send(state.twin, {:new_tracks_from_twin, tracks})
 
-    subscriptions = Enum.map(tracks, & {&1.id, :rtp})
+    subscriptions = Enum.map(tracks, &{&1.id, :rtp})
     new_tracks = Map.new(tracks, &{&1.id, &1})
 
-    # state = %{state | tracks: Map.merge(state.tracks, new_tracks)}
     {{:ok, notify: {:subscribe, subscriptions}}, state}
   end
 
   @impl true
+  def handle_other({:new_tracks_from_twin, []}, _ctx, state) do
+    {:ok, state}
+  end
+
+  @impl true
   def handle_other({:new_tracks_from_twin, tracks}, _ctx, state) when tracks != [] do
-    new_tracks_map = Map.new(tracks, & {&1.id, &1})
+    new_tracks_map = Map.new(tracks, &{&1.id, &1})
 
     state =
       Map.update!(
@@ -172,11 +147,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
   end
 
   @impl true
-  def handle_other({:new_tracks_from_twin, []}, _ctx, state) do
-    {:ok, state}
-  end
-
-  @impl true
   def handle_other({:remove_tracks, tracks}, _ctx, state) do
     send(state.twin, {:remove_tracks_from_twin, tracks})
     {:ok, state}
@@ -184,16 +154,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
 
   @impl true
   def handle_other({:remove_tracks_from_twin, tracks}, _ctx, state) do
+    inactive_tracks = Enum.map(tracks, &%{&1 | active?: false})
+
     tracks_ids = Enum.map(tracks, & &1.id)
+    tracks_from_twin = Map.drop(state.tracks_from_twin, tracks_ids)
+    state = %{state | tracks_from_twin: tracks_from_twin}
 
-    state =
-      Map.update!(
-        state,
-        :tracks_from_twin,
-        & Map.drop(&1, tracks_ids)
-      )
-
-    {{:ok, notify: {:publish, {:removed_tracks, tracks}}}, state}
+    {{:ok, notify: {:publish, {:removed_tracks, inactive_tracks}}}, state}
   end
 
   @impl true
@@ -203,24 +170,18 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
 
   @impl true
   def handle_other({:caps_from_twin, pad, caps}, ctx, state) do
-    # IO.inspect({:handle_other_caps_from_twin, pad, caps, ctx, state}, pretty: true)
-
-    # {{:ok, caps: {reverse_pad(pad), caps}}, state}
     {actions, state} = maybe_do_action(:caps, reverse_pad(pad), caps, ctx, state)
     {{:ok, actions}, state}
   end
 
   @impl true
   def handle_other({:event_from_twin, pad, event}, ctx, state) do
-    # {{:ok, event: {reverse_pad(pad), event}}, state}
     {actions, state} = maybe_do_action(:event, reverse_pad(pad), event, ctx, state)
     {{:ok, actions}, state}
   end
 
   @impl true
   def handle_caps(pad, caps, ctx, state) do
-    # IO.inspect({:handle_caps, pad, caps, ctx, state}, pretty: true)
-
     send(state.twin, {:caps_from_twin, pad, caps})
     {:ok, state}
   end

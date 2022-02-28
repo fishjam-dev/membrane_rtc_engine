@@ -778,10 +778,6 @@ defmodule Membrane.RTC.Engine do
          ctx,
          state
        ) do
-
-    IO.inspect(tracks, label: "\n\n\n\n\n new tracks")
-    IO.inspect(state.endpoints[endpoint_id], label: "a")
-
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
     state =
@@ -790,9 +786,6 @@ defmodule Membrane.RTC.Engine do
         [:endpoints, endpoint_id, :inbound_tracks],
         &Map.merge(&1, id_to_track)
       )
-
-    IO.inspect(state.endpoints[endpoint_id], label: "b")
-
 
     tracks_msgs =
       do_publish(
@@ -804,8 +797,6 @@ defmodule Membrane.RTC.Engine do
 
     endpoint = get_in(state, [:endpoints, endpoint_id])
     track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
-
-    IO.inspect(track_id_to_track_metadata, label: "c")
 
     MediaEvent.create_tracks_added_event(endpoint_id, track_id_to_track_metadata)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
