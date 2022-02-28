@@ -192,6 +192,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
     {:ok, state}
   end
 
+  @impl true
+  def handle_shutdown(_reason, state) do
+    Registry.unregister(__MODULE__, state.pair_id)
+    :ok
+  end
+
   defp reverse_pad(Pad.ref(:input, track_id)),
     do: Pad.ref(:output, track_id)
 

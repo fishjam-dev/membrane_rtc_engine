@@ -297,6 +297,11 @@ defmodule Membrane.RTC.Engine do
     ])
   end
 
+  @spec stop_and_terminate(engine :: pid(), Keyword.t()) :: :ok | {:error, :timeout}
+  def stop_and_terminate(engine, opts \\ []) do
+    Membrane.Pipeline.stop_and_terminate(engine, opts)
+  end
+
   @spec get_registry_name() :: atom()
   def get_registry_name(), do: @registry_name
 
