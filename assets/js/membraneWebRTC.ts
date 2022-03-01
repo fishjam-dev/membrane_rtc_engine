@@ -314,8 +314,8 @@ export class MembraneWebRTC {
 
       case "tracksRemoved":
         data = deserializedMediaEvent.data;
-        const tracksIds = data.tracksIds as string[];
-        tracksIds.forEach((trackId) => {
+        const trackIds = data.trackIds as string[];
+        trackIds.forEach((trackId) => {
           const peerId = trackId.split(":")[0];
           peer = this.idToPeer.get(peerId) ? this.idToPeer.get(peerId)! : this.peerResolver(peerId);
           peer.trackIdToMetadata.delete(trackId);

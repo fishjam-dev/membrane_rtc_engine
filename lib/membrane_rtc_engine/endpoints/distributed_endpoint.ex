@@ -9,7 +9,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
 
   alias Membrane.RTC.Engine
 
-  def_options pair_id: [
+  def_options twin_node: [
+                spec: Node.t()
+              ],
+              pair_id: [
                 spec: binary()
               ],
               type: [
@@ -34,10 +37,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
         "egress:" <> id -> id
       end
 
-    Registry.register(__MODULE__, pair_id, opts.type)
+    # Registry.register(__MODULE__, pair_id, opts.type)
+    name = "#{Node.self()}:#{pair_id}:#{opts.type}"
+    :global.register_name(name, self())
 
     {:ok,
      %{
+       twin_node: opts.twin_node,
        pair_id: pair_id,
        type: opts.type,
        tracks_from_twin: %{}
@@ -58,8 +64,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
 
   @impl true
   def handle_prepared_to_playing(ctx, state) do
-    case Registry.lookup(__MODULE__, state.pair_id) do
-      [{pid, _val}] when pid == self() ->
+    # potential race condidtion, when both twins go into first match of case below
+
+    twin_type = if state.type == :input, do: :output, else: :input
+    twin_name = "#{state.twin_node}:#{state.pair_id}:#{twin_type}"
+
+    case :global.whereis_name(twin_name) do
+      :undefined ->
         receive do
           {:twin_in_handle_prepared_to_playing, twin} ->
             {:ok, Map.put(state, :twin, twin)}
@@ -68,8 +79,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
             {{:error, :twin_distributed_endpoint_not_responding}, state}
         end
 
-      [{pid1, val1}, {pid2, val2}] ->
-        twin = if self() == pid1, do: pid2, else: pid1
+      twin when is_pid(twin) ->
         send(twin, {:twin_in_handle_prepared_to_playing, self()})
         {:ok, Map.put(state, :twin, twin)}
     end
@@ -107,10 +117,14 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
   end
 
   @impl true
-  def handle_other({:buffer_from_twin, pad, payload}, ctx, state) do
+  def handle_other({:buffer_from_twin, pad, payload}, ctx, state)
+      when ctx.playback_state == :playing do
     {actions, state} = maybe_do_action(:buffer, reverse_pad(pad), payload, ctx, state)
     {{:ok, actions}, state}
   end
+
+  @impl true
+  def handle_other({:buffer_from_twin, pad, payload}, ctx, state), do: {:ok, state}
 
   @impl true
   def handle_other({:new_tracks, _tracks}, _ctx, %{type: :input} = state) do
@@ -194,7 +208,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
 
   @impl true
   def handle_shutdown(_reason, state) do
-    Registry.unregister(__MODULE__, state.pair_id)
+    name = "#{Node.self()}:#{state.pair_id}:#{state.type}"
+    :global.unregister_name(name)
     :ok
   end
 
@@ -241,5 +256,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Distributed do
     |> Map.get(pad, %{})
     |> Map.get(action, [])
     |> Enum.map(fn val -> {action, {pad, val}} end)
+  end
+
+  defp get_my_name(%{type: :output} = state) do
   end
 end

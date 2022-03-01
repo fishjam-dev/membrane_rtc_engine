@@ -92,4 +92,26 @@ defmodule Membrane.RTC.Utils do
 
     {username, password}
   end
+
+  #   def distributed_sink_name(src_node, dst_node, room_id),
+  #   do: Enum.join([src_node, dst_node, room_id, :sink], ":")
+
+  # def distributed_source_name(src_node, dst_node, room_id),
+  #   do: Enum.join([src_node, dst_node, room_id, :source], ":")
+
+  # def match_distributed_twins() do
+  #   case :global.whereis_name(twin_name) do
+  #     :undefined ->
+  #       receive do
+  #         {:twin_in_handle_prepared_to_playing, twin} ->
+  #           {:ok, Map.put(state, :twin, twin)}
+  #       after
+  #         5_000 ->
+  #           {{:error, :twin_distributed_endpoint_not_responding}, state}
+  #       end
+
+  #     twin when is_pid(twin) ->
+  #       send(twin, {:twin_in_handle_prepared_to_playing, self()})
+  #       {:ok, Map.put(state, :twin, twin)}
+  # end
 end
