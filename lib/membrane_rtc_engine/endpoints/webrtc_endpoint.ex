@@ -4,6 +4,27 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     An Endpoint responsible for communicatiing with WebRTC peer.
 
     It is responsible for sending and receiving media tracks from other WebRTC peer (e.g. web browser).
+
+    #### Internal messages documentation
+
+    All generic messages are described in Engine documentation.
+    Here are described types of messages, which are sent inside custom media event.
+
+    WebRTC endpoint receives these types of custom_media_events from clien:
+    * renegotiate_tracks - this message informs that a peer wants to make renegotiation due to adding a track or removing a track
+    * prioritize_track - this message contains id of track, that peer want to prioritize.
+    * unprioritize_track - this message contains id of track, that peer want to unprioritize.
+    * prefered_video_sizes - this message contains information of how many videos in different quality (high, medium, small).
+    There is also flag which indicates that all videos should be in the same quality.
+    * candidate - this message contains information about ICE candidate it is forwarded to EndpointBin
+    * sdp_offer - this message contains SDP offer, map track_id to track_metadata and map mid to track_id.
+    Both maps contains information only about tracks send by peer associated with this endpoint.
+
+    WebRTC endpoint sends these type of custom messages to client (by sending it first to RTC Engine):
+    * offer_data - this message contains information about the number of tracks of audio and video that will be sent from engine
+    to peer and information regarding the integrated TURN server.
+    * candidate - this message contains information about ICE candidate which will be sent to the client.
+    * sdp_answer - this message contains SDP answer and map mid to track_id.
     """
     use Membrane.Bin
     import Membrane.RTC.Utils
@@ -178,17 +199,6 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       }
 
       {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
-    end
-
-    @impl true
-    def handle_notification(
-          {:integrated_turn_servers, turns},
-          _from,
-          _ctx,
-          state
-        ) do
-      enforce_turns? = state.use_integrated_turn || false
-      {{:ok, notify: {:integrated_turn_servers, turns, enforce_turns?}}, state}
     end
 
     @impl true
