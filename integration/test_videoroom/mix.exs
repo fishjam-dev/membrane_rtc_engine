@@ -16,7 +16,7 @@ defmodule TestVideoroom.MixProject do
   def application do
     [
       mod: {TestVideoroom.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger]
     ]
   end
 

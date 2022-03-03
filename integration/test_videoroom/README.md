@@ -78,4 +78,6 @@ docker build  -t membrane_rtc_integration .
 docker run -p 4001:4001 membrane_rtc_integration
 ```
 
+To specify if you want run integration tests with or without integrated turns change `USE_INTEGRATED_TURN` flag in Dockerfile.
+
 
