@@ -97,7 +97,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "LICENSE"],
+      extras: ["README.md", "media_events.md", "LICENSE"],
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
       groups_for_modules: [
