@@ -543,6 +543,68 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
+  @decorate trace("engine.other.subscribe", include: [[:state, :id]])
+  def handle_other(
+        {:subscribe, tracks, endpoint_pid, endpoint_id, ref},
+        ctx,
+        state
+      ) do
+    all_tracks =
+      state.endpoints
+      |> Map.values()
+      |> Enum.flat_map(&Endpoint.get_tracks/1)
+      |> Map.new(&{&1.id, &1})
+
+    correct_subscriptions =
+      tracks
+      |> Enum.map(fn {track_id, format} ->
+        track = Map.get(all_tracks, track_id)
+
+        cond do
+          track == nil ->
+            {:error, track_id, "track doesn't exist"}
+
+          format not in track.format ->
+            {:error, track_id, "track doessn't support format #{format}"}
+
+          true ->
+            :ok
+        end
+      end)
+      |> Enum.drop_while(&(&1 == :ok))
+
+    if correct_subscriptions != [] do
+      [msg | _] = correct_subscriptions
+      send(endpoint_pid, {ref, msg})
+      {:ok, state}
+    else
+      {new_waiting_for_linking, parent_spec} =
+        link_outbound_tracks(tracks, endpoint_id, ctx, state)
+
+      state =
+        update_in(
+          state,
+          [:waiting_for_linking, endpoint_id],
+          &MapSet.union(&1, new_waiting_for_linking)
+        )
+
+      new_endpoint_subscriptions =
+        Map.new(tracks, fn {track_id, format} -> {track_id, format} end)
+
+      subscriptions =
+        Map.update(
+          state.subscriptions,
+          endpoint_id,
+          new_endpoint_subscriptions,
+          &Map.merge(&1, new_endpoint_subscriptions)
+        )
+
+      state = %{state | subscriptions: subscriptions}
+      send(endpoint_pid, {ref, :ok})
+      {{:ok, [spec: parent_spec]}, state}
+    end
+  end
+
   @impl true
   @decorate trace("engine.other.media_event", include: [[:state, :id]])
   def handle_other({:media_event, from, data}, ctx, state) do
@@ -755,7 +817,8 @@ defmodule Membrane.RTC.Engine do
         state.endpoints,
         ctx,
         {:new_tracks, tracks},
-        {:endpoint, endpoint_id}
+        {:endpoint, endpoint_id},
+        state
       )
 
     endpoint = get_in(state, [:endpoints, endpoint_id])
@@ -791,7 +854,8 @@ defmodule Membrane.RTC.Engine do
         state.endpoints,
         ctx,
         {:remove_tracks, tracks},
-        {:endpoint, endpoint_id}
+        {:endpoint, endpoint_id},
+        state
       )
 
     track_ids = Enum.map(tracks, & &1.id)
@@ -1016,7 +1080,8 @@ defmodule Membrane.RTC.Engine do
           state.endpoints,
           ctx,
           {:remove_tracks, tracks},
-          {:endpoint, peer_id}
+          {:endpoint, peer_id},
+          state
         )
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
@@ -1055,12 +1120,36 @@ defmodule Membrane.RTC.Engine do
     |> Enum.filter(&Map.has_key?(ctx.children, &1))
   end
 
-  defp do_publish(_endpoints, _ctx, {_, []} = _tracks, _endpoint_bin), do: []
+  defp do_publish(_endpoints, _ctx, {_, []} = _tracks, _endpoint_bin, _state), do: []
 
-  defp do_publish(endpoints, ctx, msg, endpoint_bin_name) do
+  defp do_publish(endpoints, ctx, {:new_tracks, _tracks} = msg, endpoint_bin_name, _state) do
     flat_map_children(ctx, fn
       {:endpoint, endpoint_id} = other_endpoint_bin ->
         endpoint = Map.get(endpoints, endpoint_id)
+
+        if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) do
+          [forward: {other_endpoint_bin, msg}]
+        else
+          []
+        end
+
+      _child ->
+        []
+    end)
+  end
+
+  defp do_publish(endpoints, ctx, {type, tracks}, endpoint_bin_name, state) do
+    flat_map_children(ctx, fn
+      {:endpoint, endpoint_id} = other_endpoint_bin ->
+        endpoint = Map.get(endpoints, endpoint_id)
+
+        has_subscription_on_track = fn track_id ->
+          subscribed_tracks = Map.get(state.subscriptions, endpoint_id)
+          subscribed_tracks != nil and Map.has_key?(subscribed_tracks, track_id)
+        end
+
+        new_tracks = Enum.filter(tracks, &has_subscription_on_track.(&1))
+        msg = {type, new_tracks}
 
         if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) do
           [forward: {other_endpoint_bin, msg}]

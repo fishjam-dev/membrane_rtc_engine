@@ -25,7 +25,11 @@ if Enum.all?(
       caps: :any,
       availability: :on_request
 
-    def_options output_directory: [
+    def_options rtc_engine: [
+                  spec: pid(),
+                  description: "Pid of parent Engine"
+                ],
+                output_directory: [
                   spec: Path.t(),
                   description: "Path to directory under which HLS output will be saved",
                   default: "hls_output"
@@ -61,6 +65,7 @@ if Enum.all?(
     @impl true
     def handle_init(opts) do
       state = %{
+        rtc_engine: opts.rtc_engine,
         tracks: %{},
         stream_ids: MapSet.new(),
         output_directory: opts.output_directory,
@@ -73,15 +78,28 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_other({:new_tracks, tracks}, _ctx, state) do
+    def handle_other({:new_tracks, tracks}, ctx, state) do
       new_tracks = Map.new(tracks, &{&1.id, &1})
 
       subscriptions =
-        Enum.filter(tracks, fn track -> :raw in track.format end)
+        tracks
+        |> Enum.filter(fn track -> :raw in track.format end)
         |> Enum.map(fn track -> {track.id, :raw} end)
 
-      {{:ok, notify: {:subscribe, subscriptions}},
-       Map.update!(state, :tracks, &Map.merge(&1, new_tracks))}
+      {:endpoint, endpoint_id} = ctx.name
+      ref = make_ref()
+      send(state.rtc_engine, {:subscribe, subscriptions, self(), endpoint_id, ref})
+
+      receive do
+        {^ref, :ok} ->
+          {:ok, Map.update!(state, :tracks, &Map.merge(&1, new_tracks))}
+
+        {^ref, {:error, track_id, reason}} ->
+          raise "Subscription fails on track: #{track_id} because of #{reason}"
+      after
+        5000 ->
+          raise "Timeout subscribing on track in Engine with pid #{state.rtc_engine}"
+      end
     end
 
     @impl true

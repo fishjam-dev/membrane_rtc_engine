@@ -14,10 +14,16 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     alias ExSDP.Attribute.FMTP
     alias ExSDP.Attribute.RTPMapping
 
+    require Membrane.Logger
+
     @type stun_server_t() :: ExLibnice.stun_server()
     @type turn_server_t() :: ExLibnice.relay_info()
 
-    def_options ice_name: [
+    def_options rtc_engine: [
+                  spec: pid(),
+                  description: "Pid of parent Engine"
+                ],
+                ice_name: [
                   spec: String.t(),
                   description: "Ice name is used in creating credentials for ice connnection"
                 ],
@@ -166,6 +172,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       }
 
       state = %{
+        rtc_engine: opts.rtc_engine,
         ice_name: opts.ice_name,
         outbound_tracks: %{},
         inbound_tracks: %{},
@@ -216,8 +223,26 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
 
       subscriptions = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
-      send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
-      {{:ok, notify: {:subscribe, subscriptions}}, state}
+
+      {:endpoint, endpoint_id} = ctx.name
+      ref = make_ref()
+      send(state.rtc_engine, {:subscribe, subscriptions, self(), endpoint_id, ref})
+
+      receive do
+        {^ref, :ok} ->
+          send_if_not_nil(
+            state.display_manager,
+            {:subscribe_tracks, ctx.name, new_outbound_tracks}
+          )
+
+          {:ok, state}
+
+        {^ref, {:error, track_id, reason}} ->
+          raise "Subscription fails on track: #{track_id} because of #{reason}"
+      after
+        5000 ->
+          raise "Timeout subscribing on track in Engine with pid #{state.rtc_engine}"
+      end
     end
 
     @impl true
