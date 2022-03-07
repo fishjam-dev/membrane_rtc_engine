@@ -829,8 +829,7 @@ defmodule Membrane.RTC.Engine do
         {:endpoint, endpoint_id}
       )
 
-    endpoint = get_in(state, [:endpoints, endpoint_id])
-    track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
+    track_id_to_track_metadata = Map.new(tracks, &{&1.id, &1.metadata})
 
     MediaEvent.create_tracks_added_event(endpoint_id, track_id_to_track_metadata)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})

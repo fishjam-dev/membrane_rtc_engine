@@ -248,68 +248,22 @@ export class MembraneWebRTC {
 
       case "tracksAdded":
         data = deserializedMediaEvent.data;
-        const trackIdToMetadata = new Map<string, any>(Object.entries(data.trackIdToMetadata));
-        trackIdToMetadata.forEach((metadata, trackId) => {
+        Object.entries(data.trackIdToMetadata).forEach(([trackId, metadata]) => {
           const peerId = trackId.split(":")[0];
           peer = this.idToPeer.get(peerId) ? this.idToPeer.get(peerId)! : this.peerResolver(peerId);
-          const oldTrackIdToMetadata = new Map(peer.trackIdToMetadata);
           peer.trackIdToMetadata.set(trackId, metadata);
-          peer.trackIdToMetadata.forEach((m, tId) => {
-            if (!oldTrackIdToMetadata.has(tId)) {
-              const ctx = {
-                stream: null,
-                track: null,
-                trackId: tId,
-                isSimulcast: false,
-                metadata,
-                peer,
-              };
-              this.trackIdToTrack.set(trackId, ctx);
-              this.callbacks.onTrackAdded?.(ctx);
-            }
-          });
+          const ctx = {
+            stream: null,
+            track: null,
+            trackId: trackId,
+            isSimulcast: false,
+            metadata,
+            peer,
+          };
+          this.trackIdToTrack.set(trackId, ctx);
+          this.callbacks.onTrackAdded?.(ctx);
         });
         break;
-
-      /*
-      case "tracksAdded":
-        data = deserializedMediaEvent.data;
-        if (this.getPeerId() === data.peerId) return;
-        data.trackIdToMetadata = new Map<string, any>(Object.entries(data.trackIdToMetadata));
-        console.log("tracks added ", this.idToPeer, data);
-
-        // if (!this.idToPeer.has(data.peerId)) {
-        //   peer = this.peerResolver(data.peerId);
-        //   this.idToPeer.set(peer.id, peer);
-        // }
-
-        // peer = this.idToPeer.get(data.peerId)!;
-
-        // w powyzszym miejscuj peer to null, bo jestesmy w egresowym pokoju, gdzie jest jeden nasz webrtc endpoint i jeden distributed endpoint.
-        // Zatem nie ma tam innych peerow (w sensie participantow), ale peerId jest ustawiany jako id endpointu, ktory w danym RTC Enginie wypuszcza tracki
-        // tutaj mogloby to byc rozwiązane dodaniem zewnetrznego jakiegos peer resolver
-
-        peer = this.idToPeer.get(data.peerId)!;
-
-        const oldTrackIdToMetadata = peer.trackIdToMetadata;
-        peer.trackIdToMetadata = new Map([...peer.trackIdToMetadata, ...data.trackIdToMetadata]);
-        this.idToPeer.set(peer.id, peer);
-        Array.from(peer.trackIdToMetadata.entries()).forEach(([trackId, metadata]) => {
-          if (!oldTrackIdToMetadata.has(trackId)) {
-            const ctx = {
-              stream: null,
-              track: null,
-              trackId,
-              isSimulcast: false,
-              metadata,
-              peer,
-            };
-            this.trackIdToTrack.set(trackId, ctx);
-            this.callbacks.onTrackAdded?.(ctx);
-          }
-        });
-        break;
-        */
 
       case "tracksRemoved":
         data = deserializedMediaEvent.data;
@@ -327,18 +281,7 @@ export class MembraneWebRTC {
           const [mid, _trackId] = midToTrackId.find(([mid, mapTrackId]) => mapTrackId === trackId)!;
           this.midToTrackId.delete(mid);
         });
-
-      // case "tracksRemoved":
-      //   data = deserializedMediaEvent.data;
-      //   const peerId = data.peerId;
-      //   if (this.getPeerId() === data.peerId) return;
-      //   const trackIds = data.trackIds as string[];
-      //   trackIds.forEach((trackId) => {
-      //     const trackContext = this.trackIdToTrack.get(trackId)!;
-      //     this.callbacks.onTrackRemoved?.(trackContext);
-      //     this.eraseTrack(trackId, peerId);
-      //   });
-      //   break;
+        break;
 
       case "sdpAnswer":
         this.midToTrackId = new Map(Object.entries(deserializedMediaEvent.data.midToTrackId));

@@ -1,7 +1,11 @@
 defmodule Membrane.RTC.Engine.Network do
   use GenServer
 
+  require Membrane.Logger
+
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Message
+  alias Membrane.RTC.Engine.Endpoint.WebRTC
 
   @ingress_node :"ingress@Felikss-MacBook-Pro"
   @egress_node :"egress@Felikss-MacBook-Pro"
