@@ -209,7 +209,6 @@ export class MembraneWebRTC {
     const deserializedMediaEvent = deserializeMediaEvent(mediaEvent);
     switch (deserializedMediaEvent.type) {
       case "peerAccepted":
-        console.log("peerAccepted ", deserializedMediaEvent.data);
         this.localPeer.id = deserializedMediaEvent.data.id;
         this.callbacks.onJoinSuccess?.(
           deserializedMediaEvent.data.id,
@@ -352,7 +351,6 @@ export class MembraneWebRTC {
 
       case "peerJoined":
         peer = deserializedMediaEvent.data.peer;
-        console.log("peerJoined ", peer, this.getPeerId());
 
         if (peer.id === this.getPeerId()) return;
         this.addPeer(peer);
@@ -814,7 +812,12 @@ export class MembraneWebRTC {
 
     this.addTransceiversIfNeeded(offerData);
 
-    await this.createAndSendOffer();
+    if (this.connection!.getTransceivers().length == 0) {
+      const mediaEvent: MediaEvent = generateCustomEvent({ type: "sdpOffer" });
+      this.sendMediaEvent(mediaEvent);
+    } else {
+      await this.createAndSendOffer();
+    }
   };
 
   private onRemoteCandidate = (candidate: RTCIceCandidate) => {
@@ -850,8 +853,6 @@ export class MembraneWebRTC {
       const mid = event.transceiver.mid!;
 
       const trackId = this.midToTrackId.get(mid)!;
-
-      console.log("onTrack", trackId, this.localPeer, this.idToPeer);
 
       if (this.checkIfTrackBelongToPeer(trackId, this.localPeer)) return;
 

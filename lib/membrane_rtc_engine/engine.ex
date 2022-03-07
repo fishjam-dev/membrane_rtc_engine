@@ -270,28 +270,6 @@ defmodule Membrane.RTC.Engine do
   """
   @type publish_message_t() :: {:new_tracks, [Track.t()]} | {:removed_tracks, [Track.t()]}
 
-  # @spec start(node_name :: Node.t(), options :: options_t(), process_options :: GenServer.options()) ::
-  #         GenServer.on_start()
-  # def start(node_name, options, process_options) do
-  #   fun =
-  #     Code.eval_quoted(quote do
-  #       fn () ->
-  #         {:ok, pid} = unquote(__MODULE__).start(unquote(options), unquote(process_options))
-  #         send(unquote(self()), {:rtc_engine_pid, pid})
-  #       end
-  #     end)
-
-  #   Node.spawn(node_name, fun)
-
-  #   receive do
-  #     {:rtc_engine_pid, pid} ->
-  #       {:ok, pid}
-  #   after
-  #     5_000 ->
-  #       IO.puts("dupasddasldaskdmalksdmalskmdalskmdlaksmdlkasmdlkasmd\n\n\n\n\n")
-  #   end
-  # end
-
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
           GenServer.on_start()
   def start(options, process_options) do
@@ -304,6 +282,12 @@ defmodule Membrane.RTC.Engine do
     do_start(:start_link, options, process_options)
   end
 
+  @spec start(
+          node_name :: Node.t(),
+          options :: options_t(),
+          process_options :: GenServer.options()
+        ) ::
+          GenServer.on_start() | {:error, :rtc_engine_remote_start_failed}
   def start(node_name, options, proccess_options) do
     Node.spawn(node_name, Membrane.RTC.Engine, :start_remote, [options, proccess_options, self()])
 
@@ -312,13 +296,19 @@ defmodule Membrane.RTC.Engine do
         result
     after
       5_000 ->
-        IO.puts("dupasddasldaskdmalksdmalskmdalskmdlaksmdlkasmdlkasmd\n\n\n\n\n")
+        {:error, :rtc_engine_remote_start_failed}
     end
   end
 
+  @spec start_remote(
+          options :: options_t(),
+          process_options :: GenServer.options(),
+          caller_pid :: pid()
+        ) :: GenServer.on_start()
   def start_remote(options, process_options, caller_pid) do
     start_result = start(options, process_options)
     send(caller_pid, {:rtc_engine_start_remote, start_result})
+    start_result
   end
 
   defp do_start(func, options, process_options) when func in [:start, :start_link] do

@@ -5,10 +5,10 @@ defmodule Membrane.RTC.Engine.Endpoint.DistributedSink do
   It is responsible for sending and receiving media tracks from other WebRTC peer (e.g. web browser).
   """
   use Membrane.Sink
-  import Membrane.RTC.Utils
 
-  alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.Distribution
+
+  @twin_addr {127, 0, 0, 1}
 
   def_options twin_node: [
                 spec: Node.t()
@@ -39,16 +39,24 @@ defmodule Membrane.RTC.Engine.Endpoint.DistributedSink do
 
   @impl true
   def handle_prepared_to_playing(_ctx, state) do
+    twin_port_received? = Map.has_key?(state, :twin_port)
+
     twin_global_name(state)
-    |> Distribution.Utils.match_with_twin()
+    |> Distribution.Utils.match_with_twin(not twin_port_received?)
     |> case do
-      {:ok, twin} -> {:ok, Map.put(state, :twin, twin)}
-      {:error, reason} -> {{:error, reason}, state}
+      {:ok, socket, twin} ->
+        {:ok, Map.merge(state, %{socket: socket, twin: twin})}
+
+      {:ok, socket, twin, twin_port} ->
+        {:ok, Map.merge(state, %{twin: twin, socket: socket, twin_port: twin_port})}
+
+      {:error, reason} ->
+        {{:error, reason}, state}
     end
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
+  def handle_pad_added(Pad.ref(:input, track_id), _ctx, state) do
     send(state.twin, {:track_from_twin_ready, track_id})
     {:ok, state}
   end
@@ -56,12 +64,13 @@ defmodule Membrane.RTC.Engine.Endpoint.DistributedSink do
   @impl true
   def handle_write(Pad.ref(:input, _track_id) = pad, payload, _ctx, state) do
     # maybe add sending demands
+
     send(state.twin, {:buffer_from_twin, pad, payload})
     {:ok, state}
   end
 
   @impl true
-  def handle_caps(pad, caps, ctx, state) do
+  def handle_caps(pad, caps, _ctx, state) do
     send(state.twin, {:caps_from_twin, pad, caps})
     {:ok, state}
   end
@@ -77,11 +86,22 @@ defmodule Membrane.RTC.Engine.Endpoint.DistributedSink do
     my_global_name(state)
     |> :global.unregister_name()
 
+    with %{socket: socket} <- state do
+      :gen_udp.close(socket)
+    end
+
     :ok
   end
 
   @impl true
-  def handle_other({:twin, twin}, _ctx, state), do: {:ok, state}
+  def handle_other({:twin, twin}, _ctx, state) do
+    {:ok, Map.put(state, :twin, twin)}
+  end
+
+  @impl true
+  def handle_other({:twin_port, port}, _ctx, state) do
+    {:ok, Map.put(state, :twin_port, port)}
+  end
 
   @impl true
   def handle_other({:demand_from_twin, pad, size, _unit}, ctx, state) do
@@ -95,7 +115,6 @@ defmodule Membrane.RTC.Engine.Endpoint.DistributedSink do
     send(state.twin, {:new_tracks_from_twin, tracks})
 
     subscriptions = Enum.map(tracks, &{&1.id, :rtp})
-    new_tracks = Map.new(tracks, &{&1.id, &1})
 
     {{:ok, notify: {:subscribe, subscriptions}}, state}
   end
@@ -115,6 +134,10 @@ defmodule Membrane.RTC.Engine.Endpoint.DistributedSink do
   def handle_other({:event_from_twin, pad, event}, ctx, state) do
     actions = maybe_do_action(:event, reverse_pad(pad), event, ctx)
     {{:ok, actions}, state}
+  end
+
+  defp send_to_twin_via_udp(packet, state) do
+    :gen_udp.send(state.socket, {@twin_addr, state.twin_port}, packet)
   end
 
   defp reverse_pad(Pad.ref(:input, track_id)), do: Pad.ref(:output, track_id)

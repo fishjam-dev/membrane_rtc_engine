@@ -345,6 +345,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
     end
 
+    defp handle_custom_media_event(%{type: :sdp_offer}, ctx, state) do
+      {{:ok, forward(:endpoint_bin, {:signal, :no_sdp_offer}, ctx)}, state}
+    end
+
     defp handle_custom_media_event(%{type: :candidate, data: data}, ctx, state) do
       msg = {:signal, {:candidate, data.candidate}}
       {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
@@ -547,6 +551,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                mid_to_track_id: mid_to_track_id
              }
            }}
+
+        %{"type" => "sdpOffer"} ->
+          {:ok, %{type: :sdp_offer}}
 
         _other ->
           {:error, :invalid_media_event}
