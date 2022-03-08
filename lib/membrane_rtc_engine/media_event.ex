@@ -8,17 +8,24 @@ defmodule Membrane.RTC.Engine.MediaEvent do
 
   @spec create_peer_accepted_event(Peer.id(), map(), [Endpoint.t()]) :: rtc_media_event_t()
   def create_peer_accepted_event(peer_id, peers, endpoints) do
-    peers =
+    peers_in_room =
       Enum.map(peers, fn {id, peer} ->
-        track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoints[id])
-        %{id: id, metadata: peer.metadata, trackIdToMetadata: track_id_to_track_metadata}
+        # track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoints[id])
+        # %{id: id, metadata: peer.metadata, trackIdToMetadata: track_id_to_track_metadata}
+        %{id: id, metadata: peer.metadata}
       end)
+
+    track_id_to_track_metadata =
+      endpoints
+      |> Enum.map(fn {_id, endpoint} -> Endpoint.get_active_track_metadata(endpoint) end)
+      |> Enum.reduce(%{}, &Map.merge/2)
 
     %{
       type: "peerAccepted",
       data: %{
         id: peer_id,
-        peersInRoom: peers
+        peersInRoom: peers_in_room,
+        trackIdToMetadata: track_id_to_track_metadata
       }
     }
     |> serialize()

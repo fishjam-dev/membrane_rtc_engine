@@ -66,8 +66,8 @@ defmodule Membrane.RTC.Engine.Network do
   @impl true
   def handle_info(%Message.NewPeer{rtc_engine: rtc_engine, peer: peer}, state) do
     Membrane.Logger.info("New peer: #{inspect(peer)}. Accepting.")
-    peer_channel_pid = Map.get(state.peer_channels, peer.id)
-    peer_node = node(peer_channel_pid)
+    # peer_channel_pid = Map.get(state.peer_channels, peer.id)
+    # peer_node = node(peer_channel_pid)
 
     handshake_opts =
       if state.network_options[:dtls_pkey] &&
@@ -109,7 +109,7 @@ defmodule Membrane.RTC.Engine.Network do
     do_handle_message_from_node(message, state)
   end
 
-  defp do_handle_message_from_node(message, state), do: {:ok, state}
+  defp do_handle_message_from_node(_message, state), do: {:ok, state}
 
   defp start_engine(id, room_id, node, twin_node, endpoint_module, trace_ctx) do
     {:ok, engine} = Engine.start(node, [id: id, trace_ctx: trace_ctx], [])
@@ -122,7 +122,7 @@ defmodule Membrane.RTC.Engine.Network do
       )
 
     Engine.register(engine, self())
-    Endpoint.add_endpoint(engine, endpoint)
+    Engine.add_endpoint(engine, endpoint)
 
     {:ok, engine}
   end
