@@ -38,6 +38,7 @@ Thanks to this, there is no need to include compiled JS code in `priv/static`. I
 
 TypeScript documentation will be generated under `doc/js/`.
 
+We also added `mix integration` task, which runs integration tests from `integration/test_videoroom`.
 ## Copyright and License
 
 Copyright 2021, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_rtc_engine)
