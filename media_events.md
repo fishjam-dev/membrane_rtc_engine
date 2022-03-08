@@ -1,45 +1,6 @@
 #### Generic media events
 
 <table>
-<tr> RTC Engine receives these types of notifications: </tr>
-<tr>
-    <td>Type</td>
-    <td>Format</td>
-    <td>Description</td>
-</tr>
-<tr>
-    <td> custom </td>
-    <td> <pre> custom message forwarded to specific peer </pre> </td>
-    <td> <pre lang="elixir"> {:custom_media_event, data} </pre> </td>
-</tr>
-<tr>
-    <td> track ready </td>
-    <td> notification sent when first packet of track came to endpoint </td>
-    <td> <pre lang="elixir"> {:track_ready, track_id, encoding, depayloading_filter} </pre> </td>
-</tr>
-<tr>
-    <td> subscribe </td>
-    <td> notification contains list of tracks on which endpoint subscribes itself </td>
-    <td> <pre lang="elixir"> {:subscribe, tracks} </pre> </td>
-</tr>
-<tr>
-    <td> publish </td>
-    <td> notification contains message, which will be forwarded to all endpoints </td>
-    <td> <pre lang="elixir"> {:publish, msg} </pre> </td>
-</tr>
-<tr></tr>
-<tr>
-    <td> publish new tracks </td>
-    <td> message informs that new tracks arrives to engine </td>
-    <td> <pre lang="elixir"> {:publish, {:new_tracks, tracks}} </pre> </td>
-</tr>
-<tr></tr>
-<tr>
-    <td> publish removed tracks  </td>
-    <td> message informs that some tracks where removed by one of endpoint from engine </td>
-    <td> <pre lang="elixir "> {:publish, {:removed_tracks, tracks}} </pre> </td>
-</tr>
-
 <tr>RTC Engine receives these types of media_events from client:</tr>
 
 <tr>
@@ -75,7 +36,7 @@
 
 <tr>
     <td> custom </td>
-    <td>  message is forwarded to the endpoint associated with the peer </td>
+    <td> message is forwarded to the endpoint associated with the peer </td>
     <td> <pre lang="json"> any </pre> </td>
 </tr>
 
@@ -100,7 +61,7 @@
 </tr>
 <tr>
     <td> peerUpdated </td>
-    <td>  message contains new metadata of peer </td>
+    <td> message contains new metadata of peer </td>
     <td> <pre lang="json"> 
     {
         peerId: peer_id,
@@ -109,7 +70,7 @@
 </tr>
 <tr>
     <td> trackUpdated </td>
-    <td>  message contains new metadata of track </td>
+    <td> message contains new metadata of track </td>
     <td> <pre lang="json"> 
     {
         peerId: peer_id,
@@ -145,7 +106,7 @@
     <td> message is sent after new peer joined RTC Engine </td>
     <td> <pre lang="json"> 
     {
-        peer: %{
+        peer: {
           id: peer.id,
           metadata: peer.metadata
         }
@@ -219,15 +180,12 @@
     <td> message informs all needed information for SDP negotiation</td>
     <td> <pre lang="json"> 
     {
-        "type" => "sdpOffer",
-        "data" => %{
-        "sdpOffer" => %{
-            "type" => "offer",
-            "sdp" => sdp_offer
+        sdpOffer: {
+            type: "offer",
+            sdp: sdp_offer
         },
-        "trackIdToTrackMetadata" => track_id_to_track_metadata,
-        "midToTrackId" => mid_to_track_id
-    }
+        trackIdToTrackMetadata: track_id_to_track_metadata,
+        midToTrackId: mid_to_track_id
     }</pre> </td>
 </tr>
 
