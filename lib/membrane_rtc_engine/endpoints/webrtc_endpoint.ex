@@ -565,7 +565,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         fmtp: track.fmtp,
         active?: track.status != :disabled,
         metadata: Map.get(track_id_to_metadata, track.id),
-        ctx: %{extension_key => track.extmaps}
+        ctx: %{extension_key => track.extmaps, :clock_rate => track.rtp_mapping.clock_rate}
       }
     end
 
