@@ -1051,12 +1051,23 @@ defmodule Membrane.RTC.Engine do
     do: Enum.flat_map(endpoints, fn {_id, endpoint} -> Endpoint.get_tracks(endpoint) end)
 
   defp remove_peer(peer_id, ctx, state) do
+    endpoint = state.endpoints[peer_id]
+
     case do_remove_peer(peer_id, ctx, state) do
       {:absent, [], state} ->
         Membrane.Logger.info("Peer #{inspect(peer_id)} already removed")
         {[], state}
 
       {:present, actions, state} ->
+        tracks_ids =
+          Endpoint.get_tracks(endpoint)
+          |> Enum.filter(& &1.active?)
+          |> Enum.map(& &1.id)
+
+        MediaEvent.create_tracks_removed_event(peer_id, tracks_ids)
+        |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcase, data: &1})
+        |> dispatch()
+
         MediaEvent.create_peer_left_event(peer_id)
         |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
         |> dispatch()

@@ -292,21 +292,6 @@ export class MembraneWebRTC {
       case "peerLeft":
         peer = this.idToPeer.get(deserializedMediaEvent.data.peerId)!;
         if (peer === undefined) return;
-        // todo: optimize this case
-
-        Array.from(this.trackIdToMetadata.keys()).forEach((trackId) => {
-          if (this.getPeerIdFromTrackId(trackId) === peer.id) {
-            this.callbacks.onTrackRemoved?.(this.trackIdToTrack.get(trackId)!);
-            this.trackIdToMetadata.delete(trackId);
-            this.trackIdToTrack.delete(trackId);
-          }
-        });
-
-        Array.from(this.midToTrackId.entries()).forEach(([mid, trackId]) => {
-          if (this.getPeerIdFromTrackId(trackId) == peer.id) {
-            this.midToTrackId.delete(mid);
-          }
-        });
 
         this.idToPeer.delete(peer.id);
         this.callbacks.onPeerLeft?.(peer);
@@ -629,14 +614,10 @@ export class MembraneWebRTC {
     this.connection.getTransceivers().forEach((transceiver) => {
       const localTrackId = transceiver.sender.track?.id;
       const mid = transceiver.mid;
-      // todo: optimise this
-      const trackIds = Array.from(this.trackIdToMetadata.keys()).filter(
-        (trackId) => this.getPeerIdFromTrackId(trackId) === this.localPeer.id
-      );
-      const tracks = Array.from(trackIds).map((track) => this.localTrackIdToTrack.get(track));
+      const localTracks = Array.from(this.localTrackIdToTrack.values());
 
       if (localTrackId && mid) {
-        const trackContext = tracks.find(
+        const trackContext = localTracks.find(
           (trackContext) => trackContext!.track!!.id === localTrackId
         )!;
         localTrackMidToTrackId[mid] = trackContext.trackId;
@@ -861,9 +842,10 @@ export class MembraneWebRTC {
   private getPeerIdFromTrackId = (trackId: string) => trackId.split(":")[0];
 
   private getLocalTrackIdToMatadata = () => {
-    const localMetadatas = Array.from(this.trackIdToMetadata.entries()).filter(
-      ([trackId, metadata]) => this.getPeerIdFromTrackId(trackId) === this.localPeer.id
+    const trackIdToMetadata = new Map<string, any>();
+    this.localTrackIdToTrack.forEach((trackContext, trackId) =>
+      trackIdToMetadata.set(trackId, trackContext.metadata)
     );
-    return new Map(localMetadatas);
+    return trackIdToMetadata;
   };
 }
