@@ -1,8 +1,7 @@
-#### Generic media events
+### Generic media events
 
+##### RTC Engine receives these types of media_events from client:
 <table>
-<tr>RTC Engine receives these types of media_events from client:</tr>
-
 <tr>
     <td> join </td>
     <td> message is sent when peer join RTC Engine </td>    
@@ -40,9 +39,11 @@
     <td> <pre lang="json"> any </pre> </td>
 </tr>
 
+</table>
 
-<tr> RTC Engine sends these types of messages to the client: </tr>
+##### RTC Engine sends these types of messages to the client: 
 
+<table>
 <tr>
     <td> tracksPriority </td>
     <td>  message contains all tracks that will be forwarded to peer untill next tracks_priority message </td>
@@ -129,11 +130,13 @@
         peerId: peer_id
     } </pre> </td>
 </tr>
+</table>
 
-<tr> WebRTC custom media events </tr>
+### WebRTC custom media events
 
-<tr>WebRTC endpoint receives these types of custom_media_events from client </tr>
+##### WebRTC endpoint receives these types of custom_media_events from client:
 
+<table>
 <tr>
     <td> renegotiate_tracks </td>
     <td> message informs that a peer wants to make renegotiation </td>
@@ -188,9 +191,10 @@
         midToTrackId: mid_to_track_id
     }</pre> </td>
 </tr>
+</table>
 
-
-<tr>WebRTC endpoint sends these type of custom messages to client </tr>
+##### WebRTC endpoint sends these type of custom messages to client
+<table>
 <tr>
     <td> offer_data </td>
     <td> message informs about data needed </td>
