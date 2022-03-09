@@ -3,7 +3,7 @@
 ##### RTC Engine receives these types of media_events from client:
 <table>
 <tr>
-    <th> Title </th>
+    <th> Name </th>
     <th> Description </th>
     <th> Format </th>
 </tr>
@@ -16,19 +16,19 @@
 </tr>
 <tr>
     <td> leave </td>
-    <td>  message is sent when peer leave RTC Engine </td>
+    <td> message is sent when peer leave RTC Engine </td>
     <td> <pre lang="json">{} </pre> </td>
 </tr>
 <tr>
     <td> updatePeerMetadata </td>
-    <td>  message contains new metadata of peer </td>
+    <td> message contains new metadata of peer </td>
     <td> <pre lang="json">{
         "metadata": any
 } </pre> </td>
 </tr>
 <tr>
     <td> updateTrackMetadata </td>
-    <td>  message contains new metadata of track </td>
+    <td> message contains new metadata of track </td>
     <td> <pre lang="json">{
     "trackId": track_id,
     "trackMetadata": any
@@ -47,13 +47,13 @@
 
 <table>
 <tr>
-    <th> Title </th>
+    <th> Name </th>
     <th> Description </th>
     <th> Format </th>
 </tr>
 <tr>
     <td> tracksPriority </td>
-    <td>  message contains all tracks that will be forwarded to peer untill next tracks_priority message </td>
+    <td> message contains all tracks that will be forwarded to peer untill next tracks_priority message </td>
     <td> <pre lang="json">{
     tracks: tracks
 } </pre> </td>
@@ -92,12 +92,14 @@
     <td> message sent after some tracks added by some peer </td>
     <td> <pre lang="json">{
     peerId: peer_id,
-    trackIdToMetadata: { track_id: any }
+    trackIdToMetadata: { 
+        track_id: any 
+    }
 } </pre> </td>
 </tr>
 <tr>
     <td> tracksRemoved </td>
-    <td>  message contains list of tracks which are removed by some peer </td>
+    <td> message contains list of tracks which are removed by some peer </td>
     <td> <pre lang="json">{
     peerId: peer_id,
     trackIds: track_ids
@@ -136,31 +138,31 @@
 
 <table>
 <tr>
-    <th> Title </th>
+    <th> Name </th>
     <th> Description </th>
     <th> Format </th>
 </tr>
 <tr>
-    <td> renegotiate_tracks </td>
+    <td> renegotiateTracks </td>
     <td> message informs that a peer wants to make renegotiation </td>
     <td> <pre lang="json">{} </pre> </td>
 </tr>
 <tr>
-    <td> prioritize_track </td>
+    <td> prioritizeTrack </td>
     <td> message informs about, which track peer want to prioritize </td>
     <td> <pre lang="json">{
     trackId: trackId
 } </pre> </td>
 </tr>
 <tr>
-    <td> unprioritize_track </td>
+    <td> unprioritizeTrack </td>
     <td> message informs about, which track peer want to unprioritize </td>
     <td> <pre lang="json">{
     trackId: trackId
 } </pre> </td>
 </tr>
 <tr>
-    <td> prefered_video_sizes </td>
+    <td> prefereVideoSizes </td>
     <td> message informs of how many videos in different quality, peer wants to receive </td>
     <td> <pre lang="json">{
     bigScreens: Int, 
@@ -174,18 +176,20 @@
     <td> message informs about ICE candidate</td>
     <td> <pre lang="json">{
     candidate: candidate,
-    sdpMLineIndex: sdp_m_line_index
+    sdpMLineIndex: Int
 }</pre> </td>
 </tr>
 <tr>
-    <td> sdp_offer </td>
+    <td> sdpOffer </td>
     <td> message informs all needed information for SDP negotiation</td>
     <td> <pre lang="json">{
     sdpOffer: {
         type: "offer",
         sdp: sdp_offer
     },
-    trackIdToTrackMetadata: track_id_to_track_metadata,
+    trackIdToTrackMetadata: {
+        trackId: any
+    },
     midToTrackId: mid_to_track_id
 }</pre> </td>
 </tr>
@@ -194,12 +198,12 @@
 ##### WebRTC endpoint sends these type of custom messages to client
 <table>
 <tr>
-    <th> Title </th>
+    <th> Name </th>
     <th> Description </th>
     <th> Format </th>
 </tr>
 <tr>
-    <td> offer_data </td>
+    <td> offerData </td>
     <td> message informs about data needed </td>
     <td> <pre lang="json">{
     tracksTypes: {
@@ -227,7 +231,7 @@
 }</pre> </td>
 </tr>
 <tr>
-    <td> sdp_answer </td>
+    <td> sdpAnswer </td>
     <td> message informs about SDP Answer </td>
     <td> <pre lang="json">{
     type: "answer",
