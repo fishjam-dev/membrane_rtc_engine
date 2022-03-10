@@ -48,26 +48,26 @@
 
 
 ### join 
-* message is sent when peer join RTC Engine 
+* this message is sent when peer want to join RTC Engine. It contains only peer metadata
 * ```json 
     {
         "metadata": any
     }
     ```
 ### leave 
-* message is sent when peer leave RTC Engine
+* this message is sent when peer leave RTC Engine. It contains no data
 * ```json 
     {}
     ```
 ### updatePeerMetadata
-* message contains new metadata of peer
+* this message contains new metadata of some peer
 * ```json
     {
     "metadata": any
     }
     ``` 
 ### updateTrackMetadata
-* message contains new metadata of track
+* this message contains new metadata of some track and id of this track
 * ```json
     {
         "trackId": track_id,
@@ -75,27 +75,27 @@
     }
     ```
 ### custom 
-* message is forwarded to the endpoint associated with the peer
+* this message is a black box for RTC Engine and it is forwarded to the endpoint associated with the peer
 * ```json
     any 
     ```
 
 ### tracksPriority
-* message contains all tracks that will be forwarded to peer untill next tracks_priority message
+* this message contains all tracks that will be forwarded to peer untill next tracks_priority message this type of messages is sent only if DisplayManager is spawned
 * ```json
     {
         tracks: tracks
     }
     ``` 
 ### peerDenied
-* message sent, if peer was rejected by server during joining to server
+* this message is sent, if peer was rejected by server during joining to server. It can cointains a information why he was rejected
 * ```json 
     {
         data: text
     }
     ```
 ### peerUpdated
-* message contains new metadata of peer
+* this message contains information about updated metadata of one of peers
 * ```json 
     {
         peerId: peer_id,
@@ -103,7 +103,7 @@
     }
     ```
 ### trackUpdated
-* message contains new metadata of track
+* this message contains information about new metadata of one of tracks
 * ```json 
     {
         peerId: peer_id,
@@ -112,12 +112,12 @@
     }
     ```
 ### custom 
-* custom message forwarded from endpoint to client
+* this is custom message forwarded by engine from endpoint to client
 * ```json
     any 
     ```
 ### tracksAdded
-* message sent after some tracks added by some peer
+* this message informs that one of the peers add track. It contains map track_id to track_metadata of all tracks of one of the peers and id of that peer
 * ```json
     {
         peerId: peer_id,
@@ -127,7 +127,7 @@
     }
     ```
 ### tracksRemoved
-* message contains list of tracks which are removed by some peer
+* this message contains list of tracks which are removed by some peer and id of that peer
 * ```json
     {
         peerId: peer_id,
@@ -135,7 +135,7 @@
     }
     ```
 ### peerJoined
-* message is sent after new peer joined RTC Engine
+* this message is sent to all peers in room after new peer joined RTC Engine. It contains id and metadata of new peer.
 * ```json
     {
         peer: {
@@ -145,7 +145,8 @@
     }
     ```
 ### peerAccepted
-* message is sent to peer after he join RTC Engine
+* this message is sent to peer after he join RTC Engine.
+  It contains his id and list of information about each peer in Engine (id, metadata and map track_id to track_metadata)
 * ```json
     {
         id: peer_id,
@@ -153,33 +154,33 @@
     }
     ```
 ### peerLeft 
-* message is sent, when some peer left
+* this message is sent to all other peers in room, when some peer left. It contains id of peer which left.
 * ```json 
     {
         peerId: peer_id
     }
     ```
 ### renegotiateTracks 
-* message informs that a peer wants to make renegotiation 
+* this message informs that a peer wants to make renegotiation due to adding a track or removing a track 
 * ```json
     {} 
     ``` 
 ### prioritizeTrack 
-* message informs about, which track peer want to prioritize 
+* this message contains id of track, that peer want to prioritize
 * ```json
     {
         trackId: trackId
     } 
     ``` 
 ### unprioritizeTrack 
-* message informs about, which track peer want to unprioritize 
+* this message contains id of track, that peer want to unprioritize 
 * ```json
     {
         trackId: trackId
     } 
     ``` 
 ### prefereVideoSizes 
-* message informs of how many videos in different quality, peer wants to receive 
+* this message contains information of how many videos in different quality (high, medium, small). There is also flag which indicates that all videos should be in the same quality.
 * ```json
     {
         bigScreens: Int, 
@@ -189,7 +190,7 @@
     } 
     ``` 
 ### candidate 
-* message informs about ICE candidate
+* this message contains information about ICE candidate it is forwarded to EndpointBin
 * ```json
     {
         candidate: candidate,
@@ -197,7 +198,7 @@
     }
     ``` 
 ### sdpOffer 
-* message informs all needed information for SDP negotiation
+* this message contains SDP offer, map track_id to track_metadata and map mid to track_id. Both maps contains information only about tracks send by peer associated with this endpoint.
 * ```json
     {
         sdpOffer: {
@@ -211,7 +212,8 @@
     }
     ``` 
 ### offerData 
-* message informs about data needed 
+* this message contains information about the number of tracks of audio and video that will be sent from engine
+to peer and information regarding the integrated TURN server. 
 * ```json
     {
         tracksTypes: {
@@ -229,7 +231,7 @@
     }
     ``` 
 ### candidate 
-* message informs about ICE candidate 
+* this message contains information about ICE candidate which will be sent to the client 
 * ```json
     {
         candidate: candidate,
@@ -239,7 +241,7 @@
     }
     ``` 
 ### sdpAnswer 
-* message informs about SDP Answer 
+* this message contains SDP answer and map mid to track_id 
 * ```json
     {
         type: "answer",
