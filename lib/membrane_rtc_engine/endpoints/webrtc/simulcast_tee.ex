@@ -31,17 +31,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     {:ok,
      %{
        clock_rate: opts.clock_rate,
-       input_pads: [],
        forwarders: %{},
-       trackers: %{},
+       trackers: %{"l" => EncodingTracker.new("l"), "h" => EncodingTracker.new("h")},
        update?: false
      }}
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, rid) = pad, _context, state) do
-    state = update_in(state, [:input_pads], fn pads -> pads ++ [pad] end)
-    state = put_in(state, [:trackers, rid], EncodingTracker.new(rid))
+  def handle_pad_added(Pad.ref(:input, _rid), _context, state) do
     {:ok, state}
   end
 

@@ -58,11 +58,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   end
 
   @spec encoding_inactive(t(), String.t()) :: t()
-  def encoding_inactive(forwarder, encoding) do
+  def encoding_inactive(
+        %__MODULE__{selected_encoding: encoding, old_encoding: nil} = forwarder,
+        encoding
+      ) do
     forwarder = %__MODULE__{
       forwarder
       | old_encoding: encoding,
         active_encodings: List.delete(forwarder.active_encodings, encoding)
+    }
+
+    do_select_encoding(forwarder, List.first(forwarder.active_encodings))
+  end
+
+  def encoding_inactive(forwarder, encoding) do
+    forwarder = %__MODULE__{
+      forwarder
+      | active_encodings: List.delete(forwarder.active_encodings, encoding)
     }
 
     do_select_encoding(forwarder, List.first(forwarder.active_encodings))
@@ -97,7 +109,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   end
 
   defp do_select_encoding(forwarder, nil) do
+    Membrane.Logger.info("No active encoding.")
     %__MODULE__{forwarder | selected_encoding: nil, queued_encoding: nil}
+  end
+
+  defp do_select_encoding(
+         %__MODULE__{selected_encoding: encoding, queued_encoding: nil} = forwarder,
+         encoding
+       ) do
+    Membrane.Logger.info("Requested currently used encoding. Ignoring.")
+    forwarder
   end
 
   defp do_select_encoding(%__MODULE__{selected_encoding: encoding} = forwarder, encoding) do
@@ -111,6 +132,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     # switch back to h encoding again
     #
     # select encoding h -> selected_encoding: h, queued_encoding: nil
+    Membrane.Logger.info("""
+    Requested encoding: #{inspect(encoding)} which is currently used but while waiting for keyframe for queued_encoding #{inspect(forwarder.queued_encoding)}.
+    Clearing queued encoding #{inspect(forwarder.queued_encoding)}
+    """)
+
     %__MODULE__{forwarder | queued_encoding: nil}
   end
 
@@ -143,7 +169,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
           forwarder
           | rtp_munger: rtp_munger,
             vp8_munger: vp8_munger,
-            selected_encoding: encoding,
             started?: true
         }
 
