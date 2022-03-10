@@ -134,6 +134,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       }
     }
 
+    h_buffer2 = %Membrane.Buffer{
+      payload: generate_random_payload(100),
+      metadata: %{
+        rtp: %{
+          sequence_number: 45_001,
+          timestamp: 37_567
+        }
+      }
+    }
+
     rtp_munger =
       RTPMunger.new(90_000)
       |> RTPMunger.init(h_buffer)
@@ -167,9 +177,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
     # packets in such a way that they have to be
     assert munged_l_buffer.metadata.rtp.timestamp > h_buffer.metadata.rtp.timestamp
 
-    {_rtp_munger, munged_l_buffer2} = RTPMunger.munge(rtp_munger, l_buffer2)
+    {rtp_munger, munged_l_buffer2} = RTPMunger.munge(rtp_munger, l_buffer2)
     assert munged_l_buffer2.metadata.rtp.sequence_number == 45_002
     assert munged_l_buffer2.metadata.rtp.timestamp > munged_l_buffer.metadata.rtp.timestamp
+
+    # return to h encoding
+    rtp_munger = RTPMunger.update(rtp_munger, h_buffer2)
+    {_rtp_munger, munged_h_buffer2} = RTPMunger.munge(rtp_munger, h_buffer2)
+    assert munged_h_buffer2.metadata.rtp.sequence_number == 45_003
+    assert munged_h_buffer2.metadata.rtp.timestamp > munged_l_buffer2.metadata.rtp.timestamp
   end
 
   test "RTP Munger handles timestamp rollover properly" do

@@ -118,7 +118,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     cond do
       # out-of-order packet - update its sequence number
       # and timestamp without updating munger
-      seq_num_diff < 0 ->
+      seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 ->
         buffer = update_sn_ts.(buffer)
         {r, buffer}
 

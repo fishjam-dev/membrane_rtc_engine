@@ -133,9 +133,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     } = forwarder
 
     cond do
-      # if we received first packet of the encoding we are
-      # going to forward and this is not RTP padding only packet
-      started? == false and selected_encoding == encoding and buffer.payload != <<>> ->
+      # init mungers with the first non-empty RTP packet
+      started? == false and buffer.payload != <<>> ->
+        Membrane.Logger.info("Initializing RTP and VP8 mungers")
         rtp_munger = RTPMunger.init(rtp_munger, buffer)
         vp8_munger = VP8Munger.init(vp8_munger, buffer)
 
@@ -147,7 +147,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
             started?: true
         }
 
-        actions = [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
+        actions =
+          if encoding == selected_encoding do
+            [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
+          else
+            []
+          end
+
         {forwarder, actions}
 
       queued_encoding == encoding and buffer.payload != <<>> ->
@@ -177,6 +183,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
           {forwarder, actions}
         else
+          Membrane.Logger.info("""
+          Waiting for keyframe on encoding #{inspect(queued_encoding)}
+          """)
+
           {forwarder, []}
         end
 

@@ -81,7 +81,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     {actions, state} =
       Enum.reduce(context.pads, {[], state}, fn
         {Pad.ref(:output, {:endpoint, endpoint_id}), _pad_data}, {actions, state} ->
-          forwarder = Map.get(state.forwarders, endpoint_id, Forwarder.new(state.clock_rate))
+          forwarder = Map.fetch!(state.forwarders, endpoint_id)
 
           {forwarder, endpoint_actions} =
             Forwarder.process(forwarder, buffer, encoding, endpoint_id)
