@@ -30,16 +30,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           last_packet_arrival: integer()
         }
 
-  @enforce_keys [
-    :clock_rate,
-    :highest_incoming_seq_num,
-    :last_seq_num,
-    :seq_num_offset,
-    :last_timestamp,
-    :timestamp_offset,
-    :last_packet_arrival
-  ]
-  defstruct @enforce_keys
+  @enforce_keys [:clock_rate]
+  defstruct @enforce_keys ++
+              [
+                highest_incoming_seq_num: 0,
+                last_seq_num: 0,
+                seq_num_offset: 0,
+                last_timestamp: 0,
+                timestamp_offset: 0,
+                last_packet_arrival: 0
+              ]
 
   @doc """
   Creates new RTP munger.
@@ -48,15 +48,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   """
   @spec new(non_neg_integer()) :: t()
   def new(clock_rate) do
-    %__MODULE__{
-      clock_rate: clock_rate,
-      highest_incoming_seq_num: 0,
-      last_seq_num: 0,
-      seq_num_offset: 0,
-      last_timestamp: 0,
-      timestamp_offset: 0,
-      last_packet_arrival: 0
-    }
+    %__MODULE__{clock_rate: clock_rate}
   end
 
   @spec init(t(), Membrane.Buffer.t()) :: t()

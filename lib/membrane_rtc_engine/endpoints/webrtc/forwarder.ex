@@ -28,16 +28,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
           started?: boolean()
         }
 
-  @enforce_keys [
-    :selected_encoding,
-    :queued_encoding,
-    :old_encoding,
-    :rtp_munger,
-    :vp8_munger,
-    :active_encodings,
-    :started?
-  ]
-  defstruct @enforce_keys
+  @enforce_keys [:rtp_munger]
+  defstruct @enforce_keys ++
+              [
+                :queued_encoding,
+                :old_encoding,
+                selected_encoding: "h",
+                vp8_munger: VP8Munger.new(),
+                active_encodings: ["h", "l"],
+                started?: false
+              ]
 
   @doc """
   Creates a new forwarder.
@@ -46,15 +46,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   """
   @spec new(non_neg_integer()) :: t()
   def new(clock_rate) do
-    %__MODULE__{
-      selected_encoding: "h",
-      queued_encoding: nil,
-      old_encoding: nil,
-      rtp_munger: RTPMunger.new(clock_rate),
-      vp8_munger: VP8Munger.new(),
-      active_encodings: ["h", "l"],
-      started?: false
-    }
+    %__MODULE__{rtp_munger: RTPMunger.new(clock_rate)}
   end
 
   @spec encoding_inactive(t(), String.t()) :: t()

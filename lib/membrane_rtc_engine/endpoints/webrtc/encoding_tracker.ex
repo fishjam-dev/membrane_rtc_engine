@@ -21,16 +21,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker do
           required_cycles: non_neg_integer()
         }
 
-  @enforce_keys [:encoding, :status, :samples, :cycles, :required_samples, :required_cycles]
-  defstruct @enforce_keys
+  @enforce_keys [:encoding, :required_samples, :required_cycles]
+  defstruct @enforce_keys ++
+              [
+                status: :active,
+                samples: 0,
+                cycles: 0
+              ]
 
   @spec new(String.t(), non_neg_integer(), non_neg_integer()) :: t()
   def new(encoding, required_samples \\ 5, required_cycles \\ 10) do
     %__MODULE__{
       encoding: encoding,
-      status: :active,
-      samples: 0,
-      cycles: 0,
       required_samples: required_samples,
       required_cycles: required_cycles
     }

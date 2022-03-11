@@ -18,32 +18,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger do
           last_keyidx: integer(),
           keyidx_offset: integer()
         }
-  @enforce_keys [
-    :pic_id_used,
-    :last_pic_id,
-    :pic_id_offset,
-    :tl0picidx_used,
-    :last_tl0picidx,
-    :tl0picidx_offset,
-    :keyidx_used,
-    :last_keyidx,
-    :keyidx_offset
-  ]
-  defstruct @enforce_keys
+
+  defstruct pic_id_used: false,
+            last_pic_id: 0,
+            pic_id_offset: 0,
+            tl0picidx_used: false,
+            last_tl0picidx: 0,
+            tl0picidx_offset: 0,
+            keyidx_used: false,
+            last_keyidx: 0,
+            keyidx_offset: 0
 
   @spec new() :: t()
   def new() do
-    %__MODULE__{
-      pic_id_used: false,
-      last_pic_id: 0,
-      pic_id_offset: 0,
-      tl0picidx_used: false,
-      last_tl0picidx: 0,
-      tl0picidx_offset: 0,
-      keyidx_used: false,
-      last_keyidx: 0,
-      keyidx_offset: 0
-    }
+    %__MODULE__{}
   end
 
   @spec init(t(), Membrane.Buffer.t()) :: t()
