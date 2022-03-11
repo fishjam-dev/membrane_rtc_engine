@@ -60,9 +60,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   end
 
   @spec init(t(), Membrane.Buffer.t()) :: t()
-  def init(r, buffer) do
+  def init(rtp_munger, buffer) do
     %__MODULE__{
-      r
+      rtp_munger
       | highest_incoming_seq_num: buffer.metadata.rtp.sequence_number - 1,
         last_seq_num: buffer.metadata.rtp.sequence_number,
         last_timestamp: buffer.metadata.rtp.timestamp,
@@ -71,11 +71,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   end
 
   @spec update(t(), Membrane.Buffer.t()) :: t()
-  def update(r, buffer) do
+  def update(rtp_munger, buffer) do
     arrival = System.monotonic_time(:millisecond)
     # convert clock rate 1/s to 1/ms
-    clock_rate = round(r.clock_rate / 1000)
-    adj = (arrival - r.last_packet_arrival) * clock_rate
+    clock_rate = round(rtp_munger.clock_rate / 1000)
+    adj = (arrival - rtp_munger.last_packet_arrival) * clock_rate
 
     # if packet in an encoding we are going to switch to arrived
     # exactly or almost at the same time
@@ -83,11 +83,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     # then set adjustment to one so that we do not send
     # two packets with the same timestamp
     adj = if adj == 0, do: 1, else: adj
-    timestamp_offset = buffer.metadata.rtp.timestamp - r.last_timestamp - adj
-    seq_num_offset = buffer.metadata.rtp.sequence_number - r.last_seq_num - 1
+    timestamp_offset = buffer.metadata.rtp.timestamp - rtp_munger.last_timestamp - adj
+    seq_num_offset = buffer.metadata.rtp.sequence_number - rtp_munger.last_seq_num - 1
 
     %__MODULE__{
-      r
+      rtp_munger
       | highest_incoming_seq_num: buffer.metadata.rtp.sequence_number - 1,
         seq_num_offset: seq_num_offset,
         timestamp_offset: timestamp_offset
@@ -95,32 +95,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   end
 
   @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t()}
-  def munge(r, buffer) do
+  def munge(rtp_munger, buffer) do
     # TODO we should use Sender Reports instead
     packet_arrival = System.monotonic_time(:millisecond)
 
     update_sn_ts = fn buffer ->
       metadata =
-        update_in(buffer.metadata, [:rtp, :sequence_number], fn seq_num ->
+        buffer.metadata
+        |> update_in([:rtp, :sequence_number], fn seq_num ->
           # add 1 <<< 16 (max sequence number) to handle sequence number rollovers
           # properly - we will avoid negative sequence numbers in this way
-          rem(seq_num + (1 <<< 16) - r.seq_num_offset, 1 <<< 16)
+          rem(seq_num + (1 <<< 16) - rtp_munger.seq_num_offset, 1 <<< 16)
         end)
         |> update_in([:rtp, :timestamp], fn timestamp ->
-          rem(timestamp + (1 <<< 32) - r.timestamp_offset, 1 <<< 32)
+          rem(timestamp + (1 <<< 32) - rtp_munger.timestamp_offset, 1 <<< 32)
         end)
 
       %Membrane.Buffer{buffer | metadata: metadata}
     end
 
-    seq_num_diff = buffer.metadata.rtp.sequence_number - r.highest_incoming_seq_num
+    seq_num_diff = buffer.metadata.rtp.sequence_number - rtp_munger.highest_incoming_seq_num
 
     cond do
       # out-of-order packet - update its sequence number
       # and timestamp without updating munger
       seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 ->
         buffer = update_sn_ts.(buffer)
-        {r, buffer}
+        {rtp_munger, buffer}
 
       # duplicate packet
       # at the moment, perform the same actions we are performing
@@ -128,22 +129,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       # TODO maybe we should ignore it?
       seq_num_diff == 0 ->
         buffer = update_sn_ts.(buffer)
-        {r, buffer}
+        {rtp_munger, buffer}
 
       # in order but not necessarily contiguous packet
       true ->
         highest_incoming_seq_num = buffer.metadata.rtp.sequence_number
         buffer = update_sn_ts.(buffer)
 
-        r = %__MODULE__{
-          r
+        rtp_munger = %__MODULE__{
+          rtp_munger
           | highest_incoming_seq_num: highest_incoming_seq_num,
             last_seq_num: buffer.metadata.rtp.sequence_number,
             last_timestamp: buffer.metadata.rtp.timestamp,
             last_packet_arrival: packet_arrival
         }
 
-        {r, buffer}
+        {rtp_munger, buffer}
     end
   end
 end

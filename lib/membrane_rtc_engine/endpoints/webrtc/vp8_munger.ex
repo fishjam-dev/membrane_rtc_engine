@@ -47,7 +47,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger do
   end
 
   @spec init(t(), Membrane.Buffer.t()) :: t()
-  def init(v, buffer) do
+  def init(vp8_munger, buffer) do
     {:ok, {payload_descriptor, _payload}} =
       VP8.PayloadDescriptor.parse_payload_descriptor(buffer.payload)
 
@@ -65,7 +65,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger do
     last_keyidx = if k == 1, do: keyidx, else: 0
 
     %__MODULE__{
-      v
+      vp8_munger
       | pic_id_used: i == 1,
         last_pic_id: last_pic_id,
         tl0picidx_used: l == 1,
@@ -76,7 +76,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger do
   end
 
   @spec update(t(), Membrane.Buffer.t()) :: t()
-  def update(v, buffer) do
+  def update(vp8_munger, buffer) do
     {:ok, {payload_descriptor, _payload}} =
       VP8.PayloadDescriptor.parse_payload_descriptor(buffer.payload)
 
@@ -86,12 +86,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger do
       tl0picidx: tl0picidx
     } = payload_descriptor
 
-    pic_id_offset = if v.pic_id_used, do: pic_id - v.last_pic_id - 1, else: 0
-    tl0picidx_offset = if v.tl0picidx_used, do: tl0picidx - v.last_tl0picidx - 1, else: 0
-    keyidx_offset = if v.keyidx_used, do: keyidx - v.last_keyidx - 1, else: 0
+    pic_id_offset = if vp8_munger.pic_id_used, do: pic_id - vp8_munger.last_pic_id - 1, else: 0
+
+    tl0picidx_offset =
+      if vp8_munger.tl0picidx_used, do: tl0picidx - vp8_munger.last_tl0picidx - 1, else: 0
+
+    keyidx_offset = if vp8_munger.keyidx_used, do: keyidx - vp8_munger.last_keyidx - 1, else: 0
 
     %__MODULE__{
-      v
+      vp8_munger
       | pic_id_offset: pic_id_offset,
         tl0picidx_offset: tl0picidx_offset,
         keyidx_offset: keyidx_offset
@@ -99,62 +102,41 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger do
   end
 
   @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t()}
-  def munge(v, %Membrane.Buffer{payload: <<>>} = buffer), do: {v, buffer}
+  def munge(vp8_munger, %Membrane.Buffer{payload: <<>>} = buffer), do: {vp8_munger, buffer}
 
-  def munge(v, buffer) do
+  def munge(vp8_munger, buffer) do
     {:ok, {payload_descriptor, vp8_payload}} =
       VP8.PayloadDescriptor.parse_payload_descriptor(buffer.payload)
 
     %VP8.PayloadDescriptor{
-      i: i,
-      k: k,
       keyidx: keyidx,
-      l: l,
-      m: m,
-      n: n,
-      partition_index: partition_index,
       picture_id: pic_id,
-      s: s,
-      t: t,
-      tid: tid,
-      tl0picidx: tl0picidx,
-      x: x,
-      y: y
+      tl0picidx: tl0picidx
     } = payload_descriptor
 
-    munged_pic_id = rem(pic_id + (1 <<< 15) - v.pic_id_offset, 1 <<< 15)
-    munged_tl0picidx = rem(tl0picidx + (1 <<< 8) - v.tl0picidx_offset, 1 <<< 8)
-    munged_keyidx = rem(keyidx + (1 <<< 5) - v.keyidx_offset, 1 <<< 5)
+    munged_pic_id = rem(pic_id + (1 <<< 15) - vp8_munger.pic_id_offset, 1 <<< 15)
+    munged_tl0picidx = rem(tl0picidx + (1 <<< 8) - vp8_munger.tl0picidx_offset, 1 <<< 8)
+    munged_keyidx = rem(keyidx + (1 <<< 5) - vp8_munger.keyidx_offset, 1 <<< 5)
 
     buffer =
       %VP8.PayloadDescriptor{
-        i: i,
-        k: k,
-        keyidx: munged_keyidx,
-        l: l,
-        m: m,
-        n: n,
-        partition_index: partition_index,
-        picture_id: munged_pic_id,
-        s: s,
-        t: t,
-        tid: tid,
-        tl0picidx: munged_tl0picidx,
-        x: x,
-        y: y
+        payload_descriptor
+        | keyidx: munged_keyidx,
+          picture_id: munged_pic_id,
+          tl0picidx: munged_tl0picidx
       }
       |> VP8.PayloadDescriptor.serialize()
       |> then(fn munged_payload_descriptor ->
         %Buffer{buffer | payload: munged_payload_descriptor <> vp8_payload}
       end)
 
-    v = %__MODULE__{
-      v
+    vp8_munger = %__MODULE__{
+      vp8_munger
       | last_pic_id: munged_pic_id,
         last_tl0picidx: munged_tl0picidx,
         last_keyidx: munged_keyidx
     }
 
-    {v, buffer}
+    {vp8_munger, buffer}
   end
 end

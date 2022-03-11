@@ -43,7 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {:endpoint, endpoint_id}), _context, state) do
+  def handle_pad_added(Pad.ref(:output, endpoint_id), _context, state) do
     state = put_in(state, [:forwarders, endpoint_id], Forwarder.new(state.clock_rate))
     {:ok, state}
   end
@@ -54,7 +54,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:output, {:endpoint, endpoint_id}), _context, state) do
+  def handle_pad_removed(Pad.ref(:output, endpoint_id), _context, state) do
     {_forwarder, state} = pop_in(state, [:forwarders, endpoint_id])
     {:ok, state}
   end
@@ -67,26 +67,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_prepared_to_playing(_context, state) do
-    start_timer = [start_timer: {:check_encoding_states, 1_000_000_000}]
+    start_timer = [start_timer: {:check_encoding_statuses, 1_000_000_000}]
     {{:ok, start_timer}, state}
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, encoding), buffer, context, state) do
+  def handle_process(Pad.ref(:input, encoding), buffer, _context, state) do
     state = update_in(state, [:trackers, encoding], &EncodingTracker.update(&1))
 
     {actions, state} =
-      Enum.reduce(context.pads, {[], state}, fn
-        {Pad.ref(:output, {:endpoint, endpoint_id}), _pad_data}, {actions, state} ->
-          forwarder = Map.fetch!(state.forwarders, endpoint_id)
-
-          {forwarder, endpoint_actions} =
-            Forwarder.process(forwarder, buffer, encoding, endpoint_id)
-
+      Enum.flat_map_reduce(state.forwarders, state, fn
+        {endpoint_id, forwarder}, state ->
+          {forwarder, actions} = Forwarder.process(forwarder, buffer, encoding, endpoint_id)
           state = put_in(state, [:forwarders, endpoint_id], forwarder)
-          {actions ++ endpoint_actions, state}
-
-        _pad, {actions, state} ->
           {actions, state}
       end)
 
@@ -94,7 +87,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_tick(:check_encoding_states, _ctx, state) do
+  def handle_tick(:check_encoding_statuses, _ctx, state) do
     state =
       Enum.reduce(state.trackers, state, fn {rid, tracker}, state ->
         check_encoding_status(rid, tracker, state)
@@ -108,22 +101,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       {:ok, tracker} ->
         put_in(state, [:trackers, rid], tracker)
 
-      {:status_changed, tracker, :inactive} ->
-        state =
-          Enum.reduce(state.forwarders, state, fn {endpoint_id, _forwarder}, state ->
-            update_in(
-              state,
-              [:forwarders, endpoint_id],
-              &Forwarder.encoding_inactive(&1, rid)
-            )
-          end)
+      {:status_changed, tracker, new_status} ->
+        func =
+          if new_status == :inactive,
+            do: &Forwarder.encoding_inactive(&1, rid),
+            else: &Forwarder.encoding_active(&1, rid)
 
-        put_in(state, [:trackers, rid], tracker)
-
-      {:status_changed, tracker, :active} ->
         state =
-          Enum.reduce(state.forwarders, state, fn {endpoint_id, _forwarder}, state ->
-            update_in(state, [:forwarders, endpoint_id], &Forwarder.encoding_active(&1, rid))
+          Enum.reduce(state.forwarders, state, fn {endpoint_id, forwarder}, state ->
+            put_in(state, [:forwarders, endpoint_id], func.(forwarder))
           end)
 
         put_in(state, [:trackers, rid], tracker)
@@ -143,7 +129,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @impl true
   def handle_end_of_stream(_pad, context, state) do
     all_end_of_streams? =
-      Enum.filter(context.pads, fn {_pad_name, pad_data} ->
+      context.pads
+      |> Enum.filter(fn {_pad_name, pad_data} ->
         pad_data.direction == :input
       end)
       |> Enum.all?(fn {_pad_name, pad_data} ->

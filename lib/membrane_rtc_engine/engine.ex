@@ -746,7 +746,8 @@ defmodule Membrane.RTC.Engine do
     tee_exists? = Map.has_key?(ctx.children, endpoint_tee)
 
     %Track{clock_rate: clock_rate} =
-      Map.get(state.endpoints, endpoint_id)
+      state.endpoints
+      |> Map.get(endpoint_id)
       |> Endpoint.get_track_by_id(track_id)
 
     children = %{
@@ -937,7 +938,7 @@ defmodule Membrane.RTC.Engine do
 
             new_link =
               link(format_specific_tee)
-              |> via_out(Pad.ref(:output, endpoint_name))
+              |> via_out(Pad.ref(:output, endpoint_id))
               |> via_in(Pad.ref(:input, track_id))
               |> to(endpoint_name)
 
@@ -982,11 +983,9 @@ defmodule Membrane.RTC.Engine do
           end
 
         if format_specific_tee do
-          endpoint_name = {:endpoint, endpoint_id}
-
           new_link =
             link(format_specific_tee)
-            |> via_out(Pad.ref(:output, endpoint_name))
+            |> via_out(Pad.ref(:output, endpoint_id))
             |> via_in(Pad.ref(:input, track_id))
             |> to({:endpoint, endpoint_id})
 
