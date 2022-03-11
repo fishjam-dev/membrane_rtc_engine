@@ -331,7 +331,6 @@ defmodule Membrane.RTC.Engine do
     Membrane.Pipeline.stop_and_terminate(engine, opts)
   end
 
-  @spec get_registry_name() :: atom()
   def get_registry_name(), do: @registry_name
 
   @doc """
