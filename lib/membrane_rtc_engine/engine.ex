@@ -813,7 +813,7 @@ defmodule Membrane.RTC.Engine do
         Membrane.Tee.PushOutput
       end
 
-    links = [
+    endpoint_to_tee_links = [
       link({:endpoint, endpoint_id})
       |> via_out(Pad.ref(:output, track_id))
       |> to({:tee, track_id}, tee)
@@ -839,19 +839,26 @@ defmodule Membrane.RTC.Engine do
         format == :raw
       end)
 
+    raw_format_links =
+      if endpoints_handling_raw_format == [] do
+        []
+      else
+        prepare_raw_format_links(track_id, state)
+      end
+
+    links_to_raw_format_endpoints =
+      Enum.map(endpoints_handling_raw_format, fn endpoint_id ->
+        prepare_track_to_endpoint_links(track_id, endpoint_id, :raw_format_tee)
+      end)
+
+    links_to_remote_format_endpoints =
+      Enum.map(endpoints_handling_remote_format, fn endpoint_id ->
+        prepare_track_to_endpoint_links(track_id, endpoint_id, :tee)
+      end)
+
     links =
-      links ++
-        if endpoints_handling_raw_format == [] do
-          []
-        else
-          prepare_raw_format_links(track_id, state)
-        end ++
-        Enum.map(endpoints_handling_raw_format, fn endpoint_id ->
-          prepare_track_to_endpoint_links(track_id, endpoint_id, :raw_format_tee)
-        end) ++
-        Enum.map(endpoints_handling_remote_format, fn endpoint_id ->
-          prepare_track_to_endpoint_links(track_id, endpoint_id, :tee)
-        end)
+      endpoint_to_tee_links ++
+        raw_format_links ++ links_to_raw_format_endpoints ++ links_to_remote_format_endpoints
 
     state = %{state | waiting_for_linking: waiting_for_linking}
     {links, state}
