@@ -18,6 +18,7 @@ if Enum.all?(
     * membrane_aac_fdk_plugin,
     """
     use Membrane.Bin
+    alias Membrane.RTC.Engine
     require Membrane.Logger
 
     def_input_pad :input,
@@ -87,17 +88,15 @@ if Enum.all?(
         |> Enum.map(fn track -> {track.id, :raw} end)
 
       {:endpoint, endpoint_id} = ctx.name
-      ref = make_ref()
-      send(state.rtc_engine, {:subscribe, subscriptions, self(), endpoint_id, ref})
 
-      receive do
-        {^ref, :ok} ->
+      case Engine.subscribe(state.rtc_engine, subscriptions, endpoint_id) do
+        :ok ->
           {:ok, Map.update!(state, :tracks, &Map.merge(&1, new_tracks))}
 
-        {^ref, {:error, track_id, reason}} ->
+        {:error, track_id, reason} ->
           raise "Subscription fails on track: #{track_id} because of #{reason}"
-      after
-        5000 ->
+
+        {:error, :timeout} ->
           raise "Timeout subscribing on track in Engine with pid #{state.rtc_engine}"
       end
     end

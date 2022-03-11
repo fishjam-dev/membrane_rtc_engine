@@ -164,12 +164,13 @@ defmodule Membrane.RTC.Engine do
 
   Where `caps` are `t:Membrane.Caps.t/0` or `:any`.
 
-  * publish or subscribe for some tracks using actions `t:publish_action_t/0` or `t:subscribe_action_t/0` respectively.
-  The first will cause RTC Engine to send a message in form of `{:new_tracks, tracks}`
-  where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
-  When an Endpoint receives such a message it can subscribe for new tracks by returning action `t:subscribe_action_t/0`.
-  An Endpoint will be notified about track readiness it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback.
-  An example implementation of `handle_pad_added` callback can look like this
+  * publish for some tracks using actions `t:publish_action_t/0` and subscribe for some tracks using
+  function `#{inspect(__MODULE__)}.subscribe/3`. The first will cause RTC Engine to send a message in
+  form of `{:new_tracks, tracks}` where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
+  When an Endpoint receives such a message it can subscribe for new tracks by
+  using `#{inspect(__MODULE__)}.subscribe/3` function. An Endpoint will be notified about track readiness
+  it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
+  callback can look like this
 
   ```elixir
     @impl true
@@ -411,6 +412,37 @@ defmodule Membrane.RTC.Engine do
     :ok
   end
 
+  @doc """
+  Subscribes endpoint for tracks.
+
+  Endpoint  will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
+  `tracks` is a list in form of pairs `{track_id, track_format}`, where `track_id` is id of track this endpoint subscribes for
+  and `track_format` is the format of track that this endpoint is willing to receive.
+  If `track_format` is `:raw` Endpoint will receive track in `t:#{inspect(__MODULE__)}.Track.encoding/0` format.
+  Endpoint_id is a an id of endpoint, which want to subscribe on tracks.
+  """
+  @spec subscribe(
+          rtc_engine :: pid(),
+          subscriptions :: [{Track.id(), atom()}],
+          endpoint_id :: String.t()
+        ) ::
+          :ok | {:error, :timeout} | {:error, Track.id(), :no_such_track | :invalid_track_format}
+  def subscribe(rtc_engine, subscriptions, endpoint_id) do
+    ref = make_ref()
+    send(rtc_engine, {:subscribe, subscriptions, self(), endpoint_id, ref})
+
+    receive do
+      {^ref, :ok} ->
+        :ok
+
+      {^ref, {:error, track_id, reason}} ->
+        {:error, track_id, reason}
+    after
+      5000 ->
+        {:error, :timeout}
+    end
+  end
+
   @impl true
   def handle_init(options) do
     play(self())
@@ -555,17 +587,17 @@ defmodule Membrane.RTC.Engine do
       |> Enum.flat_map(&Endpoint.get_tracks/1)
       |> Map.new(&{&1.id, &1})
 
-    correct_subscriptions =
+    incorrect_subscriptions =
       tracks
       |> Enum.map(fn {track_id, format} ->
         track = Map.get(all_tracks, track_id)
 
         cond do
           track == nil ->
-            {:error, track_id, "track doesn't exist"}
+            {:error, track_id, :no_such_track}
 
           format not in track.format ->
-            {:error, track_id, "track doessn't support format #{format}"}
+            {:error, track_id, :invalid_track_format}
 
           true ->
             :ok
@@ -573,8 +605,8 @@ defmodule Membrane.RTC.Engine do
       end)
       |> Enum.drop_while(&(&1 == :ok))
 
-    if correct_subscriptions != [] do
-      [msg | _] = correct_subscriptions
+    if incorrect_subscriptions != [] do
+      [msg | _] = incorrect_subscriptions
       send(endpoint_pid, {ref, msg})
       {:ok, state}
     else
@@ -1026,6 +1058,7 @@ defmodule Membrane.RTC.Engine do
     ]
 
     state = put_in(state, [:waiting_for_linking, endpoint_id], MapSet.new())
+    state = put_in(state, [:subscriptions, endpoint_id], %{})
 
     spec = %ParentSpec{
       node: opts[:node],
@@ -1064,6 +1097,7 @@ defmodule Membrane.RTC.Engine do
       {_peer, state} = pop_in(state, [:peers, peer_id])
       {_status, actions, state} = do_remove_endpoint(peer_id, ctx, state)
       {_waiting, state} = pop_in(state, [:waiting_for_linking, peer_id])
+      {_subscriptions, state} = pop_in(state, [:subscriptions, peer_id])
       {:present, actions, state}
     else
       {:absent, [], state}
@@ -1144,8 +1178,9 @@ defmodule Membrane.RTC.Engine do
         endpoint = Map.get(endpoints, endpoint_id)
 
         has_subscription_on_track = fn track_id ->
-          subscribed_tracks = Map.get(state.subscriptions, endpoint_id)
-          subscribed_tracks != nil and Map.has_key?(subscribed_tracks, track_id)
+          state.subscriptions
+          |> Map.fetch!(endpoint_id)
+          |> Map.has_key?(track_id)
         end
 
         new_tracks = Enum.filter(tracks, &has_subscription_on_track.(&1))

@@ -14,8 +14,6 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     alias ExSDP.Attribute.FMTP
     alias ExSDP.Attribute.RTPMapping
 
-    require Membrane.Logger
-
     @type stun_server_t() :: ExLibnice.stun_server()
     @type turn_server_t() :: ExLibnice.relay_info()
 
@@ -225,11 +223,9 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
       subscriptions = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
 
       {:endpoint, endpoint_id} = ctx.name
-      ref = make_ref()
-      send(state.rtc_engine, {:subscribe, subscriptions, self(), endpoint_id, ref})
 
-      receive do
-        {^ref, :ok} ->
+      case Engine.subscribe(state.rtc_engine, subscriptions, endpoint_id) do
+        :ok ->
           send_if_not_nil(
             state.display_manager,
             {:subscribe_tracks, ctx.name, new_outbound_tracks}
@@ -237,10 +233,10 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
 
           {:ok, state}
 
-        {^ref, {:error, track_id, reason}} ->
-          raise "Subscription fails on track: #{track_id} because of #{reason}"
-      after
-        5000 ->
+        {:error, track_id, reason} ->
+          raise "Couldn't subscribe for track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
+
+        {:error, :timeout} ->
           raise "Timeout subscribing on track in Engine with pid #{state.rtc_engine}"
       end
     end
