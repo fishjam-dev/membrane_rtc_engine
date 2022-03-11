@@ -697,22 +697,42 @@ defmodule Membrane.RTC.Engine do
          _ctx,
          state
        ) do
-    endpoint = Map.get(state.endpoints, peer_id)
-
+    endpoint = Map.fetch!(state.endpoints, peer_id)
+    subscription = get_in(state, [:subscriptions, requester, track_id])
     video_track = Endpoint.get_track_by_id(endpoint, track_id)
 
-    if video_track do
-      tee = {:tee, {peer_id, track_id}}
-      actions = [forward: {tee, {:select_encoding, {requester, encoding}}}]
-      {{:ok, actions}, state}
-    else
-      Membrane.Logger.warn("""
-      Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-      track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-      given peer does not have track with given id. Ignoring.
-      """)
+    cond do
+      subscription == nil ->
+        Membrane.Logger.warn("""
+        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
+        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
+        given endpoint is not subscribed for this track. Ignoring.
+        """)
 
-      {:ok, state}
+        {:ok, state}
+
+      video_track == nil ->
+        Membrane.Logger.warn("""
+        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
+        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
+        given peer does not have this track. Ignoring.
+        """)
+
+        {:ok, state}
+
+      encoding not in video_track.simulcast_encodings ->
+        Membrane.Logger.warn("""
+        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
+        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
+        given track does not have this encoding. Ignoring.
+        """)
+
+        {:ok, state}
+
+      true ->
+        tee = {:tee, {peer_id, track_id}}
+        actions = [forward: {tee, {:select_encoding, {requester, encoding}}}]
+        {{:ok, actions}, state}
     end
   end
 

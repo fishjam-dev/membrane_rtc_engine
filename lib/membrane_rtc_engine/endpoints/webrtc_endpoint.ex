@@ -596,6 +596,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         stream_id: track.stream_id,
         id: track.id,
         encoding: track.encoding,
+        simulcast_encodings: track.rids,
         clock_rate: track.rtp_mapping.clock_rate,
         format: [:RTP, :raw],
         fmtp: track.fmtp,
