@@ -48,17 +48,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger do
       tl0picidx: tl0picidx
     } = payload_descriptor
 
-    last_pic_id = if i == 1, do: pic_id, else: 0
-    last_tl0picidx = if l == 1, do: tl0picidx, else: 0
-    last_keyidx = if k == 1, do: keyidx, else: 0
+    pic_id_used = i == 1
+    tl0picidx_used = l == 1
+    keyidx_used = k == 1
+
+    last_pic_id = if pic_id_used, do: pic_id, else: 0
+    last_tl0picidx = if tl0picidx_used, do: tl0picidx, else: 0
+    last_keyidx = if keyidx_used, do: keyidx, else: 0
 
     %__MODULE__{
       vp8_munger
-      | pic_id_used: i == 1,
+      | pic_id_used: pic_id_used,
         last_pic_id: last_pic_id,
-        tl0picidx_used: l == 1,
+        tl0picidx_used: tl0picidx_used,
         last_tl0picidx: last_tl0picidx,
-        keyidx_used: k == 1,
+        keyidx_used: keyidx_used,
         last_keyidx: last_keyidx
     }
   end
