@@ -430,7 +430,7 @@ defmodule Membrane.RTC.Engine do
         nil
       end
 
-    {{:ok, log_metadata: [rtc: options[:id]]},
+    {:ok,
      %{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
@@ -683,50 +683,22 @@ defmodule Membrane.RTC.Engine do
             )
   defp do_handle_notification(
          {:track_ready, track_id, encoding, depayloading_filter},
-         endpoint_bin_name,
+         {:endpoint, endpoint_id},
          ctx,
          state
        ) do
     Membrane.Logger.info(
-      "New incoming #{encoding} track #{track_id} from #{inspect(endpoint_bin_name)}"
+      "New incoming #{encoding} track #{track_id} from endpoint #{inspect(endpoint_id)}"
     )
 
     state = put_in(state, [:filters, track_id], depayloading_filter)
-
-    {:endpoint, endpoint_id} = endpoint_bin_name
-
-    endpoint_track_ids = {endpoint_id, track_id}
-    endpoint_tee = {:tee, endpoint_track_ids}
-
-    track = state.endpoints |> Map.get(endpoint_id) |> Endpoint.get_track_by_id(track_id)
-
-    children = %{
-      endpoint_tee =>
-        if state.display_manager != nil do
-          %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
-        else
-          Membrane.Tee.PushOutput
-        end
-    }
-
-    link_to_tee =
-      link(endpoint_bin_name)
-      |> via_out(Pad.ref(:output, track_id))
-      |> to(endpoint_tee)
-
-    {waiting_for_linking, parent_spec} =
-      link_inbound_track(
-        track_id,
-        endpoint_track_ids,
-        state.waiting_for_linking,
-        ctx,
-        state
-      )
+    track = state.endpoints |> Map.fetch!(endpoint_id) |> Endpoint.get_track_by_id(track_id)
+    {links, state} = link_inbound_track(track_id, track, endpoint_id, ctx, state)
 
     spec = %ParentSpec{
-      children: Map.merge(children, parent_spec.children),
-      links: [link_to_tee | parent_spec.links],
-      crash_group: {endpoint_id, :temporary}
+      links: links,
+      crash_group: {endpoint_id, :temporary},
+      log_metadata: [rtc: state.id]
     }
 
     state =
@@ -736,28 +708,18 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    state = %{state | waiting_for_linking: waiting_for_linking}
-
     {{:ok, spec: spec}, state}
   end
 
   @decorate trace("engine.notification.subscribe", include: [:endpoint_id, [:state, :id]])
   defp do_handle_notification(
-         {:subscribe, tracks},
+         {:subscribe, tracks_formats},
          {:endpoint, endpoint_id},
          ctx,
          state
        ) do
-    {new_waiting_for_linking, parent_spec} = link_outbound_tracks(tracks, endpoint_id, ctx, state)
-
-    state =
-      update_in(
-        state,
-        [:waiting_for_linking, endpoint_id],
-        &MapSet.union(&1, new_waiting_for_linking)
-      )
-
-    new_endpoint_subscriptions = Map.new(tracks, fn {track_id, format} -> {track_id, format} end)
+    {links, state} = link_outbound_tracks(tracks_formats, endpoint_id, ctx, state)
+    new_endpoint_subscriptions = Map.new(tracks_formats)
 
     subscriptions =
       Map.update(
@@ -767,6 +729,7 @@ defmodule Membrane.RTC.Engine do
         &Map.merge(&1, new_endpoint_subscriptions)
       )
 
+    parent_spec = %ParentSpec{links: links, log_metadata: [rtc: state.id]}
     state = %{state | subscriptions: subscriptions}
     {{:ok, [spec: parent_spec]}, state}
   end
@@ -842,115 +805,112 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
   end
 
-  defp link_inbound_track(track_id, endpoint_track_ids, waiting_for_linking, ctx, state) do
-    {waiting_for_linking, _filter_tee, parent_spec} =
-      reduce_children(ctx, {waiting_for_linking, nil, %ParentSpec{children: %{}, links: []}}, fn
-        {:endpoint, endpoint_id} = endpoint_name,
-        {waiting_for_linking, filter_tee, parent_spec} ->
-          if MapSet.member?(waiting_for_linking[endpoint_id], track_id) do
-            format = state.subscriptions[endpoint_id][track_id]
+  defp link_inbound_track(track_id, track, endpoint_id, ctx, state) do
+    tee =
+      if state.display_manager != nil do
+        %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
+      else
+        Membrane.Tee.PushOutput
+      end
 
-            {format_specific_tee, new_children, new_links} =
-              cond do
-                format == :raw and filter_tee == nil ->
-                  prepare_filter_tee(track_id, endpoint_track_ids, state)
+    endpoint_to_tee_links = [
+      link({:endpoint, endpoint_id})
+      |> via_out(Pad.ref(:output, track_id))
+      |> to({:tee, track_id}, tee)
+    ]
 
-                format == :raw ->
-                  {filter_tee, %{}, []}
+    endpoints_to_link =
+      ctx.children
+      |> Enum.flat_map(fn
+        {{:endpoint, endpoint_id}, _data} -> [endpoint_id]
+        _child -> []
+      end)
+      |> Enum.filter(&MapSet.member?(state.waiting_for_linking[&1], track_id))
 
-                true ->
-                  tee = {:tee, endpoint_track_ids}
-                  {tee, %{}, []}
-              end
-
-            new_link =
-              link(format_specific_tee)
-              |> via_out(Pad.ref(:output, endpoint_name))
-              |> via_in(Pad.ref(:input, track_id))
-              |> to(endpoint_name)
-
-            waiting_for_linking =
-              Map.update!(waiting_for_linking, endpoint_id, &MapSet.delete(&1, track_id))
-
-            filter_tee = if format == :raw, do: format_specific_tee, else: filter_tee
-
-            {waiting_for_linking, filter_tee,
-             %ParentSpec{
-               children: Map.merge(parent_spec.children, new_children),
-               links: parent_spec.links ++ new_links ++ [new_link]
-             }}
-          else
-            {waiting_for_linking, filter_tee, parent_spec}
-          end
-
-        _other_child, old_values ->
-          old_values
+    waiting_for_linking =
+      Enum.reduce(endpoints_to_link, state.waiting_for_linking, fn endpoint_id,
+                                                                   waiting_for_linking ->
+        Map.update!(waiting_for_linking, endpoint_id, &MapSet.delete(&1, track_id))
       end)
 
-    {waiting_for_linking, parent_spec}
+    {endpoints_handling_raw_format, endpoints_handling_remote_format} =
+      Enum.split_with(endpoints_to_link, fn endpoint_id ->
+        format = state.subscriptions[endpoint_id][track_id]
+        format == :raw
+      end)
+
+    raw_format_links =
+      if endpoints_handling_raw_format == [] do
+        []
+      else
+        prepare_raw_format_links(track_id, state)
+      end
+
+    links_to_raw_format_endpoints =
+      Enum.map(endpoints_handling_raw_format, fn endpoint_id ->
+        prepare_track_to_endpoint_links(track_id, endpoint_id, :raw_format_tee)
+      end)
+
+    links_to_remote_format_endpoints =
+      Enum.map(endpoints_handling_remote_format, fn endpoint_id ->
+        prepare_track_to_endpoint_links(track_id, endpoint_id, :tee)
+      end)
+
+    links =
+      endpoint_to_tee_links ++
+        raw_format_links ++ links_to_raw_format_endpoints ++ links_to_remote_format_endpoints
+
+    state = %{state | waiting_for_linking: waiting_for_linking}
+    {links, state}
   end
 
-  defp link_outbound_tracks(tracks, endpoint_id, ctx, state) do
-    Enum.reduce(tracks, {MapSet.new(), %ParentSpec{children: %{}, links: []}}, fn
-      {track_id, format}, {not_linked, parent_spec} ->
-        endpoint_tee = find_child(ctx, pattern: {:tee, {_other_endpoint_id, ^track_id}})
-        filter_tee = find_child(ctx, pattern: {:filter_tee, {_other_endpoint_id, ^track_id}})
+  defp link_outbound_tracks(tracks_formats, endpoint_id, ctx, state) do
+    {tracks_to_link, tracks_not_to_link} =
+      Enum.split_with(tracks_formats, fn {track_id, _format} ->
+        Map.has_key?(ctx.children, {:tee, track_id})
+      end)
 
-        {format_specific_tee, new_children, filter_links} =
-          cond do
-            format == :raw and filter_tee != nil ->
-              {filter_tee, %{}, []}
+    links =
+      Enum.flat_map(tracks_to_link, fn
+        {track_id, :raw} ->
+          if Map.has_key?(ctx.children, {:raw_format_tee, track_id}) do
+            []
+          else
+            prepare_raw_format_links(track_id, state)
+          end ++
+            prepare_track_to_endpoint_links(track_id, endpoint_id, :raw_format_tee)
 
-            format == :raw and filter_tee == nil and endpoint_tee != nil ->
-              {:tee, endpoint_track_ids} = endpoint_tee
-              prepare_filter_tee(track_id, endpoint_track_ids, state)
+        {track_id, _remote_format} ->
+          prepare_track_to_endpoint_links(track_id, endpoint_id, :tee)
+      end)
 
-            true ->
-              {endpoint_tee, %{}, []}
-          end
+    waiting_for_linking = MapSet.new(tracks_not_to_link, fn {track_id, _format} -> track_id end)
 
-        if format_specific_tee do
-          endpoint_name = {:endpoint, endpoint_id}
+    state =
+      update_in(
+        state,
+        [:waiting_for_linking, endpoint_id],
+        &MapSet.union(&1, waiting_for_linking)
+      )
 
-          new_link =
-            link(format_specific_tee)
-            |> via_out(Pad.ref(:output, endpoint_name))
-            |> via_in(Pad.ref(:input, track_id))
-            |> to({:endpoint, endpoint_id})
-
-          {not_linked,
-           %ParentSpec{
-             children: Map.merge(parent_spec.children, new_children),
-             links: parent_spec.links ++ filter_links ++ [new_link]
-           }}
-        else
-          {MapSet.put(not_linked, track_id), parent_spec}
-        end
-
-      _track, {not_linked, parent_spec} ->
-        {not_linked, parent_spec}
-    end)
+    {links, state}
   end
 
-  defp prepare_filter_tee(track_id, endpoint_track_ids, state) do
-    filter = {:filter, endpoint_track_ids}
-    filter_tee = {:filter_tee, endpoint_track_ids}
+  defp prepare_raw_format_links(track_id, state) do
+    [
+      link({:tee, track_id})
+      |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
+      |> to({:raw_format_tee, track_id}, Membrane.Tee.PushOutput)
+    ]
+  end
 
-    depayloading_filter = get_in(state, [:filters, track_id])
-
-    children = %{
-      filter => depayloading_filter,
-      filter_tee => Membrane.Tee.PushOutput
-    }
-
-    endpoint_tee = {:tee, endpoint_track_ids}
-
-    filter_link =
-      link(endpoint_tee)
-      |> to(filter)
-      |> to(filter_tee)
-
-    {filter_tee, children, [filter_link]}
+  defp prepare_track_to_endpoint_links(track_id, endpoint_id, tee_kind) do
+    [
+      link({tee_kind, track_id})
+      |> via_out(Pad.ref(:output, {:endpoint, endpoint_id}))
+      |> via_in(Pad.ref(:input, track_id))
+      |> to({:endpoint, endpoint_id})
+    ]
   end
 
   defp dispatch(msg) do
@@ -1006,7 +966,8 @@ defmodule Membrane.RTC.Engine do
     spec = %ParentSpec{
       node: opts[:node],
       children: children,
-      crash_group: {endpoint_id, :temporary}
+      crash_group: {endpoint_id, :temporary},
+      log_metadata: [rtc: state.id]
     }
 
     state = put_in(state.endpoints[endpoint_id], endpoint)
@@ -1087,8 +1048,8 @@ defmodule Membrane.RTC.Engine do
     |> then(
       &[
         tee: &1,
-        filter: &1,
-        filter_tee: &1
+        raw_format_filter: &1,
+        raw_format_tee: &1
       ]
     )
     |> Enum.filter(&Map.has_key?(ctx.children, &1))
