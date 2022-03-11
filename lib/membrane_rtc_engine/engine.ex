@@ -188,46 +188,6 @@ defmodule Membrane.RTC.Engine do
 
   Endpoint will be also notified when some tracks it subscribed for are removed with
   `{:removed_tracks, tracks}` message where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0`.
-
-  #### Internal messages documentation
-
-  RTC Engine receives these types of notifications:
-  * `{:custom_media_event, data}` - in this message each endpoint can send some custom message which will be forwarded
-  from engine to specific peer. This associated with endpoint from which engine receive this notification.
-  * `{:track_ready, track_id, encoding, depayloading_filter}` - this notification from endpoint, when first packets of
-  this specific track came to endpoint. Depayloading_filter is element which after linking to this endpoint will
-  transform this track to raw encoding, e.g. For WebRTCEndpoint it will depayload RTP Packets to raw OPUS or VP8.
-  Each endpoint which want to send tracks to engine have to pass this type of element for each of his tracks.
-  * `{:subscribe, tracks}` - this notification contains list of tracks on which endpoint subscribes itself.
-  Tracks are a list of tuples in form {track_id, format}. Format is an atom e.g for WebRTCEndpoint track can have format :RTP and :raw.
-  * `{:publish, msg}` - this notification contains message, which will be forwarded to all other endpoints in engine.
-  For now there are a few messages of this type:
-      * `{:new_tracks, tracks}` - this message informs that new tracks arrives to engine and each endpoint can subscribe on them
-      * `{:removed_tracks, tracks}` - this message informs that some tracks where removed by one of endpoint from engine
-
-  RTC Engine receives these types of media_events from client:
-  * join - this message is sent when peer want to join RTC Engine. It contains only peer metadata.
-  * leave - this message is sent when peer leave RTC Engine. It contains no data.
-  * updatePeerMetadata - this message contains new metadata of some peer
-  * updateTrackMetadata - this message contains new metadata of some track and id of this track
-  * custom - this message is a black box for RTC Engine and it is forwarded to the endpoint associated with the peer
-
-  RTC Engine sends these types of messages to the client:
-  * tracksPriority - this message contains all tracks that will be forwarded to peer untill next tracks_priority message,
-  this type of messages is sent only if DisplayManager is spawned
-  * peerDenied - this message is sent, if peer was rejected by server during joining to server.
-  It can cointains a information why he was rejected
-  * peerUpdated - this message contains information about updated metadata of one of peers
-  * trackUpdated - this message contains information about new metadata of one of tracks
-  * custom - this is custom message forwarded by engine from endpoint to client
-  * tracksAdded - this message contains map track_id to track_metadata of all tracks of one of peer, id of that peer
-  * tracks_removed - this message contains list of tracks which are removed by some peer and id of that peer
-  * peerJoined - this message is sent to all peers in room after new peer joined RTC Engine.
-  It contains id and metadata of new peer.
-  * peerAccepted - this message is sent to peer after he join RTC Engine.
-  It contains his id and list of information about each peer in Engine (id, metadata and map track_id to track_metadata)
-  * peerLeft - this message is sent to all other peers in room, when some peer left. It contains id of peer which left.
-
   """
   use Membrane.Pipeline
   use OpenTelemetryDecorator

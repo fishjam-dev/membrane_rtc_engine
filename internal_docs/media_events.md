@@ -1,4 +1,14 @@
-### Generic media events
+# Media Events
+
+Below are described all messages, which are sent between Engine and client. 
+Firstly there are tables with names and short descriptions. On the end, there are bullet points with a longer description and format of each media_event. Each media event have to be sent in the form:
+```json
+{
+    type: name,
+    data: data
+}
+```
+The format described on the end represents data from the above JSON, where the name of the message is the value of the type field.
 
 #### RTC Engine receives these types of media_events from client:
 | Name | Description |

@@ -97,7 +97,8 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "media_events.md", "LICENSE"],
+      extras: ["README.md", "internal_docs/media_events.md", "LICENSE"],
+      groups_for_extras: groups_for_extras(),
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
       groups_for_modules: [
@@ -112,6 +113,12 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Message.PeerLeft
         ]
       ]
+    ]
+  end
+
+  defp groups_for_extras do
+    [
+      {"Developer docs", ~r/internal_docs\/[^\/]+\.md/}
     ]
   end
 
