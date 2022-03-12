@@ -49,6 +49,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     %__MODULE__{rtp_munger: RTPMunger.new(clock_rate)}
   end
 
+  @doc """
+  Marks given `encoding` as inactive.
+
+  If given `encoding` is currently used it will be saved
+  and forwarder will switch back to it once it becomes
+  active again.
+  """
   @spec encoding_inactive(t(), String.t()) :: t()
   def encoding_inactive(
         %__MODULE__{selected_encoding: encoding, old_encoding: nil} = forwarder,
@@ -72,6 +79,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     do_select_encoding(forwarder, List.first(forwarder.active_encodings))
   end
 
+  @doc """
+  Marks given `encoding` as active.
+
+  If this was the encoding used before it became inactive
+  forwarder will switch back to it.
+  """
   @spec encoding_active(t(), String.t()) :: t()
   def encoding_active(forwarder, encoding) do
     forwarder = %__MODULE__{
@@ -95,6 +108,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     end
   end
 
+  @doc """
+  Selects encoding forwarder will forward.
+  """
   @spec select_encoding(t(), String.t()) :: t()
   def select_encoding(forwarder, encoding) do
     do_select_encoding(forwarder, encoding)
@@ -114,16 +130,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   end
 
   defp do_select_encoding(%__MODULE__{selected_encoding: encoding} = forwarder, encoding) do
-    # if we want to switch to already selected encoding just
-    # clear queued_encoding - this can happen in the following scenario
-    #
-    # selected_encoding: h
-    # select encoding l -> selected_encoding: h, queued_encoding: l
-    #
-    # we haven't received keyframe for l encoding yet but we want to
-    # switch back to h encoding again
-    #
-    # select encoding h -> selected_encoding: h, queued_encoding: nil
     Membrane.Logger.debug("""
     Requested encoding: #{inspect(encoding)} which is currently used but while waiting
     for keyframe for queued_encoding #{inspect(forwarder.queued_encoding)}.
@@ -142,38 +148,48 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
   @spec process(t(), Membrane.Buffer.t(), Endpoint.WebRTC.encoding_t(), any()) ::
           {t(), [Membrane.Element.Action.t()]}
+  def process(%__MODULE__{started?: false} = forwarder, buffer, encoding, endpoint_id) do
+    # init mungers with the first non-empty RTP packet
+    %__MODULE__{
+      selected_encoding: selected_encoding,
+      rtp_munger: rtp_munger,
+      vp8_munger: vp8_munger
+    } = forwarder
+
+    if buffer.payload != <<>> do
+      Membrane.Logger.debug("Initializing RTP and VP8 mungers")
+      rtp_munger = RTPMunger.init(rtp_munger, buffer)
+      vp8_munger = VP8Munger.init(vp8_munger, buffer)
+
+      forwarder = %{
+        forwarder
+        | rtp_munger: rtp_munger,
+          vp8_munger: vp8_munger,
+          started?: true
+      }
+
+      actions =
+        if encoding == selected_encoding do
+          [buffer: {Pad.ref(:output, endpoint_id), buffer}]
+        else
+          []
+        end
+
+      {forwarder, actions}
+    else
+      {forwarder, []}
+    end
+  end
+
   def process(forwarder, buffer, encoding, endpoint_id) do
     %__MODULE__{
       selected_encoding: selected_encoding,
       queued_encoding: queued_encoding,
       rtp_munger: rtp_munger,
-      vp8_munger: vp8_munger,
-      started?: started?
+      vp8_munger: vp8_munger
     } = forwarder
 
     cond do
-      # init mungers with the first non-empty RTP packet
-      started? == false and buffer.payload != <<>> ->
-        Membrane.Logger.debug("Initializing RTP and VP8 mungers")
-        rtp_munger = RTPMunger.init(rtp_munger, buffer)
-        vp8_munger = VP8Munger.init(vp8_munger, buffer)
-
-        forwarder = %{
-          forwarder
-          | rtp_munger: rtp_munger,
-            vp8_munger: vp8_munger,
-            started?: true
-        }
-
-        actions =
-          if encoding == selected_encoding do
-            [buffer: {Pad.ref(:output, endpoint_id), buffer}]
-          else
-            []
-          end
-
-        {forwarder, actions}
-
       # we received packet for encoding we are going to switch to
       # and this packet represents a keyframe
       # update mungers and start forwarding new encoding
@@ -204,7 +220,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
         {forwarder, actions}
 
-      queued_encoding == encoding and buffer.payload != <<>> ->
+      queued_encoding == encoding ->
         Membrane.Logger.debug("""
         Waiting for keyframe on encoding #{inspect(queued_encoding)}
         """)
