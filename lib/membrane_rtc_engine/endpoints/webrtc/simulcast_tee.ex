@@ -73,7 +73,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_process(Pad.ref(:input, encoding), buffer, _context, state) do
-    state = update_in(state, [:trackers, encoding], &EncodingTracker.update(&1))
+    state = update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))
 
     {actions, state} =
       Enum.flat_map_reduce(state.forwarders, state, fn
@@ -97,7 +97,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   defp check_encoding_status(rid, tracker, state) do
-    case EncodingTracker.check(tracker) do
+    case EncodingTracker.check_encoding_status(tracker) do
       {:ok, tracker} ->
         put_in(state, [:trackers, rid], tracker)
 

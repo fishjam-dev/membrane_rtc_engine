@@ -8,9 +8,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTrackerTest do
 
     # simulate we received only 4 packets from last check
     tracker =
-      Enum.reduce(1..4, tracker, fn _sample, tracker -> EncodingTracker.update(tracker) end)
+      Enum.reduce(1..4, tracker, fn _sample, tracker ->
+        EncodingTracker.increment_samples(tracker)
+      end)
 
-    ret = EncodingTracker.check(tracker)
+    ret = EncodingTracker.check_encoding_status(tracker)
 
     assert {:status_changed, _tracker, :inactive} = ret
   end
@@ -20,9 +22,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTrackerTest do
 
     # simulate we received only 4 packets from last check
     tracker =
-      Enum.reduce(1..4, tracker, fn _sample, tracker -> EncodingTracker.update(tracker) end)
+      Enum.reduce(1..4, tracker, fn _sample, tracker ->
+        EncodingTracker.increment_samples(tracker)
+      end)
 
-    ret = EncodingTracker.check(tracker)
+    ret = EncodingTracker.check_encoding_status(tracker)
 
     assert {:status_changed, tracker, :inactive} = ret
 
@@ -30,17 +34,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTrackerTest do
     tracker =
       Enum.reduce(1..9, tracker, fn _cycle, tracker ->
         tracker =
-          Enum.reduce(1..5, tracker, fn _sample, tracker -> EncodingTracker.update(tracker) end)
+          Enum.reduce(1..5, tracker, fn _sample, tracker ->
+            EncodingTracker.increment_samples(tracker)
+          end)
 
-        assert {:ok, tracker} = EncodingTracker.check(tracker)
+        assert {:ok, tracker} = EncodingTracker.check_encoding_status(tracker)
         tracker
       end)
 
     # simulate one more cycle
     tracker =
-      Enum.reduce(1..5, tracker, fn _sample, tracker -> EncodingTracker.update(tracker) end)
+      Enum.reduce(1..5, tracker, fn _sample, tracker ->
+        EncodingTracker.increment_samples(tracker)
+      end)
 
     # now EncodingTracker should detect change
-    assert {:status_changed, _tracker, :active} = EncodingTracker.check(tracker)
+    assert {:status_changed, _tracker, :active} = EncodingTracker.check_encoding_status(tracker)
   end
 end

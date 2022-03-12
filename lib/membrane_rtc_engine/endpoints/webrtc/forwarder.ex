@@ -101,7 +101,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   end
 
   defp do_select_encoding(forwarder, nil) do
-    Membrane.Logger.info("No active encoding.")
+    Membrane.Logger.warn("No active encoding.")
     %__MODULE__{forwarder | selected_encoding: nil, queued_encoding: nil}
   end
 
@@ -109,7 +109,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
          %__MODULE__{selected_encoding: encoding, queued_encoding: nil} = forwarder,
          encoding
        ) do
-    Membrane.Logger.info("Requested currently used encoding. Ignoring.")
+    Membrane.Logger.debug("Requested currently used encoding. Ignoring.")
     forwarder
   end
 
@@ -124,8 +124,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     # switch back to h encoding again
     #
     # select encoding h -> selected_encoding: h, queued_encoding: nil
-    Membrane.Logger.info("""
-    Requested encoding: #{inspect(encoding)} which is currently used but while waiting for keyframe for queued_encoding #{inspect(forwarder.queued_encoding)}.
+    Membrane.Logger.debug("""
+    Requested encoding: #{inspect(encoding)} which is currently used but while waiting
+    for keyframe for queued_encoding #{inspect(forwarder.queued_encoding)}.
     Clearing queued encoding #{inspect(forwarder.queued_encoding)}
     """)
 
@@ -153,7 +154,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     cond do
       # init mungers with the first non-empty RTP packet
       started? == false and buffer.payload != <<>> ->
-        Membrane.Logger.info("Initializing RTP and VP8 mungers")
+        Membrane.Logger.debug("Initializing RTP and VP8 mungers")
         rtp_munger = RTPMunger.init(rtp_munger, buffer)
         vp8_munger = VP8Munger.init(vp8_munger, buffer)
 
@@ -174,41 +175,41 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
         {forwarder, actions}
 
       # we received packet for encoding we are going to switch to
-      # check if this packet represents a keyframe
-      # if yes then update mungers and start forwarding new encoding
+      # and this packet represents a keyframe
+      # update mungers and start forwarding new encoding
+      queued_encoding == encoding and buffer.payload != <<>> and
+          Utils.is_vp8_keyframe(buffer.payload) ->
+        Membrane.Logger.debug("""
+        Received keyframe on requested encoding: #{inspect(queued_encoding)}. Switching.
+        """)
+
+        rtp_munger = RTPMunger.update(rtp_munger, buffer)
+        vp8_munger = VP8Munger.update(vp8_munger, buffer)
+
+        {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
+        {vp8_munger, buffer} = VP8Munger.munge(vp8_munger, buffer)
+
+        forwarder = %{
+          forwarder
+          | rtp_munger: rtp_munger,
+            vp8_munger: vp8_munger,
+            selected_encoding: queued_encoding,
+            queued_encoding: nil
+        }
+
+        actions = [
+          notify: {:encoding_switched, endpoint_id, encoding},
+          buffer: {Pad.ref(:output, endpoint_id), buffer}
+        ]
+
+        {forwarder, actions}
+
       queued_encoding == encoding and buffer.payload != <<>> ->
-        if Utils.is_vp8_keyframe(buffer.payload) do
-          Membrane.Logger.info("""
-          Received keyframe on requested encoding: #{inspect(queued_encoding)}. Switching.
-          """)
+        Membrane.Logger.debug("""
+        Waiting for keyframe on encoding #{inspect(queued_encoding)}
+        """)
 
-          rtp_munger = RTPMunger.update(rtp_munger, buffer)
-          vp8_munger = VP8Munger.update(vp8_munger, buffer)
-
-          {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
-          {vp8_munger, buffer} = VP8Munger.munge(vp8_munger, buffer)
-
-          forwarder = %{
-            forwarder
-            | rtp_munger: rtp_munger,
-              vp8_munger: vp8_munger,
-              selected_encoding: queued_encoding,
-              queued_encoding: nil
-          }
-
-          actions = [
-            notify: {:encoding_switched, endpoint_id, encoding},
-            buffer: {Pad.ref(:output, endpoint_id), buffer}
-          ]
-
-          {forwarder, actions}
-        else
-          Membrane.Logger.info("""
-          Waiting for keyframe on encoding #{inspect(queued_encoding)}
-          """)
-
-          {forwarder, []}
-        end
+        {forwarder, []}
 
       # we received packet for encoding we are currently forwarding
       # munge and forward it
