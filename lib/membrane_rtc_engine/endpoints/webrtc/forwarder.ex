@@ -117,7 +117,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   end
 
   defp do_select_encoding(forwarder, nil) do
-    Membrane.Logger.warn("No active encoding.")
+    Membrane.Logger.debug("No active encoding.")
     %__MODULE__{forwarder | selected_encoding: nil, queued_encoding: nil}
   end
 

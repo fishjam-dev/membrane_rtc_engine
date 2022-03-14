@@ -63,7 +63,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker do
 
   defp maybe_inactive(tracker) do
     if tracker.status == :active do
-      Membrane.Logger.warn("Encoding #{inspect(tracker.encoding)} is inactive.")
+      Membrane.Logger.debug("Encoding #{inspect(tracker.encoding)} is inactive.")
       tracker = %__MODULE__{tracker | status: :inactive}
       {:status_changed, tracker, :inactive}
     else
@@ -73,7 +73,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker do
 
   defp maybe_active(tracker) do
     if tracker.status == :inactive and tracker.cycles == tracker.required_cycles do
-      Membrane.Logger.warn("Encoding #{inspect(tracker.encoding)} is active.")
+      Membrane.Logger.debug("Encoding #{inspect(tracker.encoding)} is active.")
       tracker = %__MODULE__{tracker | status: :active, cycles: 0}
       {:status_changed, tracker, :active}
     else
