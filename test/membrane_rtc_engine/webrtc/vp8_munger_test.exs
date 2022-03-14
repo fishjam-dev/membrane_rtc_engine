@@ -89,6 +89,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8MungerTest do
       %VP8.PayloadDescriptor{
         i: 1,
         k: 1,
+        # max keyidx
         keyidx: (1 <<< 5) - 1,
         l: 1,
         m: 1,

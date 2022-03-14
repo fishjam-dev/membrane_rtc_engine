@@ -30,7 +30,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       }
     }
 
-    next_l_buffer = %Membrane.Buffer{
+    l_buffer2 = %Membrane.Buffer{
       payload: generate_random_payload(100),
       metadata: %{
         rtp: %{
@@ -43,7 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
     # switch to new encoding
     rtp_munger = RTPMunger.update(rtp_munger, l_buffer)
     {rtp_munger, munged_l_buffer} = RTPMunger.munge(rtp_munger, l_buffer)
-    {_rtp_munger, munged_next_l_buffer} = RTPMunger.munge(rtp_munger, next_l_buffer)
+    {_rtp_munger, munged_l_buffer2} = RTPMunger.munge(rtp_munger, l_buffer2)
 
     last_munged_h_buffer = List.last(munged_h_encoding)
     assert munged_l_buffer.metadata.rtp.sequence_number == 30_010
@@ -51,8 +51,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
     # packets in such a way that they have to be
     assert munged_l_buffer.metadata.rtp.timestamp > last_munged_h_buffer.metadata.rtp.timestamp
 
-    assert munged_next_l_buffer.metadata.rtp.sequence_number == 30_011
-    assert munged_next_l_buffer.metadata.rtp.timestamp > munged_l_buffer.metadata.rtp.timestamp
+    assert munged_l_buffer2.metadata.rtp.sequence_number == 30_011
+    assert munged_l_buffer2.metadata.rtp.timestamp > munged_l_buffer.metadata.rtp.timestamp
   end
 
   test "RTP Munger handles out-of-order packets correctly" do
@@ -148,6 +148,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       RTPMunger.new(90_000)
       |> RTPMunger.init(h_buffer)
 
+    {rtp_munger, munged_h_buffer} = RTPMunger.munge(rtp_munger, h_buffer)
+    # nothing should change
+    assert h_buffer == munged_h_buffer
+
     l_buffer = %Membrane.Buffer{
       payload: generate_random_payload(100),
       metadata: %{
@@ -169,6 +173,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       }
     }
 
+    # switch to new encoding
     rtp_munger = RTPMunger.update(rtp_munger, l_buffer)
     {rtp_munger, munged_l_buffer} = RTPMunger.munge(rtp_munger, l_buffer)
 
@@ -202,6 +207,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
     rtp_munger =
       RTPMunger.new(90_000)
       |> RTPMunger.init(h_buffer)
+
+    {rtp_munger, munged_h_buffer} = RTPMunger.munge(rtp_munger, h_buffer)
+    # nothing should change
+    assert h_buffer == munged_h_buffer
 
     l_buffer = %Membrane.Buffer{
       payload: generate_random_payload(100),
