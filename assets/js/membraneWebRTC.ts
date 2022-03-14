@@ -174,6 +174,7 @@ export class MembraneWebRTC {
   private localPeer: Peer = { id: "", metadata: {}, trackIdToMetadata: new Map() };
   private localTrackIdToTrack: Map<string, TrackContext> = new Map();
   private midToTrackId: Map<string, string> = new Map();
+  private disabledTrackEncodings: Map<string, TrackEncoding[]> = new Map();
   private rtcConfig: RTCConfiguration = {
     iceServers: [
       {
@@ -469,6 +470,7 @@ export class MembraneWebRTC {
 
     if (trackContext.isSimulcast) {
       transceiverConfig = track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig;
+      this.disabledTrackEncodings.set(trackContext.trackId, []);
     } else {
       transceiverConfig = {
         direction: "sendonly",
@@ -710,6 +712,10 @@ export class MembraneWebRTC {
    */
   public enableTrackEncoding(trackId: string, encoding: TrackEncoding) {
     let track = this.localTrackIdToTrack.get(trackId)?.track;
+    let newDisabledTrackEncodings = this.disabledTrackEncodings
+      .get(trackId)
+      ?.filter((en) => en !== encoding)!;
+    this.disabledTrackEncodings.set(trackId, newDisabledTrackEncodings);
     let sender = this.connection?.getSenders().filter((sender) => sender.track === track)[0];
     let params = sender?.getParameters();
     params!.encodings.filter((en) => en.rid == encoding)[0].active = true;
@@ -728,6 +734,7 @@ export class MembraneWebRTC {
    */
   public disableTrackEncoding(trackId: string, encoding: TrackEncoding) {
     let track = this.localTrackIdToTrack.get(trackId)?.track;
+    this.disabledTrackEncodings.get(trackId)!.push(encoding);
     let sender = this.connection?.getSenders().filter((sender) => sender.track === track)[0];
     let params = sender?.getParameters();
     params!.encodings.filter((en) => en.rid == encoding)[0].active = false;
@@ -834,6 +841,11 @@ export class MembraneWebRTC {
     this.connection!.ontrack = this.onTrack();
     try {
       await this.connection!.setRemoteDescription(answer);
+      this.disabledTrackEncodings.forEach((encodings: TrackEncoding[], trackId: string) => {
+        encodings.forEach((encoding: TrackEncoding) =>
+          this.disableTrackEncoding(trackId, encoding)
+        );
+      });
     } catch (err) {
       console.log(err);
     }
@@ -1029,6 +1041,7 @@ export class MembraneWebRTC {
     const [mid, _trackId] = midToTrackId.find(([mid, mapTrackId]) => mapTrackId === trackId)!;
     this.midToTrackId.delete(mid);
     this.idToPeer.get(peerId)!.trackIdToMetadata.delete(trackId);
+    this.disabledTrackEncodings.delete(trackId);
   };
 
   private getPeerId = () => this.localPeer.id;
