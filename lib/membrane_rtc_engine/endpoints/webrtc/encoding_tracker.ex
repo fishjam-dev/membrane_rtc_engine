@@ -46,7 +46,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker do
   @doc """
   Checks if encoding changed its status from last check.
 
-  Returns `{:ok, t()}` if encoding didn't changed its status and
+  Returns `{:ok, t()}` if encoding didn't change its status and
   `{:status_changed, t(), :inactive | :active}` otherwise.
   This function also resets EncodingTracker state.
   """
