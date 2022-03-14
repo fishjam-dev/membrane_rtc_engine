@@ -1,0 +1,8 @@
+{
+    "license": "MIT",
+    "dependencies": {
+        "membrane_rtc_engine": "file:../../..",
+        "phoenix": "file:../deps/phoenix",
+        "typescript": "^4.5.5"
+    }
+}

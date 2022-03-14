@@ -77,7 +77,8 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp aliases() do
     [
       compile: ["compile", &compile_ts/1],
-      docs: ["docs", &generate_ts_docs/1]
+      docs: ["docs", &generate_ts_docs/1],
+      integration: &run_integration_tests/1
     ]
   end
 
@@ -139,6 +140,13 @@ defmodule Membrane.RTC.Engine.MixProject do
     {result, exit_status} = System.cmd("npm", ["run", "build"], cd: "assets")
     Mix.shell().info(result)
     if exit_status != 0, do: raise("Failed to compile TS files")
+  end
+
+  defp run_integration_tests(_) do
+    Mix.shell().info("Running integration tests")
+    {result, exit_status} = System.cmd("mix", ["test"], cd: "integration/test_videoroom")
+    Mix.shell().info(result)
+    if exit_status != 0, do: raise("Failed to run integration tests")
   end
 
   defp generate_ts_docs(_) do

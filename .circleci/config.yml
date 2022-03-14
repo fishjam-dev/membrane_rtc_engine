@@ -32,10 +32,63 @@ jobs:
       - run: cd assets && npm install
       - run: cd assets && npm run format:check
 
+  integration:
+    docker:
+      - image: membraneframeworklabs/docker_membrane:latest
+        environment:
+          MIX_ENV: test
+          NODE_ENV: development
+        user: root
+
+    working_directory: ~/app
+
+    steps:
+      - checkout
+      - run: mix deps.get
+      - run: mix compile
+      - run: cd ./integration/test_videoroom && mix deps.update --all
+      - run: cd ./integration/test_videoroom && mix deps.get
+      - run: cd ./integration/test_videoroom && mix compile --force --warnings-as-errors
+      - run: cd ./integration/test_videoroom && npm ci --prefix=assets
+      - run: cd ./integration/test_videoroom && npm i playwright@1.18.1 --prefix=assets
+      - run: cd ./integration/test_videoroom && mix esbuild default --minify
+      - run: cd ./integration/test_videoroom && mix phx.digest
+      - run: cd ./integration/test_videoroom && mix test
+
+  integration_turns:
+    docker:
+      - image: membraneframeworklabs/docker_membrane:latest
+        environment:
+          MIX_ENV: test
+          NODE_ENV: development
+          USE_INTEGRATED_TURN: "true"
+          INTEGRATED_TURN_IP: "127.0.0.1"
+          INTEGRATED_TURN_PORT_RANGE: "50000-50500"
+        user: root
+
+    working_directory: ~/app
+
+    steps:
+      - checkout
+      - run: mix deps.get
+      - run: mix compile
+      - run: cd ./integration/test_videoroom && mix deps.update --all
+      - run: cd ./integration/test_videoroom && mix deps.get
+      - run: cd ./integration/test_videoroom && mix compile --force --warnings-as-errors
+      - run: cd ./integration/test_videoroom && npm ci --prefix=assets
+      - run: cd ./integration/test_videoroom && npm i playwright@1.18.1 --prefix=assets
+      - run: cd ./integration/test_videoroom && mix esbuild default --minify
+      - run: cd ./integration/test_videoroom && mix phx.digest
+      - run: cd ./integration/test_videoroom && mix test
+
+      
+
 workflows:
   version: 2
   build:
     jobs:
       - test
       - lint
+      - integration
+      - integration_turns
       

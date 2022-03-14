@@ -1,0 +1,33 @@
+<style>
+#videos {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 10px;
+
+}
+
+#videos video {
+  height: 100%;
+  width: 100%;
+  background: black;
+}
+</style>
+
+<div id="container">
+    <div id="videos">
+        <video id="local-video" playsinline autoplay muted></video>
+    </div>
+
+    <div id="buttons">
+        <button id="start-all">Start with all media</button>
+        <button id="start-mic-only">Start microphone only</button>
+        <button id="start-camera-only">Start camera only</button>
+        <button id="start-none">Start without media</button>
+        <button id="stop">Stop</button>
+        <button id="stats">Stats</button>
+    </div>
+    
+
+    Stats
+    <div id="data" data-version="0" style="">uninitialized</div>
+</div>
