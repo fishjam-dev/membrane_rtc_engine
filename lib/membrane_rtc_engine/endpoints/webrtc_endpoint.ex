@@ -181,17 +181,6 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
     end
 
     @impl true
-    def handle_notification(
-          {:integrated_turn_servers, turns},
-          _from,
-          _ctx,
-          state
-        ) do
-      enforce_turns? = state.use_integrated_turn || false
-      {{:ok, notify: {:integrated_turn_servers, turns, enforce_turns?}}, state}
-    end
-
-    @impl true
     def handle_notification({:new_tracks, tracks}, _from, ctx, state) do
       tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
       inbound_tracks = update_tracks(tracks, state.inbound_tracks)
