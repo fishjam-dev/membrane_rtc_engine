@@ -438,7 +438,7 @@ defmodule Membrane.RTC.Engine do
       {^ref, {:error, track_id, reason}} ->
         {:error, track_id, reason}
     after
-      5000 ->
+      5_000 ->
         {:error, :timeout}
     end
   end
@@ -577,7 +577,7 @@ defmodule Membrane.RTC.Engine do
 
   @decorate trace("engine.other.subscribe", include: [[:state, :id]])
   def handle_other(
-        {:subscribe, tracks, endpoint_pid, endpoint_id, ref},
+        {:subscribe, tracks_formats, endpoint_pid, endpoint_id, ref},
         ctx,
         state
       ) do
@@ -588,7 +588,7 @@ defmodule Membrane.RTC.Engine do
       |> Map.new(&{&1.id, &1})
 
     incorrect_subscriptions =
-      tracks
+      tracks_formats
       |> Enum.map(fn {track_id, format} ->
         track = Map.get(all_tracks, track_id)
 
@@ -610,18 +610,9 @@ defmodule Membrane.RTC.Engine do
       send(endpoint_pid, {ref, msg})
       {:ok, state}
     else
-      {new_waiting_for_linking, parent_spec} =
-        link_outbound_tracks(tracks, endpoint_id, ctx, state)
+      {links, state} = link_outbound_tracks(tracks_formats, endpoint_id, ctx, state)
 
-      state =
-        update_in(
-          state,
-          [:waiting_for_linking, endpoint_id],
-          &MapSet.union(&1, new_waiting_for_linking)
-        )
-
-      new_endpoint_subscriptions =
-        Map.new(tracks, fn {track_id, format} -> {track_id, format} end)
+      new_endpoint_subscriptions = Map.new(tracks_formats)
 
       subscriptions =
         Map.update(
@@ -631,6 +622,7 @@ defmodule Membrane.RTC.Engine do
           &Map.merge(&1, new_endpoint_subscriptions)
         )
 
+      parent_spec = %ParentSpec{links: links, log_metadata: [rtc: state.id]}
       state = %{state | subscriptions: subscriptions}
       send(endpoint_pid, {ref, :ok})
       {{:ok, [spec: parent_spec]}, state}
@@ -1183,7 +1175,7 @@ defmodule Membrane.RTC.Engine do
           |> Map.has_key?(track_id)
         end
 
-        new_tracks = Enum.filter(tracks, &has_subscription_on_track.(&1))
+        new_tracks = Enum.filter(tracks, &has_subscription_on_track.(&1.id))
         msg = {type, new_tracks}
 
         if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) do

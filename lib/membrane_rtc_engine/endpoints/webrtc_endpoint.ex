@@ -237,7 +237,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           raise "Couldn't subscribe for track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
 
         {:error, :timeout} ->
-          raise "Timeout subscribing on track in Engine with pid #{state.rtc_engine}"
+          raise "Timeout subscribing on track in Engine with pid #{inspect(state.rtc_engine)}"
       end
     end
 
