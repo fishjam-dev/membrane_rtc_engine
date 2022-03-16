@@ -111,6 +111,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     cond do
       # out-of-order packet - update its sequence number
       # and timestamp without updating munger
+      #
+      # 1 <<< 15 represents half of maximal sequence number
+      # so we detect out-of-order packet when the difference is
+      # high enough (-32 768; 0)
+      #
+      # to understand this more consider sequence number rollover
+      # scenario in which the difference between subsequent sequence numbers
+      # is equal to 0 - 65 536 = -65 536 - such packet cannot be
+      # considered as out-of-order
       seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 ->
         buffer = update_sn_ts.(buffer)
         {rtp_munger, buffer}
