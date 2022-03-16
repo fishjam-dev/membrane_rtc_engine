@@ -115,6 +115,7 @@ defmodule TestVideoroom.Room do
       end
 
     endpoint = %WebRTC{
+      rtc_engine: rtc_engine,
       ice_name: peer.id,
       extensions: %{},
       owner: self(),

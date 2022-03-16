@@ -99,7 +99,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "LICENSE", "internal_docs/simulcast/simulcast.md"],
+      extras: extras(),
       groups_for_extras: groups_for_extras(),
       assets: "internal_docs/simulcast/assets",
       source_ref: "v#{@version}",
@@ -116,6 +116,15 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Message.PeerLeft
         ]
       ]
+    ]
+  end
+
+  defp extras() do
+    [
+      "README.md",
+      "LICENSE",
+      "internal_docs/simulcast/simulcast.md",
+      "internal_docs/media_events.md"
     ]
   end
 
