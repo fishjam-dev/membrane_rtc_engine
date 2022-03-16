@@ -164,12 +164,13 @@ defmodule Membrane.RTC.Engine do
 
   Where `caps` are `t:Membrane.Caps.t/0` or `:any`.
 
-  * publish or subscribe for some tracks using actions `t:publish_action_t/0` or `t:subscribe_action_t/0` respectively.
-  The first will cause RTC Engine to send a message in form of `{:new_tracks, tracks}`
-  where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
-  When an Endpoint receives such a message it can subscribe for new tracks by returning action `t:subscribe_action_t/0`.
-  An Endpoint will be notified about track readiness it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback.
-  An example implementation of `handle_pad_added` callback can look like this
+  * publish for some tracks using actions `t:publish_action_t/0` and subscribe for some tracks using
+  function `#{inspect(__MODULE__)}.subscribe/3`. The first will cause RTC Engine to send a message in
+  form of `{:new_tracks, tracks}` where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
+  When an Endpoint receives such a message it can subscribe for new tracks by
+  using `#{inspect(__MODULE__)}.subscribe/3` function. An Endpoint will be notified about track readiness
+  it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
+  callback can look like this
 
   ```elixir
     @impl true
@@ -411,6 +412,37 @@ defmodule Membrane.RTC.Engine do
     :ok
   end
 
+  @doc """
+  Subscribes endpoint for tracks.
+
+  Endpoint  will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
+  `tracks` is a list in form of pairs `{track_id, track_format}`, where `track_id` is id of track this endpoint subscribes for
+  and `track_format` is the format of track that this endpoint is willing to receive.
+  If `track_format` is `:raw` Endpoint will receive track in `t:#{inspect(__MODULE__)}.Track.encoding/0` format.
+  Endpoint_id is a an id of endpoint, which want to subscribe on tracks.
+  """
+  @spec subscribe(
+          rtc_engine :: pid(),
+          subscriptions :: [{Track.id(), atom()}],
+          endpoint_id :: String.t()
+        ) ::
+          :ok | {:error, :timeout} | {:error, Track.id(), :no_such_track | :invalid_track_format}
+  def subscribe(rtc_engine, subscriptions, endpoint_id) do
+    ref = make_ref()
+    send(rtc_engine, {:subscribe, subscriptions, self(), endpoint_id, ref})
+
+    receive do
+      {^ref, :ok} ->
+        :ok
+
+      {^ref, {:error, track_id, reason}} ->
+        {:error, track_id, reason}
+    after
+      5_000 ->
+        {:error, :timeout}
+    end
+  end
+
   @impl true
   def handle_init(options) do
     play(self())
@@ -540,6 +572,60 @@ defmodule Membrane.RTC.Engine do
 
       {:present, actions, state} ->
         {{:ok, actions}, state}
+    end
+  end
+
+  @decorate trace("engine.other.subscribe", include: [[:state, :id]])
+  def handle_other(
+        {:subscribe, tracks_formats, endpoint_pid, endpoint_id, ref},
+        ctx,
+        state
+      ) do
+    all_tracks =
+      state.endpoints
+      |> Map.values()
+      |> Enum.flat_map(&Endpoint.get_tracks/1)
+      |> Map.new(&{&1.id, &1})
+
+    incorrect_subscriptions =
+      tracks_formats
+      |> Enum.map(fn {track_id, format} ->
+        track = Map.get(all_tracks, track_id)
+
+        cond do
+          track == nil ->
+            {:error, track_id, :no_such_track}
+
+          format not in track.format ->
+            {:error, track_id, :invalid_track_format}
+
+          true ->
+            :ok
+        end
+      end)
+      |> Enum.drop_while(&(&1 == :ok))
+
+    if incorrect_subscriptions != [] do
+      [msg | _] = incorrect_subscriptions
+      send(endpoint_pid, {ref, msg})
+      {:ok, state}
+    else
+      {links, state} = link_outbound_tracks(tracks_formats, endpoint_id, ctx, state)
+
+      new_endpoint_subscriptions = Map.new(tracks_formats)
+
+      subscriptions =
+        Map.update(
+          state.subscriptions,
+          endpoint_id,
+          new_endpoint_subscriptions,
+          &Map.merge(&1, new_endpoint_subscriptions)
+        )
+
+      parent_spec = %ParentSpec{links: links, log_metadata: [rtc: state.id]}
+      state = %{state | subscriptions: subscriptions}
+      send(endpoint_pid, {ref, :ok})
+      {{:ok, [spec: parent_spec]}, state}
     end
   end
 
@@ -755,7 +841,8 @@ defmodule Membrane.RTC.Engine do
         state.endpoints,
         ctx,
         {:new_tracks, tracks},
-        {:endpoint, endpoint_id}
+        {:endpoint, endpoint_id},
+        state
       )
 
     endpoint = get_in(state, [:endpoints, endpoint_id])
@@ -791,7 +878,8 @@ defmodule Membrane.RTC.Engine do
         state.endpoints,
         ctx,
         {:remove_tracks, tracks},
-        {:endpoint, endpoint_id}
+        {:endpoint, endpoint_id},
+        state
       )
 
     track_ids = Enum.map(tracks, & &1.id)
@@ -962,6 +1050,7 @@ defmodule Membrane.RTC.Engine do
     ]
 
     state = put_in(state, [:waiting_for_linking, endpoint_id], MapSet.new())
+    state = put_in(state, [:subscriptions, endpoint_id], %{})
 
     spec = %ParentSpec{
       node: opts[:node],
@@ -1000,6 +1089,7 @@ defmodule Membrane.RTC.Engine do
       {_peer, state} = pop_in(state, [:peers, peer_id])
       {_status, actions, state} = do_remove_endpoint(peer_id, ctx, state)
       {_waiting, state} = pop_in(state, [:waiting_for_linking, peer_id])
+      {_subscriptions, state} = pop_in(state, [:subscriptions, peer_id])
       {:present, actions, state}
     else
       {:absent, [], state}
@@ -1016,7 +1106,8 @@ defmodule Membrane.RTC.Engine do
           state.endpoints,
           ctx,
           {:remove_tracks, tracks},
-          {:endpoint, peer_id}
+          {:endpoint, peer_id},
+          state
         )
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
@@ -1055,12 +1146,37 @@ defmodule Membrane.RTC.Engine do
     |> Enum.filter(&Map.has_key?(ctx.children, &1))
   end
 
-  defp do_publish(_endpoints, _ctx, {_, []} = _tracks, _endpoint_bin), do: []
+  defp do_publish(_endpoints, _ctx, {_, []} = _tracks, _endpoint_bin, _state), do: []
 
-  defp do_publish(endpoints, ctx, msg, endpoint_bin_name) do
+  defp do_publish(endpoints, ctx, {:new_tracks, _tracks} = msg, endpoint_bin_name, _state) do
     flat_map_children(ctx, fn
       {:endpoint, endpoint_id} = other_endpoint_bin ->
         endpoint = Map.get(endpoints, endpoint_id)
+
+        if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) do
+          [forward: {other_endpoint_bin, msg}]
+        else
+          []
+        end
+
+      _child ->
+        []
+    end)
+  end
+
+  defp do_publish(endpoints, ctx, {type, tracks}, endpoint_bin_name, state) do
+    flat_map_children(ctx, fn
+      {:endpoint, endpoint_id} = other_endpoint_bin ->
+        endpoint = Map.get(endpoints, endpoint_id)
+
+        has_subscription_on_track = fn track_id ->
+          state.subscriptions
+          |> Map.fetch!(endpoint_id)
+          |> Map.has_key?(track_id)
+        end
+
+        new_tracks = Enum.filter(tracks, &has_subscription_on_track.(&1.id))
+        msg = {type, new_tracks}
 
         if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) do
           [forward: {other_endpoint_bin, msg}]
