@@ -142,7 +142,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   defp do_select_encoding(forwarder, encoding) do
     # enqueue encoding, we will switch when
     # we receive key frame
-    Membrane.Logger.info("Enqueuing encoding #{inspect(encoding)}.")
+    Membrane.Logger.debug("Enqueuing encoding #{inspect(encoding)}.")
     %__MODULE__{forwarder | queued_encoding: encoding}
   end
 
