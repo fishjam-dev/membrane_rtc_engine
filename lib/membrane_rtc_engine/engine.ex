@@ -1004,7 +1004,7 @@ defmodule Membrane.RTC.Engine do
   defp prepare_track_to_endpoint_links(track_id, endpoint_id, tee_kind) do
     [
       link({tee_kind, track_id})
-      |> via_out(Pad.ref(:output, endpoint_id))
+      |> via_out(Pad.ref(:output, {:endpoint, endpoint_id}))
       |> via_in(Pad.ref(:input, track_id))
       |> to({:endpoint, endpoint_id})
     ]

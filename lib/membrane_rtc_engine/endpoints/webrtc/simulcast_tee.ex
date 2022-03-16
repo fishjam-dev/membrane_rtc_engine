@@ -43,7 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, endpoint_id), _context, state) do
+  def handle_pad_added(Pad.ref(:output, {:endpoint, endpoint_id}), _context, state) do
     state = put_in(state, [:forwarders, endpoint_id], Forwarder.new(state.clock_rate))
     {:ok, state}
   end
@@ -54,7 +54,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:output, endpoint_id), _context, state) do
+  def handle_pad_removed(Pad.ref(:output, {:endpoint, endpoint_id}), _context, state) do
     {_forwarder, state} = pop_in(state, [:forwarders, endpoint_id])
     {:ok, state}
   end

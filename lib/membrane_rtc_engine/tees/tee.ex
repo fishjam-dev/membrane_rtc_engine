@@ -35,7 +35,7 @@ defmodule Membrane.RTC.Engine.Tee do
     caps: :any
 
   def_output_pad :output,
-    availability: :always,
+    availability: :on_request,
     mode: :push,
     caps: :any
 
@@ -72,10 +72,10 @@ defmodule Membrane.RTC.Engine.Tee do
       ctx.pads
       |> Map.keys()
       |> Enum.filter(fn
-        {Membrane.Pad, :copy, {:endpoint, _endpoint_id} = endpoint_name} ->
+        {Membrane.Pad, :output, {:endpoint, _endpoint_id} = endpoint_name} ->
           MapSet.member?(state.forward_to, endpoint_name)
 
-        {Membrane.Pad, :copy, _ref} ->
+        {Membrane.Pad, :output, _ref} ->
           true
 
         _other ->

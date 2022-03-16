@@ -170,7 +170,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
       actions =
         if encoding == selected_encoding do
-          [buffer: {Pad.ref(:output, endpoint_id), buffer}]
+          [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
         else
           []
         end
@@ -215,7 +215,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
         actions = [
           notify: {:encoding_switched, endpoint_id, encoding},
-          buffer: {Pad.ref(:output, endpoint_id), buffer}
+          buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}
         ]
 
         {forwarder, actions}
@@ -234,7 +234,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
         {vp8_munger, buffer} = VP8Munger.munge(vp8_munger, buffer)
 
         forwarder = %{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
-        actions = [buffer: {Pad.ref(:output, endpoint_id), buffer}]
+        actions = [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
         {forwarder, actions}
 
       true ->
