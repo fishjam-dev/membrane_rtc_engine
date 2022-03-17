@@ -1,23 +1,23 @@
-const TEMPORAL_LAYERS_COUNT = 2;
+// const TEMPORAL_LAYERS_COUNT = 2;
 
 export const simulcastConfig: RTCRtpTransceiverInit = {
   direction: "sendonly",
+  // keep this array from low resolution to high resolution
+  // in other case lower resolution encoding can get
+  // higher max_bitrate
   sendEncodings: [
-    {
-      rid: "h",
-      active: true,
-      maxBitrate: 1_200_000,
-      // From 720p to 360p
-      scaleResolutionDownBy: 2,
-      //   scalabilityMode: "L1T" + TEMPORAL_LAYERS_COUNT,
-    },
     {
       rid: "l",
       active: true,
-      maxBitrate: 100_000,
-      // From 720p to 180p
-      scaleResolutionDownBy: 4,
+      // maxBitrate: 4_000_000,
+      scaleResolutionDownBy: 4.0,
       //   scalabilityMode: "L1T" + TEMPORAL_LAYERS_COUNT,
+    },
+    {
+      rid: "h",
+      active: true,
+      // maxBitrate: 4_000_000,
+      // scalabilityMode: "L1T" + TEMPORAL_LAYERS_COUNT,
     },
   ],
 };

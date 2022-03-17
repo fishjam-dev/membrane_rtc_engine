@@ -59,6 +59,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_mp4_plugin, "~> 0.11.0", optional: true},
       {:membrane_aac_plugin, "~> 0.11.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.9.0", optional: true},
+      {:membrane_rtp_vp8_plugin, "~> 0.2.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 0.7.0", override: true},
@@ -98,8 +99,9 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "internal_docs/media_events.md", "LICENSE"],
+      extras: extras(),
       groups_for_extras: groups_for_extras(),
+      assets: "internal_docs/simulcast/assets",
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
       groups_for_modules: [
@@ -117,9 +119,18 @@ defmodule Membrane.RTC.Engine.MixProject do
     ]
   end
 
-  defp groups_for_extras do
+  defp extras() do
     [
-      {"Developer docs", ~r/internal_docs\/[^\/]+\.md/}
+      "README.md",
+      "LICENSE",
+      "internal_docs/simulcast/simulcast.md",
+      "internal_docs/media_events.md"
+    ]
+  end
+
+  defp groups_for_extras() do
+    [
+      {"Developer docs", ~r/internal_docs\//}
     ]
   end
 
