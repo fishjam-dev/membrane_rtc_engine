@@ -52,8 +52,6 @@ defmodule TestVideoroom.Integration.ClientTest do
 
     receive do
       acc ->
-        IO.inspect(acc, label: :result)
-
         Enum.all?(acc, fn {stage, browsers} ->
           case stage do
             :after_join ->

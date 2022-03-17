@@ -147,7 +147,7 @@ args =
   end
   |> Keyword.merge(otp_app: :membrane_videoroom_demo, port: port)
 
-config :membrane_videoroom_demo, VideoRoomWeb.Endpoint, [
+config :test_videoroom, VideoRoomWeb.Endpoint, [
   {:url, [host: host]},
   {protocol, args}
 ]
