@@ -349,7 +349,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
           |> via_out(pad,
             options: [
               extensions: extensions,
-              use_depayloader?: false
+              use_depayloader?: false,
+              rtcp_fir_interval: Membrane.Time.seconds(5)
             ]
           )
           |> to_bin_output(pad)
