@@ -9,9 +9,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ForwarderTest do
 
     assert %Forwarder{
              selected_encoding: "h",
-             queued_encoding: "l",
+             queued_encoding: "m",
              old_encoding: "h",
-             active_encodings: ["l"]
+             active_encodings: ["m", "l"]
            } = forwarder
 
     forwarder = Forwarder.encoding_active(forwarder, "h")
@@ -20,7 +20,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ForwarderTest do
              selected_encoding: "h",
              queued_encoding: nil,
              old_encoding: nil,
-             active_encodings: ["l", "h"]
+             active_encodings: ["m", "l", "h"]
            } = forwarder
   end
 end
