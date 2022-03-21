@@ -389,9 +389,9 @@ export class MembraneWebRTC {
    * receive in {@link onPeerJoined}. E.g. this can source of the track - wheather it's
    * screensharing, webcam or some other media device.
    * @param isSimulcast - Defines whether track should be simulcasted or not.
-   * At the moment simulcast track is sent in two versions - low and high.
-   * High resolution is the original track resolution while the low resolution
-   * is the original track resoultion scaled down by 4.
+   * At the moment simulcast track is sent in three versions - low, medium and high.
+   * High resolution is the original track resolution, while medium and low resolutions
+   * are the original track resoultion scaled down by 2 and 4 respectively.
    * Those settings are not configurable at the moment.
    * @returns {string} Returns id of added track
    * @example
