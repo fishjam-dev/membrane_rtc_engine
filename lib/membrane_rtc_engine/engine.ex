@@ -806,7 +806,9 @@ defmodule Membrane.RTC.Engine do
         Membrane.Logger.warn("""
         Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
         track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given peer does not have this track. Ignoring.
+        given peer does not have this track.
+        Peer tracks: #{inspect(Endpoint.get_tracks(endpoint) |> Enum.map(& &1.id))}
+        Ignoring.
         """)
 
         {:ok, state}
@@ -815,7 +817,9 @@ defmodule Membrane.RTC.Engine do
         Membrane.Logger.warn("""
         Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
         track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given track does not have this encoding. Ignoring.
+        given track does not have this encoding.
+        Track encodings: #{inspect(video_track.simulcast_encodings)}
+        Ignoring.
         """)
 
         {:ok, state}
