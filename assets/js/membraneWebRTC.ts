@@ -923,7 +923,12 @@ export class MembraneWebRTC {
 
     this.addTransceiversIfNeeded(offerData);
 
-    await this.createAndSendOffer();
+    if (this.connection!.getTransceivers().length == 0) {
+      const mediaEvent: MediaEvent = generateCustomEvent({ type: "sdpOffer" });
+      this.sendMediaEvent(mediaEvent);
+    } else {
+      await this.createAndSendOffer();
+    }
   };
 
   private onRemoteCandidate = (candidate: RTCIceCandidate) => {
