@@ -4,7 +4,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ForwarderTest do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
 
   test "Forwarder switches back to encoding being used before it became inactive" do
-    forwarder = Forwarder.new(90_000)
+    forwarder = Forwarder.new(:vp8, 90_000)
     forwarder = Forwarder.encoding_inactive(forwarder, "h")
 
     assert %Forwarder{

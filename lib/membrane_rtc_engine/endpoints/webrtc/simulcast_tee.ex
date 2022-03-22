@@ -7,7 +7,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   require Membrane.Logger
 
-  def_options clock_rate: []
+  @supported_codecs [:H264, :VP8]
+
+  def_options codec: [
+                type: :atom,
+                spec: [:H264 | :VP8]
+              ],
+              clock_rate: []
 
   def_input_pad :input,
     availability: :on_request,
@@ -28,8 +34,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_init(opts) do
+    codec = opts.codec
+
+    if codec not in @supported_codecs do
+      raise("""
+      #{inspect(__MODULE__)} does not support codec #{inspect(codec)}.
+      Supported codecs: #{inspect(@supported_codecs)}
+      """)
+    end
+
     {:ok,
      %{
+       codec: codec,
        clock_rate: opts.clock_rate,
        forwarders: %{},
        trackers: %{
@@ -48,7 +64,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_pad_added(Pad.ref(:output, {:endpoint, endpoint_id}), _context, state) do
-    state = put_in(state, [:forwarders, endpoint_id], Forwarder.new(state.clock_rate))
+    state =
+      put_in(state, [:forwarders, endpoint_id], Forwarder.new(state.codec, state.clock_rate))
+
     {:ok, state}
   end
 
