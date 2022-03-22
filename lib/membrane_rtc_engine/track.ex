@@ -85,7 +85,7 @@ defmodule Membrane.RTC.Engine.Track do
       stream_id: stream_id,
       id: id,
       encoding: Keyword.get(opts, :encoding),
-      simulcast_encodings: Keyword.get(opts, :simulcast_encodings),
+      simulcast_encodings: Keyword.get(opts, :simulcast_encodings, []),
       clock_rate: Keyword.get(opts, :clock_rate),
       format: Keyword.get(opts, :format),
       fmtp: Keyword.get(opts, :fmtp),
