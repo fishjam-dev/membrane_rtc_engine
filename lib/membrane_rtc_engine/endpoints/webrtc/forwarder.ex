@@ -35,7 +35,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
                 :old_encoding,
                 selected_encoding: "h",
                 vp8_munger: VP8Munger.new(),
-                active_encodings: ["h", "l"],
+                active_encodings: ["h", "m", "l"],
                 started?: false
               ]
 
@@ -67,7 +67,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
         active_encodings: List.delete(forwarder.active_encodings, encoding)
     }
 
-    do_select_encoding(forwarder, List.first(forwarder.active_encodings))
+    do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
   end
 
   def encoding_inactive(forwarder, encoding) do
@@ -101,7 +101,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
       # if we don't have any active encoding
       forwarder.selected_encoding == nil ->
-        do_select_encoding(forwarder, List.first(forwarder.active_encodings))
+        do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
 
       true ->
         forwarder
@@ -144,6 +144,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     # we receive key frame
     Membrane.Logger.debug("Enqueuing encoding #{inspect(encoding)}.")
     %__MODULE__{forwarder | queued_encoding: encoding}
+  end
+
+  defp get_next_encoding(encodings) do
+    encodings |> sort_encodings() |> List.first()
+  end
+
+  defp sort_encodings(encodings) do
+    get_value = fn encoding ->
+      case encoding do
+        "h" -> 3
+        "m" -> 2
+        "l" -> 1
+      end
+    end
+
+    Enum.sort(encodings, fn e1, e2 -> get_value.(e1) > get_value.(e2) end)
   end
 
   @spec process(t(), Membrane.Buffer.t(), Endpoint.WebRTC.encoding_t(), any()) ::

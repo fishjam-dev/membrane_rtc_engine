@@ -138,6 +138,15 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
                   default: nil,
                   description:
                     "Sender reports's generation interval, set to nil to avoid reports generation"
+                ],
+                rtcp_fir_interval: [
+                  spec: Membrane.Time.t() | nil,
+                  default: Membrane.Time.second(),
+                  description: """
+                  Defines how often FIR should be sent.
+
+                  For more information refer to RFC 5104 section 4.3.1.
+                  """
                 ]
 
     def_input_pad :input,
@@ -183,7 +192,8 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
         integrated_turn_options: opts.integrated_turn_options,
         integrated_turn_domain: opts.integrated_turn_domain,
         owner: opts.owner,
-        video_tracks_limit: opts.video_tracks_limit
+        video_tracks_limit: opts.video_tracks_limit,
+        rtcp_fir_interval: opts.rtcp_fir_interval
       }
 
       {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
@@ -350,7 +360,7 @@ if Code.ensure_loaded?(Membrane.WebRTC.EndpointBin) do
             options: [
               extensions: extensions,
               use_depayloader?: false,
-              rtcp_fir_interval: Membrane.Time.seconds(5)
+              rtcp_fir_interval: state.rtcp_fir_interval
             ]
           )
           |> to_bin_output(pad)

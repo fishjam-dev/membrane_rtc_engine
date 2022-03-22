@@ -32,7 +32,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
      %{
        clock_rate: opts.clock_rate,
        forwarders: %{},
-       trackers: %{"l" => EncodingTracker.new("l"), "h" => EncodingTracker.new("h")},
+       trackers: %{
+         "l" => EncodingTracker.new("l"),
+         "m" => EncodingTracker.new("m"),
+         "h" => EncodingTracker.new("h")
+       },
        update?: false
      }}
   end
