@@ -5,6 +5,18 @@ defmodule Membrane.RTC.Engine.MediaEvent do
 
   @type rtc_media_event_t() :: binary()
 
+  @spec create_peer_removed_event(Peer.id(), String.t()) :: rtc_media_event_t()
+  def create_peer_removed_event(peer_id, reason) do
+    %{
+      type: "peerRemoved",
+      data: %{
+        peerId: peer_id,
+        reason: reason
+      }
+    }
+    |> serialize()
+  end
+
   @spec create_peer_accepted_event(Peer.id(), map(), [Endpoint.t()]) :: rtc_media_event_t()
   def create_peer_accepted_event(peer_id, peers, endpoints) do
     peers =

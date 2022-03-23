@@ -245,16 +245,6 @@ defmodule Membrane.RTC.Engine do
   @type publish_action_t() :: {:notify, {:publish, publish_message_t()}}
 
   @typedoc """
-  Membrane action that make subscribtion for tracks in given format.
-
-  Endpoint  will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
-  `tracks` is a list in form of pairs `{track_id, track_format}`, where `track_id` is id of track this endpoint subscribes for
-  and `track_format` is the format of track that this endpoint is willing to receive.
-  If `track_format` is `:raw` Endpoint will receive track in `t:#{inspect(__MODULE__)}.Track.encoding/0` format.
-  """
-  @type subscribe_action_t() :: {:notify, {:subscribe, tracks :: [{Track.id(), Track.format()}]}}
-
-  @typedoc """
   Membrane action that will inform RTC Engine about track readiness.
   """
   @type track_ready_action_t() ::
@@ -1144,8 +1134,10 @@ defmodule Membrane.RTC.Engine do
       forward: {endpoint_name, {:new_tracks, outbound_tracks}}
     ]
 
-    state = put_in(state, [:waiting_for_linking, endpoint_id], MapSet.new())
-    state = put_in(state, [:subscriptions, endpoint_id], %{})
+    state =
+      state
+      |> put_in([:waiting_for_linking, endpoint_id], MapSet.new())
+      |> put_in([:subscriptions, endpoint_id], %{})
 
     spec = %ParentSpec{
       node: opts[:node],
@@ -1181,6 +1173,10 @@ defmodule Membrane.RTC.Engine do
 
   defp do_remove_peer(peer_id, ctx, state) do
     if Map.has_key?(state.peers, peer_id) do
+      MediaEvent.create_peer_removed_event(peer_id, "normal")
+      |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
+      |> dispatch()
+
       {_peer, state} = pop_in(state, [:peers, peer_id])
       {_status, actions, state} = do_remove_endpoint(peer_id, ctx, state)
       {_waiting, state} = pop_in(state, [:waiting_for_linking, peer_id])

@@ -158,6 +158,11 @@ export interface Callbacks {
    * @param {TrackEncoding} encoding - new encoding
    */
   onTrackEncodingChanged?: (peerId: string, trackId: string, encoding: TrackEncoding) => void;
+  
+  /**
+   * Called every time a local peer is removed by the server.
+   */
+  onRemoved?: (metadata: any) => void;
 }
 
 /**
@@ -334,6 +339,7 @@ export class MembraneWebRTC {
         this.erasePeer(peer);
         this.callbacks.onPeerLeft?.(peer);
         break;
+
       case "peerUpdated":
         if (this.getPeerId() === deserializedMediaEvent.data.peerId) return;
         peer = this.idToPeer.get(deserializedMediaEvent.data.peerId)!;
@@ -341,6 +347,16 @@ export class MembraneWebRTC {
         this.addPeer(peer);
         this.callbacks.onPeerUpdated?.(peer);
         break;
+
+      case "onRemoved":
+        if (this.getPeerId() !== deserializedMediaEvent.data.peerId) {
+          console.error("Received onRemoved media event, but it does not refer to the local peer");
+          return;
+        }
+
+        this.callbacks.onRemoved?.(deserializedMediaEvent.data.metadata);
+        break;
+
       case "trackUpdated":
         if (this.getPeerId() === deserializedMediaEvent.data.peerId) return;
         peer = this.idToPeer.get(deserializedMediaEvent.data.peerId)!;
@@ -454,8 +470,8 @@ export class MembraneWebRTC {
         .getTransceivers()
         .forEach(
           (transceiver) =>
-            (transceiver.direction =
-              transceiver.direction === "sendrecv" ? "sendonly" : transceiver.direction)
+          (transceiver.direction =
+            transceiver.direction === "sendrecv" ? "sendonly" : transceiver.direction)
         );
     }
 
