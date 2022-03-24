@@ -7,7 +7,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.Utils
 
   require Membrane.Pad
   require Membrane.Logger
@@ -275,7 +274,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   defp is_keyframe(payload, codec) do
     case codec do
       :H264 -> Membrane.RTP.H264.Utils.is_keyframe(payload)
-      :VP8 -> Utils.is_vp8_keyframe(payload)
+      :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(payload)
     end
   end
 end
