@@ -29,7 +29,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Utils do
   defp do_is_h264_keyframe(0, _payload), do: false
 
   # single NALU
-  defp do_is_h264_keyframe(nalu_type, _nalu) when nalu_type in [1..23] do
+  defp do_is_h264_keyframe(nalu_type, _nalu) when nalu_type in 1..23 do
     nalu_type == 5
   end
 
@@ -42,22 +42,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Utils do
 
   # STAP-B, MTAP16 or MTAP24
   defp do_is_h264_keyframe(nalu_type, payload)
-       when nalu_type in [25, 26, 27] and byte_size(payload) >= 2 do
+       when nalu_type in 25..27 and byte_size(payload) >= 2 do
     <<_don::16, aus::binary()>> = payload
     check_aggregation_units(nalu_type, aus)
   end
 
   # FU-A or FU-B
   defp do_is_h264_keyframe(nalu_type, payload)
-       when nalu_type in [28..29] and byte_size(payload) >= 2 do
+       when nalu_type in 28..29 and byte_size(payload) >= 2 do
     <<_fu_indicator::8, fu_header::binary-size(1), _fu_payload::binary()>> = payload
     <<s::1, _e::1, _r::1, type::5>> = fu_header
-
-    if s == 1 do
-      type == 7
-    else
-      false
-    end
+    s == 1 and type == 7
   end
 
   defp do_is_h264_keyframe(_type, _payload), do: false
