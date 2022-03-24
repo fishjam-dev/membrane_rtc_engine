@@ -158,7 +158,7 @@ export interface Callbacks {
    * @param {TrackEncoding} encoding - new encoding
    */
   onTrackEncodingChanged?: (peerId: string, trackId: string, encoding: TrackEncoding) => void;
-  
+
   /**
    * Called every time a local peer is removed by the server.
    */
@@ -470,8 +470,8 @@ export class MembraneWebRTC {
         .getTransceivers()
         .forEach(
           (transceiver) =>
-          (transceiver.direction =
-            transceiver.direction === "sendrecv" ? "sendonly" : transceiver.direction)
+            (transceiver.direction =
+              transceiver.direction === "sendrecv" ? "sendonly" : transceiver.direction)
         );
     }
 
