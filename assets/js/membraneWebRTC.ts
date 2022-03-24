@@ -348,7 +348,7 @@ export class MembraneWebRTC {
         this.callbacks.onPeerUpdated?.(peer);
         break;
 
-      case "onRemoved":
+      case "peerRemoved":
         if (this.getPeerId() !== deserializedMediaEvent.data.peerId) {
           console.error("Received onRemoved media event, but it does not refer to the local peer");
           return;
@@ -393,6 +393,10 @@ export class MembraneWebRTC {
       case "error":
         this.callbacks.onConnectionError?.(deserializedMediaEvent.data.message);
         this.leave();
+        break;
+
+      default:
+        console.warn("Received unknown media event: ", deserializedMediaEvent.type);
         break;
     }
   };

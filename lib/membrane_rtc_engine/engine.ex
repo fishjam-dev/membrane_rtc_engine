@@ -639,6 +639,20 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
+  @impl true
+  def handle_crash_group_down(endpoint_id, _ctx, state) do
+    if Map.has_key?(state.peers, endpoint_id) do
+      MediaEvent.create_peer_removed_event(endpoint_id, "server_crashed")
+      |> then(&%Message.MediaEvent{rtc_engine: self(), to: endpoint_id, data: &1})
+      |> dispatch()
+    end
+
+    %Message.EndpointCrashed{endpoint_id: endpoint_id}
+    |> dispatch()
+
+    {:ok, state}
+  end
+
   defp handle_media_event(%{type: :join, data: data}, peer_id, _ctx, state) do
     peer = Peer.new(peer_id, data.metadata || %{})
     dispatch(%Message.NewPeer{rtc_engine: self(), peer: peer})
