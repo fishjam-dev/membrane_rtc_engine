@@ -354,7 +354,7 @@ export class MembraneWebRTC {
           return;
         }
 
-        this.callbacks.onRemoved?.(deserializedMediaEvent.data.metadata);
+        this.callbacks.onRemoved?.(deserializedMediaEvent.data.reason);
         break;
 
       case "trackUpdated":

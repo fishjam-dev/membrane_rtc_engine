@@ -337,9 +337,9 @@ defmodule Membrane.RTC.Engine do
   @doc """
   Removes peer from RTC Engine.
   """
-  @spec remove_peer(rtc_engine :: pid(), peer_id :: any()) :: :ok
-  def remove_peer(rtc_engine, peer_id) do
-    send(rtc_engine, {:remove_peer, peer_id})
+  @spec remove_peer(rtc_engine :: pid(), peer_id :: any(), reason :: String.t()) :: :ok
+  def remove_peer(rtc_engine, peer_id, reason \\ "normal") do
+    send(rtc_engine, {:remove_peer, peer_id, reason})
     :ok
   end
 
@@ -514,8 +514,8 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   @decorate trace("engine.other.remove_peer", include: [[:state, :id]])
-  def handle_other({:remove_peer, id}, ctx, state) do
-    {actions, state} = remove_peer(id, ctx, state)
+  def handle_other({:remove_peer, id, reason}, ctx, state) do
+    {actions, state} = remove_peer(id, reason, ctx, state)
     {{:ok, actions}, state}
   end
 
@@ -1154,8 +1154,8 @@ defmodule Membrane.RTC.Engine do
   defp get_outbound_tracks(endpoints),
     do: Enum.flat_map(endpoints, fn {_id, endpoint} -> Endpoint.get_tracks(endpoint) end)
 
-  defp remove_peer(peer_id, ctx, state) do
-    case do_remove_peer(peer_id, ctx, state) do
+  defp remove_peer(peer_id, reason, ctx, state) do
+    case do_remove_peer(peer_id, reason, ctx, state) do
       {:absent, [], state} ->
         Membrane.Logger.info("Peer #{inspect(peer_id)} already removed")
         {[], state}
@@ -1171,9 +1171,9 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp do_remove_peer(peer_id, ctx, state) do
+  defp do_remove_peer(peer_id, reason, ctx, state) do
     if Map.has_key?(state.peers, peer_id) do
-      MediaEvent.create_peer_removed_event(peer_id, "normal")
+      MediaEvent.create_peer_removed_event(peer_id, reason)
       |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
       |> dispatch()
 
