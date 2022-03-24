@@ -42,10 +42,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
   @doc """
   Creates a new forwarder.
-
-  Clock rate has to be in Hz.
   """
-  @spec new(:H264 | :VP8, non_neg_integer()) :: t()
+  @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t()) :: t()
   def new(:vp8, clock_rate) do
     %__MODULE__{codec: :VP8, rtp_munger: RTPMunger.new(clock_rate), vp8_munger: VP8Munger.new()}
   end
@@ -276,7 +274,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
   defp is_keyframe(payload, codec) do
     case codec do
-      :H264 -> Utils.is_h264_keyframe(payload)
+      :H264 -> Membrane.RTP.H264.Utils.is_keyframe(payload)
       :VP8 -> Utils.is_vp8_keyframe(payload)
     end
   end

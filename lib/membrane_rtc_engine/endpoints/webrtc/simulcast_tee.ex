@@ -11,9 +11,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   def_options codec: [
                 type: :atom,
-                spec: [:H264 | :VP8]
+                spec: [:H264 | :VP8],
+                description: "Codec of track #{inspect(__MODULE__)} will forward."
               ],
-              clock_rate: []
+              clock_rate: [
+                type: :integer,
+                spec: Membrane.RTP.clock_rate_t(),
+                description: "Clock rate of track #{inspect(__MODULE__)} will forward."
+              ]
 
   def_input_pad :input,
     availability: :on_request,
