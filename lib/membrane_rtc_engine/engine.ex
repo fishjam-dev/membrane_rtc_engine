@@ -473,7 +473,7 @@ defmodule Membrane.RTC.Engine do
       state.peers
       |> Map.keys()
       |> Enum.reduce({[], state}, fn peer_id, {all_actions, state} ->
-        {actions, state} = remove_peer(peer_id, ctx, state)
+        {actions, state} = remove_peer(peer_id, "playback_finished", ctx, state)
         {all_actions ++ actions, state}
       end)
 
@@ -691,7 +691,7 @@ defmodule Membrane.RTC.Engine do
     %Message.PeerLeft{rtc_engine: self(), peer: state.peers[peer_id]}
     |> dispatch()
 
-    remove_peer(peer_id, ctx, state)
+    remove_peer(peer_id, nil, ctx, state)
   end
 
   defp handle_media_event(
@@ -1187,9 +1187,11 @@ defmodule Membrane.RTC.Engine do
 
   defp do_remove_peer(peer_id, reason, ctx, state) do
     if Map.has_key?(state.peers, peer_id) do
-      MediaEvent.create_peer_removed_event(peer_id, reason)
-      |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
-      |> dispatch()
+      unless reason == nil,
+        do:
+          MediaEvent.create_peer_removed_event(peer_id, reason)
+          |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
+          |> dispatch()
 
       {_peer, state} = pop_in(state, [:peers, peer_id])
       {_status, actions, state} = do_remove_endpoint(peer_id, ctx, state)
