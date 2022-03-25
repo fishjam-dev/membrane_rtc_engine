@@ -43,7 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   Creates a new forwarder.
   """
   @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t()) :: t()
-  def new(:vp8, clock_rate) do
+  def new(:VP8, clock_rate) do
     %__MODULE__{codec: :VP8, rtp_munger: RTPMunger.new(clock_rate), vp8_munger: VP8Munger.new()}
   end
 
