@@ -473,7 +473,7 @@ defmodule Membrane.RTC.Engine do
       state.peers
       |> Map.keys()
       |> Enum.reduce({[], state}, fn peer_id, {all_actions, state} ->
-        {actions, state} = remove_peer(peer_id, "playback_finished", ctx, state)
+        {actions, state} = handle_remove_peer(peer_id, "playback_finished", ctx, state)
         {all_actions ++ actions, state}
       end)
 
@@ -515,7 +515,7 @@ defmodule Membrane.RTC.Engine do
   @impl true
   @decorate trace("engine.other.remove_peer", include: [[:state, :id]])
   def handle_other({:remove_peer, id, reason}, ctx, state) do
-    {actions, state} = remove_peer(id, reason, ctx, state)
+    {actions, state} = handle_remove_peer(id, reason, ctx, state)
     {{:ok, actions}, state}
   end
 
@@ -691,7 +691,7 @@ defmodule Membrane.RTC.Engine do
     %Message.PeerLeft{rtc_engine: self(), peer: state.peers[peer_id]}
     |> dispatch()
 
-    remove_peer(peer_id, nil, ctx, state)
+    handle_remove_peer(peer_id, nil, ctx, state)
   end
 
   defp handle_media_event(
@@ -1168,7 +1168,7 @@ defmodule Membrane.RTC.Engine do
   defp get_outbound_tracks(endpoints),
     do: Enum.flat_map(endpoints, fn {_id, endpoint} -> Endpoint.get_tracks(endpoint) end)
 
-  defp remove_peer(peer_id, reason, ctx, state) do
+  defp handle_remove_peer(peer_id, reason, ctx, state) do
     case do_remove_peer(peer_id, reason, ctx, state) do
       {:absent, [], state} ->
         Membrane.Logger.info("Peer #{inspect(peer_id)} already removed")
