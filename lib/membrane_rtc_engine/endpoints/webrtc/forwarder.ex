@@ -7,7 +7,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.Utils
 
   require Membrane.Pad
   require Membrane.Logger
@@ -19,6 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   becomes active again, forwarder will switch back to it.
   """
   @type t() :: %__MODULE__{
+          codec: :H264 | :VP8,
           selected_encoding: String.t() | nil,
           queued_encoding: String.t() | nil,
           old_encoding: String.t() | nil,
@@ -28,25 +28,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
           started?: boolean()
         }
 
-  @enforce_keys [:rtp_munger]
+  @enforce_keys [:codec, :rtp_munger]
   defstruct @enforce_keys ++
               [
                 :queued_encoding,
                 :old_encoding,
+                :vp8_munger,
                 selected_encoding: "h",
-                vp8_munger: VP8Munger.new(),
                 active_encodings: ["h", "m", "l"],
                 started?: false
               ]
 
   @doc """
   Creates a new forwarder.
-
-  Clock rate has to be in Hz.
   """
-  @spec new(non_neg_integer()) :: t()
-  def new(clock_rate) do
-    %__MODULE__{rtp_munger: RTPMunger.new(clock_rate)}
+  @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t()) :: t()
+  def new(:VP8, clock_rate) do
+    %__MODULE__{codec: :VP8, rtp_munger: RTPMunger.new(clock_rate), vp8_munger: VP8Munger.new()}
+  end
+
+  def new(:H264, clock_rate) do
+    %__MODULE__{codec: :H264, rtp_munger: RTPMunger.new(clock_rate)}
   end
 
   @doc """
@@ -175,7 +177,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     if buffer.payload != <<>> do
       Membrane.Logger.debug("Initializing RTP and VP8 mungers")
       rtp_munger = RTPMunger.init(rtp_munger, buffer)
-      vp8_munger = VP8Munger.init(vp8_munger, buffer)
+      vp8_munger = if vp8_munger, do: VP8Munger.init(vp8_munger, buffer)
 
       forwarder = %{
         forwarder
@@ -210,16 +212,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       # and this packet represents a keyframe
       # update mungers and start forwarding new encoding
       queued_encoding == encoding and buffer.payload != <<>> and
-          Utils.is_vp8_keyframe(buffer.payload) ->
+          is_keyframe(buffer.payload, forwarder.codec) ->
         Membrane.Logger.debug("""
         Received keyframe on requested encoding: #{inspect(queued_encoding)}. Switching.
         """)
 
         rtp_munger = RTPMunger.update(rtp_munger, buffer)
-        vp8_munger = VP8Munger.update(vp8_munger, buffer)
-
         {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
-        {vp8_munger, buffer} = VP8Munger.munge(vp8_munger, buffer)
+
+        {vp8_munger, buffer} =
+          if vp8_munger do
+            vp8_munger = VP8Munger.update(vp8_munger, buffer)
+            VP8Munger.munge(vp8_munger, buffer)
+          else
+            {vp8_munger, buffer}
+          end
 
         forwarder = %{
           forwarder
@@ -247,7 +254,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       # munge and forward it
       selected_encoding == encoding ->
         {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
-        {vp8_munger, buffer} = VP8Munger.munge(vp8_munger, buffer)
+
+        {vp8_munger, buffer} =
+          if vp8_munger do
+            VP8Munger.munge(vp8_munger, buffer)
+          else
+            {vp8_munger, buffer}
+          end
 
         forwarder = %{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
         actions = [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
@@ -255,6 +268,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
       true ->
         {forwarder, []}
+    end
+  end
+
+  defp is_keyframe(payload, codec) do
+    case codec do
+      :H264 -> Membrane.RTP.H264.Utils.is_keyframe(payload)
+      :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(payload)
     end
   end
 end
