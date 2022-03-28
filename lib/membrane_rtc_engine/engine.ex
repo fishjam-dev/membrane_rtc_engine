@@ -742,6 +742,58 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
+  defp handle_media_event(
+         %{
+           type: :select_encoding,
+           data: %{peer_id: peer_id, track_id: track_id, encoding: encoding}
+         },
+         requester,
+         _ctx,
+         state
+       ) do
+    endpoint = Map.fetch!(state.endpoints, peer_id)
+    subscription = get_in(state, [:subscriptions, requester, track_id])
+    video_track = Endpoint.get_track_by_id(endpoint, track_id)
+
+    cond do
+      subscription == nil ->
+        Membrane.Logger.warn("""
+        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
+        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
+        given endpoint is not subscribed for this track. Ignoring.
+        """)
+
+        {[], state}
+
+      video_track == nil ->
+        Membrane.Logger.warn("""
+        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
+        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
+        given peer does not have this track.
+        Peer tracks: #{inspect(Endpoint.get_tracks(endpoint) |> Enum.map(& &1.id))}
+        Ignoring.
+        """)
+
+        {[], state}
+
+      encoding not in video_track.simulcast_encodings ->
+        Membrane.Logger.warn("""
+        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
+        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
+        given track does not have this encoding.
+        Track encodings: #{inspect(video_track.simulcast_encodings)}
+        Ignoring.
+        """)
+
+        {[], state}
+
+      true ->
+        tee = {:tee, track_id}
+        actions = [forward: {tee, {:select_encoding, {requester, encoding}}}]
+        {actions, state}
+    end
+  end
+
   @impl true
   def handle_notification(notifcation, {:endpoint, endpoint_id} = from, ctx, state) do
     if Map.has_key?(state.endpoints, endpoint_id) do
@@ -766,69 +818,11 @@ defmodule Membrane.RTC.Engine do
         Endpoint.get_track_by_id(endpoint, track_id) != nil
       end)
 
-    data = %{
-      type: :encodingSwitched,
-      data: %{
-        peerId: sender_endpoint_id,
-        trackId: track_id,
-        encoding: encoding
-      }
-    }
-
-    MediaEvent.create_custom_event(data)
+    MediaEvent.create_encoding_switched_event(sender_endpoint_id, track_id, encoding)
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: receiver_endpoint_id, data: &1})
     |> dispatch()
 
     {:ok, state}
-  end
-
-  defp do_handle_notification(
-         {:select_encoding, {peer_id, track_id, encoding}},
-         {:endpoint, requester},
-         _ctx,
-         state
-       ) do
-    endpoint = Map.fetch!(state.endpoints, peer_id)
-    subscription = get_in(state, [:subscriptions, requester, track_id])
-    video_track = Endpoint.get_track_by_id(endpoint, track_id)
-
-    cond do
-      subscription == nil ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given endpoint is not subscribed for this track. Ignoring.
-        """)
-
-        {:ok, state}
-
-      video_track == nil ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given peer does not have this track.
-        Peer tracks: #{inspect(Endpoint.get_tracks(endpoint) |> Enum.map(& &1.id))}
-        Ignoring.
-        """)
-
-        {:ok, state}
-
-      encoding not in video_track.simulcast_encodings ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given track does not have this encoding.
-        Track encodings: #{inspect(video_track.simulcast_encodings)}
-        Ignoring.
-        """)
-
-        {:ok, state}
-
-      true ->
-        tee = {:tee, track_id}
-        actions = [forward: {tee, {:select_encoding, {requester, encoding}}}]
-        {{:ok, actions}, state}
-    end
   end
 
   # NOTE: When `payload_and_depayload_tracks?` options is set to false we may still want to depayload

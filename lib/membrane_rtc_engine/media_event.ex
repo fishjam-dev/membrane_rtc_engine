@@ -1,8 +1,7 @@
 defmodule Membrane.RTC.Engine.MediaEvent do
   @moduledoc false
 
-  alias Membrane.RTC.Engine.Endpoint
-  alias Membrane.RTC.Engine.Peer
+  alias Membrane.RTC.Engine.{Endpoint, Peer, Track}
 
   @type rtc_media_event_t() :: binary()
 
@@ -117,6 +116,19 @@ defmodule Membrane.RTC.Engine.MediaEvent do
     |> serialize()
   end
 
+  @spec create_encoding_switched_event(Peer.id(), Track.id(), String.t()) :: rtc_media_event_t()
+  def create_encoding_switched_event(peer_id, track_id, encoding) do
+    %{
+      type: "encodingSwitched",
+      data: %{
+        peerId: peer_id,
+        trackId: track_id,
+        encoding: encoding
+      }
+    }
+    |> serialize()
+  end
+
   @spec create_custom_event(map()) :: rtc_media_event_t()
   def create_custom_event(msg) do
     %{
@@ -218,6 +230,27 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   end
 
   defp do_deserialize(%{"type" => "leave"}), do: {:ok, %{type: :leave}}
+
+  defp do_deserialize(%{"type" => "selectEncoding"} = event) do
+    case event do
+      %{
+        "type" => "selectEncoding",
+        "data" => %{
+          "peerId" => peer_id,
+          "trackId" => track_id,
+          "encoding" => encoding
+        }
+      } ->
+        {:ok,
+         %{
+           type: :select_encoding,
+           data: %{peer_id: peer_id, track_id: track_id, encoding: encoding}
+         }}
+
+      _other ->
+        {:error, :invalid_media_event}
+    end
+  end
 
   defp do_deserialize(_event), do: {:error, :invalid_media_event}
 end

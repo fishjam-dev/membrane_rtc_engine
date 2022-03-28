@@ -691,9 +691,10 @@ export class MembraneWebRTC {
    * ```
    */
   public selectTrackEncoding(peerId: string, trackId: string, encoding: TrackEncoding) {
-    let mediaEvent = generateCustomEvent({
-      type: "selectEncoding",
-      data: { peerId: peerId, trackId: trackId, encoding: encoding },
+    let mediaEvent = generateMediaEvent("selectEncoding", {
+      peerId: peerId,
+      trackId: trackId,
+      encoding: encoding,
     });
     this.sendMediaEvent(mediaEvent);
   }

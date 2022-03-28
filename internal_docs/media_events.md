@@ -18,7 +18,7 @@ The format described on the end represents data from the above JSON, where the n
 | [updatePeerMetadata](#updatepeermetadata) | message contains new metadata of peer |
 | [updateTrackMetadata](#updatetrackmetadata) | message contains new metadata of track |
 | [custom](#custom) | message is forwarded to the endpoint associated with the peer |
-
+| [selectEncoding] (#selectencoding) | message informs that a peer wants to receive specific encoding of some track |
 
 
 #### RTC Engine sends these types of messages to the client: 
@@ -35,6 +35,7 @@ The format described on the end represents data from the above JSON, where the n
 | [peerJoined](#peerjoined) | message is sent after new peer joined RTC Engine |
 | [peerAccepted](#peeraccepted) | message is sent to peer after he join RTC Engine |
 | [peerLeft](#peerleft) | message is sent, when some peer left |
+| [encodingSwitched](#encodingswitched) | message is sent when track is now sent in a new encoding |
 
 ### WebRTC custom media events
 
@@ -283,3 +284,23 @@ to peer and information regarding the integrated TURN server.
         midToTrackId: mid_to_track_id
     } 
 ``` 
+### selectEncoding
+* this message informs that a peer wants to receive specific encoding of some track
+* 
+```json
+    {
+        peerId => peer_id,
+        trackId => track_id,
+        encoding => encoding
+    }
+```
+### encodingSwitched
+* this message informs that track with id `trackId` belonging to peer with id `peerId` will be sent in encoding `encoding` now.
+* 
+```json
+    {
+        peerId: peer_id,
+        trackId: track_id,
+        encoding: encoding    
+    } 
+```    
