@@ -632,7 +632,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   @decorate trace("engine.other.media_event", include: [[:state, :id]])
-  def handle_other({:media_event, from, data} = msg, ctx, state) do
+  def handle_other({:media_event, from, data}, ctx, state) do
     case MediaEvent.deserialize(data) do
       {:ok, event} ->
         if event.type == :join or Map.has_key?(state.peers, from) do
@@ -738,7 +738,7 @@ defmodule Membrane.RTC.Engine do
         {[], state}
       end
     else
-      {:ok, state}
+      {[], state}
     end
   end
 
