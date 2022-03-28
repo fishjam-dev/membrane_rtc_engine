@@ -32,6 +32,9 @@ Those settings are not configurable at the moment.
 >
 > To make all encodings working, original track resolution has to be at least 1280x720.
 > In other case, browser might not be able to scale resolution down.
+> In case of browser, original track resolution can be specified in constraints
+> passed to [`getUserMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia) 
+> or [`getDisplayMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia).
 
 On the server side, simulcast is by default enabled and cannot be turned off at the moment.
 
