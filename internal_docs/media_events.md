@@ -11,52 +11,51 @@ Firstly there are tables with names and short descriptions. On the end, there ar
 The format described on the end represents data from the above JSON, where the name of the message is the value of the type field.
 
 #### RTC Engine receives these types of media_events from client:
-| Name | Description |
-| ---- | ----------- |
-| [join](#join) | message is sent when peer join RTC Engine |
-| [leave](#leave) | message is sent when peer leave RTC Engine |
-| [updatePeerMetadata](#updatepeermetadata) | message contains new metadata of peer |
-| [updateTrackMetadata](#updatetrackmetadata) | message contains new metadata of track |
-| [custom](#custom) | message is forwarded to the endpoint associated with the peer |
-| [selectEncoding] (#selectencoding) | message informs that a peer wants to receive specific encoding of some track |
+| Name                                        | Description                                                   |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| [join](#join)                               | message is sent when peer join RTC Engine                     |
+| [leave](#leave)                             | message is sent when peer leave RTC Engine                    |
+| [updatePeerMetadata](#updatepeermetadata)   | message contains new metadata of peer                         |
+| [updateTrackMetadata](#updatetrackmetadata) | message contains new metadata of track                        |
+| [custom](#custom)                           | message is forwarded to the endpoint associated with the peer |
+
 
 
 #### RTC Engine sends these types of messages to the client: 
 
-| Name | Description |
-| ---- | ----------- |
+| Name                              | Description                                                                                   |
+| --------------------------------- | --------------------------------------------------------------------------------------------- |
 | [tracksPriority](#trackspriority) | message contains all tracks that will be forwarded to peer until next tracks_priority message |
-| [peerDenied](#peerdenied) | message sent, if peer was rejected by server during joining to server |
-| [peerUpdated](#peerupdated) | message contains new metadata of peer |
-| [trackUpdated](#trackupdated) | message contains new metadata of track |
-| [custom](#custom-1) | custom message forwarded from endpoint to client |
-| [tracksAdded](#tracksadded) | message sent after some tracks added by some peer |
-| [tracksRemoved](#tracksremoved) | message contains list of tracks which are removed by some peer |
-| [peerJoined](#peerjoined) | message is sent after new peer joined RTC Engine |
-| [peerAccepted](#peeraccepted) | message is sent to peer after he join RTC Engine |
-| [peerLeft](#peerleft) | message is sent, when some peer left |
-| [encodingSwitched](#encodingswitched) | message is sent when track is now sent in a new encoding |
-| [peerRemoved](#peerRemoved) | message is sent when peer is unwillingly removed by the server |
+| [peerDenied](#peerdenied)         | message sent, if peer was rejected by server during joining to server                         |
+| [peerUpdated](#peerupdated)       | message contains new metadata of peer                                                         |
+| [trackUpdated](#trackupdated)     | message contains new metadata of track                                                        |
+| [custom](#custom-1)               | custom message forwarded from endpoint to client                                              |
+| [tracksAdded](#tracksadded)       | message sent after some tracks added by some peer                                             |
+| [tracksRemoved](#tracksremoved)   | message contains list of tracks which are removed by some peer                                |
+| [peerJoined](#peerjoined)         | message is sent after new peer joined RTC Engine                                              |
+| [peerAccepted](#peeraccepted)     | message is sent to peer after he join RTC Engine                                              |
+| [peerLeft](#peerleft)             | message is sent, when some peer left                                                          |
+| [peerRemoved](#peerRemoved)       | message is sent when peer is unwillingly removed by the server                                |
 
 ### WebRTC custom media events
 
 #### WebRTC endpoint receives these types of custom_media_events from client:
 
-| Name | Description |
-| ---- | ----------- |
-| [renegotiateTracks](#renegotiatetracks) | message informs that a peer wants to make renegotiation |
-| [prioritizeTrack](#prioritizetrack) | message informs about, which track peer want to prioritize |
-| [unprioritizeTrack](#unprioritizetrack) | message informs about, which track peer want to unprioritize |
+| Name                                    | Description                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| [renegotiateTracks](#renegotiatetracks) | message informs that a peer wants to make renegotiation                        |
+| [prioritizeTrack](#prioritizetrack)     | message informs about, which track peer want to prioritize                     |
+| [unprioritizeTrack](#unprioritizetrack) | message informs about, which track peer want to unprioritize                   |
 | [prefereVideoSizes](#preferevideosizes) | message informs of how many videos in different quality, peer wants to receive |
-| [candidate](#candidate) | message informs about ICE candidate|
-| [sdpOffer](#sdpoffer) | message informs all needed information for SDP negotiation|
+| [candidate](#candidate)                 | message informs about ICE candidate                                            |
+| [sdpOffer](#sdpoffer)                   | message informs all needed information for SDP negotiation                     |
 
 #### WebRTC endpoint sends these type of custom messages to client
-| Name | Description |
-| ---- | ----------- |
-| [offerData](#offerdata) | message informs about data needed |
+| Name                      | Description                         |
+| ------------------------- | ----------------------------------- |
+| [offerData](#offerdata)   | message informs about data needed   |
 | [candidate](#candidate-1) | message informs about ICE candidate |
-| [sdpAnswer](#sdpanswer) | message informs about SDP Answer |
+| [sdpAnswer](#sdpanswer)   | message informs about SDP Answer    |
 
 
 ### join 
@@ -187,6 +186,17 @@ The format described on the end represents data from the above JSON, where the n
         peerId: peer_id
     }
 ```
+
+### peerRemoved
+* this message is sent to the peer that has been unwillingly removed by the server
+* 
+```json
+    {
+        peerId: peer_id,
+        reason: any
+    }
+```
+
 ### renegotiateTracks 
 * this message informs that a peer wants to make renegotiation due to adding a track or removing a track 
 * 
