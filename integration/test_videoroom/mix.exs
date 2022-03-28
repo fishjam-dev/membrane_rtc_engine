@@ -9,7 +9,8 @@ defmodule TestVideoroom.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       compilers: Mix.compilers(),
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      aliases: aliases()
     ]
   end
 
@@ -36,6 +37,13 @@ defmodule TestVideoroom.MixProject do
       {:cowlib, "~> 2.11", override: true},
       {:membrane_rtc_engine, path: "../../"},
       {:stampede, github: "geometerio/stampede-elixir"}
+    ]
+  end
+
+  defp aliases() do
+    [
+      test: ["assets.deploy", "test"],
+      "assets.deploy": ["esbuild default --minify", "phx.digest"]
     ]
   end
 end

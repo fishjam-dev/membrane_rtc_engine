@@ -146,24 +146,45 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp compile_ts(_) do
     Mix.shell().info("Installing npm dependencies")
 
-    if packages_installed?() do
+    if packages_installed?("assets") do
       Mix.shell().info("* Already installed")
     else
-      {result, exit_status} = System.cmd("npm", ["ci"], cd: "assets")
-      Mix.shell().info(result)
+      {_io_stream, exit_status} = System.cmd("npm", ["ci"], cd: "assets", into: IO.stream())
       if exit_status != 0, do: raise("Failed to install npm dependecies")
     end
 
     Mix.shell().info("Compiling TS files")
-    {result, exit_status} = System.cmd("npm", ["run", "build"], cd: "assets")
-    Mix.shell().info(result)
+
+    {_io_stream, exit_status} =
+      System.cmd("npm", ["run", "build"], cd: "assets", into: IO.stream())
+
     if exit_status != 0, do: raise("Failed to compile TS files")
   end
 
   defp run_integration_tests(_) do
+    Mix.shell().info("Getting mix dependencies in test_videoroom")
+
+    {_io_stream, exit_status} =
+      System.cmd("mix", ["deps.get"], cd: "integration/test_videoroom", into: IO.stream())
+
+    if exit_status != 0, do: raise("Failed to get dependencies in test_videoroom")
+
+    Mix.shell().info("Installing npm dependencies in test_videoroom")
+
+    if packages_installed?("integration/test_videoroom/assets") do
+      Mix.shell().info("* Already installed")
+    else
+      {_io_stream, exit_status} =
+        System.cmd("npm", ["ci"], cd: "integration/test_videoroom/assets", into: IO.stream())
+
+      if exit_status != 0, do: raise("Failed to install npm dependecies in test_videoroom")
+    end
+
     Mix.shell().info("Running integration tests")
-    {result, exit_status} = System.cmd("mix", ["test"], cd: "integration/test_videoroom")
-    Mix.shell().info(result)
+
+    {_io_stream, exit_status} =
+      System.cmd("mix", ["test"], cd: "integration/test_videoroom", into: IO.stream())
+
     if exit_status != 0, do: raise("Failed to run integration tests")
   end
 
@@ -174,8 +195,8 @@ defmodule Membrane.RTC.Engine.MixProject do
     if exit_status != 0, do: raise("Failed to generate TS docs")
   end
 
-  defp packages_installed?() do
-    System.cmd("npm", ["ls", "--prefix", "assets", "--prefer-offline"], stderr_to_stdout: true)
+  defp packages_installed?(dir) do
+    System.cmd("npm", ["ls", "--prefix", dir, "--prefer-offline"], stderr_to_stdout: true)
     |> case do
       {output, 0} ->
         missing =
