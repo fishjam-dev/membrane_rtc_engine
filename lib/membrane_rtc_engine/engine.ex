@@ -336,9 +336,11 @@ defmodule Membrane.RTC.Engine do
 
   @doc """
   Removes peer from RTC Engine.
+  
+  If reason is other than `nil`, RTC Engine will inform client library about peer removal with passed reason.
   """
   @spec remove_peer(rtc_engine :: pid(), peer_id :: any(), reason :: String.t()) :: :ok
-  def remove_peer(rtc_engine, peer_id, reason \\ "normal") do
+  def remove_peer(rtc_engine, peer_id, reason \\ nil) do
     send(rtc_engine, {:remove_peer, peer_id, reason})
     :ok
   end
@@ -642,7 +644,7 @@ defmodule Membrane.RTC.Engine do
   @impl true
   def handle_crash_group_down(endpoint_id, _ctx, state) do
     if Map.has_key?(state.peers, endpoint_id) do
-      MediaEvent.create_peer_removed_event(endpoint_id, "server_crashed")
+      MediaEvent.create_peer_removed_event(endpoint_id, "Internal server error.")
       |> then(&%Message.MediaEvent{rtc_engine: self(), to: endpoint_id, data: &1})
       |> dispatch()
     end
