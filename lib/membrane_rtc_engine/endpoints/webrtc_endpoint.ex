@@ -405,10 +405,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:ok, state}
   end
 
-  defp handle_custom_media_event(%{type: :select_encoding, data: data}, _ctx, state) do
-    {{:ok, notify: {:select_encoding, {data.peer_id, data.track_id, data.encoding}}}, state}
-  end
-
   defp get_turn_configs(turn_servers, state) do
     Enum.map(turn_servers, fn
       %{secret: secret} = turn_server ->
@@ -579,27 +575,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
              track_id_to_track_metadata: track_id_to_track_metadata,
              mid_to_track_id: mid_to_track_id
            }
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp deserialize(%{"type" => "selectEncoding"} = event) do
-    case event do
-      %{
-        "type" => "selectEncoding",
-        "data" => %{
-          "peerId" => peer_id,
-          "trackId" => track_id,
-          "encoding" => encoding
-        }
-      } ->
-        {:ok,
-         %{
-           type: :select_encoding,
-           data: %{peer_id: peer_id, track_id: track_id, encoding: encoding}
          }}
 
       _other ->
