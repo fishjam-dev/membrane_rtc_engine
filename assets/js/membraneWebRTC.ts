@@ -162,7 +162,7 @@ export interface Callbacks {
   /**
    * Called every time a local peer is removed by the server.
    */
-  onRemoved?: (metadata: any) => void;
+  onRemoved?: (reason: string) => void;
 }
 
 /**

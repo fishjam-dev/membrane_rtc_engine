@@ -336,10 +336,10 @@ defmodule Membrane.RTC.Engine do
 
   @doc """
   Removes peer from RTC Engine.
-  
+
   If reason is other than `nil`, RTC Engine will inform client library about peer removal with passed reason.
   """
-  @spec remove_peer(rtc_engine :: pid(), peer_id :: any(), reason :: String.t()) :: :ok
+  @spec remove_peer(rtc_engine :: pid(), peer_id :: any(), reason :: String.t() | nil) :: :ok
   def remove_peer(rtc_engine, peer_id, reason \\ nil) do
     send(rtc_engine, {:remove_peer, peer_id, reason})
     :ok
