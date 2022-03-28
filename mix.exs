@@ -61,8 +61,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:jason, "~> 1.2"},
       {:unifex, "~> 0.7.0", override: true},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
-      {:ex_doc, "0.24.2", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false, override: true},
+      {:ex_doc, "0.28.3", only: :dev, runtime: false},
+      {:credo, "~> 1.6", only: :dev, runtime: false, override: true},
 
       # Optional deps for HLS endpoint
       {:membrane_http_adaptive_stream_plugin, "~> 0.5.0", optional: true},
@@ -126,14 +126,20 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       "README.md",
       "LICENSE",
-      "internal_docs/simulcast/simulcast.md",
-      "internal_docs/media_events.md"
+
+      # guides
+      "guides/simulcast.md",
+
+      # internal docs
+      "internal_docs/media_events.md",
+      "internal_docs/simulcast/simulcast.md": [filename: "internal_simulcast"]
     ]
   end
 
   defp groups_for_extras() do
     [
-      {"Developer docs", ~r/internal_docs\//}
+      {"Developer docs", ~r/internal_docs\//},
+      {"Guides", ~r/guides\//}
     ]
   end
 

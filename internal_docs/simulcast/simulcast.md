@@ -12,6 +12,9 @@ it is willing to receive.
 Additionaly, sender can turn off/on specific encoding. 
 Membrane RTC Engine will detect changes and switch to another available encoding.
 
+## Codecs
+At the moment, both H264 and VP8 codecs are supported.
+
 ## Logic
 Switching between encodings has to be performed transparently from the receiver point of view.
 This implies that:
@@ -32,6 +35,8 @@ It encapsulates mungers (described below).
 
 Mungers are responsible for modyfing RTP packets so that switching between encodings is transparent
 for the receiver.
+Currently, there are two mungers: RTP Munger and VP8 Munger. 
+H264 doesn't require modyfing its RTP packets so there is no H264 Munger.
 
 ### RTP Munger
 
