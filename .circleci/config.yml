@@ -11,7 +11,6 @@ jobs:
     steps:
       - checkout
       - run: mix deps.get
-      - run: mix compile --force --warnings-as-errors
       - run: mix test
 
   lint:
@@ -26,7 +25,7 @@ jobs:
       - checkout
       - run: mix deps.get
       - run: mix format --check-formatted
-      - run: mix compile
+      - run: mix compile --force --warnings-as-errors
       - run: mix credo
       - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
       - run: cd assets && npm install
@@ -45,14 +44,9 @@ jobs:
     steps:
       - checkout
       - run: mix deps.get
-      - run: mix compile
-      - run: cd ./integration/test_videoroom && mix deps.update --all
       - run: cd ./integration/test_videoroom && mix deps.get
       - run: cd ./integration/test_videoroom && mix compile --force --warnings-as-errors
       - run: cd ./integration/test_videoroom && npm ci --prefix=assets
-      - run: cd ./integration/test_videoroom && npm i playwright@1.18.1 --prefix=assets
-      - run: cd ./integration/test_videoroom && mix esbuild default --minify
-      - run: cd ./integration/test_videoroom && mix phx.digest
       - run: cd ./integration/test_videoroom && mix test
 
   integration_turns:
@@ -71,14 +65,9 @@ jobs:
     steps:
       - checkout
       - run: mix deps.get
-      - run: mix compile
-      - run: cd ./integration/test_videoroom && mix deps.update --all
       - run: cd ./integration/test_videoroom && mix deps.get
       - run: cd ./integration/test_videoroom && mix compile --force --warnings-as-errors
       - run: cd ./integration/test_videoroom && npm ci --prefix=assets
-      - run: cd ./integration/test_videoroom && npm i playwright@1.18.1 --prefix=assets
-      - run: cd ./integration/test_videoroom && mix esbuild default --minify
-      - run: cd ./integration/test_videoroom && mix phx.digest
       - run: cd ./integration/test_videoroom && mix test
 
       
