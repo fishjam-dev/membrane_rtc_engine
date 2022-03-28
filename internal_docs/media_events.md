@@ -25,7 +25,7 @@ The format described on the end represents data from the above JSON, where the n
 
 | Name | Description |
 | ---- | ----------- |
-| [tracksPriority](#trackspriority) | message contains all tracks that will be forwarded to peer untill next tracks_priority message |
+| [tracksPriority](#trackspriority) | message contains all tracks that will be forwarded to peer until next tracks_priority message |
 | [peerDenied](#peerdenied) | message sent, if peer was rejected by server during joining to server |
 | [peerUpdated](#peerupdated) | message contains new metadata of peer |
 | [trackUpdated](#trackupdated) | message contains new metadata of track |
@@ -36,6 +36,7 @@ The format described on the end represents data from the above JSON, where the n
 | [peerAccepted](#peeraccepted) | message is sent to peer after he join RTC Engine |
 | [peerLeft](#peerleft) | message is sent, when some peer left |
 | [encodingSwitched](#encodingswitched) | message is sent when track is now sent in a new encoding |
+| [peerRemoved](#peerRemoved) | message is sent when peer is unwillingly removed by the server |
 
 ### WebRTC custom media events
 
