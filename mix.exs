@@ -81,7 +81,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       compile: ["compile", &compile_ts/1],
       docs: ["docs", &generate_ts_docs/1],
-      integration: &run_integration_tests/1
+      integration_test: &run_integration_tests/1
     ]
   end
 
@@ -165,17 +165,17 @@ defmodule Membrane.RTC.Engine.MixProject do
     Mix.shell().info("Getting mix dependencies in test_videoroom")
 
     {_io_stream, exit_status} =
-      System.cmd("mix", ["deps.get"], cd: "integration/test_videoroom", into: IO.stream())
+      System.cmd("mix", ["deps.get"], cd: "integration_test/test_videoroom", into: IO.stream())
 
     if exit_status != 0, do: raise("Failed to get dependencies in test_videoroom")
 
     Mix.shell().info("Installing npm dependencies in test_videoroom")
 
-    if packages_installed?("integration/test_videoroom/assets") do
+    if packages_installed?("integration_test/test_videoroom/assets") do
       Mix.shell().info("* Already installed")
     else
       {_io_stream, exit_status} =
-        System.cmd("npm", ["ci"], cd: "integration/test_videoroom/assets", into: IO.stream())
+        System.cmd("npm", ["ci"], cd: "integration_test/test_videoroom/assets", into: IO.stream())
 
       if exit_status != 0, do: raise("Failed to install npm dependecies in test_videoroom")
     end
@@ -183,7 +183,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     Mix.shell().info("Running integration tests")
 
     {_io_stream, exit_status} =
-      System.cmd("mix", ["test"], cd: "integration/test_videoroom", into: IO.stream())
+      System.cmd("mix", ["test"], cd: "integration_test/test_videoroom", into: IO.stream())
 
     if exit_status != 0, do: raise("Failed to run integration tests")
   end
