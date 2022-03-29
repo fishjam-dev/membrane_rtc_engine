@@ -1,7 +1,3 @@
-Code.require_file("../test_videoroom/test/support/integration_mustang.exs")
-Code.require_file("../test_videoroom/test/support/room_mustang.exs")
-Code.require_file("../test_videoroom/test/support/conn_case.ex")
-
 defmodule TestVideoroom.Integration.ClientTest do
   use TestVideoroomWeb.ConnCase, async: true
 
