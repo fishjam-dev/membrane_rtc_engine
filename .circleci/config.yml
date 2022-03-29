@@ -31,7 +31,7 @@ jobs:
       - run: cd assets && npm install
       - run: cd assets && npm run format:check
 
-  integration:
+  integration_test:
     docker:
       - image: membraneframeworklabs/docker_membrane:latest
         environment:
@@ -44,12 +44,12 @@ jobs:
     steps:
       - checkout
       - run: mix deps.get
-      - run: cd ./integration/test_videoroom && mix deps.get
-      - run: cd ./integration/test_videoroom && mix compile --force --warnings-as-errors
-      - run: cd ./integration/test_videoroom && npm ci --prefix=assets
-      - run: cd ./integration/test_videoroom && mix test
+      - run: cd ./integration_test/test_videoroom && mix deps.get
+      - run: cd ./integration_test/test_videoroom && mix compile --force --warnings-as-errors
+      - run: cd ./integration_test/test_videoroom && npm ci --prefix=assets
+      - run: cd ./integration_test/test_videoroom && mix test
 
-  integration_turns:
+  integration_test_with_turns:
     docker:
       - image: membraneframeworklabs/docker_membrane:latest
         environment:
@@ -65,10 +65,10 @@ jobs:
     steps:
       - checkout
       - run: mix deps.get
-      - run: cd ./integration/test_videoroom && mix deps.get
-      - run: cd ./integration/test_videoroom && mix compile --force --warnings-as-errors
-      - run: cd ./integration/test_videoroom && npm ci --prefix=assets
-      - run: cd ./integration/test_videoroom && mix test
+      - run: cd ./integration_test/test_videoroom && mix deps.get
+      - run: cd ./integration_test/test_videoroom && mix compile --force --warnings-as-errors
+      - run: cd ./integration_test/test_videoroom && npm ci --prefix=assets
+      - run: cd ./integration_test/test_videoroom && mix test
 
       
 
@@ -78,6 +78,6 @@ workflows:
     jobs:
       - test
       - lint
-      - integration
-      - integration_turns
+      - integration_test
+      - integration_test_with_turns
       
