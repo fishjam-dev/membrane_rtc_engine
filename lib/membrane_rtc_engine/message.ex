@@ -34,7 +34,7 @@ defmodule Membrane.RTC.Engine.Message do
 
   defmodule NewPeer do
     @moduledoc """
-    Message emmited when a new peer from Client Library tries to join RTC Engine.
+    Message emitted when a new peer from Client Library tries to join RTC Engine.
 
     You can reply to this message using: `Membrane.RTC.Engine.accept_peer/2` and
     `Membrane.RTC.Engine.deny_peer/2` or `Membrane.RTC.Engine.deny_peer/3`.
@@ -57,7 +57,7 @@ defmodule Membrane.RTC.Engine.Message do
 
   defmodule PeerLeft do
     @moduledoc """
-    Message emmitted when a peer left RTC Engine.
+    Message emitted when a peer left RTC Engine.
     """
 
     @typedoc """
@@ -72,6 +72,24 @@ defmodule Membrane.RTC.Engine.Message do
           }
 
     @enforce_keys [:rtc_engine, :peer]
+    defstruct @enforce_keys
+  end
+
+  defmodule EndpointCrashed do
+    @moduledoc """
+    Message emitted when an endpoint crashes.
+    """
+
+    @typedoc """
+    Describes EndpointCrashed Message structure.
+
+    * `endpoint_id` - id of an endpoint that crashed
+    """
+    @type t() :: %__MODULE__{
+            endpoint_id: any()
+          }
+
+    @enforce_keys [:endpoint_id]
     defstruct @enforce_keys
   end
 end
