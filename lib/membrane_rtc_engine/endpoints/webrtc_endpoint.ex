@@ -146,6 +146,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
                 For more information refer to RFC 5104 section 4.3.1.
                 """
+              ],
+              simulcast?: [
+                spec: boolean(),
+                default: true,
+                description: """
+                Whether to accept simulcast tracks or not.
+
+                Setting this to false will result in rejecting all incoming
+                simulcast tracks i.e. client will not send them.
+                """
               ]
 
   def_input_pad :input,
@@ -174,7 +184,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       trace_context: opts.trace_context,
       trace_metadata: [name: opts.ice_name],
       rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
-      rtcp_sender_report_interval: opts.rtcp_sender_report_interval
+      rtcp_sender_report_interval: opts.rtcp_sender_report_interval,
+      simulcast?: opts.simulcast?
     }
 
     spec = %ParentSpec{
