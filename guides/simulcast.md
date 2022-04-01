@@ -36,7 +36,9 @@ Those settings are not configurable at the moment.
 > passed to [`getUserMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia) 
 > or [`getDisplayMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia).
 
-On the server side, simulcast is by default enabled and cannot be turned off at the moment.
+On the server side, simulcast can be disabled while adding new WebRTC Endpoint by setting its `simulcast?` 
+option to `false`.
+This will result in rejecting all incoming simulcast tracks i.e. client will not send them.
 
 ## Disabling and enabling specific track encoding
 

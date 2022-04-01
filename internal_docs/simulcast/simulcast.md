@@ -56,4 +56,12 @@ In our architecture, we create `EncodingTracker` per simulcast encoding.
 Next, `SimulcastTee` polls information about encoding status every `x` seconds and
 when some encoding is no longer active it informs all `Forwarders`.
 
+## Disabling Simulcast
 
+Simulcast can be disabled per WebRTC Endpoint.
+At the moment, if client offers simulcast but we don't accept it, we will
+disable the whole track.
+This is not compliant with WebRTC standard as we should only remove SDP attributes 
+related to simulcast and be prepared for receiving one encoding.
+However, in such a case browser changes SSRC after ICE restart and 
+we cannot handle this at the moment.
