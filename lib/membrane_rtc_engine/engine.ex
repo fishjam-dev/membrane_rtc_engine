@@ -896,7 +896,7 @@ defmodule Membrane.RTC.Engine do
   defp do_handle_notification(
          {:publish, {:new_tracks, tracks}},
          {:endpoint, endpoint_id},
-         ctx,
+         _ctx,
          state
        ) do
     id_to_track = Map.new(tracks, &{&1.id, &1})
@@ -908,14 +908,7 @@ defmodule Membrane.RTC.Engine do
         &Map.merge(&1, id_to_track)
       )
 
-    tracks_msgs =
-      do_publish(
-        state.endpoints,
-        ctx,
-        {:new_tracks, tracks},
-        {:endpoint, endpoint_id},
-        state
-      )
+    tracks_msgs = do_publish({:new_tracks, tracks}, {:endpoint, endpoint_id}, state)
 
     endpoint = get_in(state, [:endpoints, endpoint_id])
     track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
@@ -945,14 +938,7 @@ defmodule Membrane.RTC.Engine do
         &Map.merge(&1, id_to_track)
       )
 
-    tracks_msgs =
-      do_publish(
-        state.endpoints,
-        ctx,
-        {:remove_tracks, tracks},
-        {:endpoint, endpoint_id},
-        state
-      )
+    tracks_msgs = do_publish({:remove_tracks, tracks}, {:endpoint, endpoint_id}, state)
 
     track_ids = Enum.map(tracks, & &1.id)
 
@@ -1197,8 +1183,6 @@ defmodule Membrane.RTC.Engine do
 
       {_peer, state} = pop_in(state, [:peers, peer_id])
       {_status, actions, state} = do_remove_endpoint(peer_id, ctx, state)
-      {_waiting, state} = pop_in(state, [:waiting_for_linking, peer_id])
-      {_subscriptions, state} = pop_in(state, [:subscriptions, peer_id])
       {:present, actions, state}
     else
       {:absent, [], state}
@@ -1208,16 +1192,11 @@ defmodule Membrane.RTC.Engine do
   defp do_remove_endpoint(peer_id, ctx, state) do
     if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
+      {_waiting, state} = pop_in(state, [:waiting_for_linking, peer_id])
+      {_subscriptions, state} = pop_in(state, [:subscriptions, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
 
-      tracks_msgs =
-        do_publish(
-          state.endpoints,
-          ctx,
-          {:remove_tracks, tracks},
-          {:endpoint, peer_id},
-          state
-        )
+      tracks_msgs = do_publish({:remove_tracks, tracks}, {:endpoint, peer_id}, state)
 
       endpoint_bin = ctx.children[{:endpoint, peer_id}]
 
@@ -1255,46 +1234,46 @@ defmodule Membrane.RTC.Engine do
     |> Enum.filter(&Map.has_key?(ctx.children, &1))
   end
 
-  defp do_publish(_endpoints, _ctx, {_, []} = _tracks, _endpoint_bin, _state), do: []
+  defp do_publish({_, []} = _tracks, _endpoint_bin, _state), do: []
 
-  defp do_publish(endpoints, ctx, {:new_tracks, _tracks} = msg, endpoint_bin_name, _state) do
-    flat_map_children(ctx, fn
-      {:endpoint, endpoint_id} = other_endpoint_bin ->
-        endpoint = Map.get(endpoints, endpoint_id)
+  defp do_publish({:new_tracks, _tracks} = msg, endpoint_bin_name, state) do
+    Enum.flat_map(state.endpoints, fn {endpoint_id, endpoint} ->
+      current_endpoint_bin_name = {:endpoint, endpoint_id}
 
-        if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) do
-          [forward: {other_endpoint_bin, msg}]
-        else
-          []
-        end
-
-      _child ->
+      if current_endpoint_bin_name != endpoint_bin_name and not is_nil(endpoint) do
+        [forward: {current_endpoint_bin_name, msg}]
+      else
         []
+      end
     end)
   end
 
-  defp do_publish(endpoints, ctx, {type, tracks}, endpoint_bin_name, state) do
-    flat_map_children(ctx, fn
-      {:endpoint, endpoint_id} = other_endpoint_bin ->
-        endpoint = Map.get(endpoints, endpoint_id)
+  defp do_publish({:remove_tracks, tracks}, endpoint_bin_name, state) do
+    Enum.flat_map(state.endpoints, fn {endpoint_id, endpoint} ->
+      current_endpoint_bin_name = {:endpoint, endpoint_id}
 
-        has_subscription_on_track = fn track_id ->
-          state.subscriptions
-          |> Map.fetch!(endpoint_id)
-          |> Map.has_key?(track_id)
-        end
+      has_subscription_on_track = fn track_id ->
+        state.subscriptions
+        |> Map.fetch!(endpoint_id)
+        |> Map.has_key?(track_id)
+      end
 
-        new_tracks = Enum.filter(tracks, &has_subscription_on_track.(&1.id))
-        msg = {type, new_tracks}
+      tracks_to_remove = Enum.filter(tracks, &has_subscription_on_track.(&1.id))
+      msg = {:remove_tracks, tracks_to_remove}
 
-        if other_endpoint_bin != endpoint_bin_name and not is_nil(endpoint) do
-          [forward: {other_endpoint_bin, msg}]
-        else
-          []
-        end
-
-      _child ->
+      if current_endpoint_bin_name != endpoint_bin_name and not is_nil(endpoint) do
+        [forward: {current_endpoint_bin_name, msg}]
+      else
         []
+      end
     end)
+  end
+
+  defp do_publish(msg, _endpoint_bin_name, _state) do
+    Membrane.Logger.warn(
+      "Requested unknown message type to be published by RTC Engine #{inspect(msg)}. Ignoring."
+    )
+
+    []
   end
 end
