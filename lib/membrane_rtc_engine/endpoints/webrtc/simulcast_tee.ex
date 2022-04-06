@@ -57,8 +57,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
          "l" => EncodingTracker.new("l"),
          "m" => EncodingTracker.new("m"),
          "h" => EncodingTracker.new("h")
-       },
-       update?: false
+       }
      }}
   end
 
