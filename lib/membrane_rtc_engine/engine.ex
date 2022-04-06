@@ -978,7 +978,11 @@ defmodule Membrane.RTC.Engine do
     tee =
       cond do
         rid != nil ->
-          %SimulcastTee{codec: track.encoding, clock_rate: track.clock_rate}
+          %SimulcastTee{
+            codec: track.encoding,
+            clock_rate: track.clock_rate,
+            endpoint_id: endpoint_id
+          }
 
         state.display_manager != nil ->
           %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
@@ -999,7 +1003,7 @@ defmodule Membrane.RTC.Engine do
       if rid do
         link({:endpoint, endpoint_id})
         |> via_out(Pad.ref(:output, {track_id, rid}))
-        |> via_in(Pad.ref(:input, rid))
+        |> via_in(Pad.ref(:input, {track_id, rid}))
         |> then(&tee_link.(&1))
       else
         link({:endpoint, endpoint_id})

@@ -6,6 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
 
   require Membrane.Logger
+  require Membrane.TelemetryMetrics
 
   @supported_codecs [:H264, :VP8]
 
@@ -18,6 +19,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
                 type: :integer,
                 spec: Membrane.RTP.clock_rate_t(),
                 description: "Clock rate of track #{inspect(__MODULE__)} will forward."
+              ],
+              endpoint_id: [
+                type: :binary,
+                description:
+                  "Identifier of WebRTC Endpoint forwarding tracks to #{inspect(__MODULE__)}"
               ]
 
   def_input_pad :input,
@@ -58,12 +64,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
          "m" => EncodingTracker.new("m"),
          "h" => EncodingTracker.new("h")
        },
-       update?: false
+       update?: false,
+       endpoint_id: opts.endpoint_id
      }}
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, _rid), _context, state) do
+  def handle_pad_added(Pad.ref(:input, {_track_id, _rid}), _context, state) do
     {:ok, state}
   end
 
@@ -87,7 +94,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:input, rid), _context, state) do
+  def handle_pad_removed(Pad.ref(:input, {_track_id, rid}), _context, state) do
     {_tracker, state} = pop_in(state, [:trackers, rid])
     {:ok, state}
   end
@@ -99,7 +106,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, encoding), buffer, _context, state) do
+  def handle_process(Pad.ref(:input, {track_id, encoding}), buffer, _context, state) do
+    Membrane.TelemetryMetrics.execute(
+      [:video_track, :packet_arrival],
+      %{
+        bitrate: bit_size(buffer.payload),
+        keyframe_indicator: keyframe_indicator(buffer.payload, state.codec)
+      },
+      %{endpoint_id: state.endpoint_id, track_id: track_id, encoding: encoding}
+    )
+
     state = update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))
 
     {actions, state} =
@@ -169,5 +185,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     else
       {:ok, state}
     end
+  end
+
+  defp keyframe_indicator(payload, codec) do
+    is_keyframe =
+      case codec do
+        :H264 -> Membrane.RTP.H264.Utils.is_keyframe(payload)
+        :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(payload)
+      end
+
+    if is_keyframe, do: 1, else: 0
   end
 end
