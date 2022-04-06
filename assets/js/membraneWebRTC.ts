@@ -7,7 +7,7 @@ import {
   serializeMediaEvent,
 } from "./mediaEvent";
 import { v4 as uuidv4 } from "uuid";
-import { simulcastConfig } from "./const";
+import { simulcastTransceiverConfig } from "./const";
 
 /**
  * Interface describing Peer.
@@ -42,6 +42,14 @@ export interface MembraneWebRTCConfig {
 }
 
 /**
+ * Simulcast configuration passed to {@link addTrack}.
+ */
+export interface SimulcastConfig {
+  enabled: boolean;
+  active_encodings: TrackEncoding[];
+}
+
+/**
  * Track's context i.e. all data that can be useful when operating on track.
  */
 export interface TrackContext {
@@ -60,9 +68,9 @@ export interface TrackContext {
    */
   trackId: string;
   /**
-   * Flag indicating whether track is a simulcast one or not.
+   * Simulcast configuration.
    */
-  isSimulcast: boolean;
+  simulcastConfig: SimulcastConfig;
   /**
    * Any info that was passed in {@link addTrack}.
    */
@@ -74,9 +82,9 @@ export interface TrackContext {
 /**
  * Type describing possible track encodings.
  * At the moment, if track was added as a simulcast one ({@link addTrack})
- * it will be transmitted to the server in two versions - low and high.
+ * it will be transmitted to the server in three versions - low, medium and high.
  */
-export type TrackEncoding = "l" | "h";
+export type TrackEncoding = "l" | "m" | "h";
 
 /**
  * Callbacks that has to be implemented by user.
@@ -292,7 +300,7 @@ export class MembraneWebRTC {
               stream: null,
               track: null,
               trackId,
-              isSimulcast: false,
+              simulcastConfig: { enabled: false, active_encodings: [] },
               metadata,
               peer,
               maxBandwidth: 0,
@@ -448,7 +456,7 @@ export class MembraneWebRTC {
     track: MediaStreamTrack,
     stream: MediaStream,
     trackMetadata: any = new Map(),
-    isSimulcast: boolean = false,
+    simulcastConfig: SimulcastConfig = { enabled: false, active_encodings: [] },
     maxBandwidth: BandwidthLimit = 0 // unlimited bandwidth
   ): string {
     if (this.getPeerId() === "") throw "Cannot add tracks before being accepted by the server";
@@ -462,7 +470,7 @@ export class MembraneWebRTC {
       trackId,
       peer: this.localPeer,
       metadata: trackMetadata,
-      isSimulcast,
+      simulcastConfig,
       maxBandwidth,
     };
     this.localTrackIdToTrack.set(trackId, trackContext);
@@ -488,8 +496,17 @@ export class MembraneWebRTC {
     const track = trackContext.track!!;
     let transceiverConfig: RTCRtpTransceiverInit;
 
-    if (trackContext.isSimulcast) {
-      transceiverConfig = track.kind === "audio" ? { direction: "sendonly" } : simulcastConfig;
+    if (trackContext.simulcastConfig.enabled) {
+      console.log(trackContext);
+      transceiverConfig =
+        track.kind === "audio" ? { direction: "sendonly" } : simulcastTransceiverConfig;
+      transceiverConfig.sendEncodings?.forEach((encoding) => {
+        if (
+          trackContext.simulcastConfig.active_encodings.includes(encoding.rid! as TrackEncoding)
+        ) {
+          encoding.active = true;
+        }
+      });
       this.disabledTrackEncodings.set(trackContext.trackId, []);
     } else {
       transceiverConfig = {
@@ -505,6 +522,8 @@ export class MembraneWebRTC {
         transceiverConfig.sendEncodings![0].maxBitrate = trackContext.maxBandwidth * 1024; // convert to bps;
       }
     }
+
+    console.log(transceiverConfig);
 
     this.connection!.addTransceiver(track, transceiverConfig);
   };
@@ -993,7 +1012,7 @@ export class MembraneWebRTC {
         peer: peer,
         trackId,
         metadata,
-        isSimulcast: false,
+        simulcastConfig: { enabled: false, active_encodings: [] },
       };
 
       this.trackIdToTrack.set(trackId, trackContext);
