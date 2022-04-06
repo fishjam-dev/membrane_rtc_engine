@@ -964,7 +964,7 @@ defmodule Membrane.RTC.Engine do
     tee =
       cond do
         rid != nil ->
-          %SimulcastTee{codec: track.encoding, clock_rate: track.clock_rate}
+          %SimulcastTee{track: track}
 
         state.display_manager != nil ->
           %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
