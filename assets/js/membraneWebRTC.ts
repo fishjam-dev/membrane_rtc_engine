@@ -45,7 +45,15 @@ export interface MembraneWebRTCConfig {
  * Simulcast configuration passed to {@link addTrack}.
  */
 export interface SimulcastConfig {
+  /**
+   * Whether to simulcast track or not.
+   */
   enabled: boolean;
+  /**
+   * List of initially active encodings.
+   * Encoding that is not present in this list might still be
+   * enabled using {@link enableTrackEncoding}.
+   */
   active_encodings: TrackEncoding[];
 }
 
@@ -300,7 +308,7 @@ export class MembraneWebRTC {
               stream: null,
               track: null,
               trackId,
-              simulcastConfig: { enabled: false, active_encodings: [] },
+              simulcastConfig: { enabled: false, encodings: [], active_encodings: [] },
               metadata,
               peer,
               maxBandwidth: 0,
@@ -497,17 +505,19 @@ export class MembraneWebRTC {
     let transceiverConfig: RTCRtpTransceiverInit;
 
     if (trackContext.simulcastConfig.enabled) {
-      console.log(trackContext);
       transceiverConfig =
         track.kind === "audio" ? { direction: "sendonly" } : simulcastTransceiverConfig;
+      let disabledTrackEncodings: TrackEncoding[] = [];
       transceiverConfig.sendEncodings?.forEach((encoding) => {
         if (
           trackContext.simulcastConfig.active_encodings.includes(encoding.rid! as TrackEncoding)
         ) {
           encoding.active = true;
+        } else {
+          disabledTrackEncodings.push(encoding.rid! as TrackEncoding);
         }
       });
-      this.disabledTrackEncodings.set(trackContext.trackId, []);
+      this.disabledTrackEncodings.set(trackContext.trackId, disabledTrackEncodings);
     } else {
       transceiverConfig = {
         direction: "sendonly",
@@ -522,9 +532,6 @@ export class MembraneWebRTC {
         transceiverConfig.sendEncodings![0].maxBitrate = trackContext.maxBandwidth * 1024; // convert to bps;
       }
     }
-
-    console.log(transceiverConfig);
-
     this.connection!.addTransceiver(track, transceiverConfig);
   };
 
