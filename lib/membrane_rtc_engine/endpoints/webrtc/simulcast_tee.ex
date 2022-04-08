@@ -30,7 +30,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         spec: String.t() | nil,
         default: nil,
         description: """
-        TODO
+        Initial encoding that should be sent via this pad.
+        `nil` means that the best possible encoding should be used.
         """
       ]
     ]
