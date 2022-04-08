@@ -243,25 +243,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     new_outbound_tracks =
       Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
 
-    subscriptions = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
-
     {:endpoint, endpoint_id} = ctx.name
 
-    case Engine.subscribe(state.rtc_engine, subscriptions, endpoint_id) do
-      :ok ->
-        send_if_not_nil(
-          state.display_manager,
-          {:subscribe_tracks, ctx.name, new_outbound_tracks}
-        )
+    opts = [default_simulcast_encoding: "m"]
 
-        {:ok, state}
+    Enum.each(new_outbound_tracks, fn track ->
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP, opts) do
+        :ok ->
+          :ok
 
-      {:error, track_id, reason} ->
-        raise "Couldn't subscribe for track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
+        {:error, reason} ->
+          raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+      end
+    end)
 
-      {:error, :timeout} ->
-        raise "Timeout subscribing on track in Engine with pid #{inspect(state.rtc_engine)}"
-    end
+    send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
+    {:ok, state}
   end
 
   @impl true

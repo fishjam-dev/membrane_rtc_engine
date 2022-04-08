@@ -200,7 +200,8 @@ defmodule Membrane.RTC.Engine do
     Message,
     Track,
     Peer,
-    DisplayManager
+    DisplayManager,
+    Subscription
   }
 
   alias Membrane.RTC.Engine
@@ -405,6 +406,8 @@ defmodule Membrane.RTC.Engine do
     :ok
   end
 
+  @type subscription_opts_t() :: [default_simulcast_encoding: String.t()]
+
   @doc """
   Subscribes endpoint for tracks.
 
@@ -416,20 +419,27 @@ defmodule Membrane.RTC.Engine do
   """
   @spec subscribe(
           rtc_engine :: pid(),
-          subscriptions :: [{Track.id(), atom()}],
-          endpoint_id :: String.t()
+          endpoint_id :: String.t(),
+          track_id :: Track.id(),
+          format :: atom(),
+          opts :: subscription_opts_t
         ) ::
-          :ok | {:error, :timeout} | {:error, Track.id(), :no_such_track | :invalid_track_format}
-  def subscribe(rtc_engine, subscriptions, endpoint_id) do
+          :ok
+          | {:error,
+             :timeout
+             | :invalid_track_id
+             | :invalid_track_format
+             | :invalid_default_simulcast_encoding}
+  def subscribe(rtc_engine, endpoint_id, track_id, format, opts \\ []) do
     ref = make_ref()
-    send(rtc_engine, {:subscribe, subscriptions, self(), endpoint_id, ref})
+    send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, format, opts})
 
     receive do
       {^ref, :ok} ->
         :ok
 
-      {^ref, {:error, track_id, reason}} ->
-        {:error, track_id, reason}
+      {^ref, {:error, reason}} ->
+        {:error, reason}
     after
       5_000 ->
         {:error, :timeout}
@@ -462,7 +472,7 @@ defmodule Membrane.RTC.Engine do
        trace_context: trace_ctx,
        peers: %{},
        endpoints: %{},
-       waiting_for_linking: %{},
+       pending_subscriptions: [],
        filters: %{},
        subscriptions: %{},
        display_manager: display_manager
@@ -570,55 +580,29 @@ defmodule Membrane.RTC.Engine do
 
   @decorate trace("engine.other.subscribe", include: [[:state, :id]])
   def handle_other(
-        {:subscribe, tracks_formats, endpoint_pid, endpoint_id, ref},
+        {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, format, opts},
         ctx,
         state
       ) do
-    all_tracks =
-      state.endpoints
-      |> Map.values()
-      |> Enum.flat_map(&Endpoint.get_tracks/1)
-      |> Map.new(&{&1.id, &1})
+    subscription = %Subscription{
+      endpoint_id: endpoint_id,
+      track_id: track_id,
+      format: format,
+      opts: opts,
+      status: :created
+    }
 
-    incorrect_subscriptions =
-      tracks_formats
-      |> Enum.map(fn {track_id, format} ->
-        track = Map.get(all_tracks, track_id)
+    case check_subscription(subscription, state) do
+      :ok ->
+        {links, state} = try_fulfill_subscription(subscription, ctx, state)
 
-        cond do
-          track == nil ->
-            {:error, track_id, :no_such_track}
+        parent_spec = %ParentSpec{links: links, log_metadata: [rtc: state.id]}
+        send(endpoint_pid, {ref, :ok})
+        {{:ok, [spec: parent_spec]}, state}
 
-          format not in track.format ->
-            {:error, track_id, :invalid_track_format}
-
-          true ->
-            :ok
-        end
-      end)
-      |> Enum.drop_while(&(&1 == :ok))
-
-    if incorrect_subscriptions != [] do
-      [msg | _] = incorrect_subscriptions
-      send(endpoint_pid, {ref, msg})
-      {:ok, state}
-    else
-      {links, state} = link_outbound_tracks(tracks_formats, endpoint_id, ctx, state)
-
-      new_endpoint_subscriptions = Map.new(tracks_formats)
-
-      subscriptions =
-        Map.update(
-          state.subscriptions,
-          endpoint_id,
-          new_endpoint_subscriptions,
-          &Map.merge(&1, new_endpoint_subscriptions)
-        )
-
-      parent_spec = %ParentSpec{links: links, log_metadata: [rtc: state.id]}
-      state = %{state | subscriptions: subscriptions}
-      send(endpoint_pid, {ref, :ok})
-      {{:ok, [spec: parent_spec]}, state}
+      {:error, _reason} = error ->
+        send(endpoint_pid, {ref, error})
+        {:ok, state}
     end
   end
 
@@ -653,6 +637,34 @@ defmodule Membrane.RTC.Engine do
     |> dispatch()
 
     {:ok, state}
+  end
+
+  defp check_subscription(subscription, state) do
+    # checks whether subscription is proper
+    track =
+      state.endpoints
+      |> Map.values()
+      |> Enum.flat_map(&Endpoint.get_tracks/1)
+      |> Map.new(&{&1.id, &1})
+      |> Map.get(subscription.track_id)
+
+    default_simulcast_encoding = subscription.opts[:default_simulcast_encoding]
+
+    cond do
+      track == nil ->
+        {:error, :invalid_track_id}
+
+      subscription.format not in track.format ->
+        {:error, :invalid_format}
+
+      # TODO maybe simulcast_encodings should be always a list
+      default_simulcast_encoding != nil and track.simulcast_encodings != nil and
+          default_simulcast_encoding not in track.simulcast_encodings ->
+        {:error, :invalid_default_simulcast_encoding}
+
+      true ->
+        :ok
+    end
   end
 
   defp handle_media_event(%{type: :join, data: data}, peer_id, _ctx, state) do
@@ -869,29 +881,6 @@ defmodule Membrane.RTC.Engine do
     {{:ok, spec: spec}, state}
   end
 
-  @decorate trace("engine.notification.subscribe", include: [:endpoint_id, [:state, :id]])
-  defp do_handle_notification(
-         {:subscribe, tracks_formats},
-         {:endpoint, endpoint_id},
-         ctx,
-         state
-       ) do
-    {links, state} = link_outbound_tracks(tracks_formats, endpoint_id, ctx, state)
-    new_endpoint_subscriptions = Map.new(tracks_formats)
-
-    subscriptions =
-      Map.update(
-        state.subscriptions,
-        endpoint_id,
-        new_endpoint_subscriptions,
-        &Map.merge(&1, new_endpoint_subscriptions)
-      )
-
-    parent_spec = %ParentSpec{links: links, log_metadata: [rtc: state.id]}
-    state = %{state | subscriptions: subscriptions}
-    {{:ok, [spec: parent_spec]}, state}
-  end
-
   @decorate trace("engine.notification.publish.new_tracks", include: [:endpoint_id, [:state, :id]])
   defp do_handle_notification(
          {:publish, {:new_tracks, tracks}},
@@ -994,78 +983,55 @@ defmodule Membrane.RTC.Engine do
       end
     ]
 
-    endpoints_to_link =
-      ctx.children
-      |> Enum.flat_map(fn
-        {{:endpoint, endpoint_id}, _data} -> [endpoint_id]
-        _child -> []
-      end)
-      |> Enum.filter(&MapSet.member?(state.waiting_for_linking[&1], track_id))
+    {pending_subscriptions, rest} =
+      Enum.split_with(state.pending_subscriptions, fn s -> s.track_id == track.id end)
 
-    waiting_for_linking =
-      Enum.reduce(endpoints_to_link, state.waiting_for_linking, fn endpoint_id,
-                                                                   waiting_for_linking ->
-        Map.update!(waiting_for_linking, endpoint_id, &MapSet.delete(&1, track_id))
+    {links, state} =
+      Enum.flat_map_reduce(pending_subscriptions, state, fn subscription, state ->
+        fulfill_subscription(subscription, ctx, state)
       end)
 
-    {endpoints_handling_raw_format, endpoints_handling_remote_format} =
-      Enum.split_with(endpoints_to_link, fn endpoint_id ->
-        format = state.subscriptions[endpoint_id][track_id]
-        format == :raw
-      end)
-
-    raw_format_links =
-      if endpoints_handling_raw_format == [] do
-        []
-      else
-        prepare_raw_format_links(track_id, state)
-      end
-
-    links_to_raw_format_endpoints =
-      Enum.map(endpoints_handling_raw_format, fn endpoint_id ->
-        prepare_track_to_endpoint_links(track_id, endpoint_id, :raw_format_tee)
-      end)
-
-    links_to_remote_format_endpoints =
-      Enum.map(endpoints_handling_remote_format, fn endpoint_id ->
-        prepare_track_to_endpoint_links(track_id, endpoint_id, :tee)
-      end)
-
-    links =
-      endpoint_to_tee_links ++
-        raw_format_links ++ links_to_raw_format_endpoints ++ links_to_remote_format_endpoints
-
-    state = %{state | waiting_for_linking: waiting_for_linking}
-    {links, state}
+    state = %{state | pending_subscriptions: rest}
+    {endpoint_to_tee_links ++ links, state}
   end
 
-  defp link_outbound_tracks(tracks_formats, endpoint_id, ctx, state) do
-    {tracks_to_link, tracks_not_to_link} =
-      Enum.split_with(tracks_formats, fn {track_id, _format} ->
-        Map.has_key?(ctx.children, {:tee, track_id})
-      end)
+  defp try_fulfill_subscription(subscription, ctx, state) do
+    if Map.has_key?(ctx.children, {:tee, subscription.track_id}) do
+      fulfill_subscription(subscription, ctx, state)
+    else
+      subscription = %Subscription{subscription | status: :pending}
+      state = update_in(state, [:pending_subscriptions], &[subscription | &1])
+      {[], state}
+    end
+  end
 
+  defp fulfill_subscription(%Subscription{format: :raw} = s, ctx, state) do
     links =
-      Enum.flat_map(tracks_to_link, fn
-        {track_id, :raw} ->
-          if Map.has_key?(ctx.children, {:raw_format_tee, track_id}) do
-            []
-          else
-            prepare_raw_format_links(track_id, state)
-          end ++
-            prepare_track_to_endpoint_links(track_id, endpoint_id, :raw_format_tee)
-
-        {track_id, _remote_format} ->
-          prepare_track_to_endpoint_links(track_id, endpoint_id, :tee)
-      end)
-
-    waiting_for_linking = MapSet.new(tracks_not_to_link, fn {track_id, _format} -> track_id end)
+      if Map.has_key?(ctx.children, {:raw_format_tee, s.track_id}) do
+        []
+      else
+        prepare_raw_format_links(s.track_id, state)
+      end ++
+        prepare_track_to_endpoint_links(s, :raw_format_tee, state)
 
     state =
       update_in(
         state,
-        [:waiting_for_linking, endpoint_id],
-        &MapSet.union(&1, waiting_for_linking)
+        [:subscriptions, s.endpoint_id],
+        &Map.put(&1, s.track_id, %Subscription{s | status: :active})
+      )
+
+    {links, state}
+  end
+
+  defp fulfill_subscription(s, _ctx, state) do
+    links = prepare_track_to_endpoint_links(s, :tee, state)
+
+    state =
+      update_in(
+        state,
+        [:subscriptions, s.endpoint_id],
+        &Map.put(&1, s.track_id, %Subscription{s | status: :active})
       )
 
     {links, state}
@@ -1079,12 +1045,35 @@ defmodule Membrane.RTC.Engine do
     ]
   end
 
-  defp prepare_track_to_endpoint_links(track_id, endpoint_id, tee_kind) do
+  defp prepare_track_to_endpoint_links(subscription, :tee, state) do
+    track =
+      state.endpoints
+      |> Map.values()
+      |> Enum.flat_map(&Endpoint.get_tracks/1)
+      |> Map.new(&{&1.id, &1})
+      |> Map.get(subscription.track_id)
+
+    options =
+      if track.simulcast_encodings != nil do
+        [default_simulcast_encoding: subscription.opts[:default_simulcast_encoding]]
+      else
+        []
+      end
+
     [
-      link({tee_kind, track_id})
-      |> via_out(Pad.ref(:output, {:endpoint, endpoint_id}))
-      |> via_in(Pad.ref(:input, track_id))
-      |> to({:endpoint, endpoint_id})
+      link({:tee, subscription.track_id})
+      |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}), options: options)
+      |> via_in(Pad.ref(:input, subscription.track_id))
+      |> to({:endpoint, subscription.endpoint_id})
+    ]
+  end
+
+  defp prepare_track_to_endpoint_links(subscription, tee_kind, _state) do
+    [
+      link({tee_kind, subscription.track_id})
+      |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
+      |> via_in(Pad.ref(:input, subscription.track_id))
+      |> to({:endpoint, subscription.endpoint_id})
     ]
   end
 
@@ -1136,10 +1125,7 @@ defmodule Membrane.RTC.Engine do
       forward: {endpoint_name, {:new_tracks, outbound_tracks}}
     ]
 
-    state =
-      state
-      |> put_in([:waiting_for_linking, endpoint_id], MapSet.new())
-      |> put_in([:subscriptions, endpoint_id], %{})
+    state = put_in(state, [:subscriptions, endpoint_id], %{})
 
     spec = %ParentSpec{
       node: opts[:node],
@@ -1189,10 +1175,16 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
+  # TODO `peer_id` -> `endpoint_id`
   defp do_remove_endpoint(peer_id, ctx, state) do
     if Map.has_key?(state.endpoints, peer_id) do
       {endpoint, state} = pop_in(state, [:endpoints, peer_id])
-      {_waiting, state} = pop_in(state, [:waiting_for_linking, peer_id])
+
+      state =
+        update_in(state, [:waiting_subscriptions, peer_id], fn subscriptions ->
+          Enum.filter(subscriptions, fn s -> s.endpoint_id != peer_id end)
+        end)
+
       {_subscriptions, state} = pop_in(state, [:subscriptions, peer_id])
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
 

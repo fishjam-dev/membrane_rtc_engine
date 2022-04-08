@@ -24,7 +24,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   def_output_pad :output,
     availability: :on_request,
     mode: :push,
-    caps: Membrane.RTP
+    caps: Membrane.RTP,
+    options: [
+      default_simulcast_encoding: [
+        spec: String.t() | nil,
+        default: nil,
+        description: """
+        TODO
+        """
+      ]
+    ]
 
   @typedoc """
   Notifies that encoding for endpoint with id `endpoint_id` was switched to encoding `encoding`.
@@ -58,9 +67,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {:endpoint, endpoint_id}), _context, state) do
+  def handle_pad_added(Pad.ref(:output, {:endpoint, endpoint_id}), context, state) do
     forwarder =
-      Forwarder.new(state.track.encoding, state.track.clock_rate, state.track.simulcast_encodings)
+      Forwarder.new(
+        state.track.encoding,
+        state.track.clock_rate,
+        state.track.simulcast_encodings,
+        context.options[:default_simulcast_encoding]
+      )
 
     forwarder =
       Enum.reduce(state.inactive_encodings, forwarder, fn encoding, forwarder ->

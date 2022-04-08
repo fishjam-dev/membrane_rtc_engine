@@ -82,23 +82,17 @@ if Enum.all?(
     def handle_other({:new_tracks, tracks}, ctx, state) do
       new_tracks = Map.new(tracks, &{&1.id, &1})
 
-      subscriptions =
-        tracks
-        |> Enum.filter(fn track -> :raw in track.format end)
-        |> Enum.map(fn track -> {track.id, :raw} end)
-
       {:endpoint, endpoint_id} = ctx.name
 
-      case Engine.subscribe(state.rtc_engine, subscriptions, endpoint_id) do
-        :ok ->
-          {:ok, Map.update!(state, :tracks, &Map.merge(&1, new_tracks))}
+      Enum.each(tracks, fn track ->
+        case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP) do
+          :ok ->
+            {:ok, Map.update!(state, :tracks, &Map.merge(&1, new_tracks))}
 
-        {:error, track_id, reason} ->
-          raise "Subscription fails on track: #{track_id} because of #{reason}"
-
-        {:error, :timeout} ->
-          raise "Timeout subscribing on track in Engine with pid #{state.rtc_engine}"
-      end
+          {:error, reason} ->
+            raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+        end
+      end)
     end
 
     @impl true
