@@ -507,17 +507,35 @@ export class MembraneWebRTC {
   }
 
   private addTrackToConnection = (trackContext: TrackContext) => {
+    let transceiverConfig = this.createTransceiverConfig(trackContext);
     const track = trackContext.track!!;
+    this.connection!.addTransceiver(track, transceiverConfig);
+  };
+
+  private createTransceiverConfig(trackContext: TrackContext): RTCRtpTransceiverInit {
     let transceiverConfig: RTCRtpTransceiverInit;
 
+    if (trackContext.track!!.kind === "audio") {
+      transceiverConfig = this.createAudioTransceiverConfig(trackContext);
+    } else {
+      transceiverConfig = this.createVideoTransceiverConfig(trackContext);
+    }
+
+    return transceiverConfig;
+  }
+
+  private createAudioTransceiverConfig(_trackContext: TrackContext): RTCRtpTransceiverInit {
+    return { direction: "sendonly" };
+  }
+
+  private createVideoTransceiverConfig(trackContext: TrackContext): RTCRtpTransceiverInit {
+    let transceiverConfig: RTCRtpTransceiverInit;
     if (trackContext.simulcastConfig.enabled) {
-      transceiverConfig =
-        track.kind === "audio" ? { direction: "sendonly" } : simulcastTransceiverConfig;
+      transceiverConfig = simulcastTransceiverConfig;
+      let trackActiveEncodings = trackContext.simulcastConfig.active_encodings;
       let disabledTrackEncodings: TrackEncoding[] = [];
       transceiverConfig.sendEncodings?.forEach((encoding) => {
-        if (
-          trackContext.simulcastConfig.active_encodings.includes(encoding.rid! as TrackEncoding)
-        ) {
+        if (trackActiveEncodings.includes(encoding.rid! as TrackEncoding)) {
           encoding.active = true;
         } else {
           disabledTrackEncodings.push(encoding.rid! as TrackEncoding);
@@ -538,8 +556,9 @@ export class MembraneWebRTC {
         transceiverConfig.sendEncodings![0].maxBitrate = trackContext.maxBandwidth * 1024; // convert to bps;
       }
     }
-    this.connection!.addTransceiver(track, transceiverConfig);
-  };
+
+    return transceiverConfig;
+  }
 
   /**
    * Replaces a track that is being sent to the RTC Engine.
