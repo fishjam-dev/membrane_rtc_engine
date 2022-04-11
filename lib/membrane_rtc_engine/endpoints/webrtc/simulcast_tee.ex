@@ -116,6 +116,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       %{endpoint_id: state.endpoint_id, track_id: track_id, encoding: encoding}
     )
 
+    Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
+      buffer.payload,
+      buffer.metadata.rtp.ssrc,
+      state.codec
+    )
+
     state = update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))
 
     {actions, state} =

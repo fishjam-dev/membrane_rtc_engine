@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Tee do
+defmodule Membrane.RTC.Engine.FilterTee do
   @moduledoc false
 
   # Element for forwarding buffers to multiple output pads. If no output
@@ -26,6 +26,11 @@ defmodule Membrane.RTC.Engine.Tee do
               type: [
                 spec: :audio | :video,
                 description: "Type of track which buffers tee is forwarding"
+              ],
+              codec: [
+                type: :atom,
+                spec: [:H264 | :VP8 | :OPUS],
+                description: "Codec of track #{inspect(__MODULE__)} will forward."
               ]
 
   def_input_pad :input,
@@ -47,12 +52,19 @@ defmodule Membrane.RTC.Engine.Tee do
        track_id: opts.track_id,
        counter: 0,
        type: opts.type,
-       forward_to: MapSet.new()
+       forward_to: MapSet.new(),
+       codec: opts.codec
      }}
   end
 
   @impl true
   def handle_process(:input, %Membrane.Buffer{} = buffer, _ctx, %{type: :audio} = state) do
+    Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
+      buffer.payload,
+      buffer.metadata.rtp.ssrc,
+      state.codec
+    )
+
     {{:ok, forward: buffer}, state}
   end
 
@@ -63,11 +75,23 @@ defmodule Membrane.RTC.Engine.Tee do
         _ctx,
         %{type: :video, counter: 1000} = state
       ) do
+    Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
+      buffer.payload,
+      buffer.metadata.rtp.ssrc,
+      state.codec
+    )
+
     {{:ok, forward: buffer}, %{state | counter: 0}}
   end
 
   @impl true
   def handle_process(:input, %Membrane.Buffer{} = buffer, ctx, %{type: :video} = state) do
+    Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
+      buffer.payload,
+      buffer.metadata.rtp.ssrc,
+      state.codec
+    )
+
     pads =
       ctx.pads
       |> Map.keys()

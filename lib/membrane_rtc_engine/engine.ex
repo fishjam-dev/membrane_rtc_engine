@@ -985,10 +985,17 @@ defmodule Membrane.RTC.Engine do
           }
 
         state.display_manager != nil ->
-          %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
+          %Engine.FilterTee{
+            ets_name: state.id,
+            track_id: track_id,
+            type: track.type,
+            codec: track.encoding
+          }
 
         true ->
-          Membrane.Tee.PushOutput
+          %Engine.PushOutputTee{
+            codec: track.encoding
+          }
       end
 
     # spawn tee if it doesn't exist
@@ -1093,7 +1100,7 @@ defmodule Membrane.RTC.Engine do
     [
       link({:tee, track_id})
       |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
-      |> to({:raw_format_tee, track_id}, Membrane.Tee.PushOutput)
+      |> to({:raw_format_tee, track_id}, Engine.PushOutputTee)
     ]
   end
 

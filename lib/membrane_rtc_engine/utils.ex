@@ -2,6 +2,7 @@ defmodule Membrane.RTC.Utils do
   @moduledoc false
   use OpenTelemetryDecorator
   require OpenTelemetry.Tracer, as: Tracer
+  require Membrane.TelemetryMetrics
 
   # This is workaround to make dialyzer happy.
   # In other case we would have to specify all possible CallbackContext types here.
@@ -91,5 +92,35 @@ defmodule Membrane.RTC.Utils do
       |> Base.encode64()
 
     {username, password}
+  end
+
+  def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :VP8) do
+    frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
+
+    keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
+
+    Membrane.TelemetryMetrics.execute(
+      [:packet_arrival, :rtp, :VP8],
+      %{keyframe_indicator: keyframe_indicator, frame_indicator: frame_indicator},
+      %{ssrc: ssrc}
+    )
+  end
+
+  def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :H264) do
+    keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
+
+    Membrane.TelemetryMetrics.execute(
+      [:packet_arrival, :rtp, :H264],
+      %{keyframe_indicator: keyframe_indicator},
+      %{ssrc: ssrc}
+    )
+  end
+
+  def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :OPUS) do
+    Membrane.TelemetryMetrics.execute(
+      [:packet_arrival, :rtp, :OPUS],
+      %{},
+      %{ssrc: ssrc}
+    )
   end
 end
