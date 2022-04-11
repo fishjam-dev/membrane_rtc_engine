@@ -244,6 +244,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     Enum.each(new_outbound_tracks, fn track ->
       opts = [default_simulcast_encoding: state.simulcast_config.default_encoding.(track)]
+
       case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP, opts) do
         :ok ->
           :ok
