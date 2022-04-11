@@ -12,13 +12,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig do
   * `default_encoding` - function used to determine initial encoding
   this endpoint is willing to receive for given track.
   It is called for each track this endpoint subscribes for.
+  If not provided, the highest possible encoding will be used.
   """
   @type t() :: %__MODULE__{
           enabled: boolean(),
           default_encoding: (Track.t() -> String.t())
         }
-  defstruct [
-    :default_encoding,
-    enabled: false
-  ]
+  defstruct enabled: false,
+            default_encoding: &__MODULE__.default_encoding/1
+
+  @doc """
+  Default implementation of `default_encoding` function in `t:t/0`.
+
+  Returns nil, which will result in choosing the highest possible encoding.
+  """
+  def default_encoding(_track), do: nil
 end
