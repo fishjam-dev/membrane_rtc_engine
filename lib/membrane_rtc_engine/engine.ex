@@ -1178,7 +1178,7 @@ defmodule Membrane.RTC.Engine do
       {_subscriptions, state} = pop_in(state, [:subscriptions, endpoint_id])
 
       state =
-        update_in(state, [:pending_subscriptions, endpoint_id], fn subscriptions ->
+        update_in(state, [:pending_subscriptions], fn subscriptions ->
           Enum.filter(subscriptions, fn s -> s.endpoint_id != endpoint_id end)
         end)
 
