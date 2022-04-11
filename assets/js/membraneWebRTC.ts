@@ -89,8 +89,14 @@ export interface TrackContext {
 
 /**
  * Type describing possible track encodings.
- * At the moment, if track was added as a simulcast one ({@link addTrack})
- * it will be transmitted to the server in three versions - low, medium and high.
+ * `"h"` - original encoding
+ * `"m"` - original encoding scaled down by 2
+ * `"l"` - original encoding scaled down by 4
+ *
+ * Notice that to make all encodings work, the initial
+ * resolution has to be at least 1280x720.
+ * In other case, browser might not be able to scale
+ * some encodings down.
  */
 export type TrackEncoding = "l" | "m" | "h";
 
@@ -308,7 +314,7 @@ export class MembraneWebRTC {
               stream: null,
               track: null,
               trackId,
-              simulcastConfig: { enabled: false, encodings: [], active_encodings: [] },
+              simulcastConfig: { enabled: false, active_encodings: [] },
               metadata,
               peer,
               maxBandwidth: 0,
