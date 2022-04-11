@@ -16,7 +16,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig do
   """
   @type t() :: %__MODULE__{
           enabled: boolean(),
-          default_encoding: (Track.t() -> String.t())
+          default_encoding: (Track.t() -> String.t() | nil)
         }
   defstruct enabled: false,
             default_encoding: &__MODULE__.default_encoding/1
@@ -26,5 +26,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig do
 
   Returns nil, which will result in choosing the highest possible encoding.
   """
+  @spec default_encoding(Track.t()) :: nil
   def default_encoding(_track), do: nil
 end
