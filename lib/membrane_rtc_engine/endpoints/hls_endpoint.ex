@@ -86,7 +86,7 @@ if Enum.all?(
       Enum.each(tracks, fn track ->
         case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :raw) do
           :ok ->
-            {:ok, Map.update!(state, :tracks, &Map.put(&1, track.id, track))}
+            {:ok, put_in(state, [:tracks, track.id], track)}
 
           {:error, reason} ->
             raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
