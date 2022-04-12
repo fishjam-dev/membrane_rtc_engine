@@ -96,7 +96,6 @@ defmodule Membrane.RTC.Utils do
 
   def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :VP8) do
     frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
-
     keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
 
     Membrane.TelemetryMetrics.execute(
@@ -116,7 +115,7 @@ defmodule Membrane.RTC.Utils do
     )
   end
 
-  def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :OPUS) do
+  def emit_telemetry_event_with_packet_mesaurments(_payload, ssrc, :OPUS) do
     Membrane.TelemetryMetrics.execute(
       [:packet_arrival, :rtp, :OPUS],
       %{},

@@ -5,10 +5,10 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
   use Membrane.Filter
 
   def_options codec: [
-    type: :atom,
-    spec: [:H264 | :VP8 | :OPUS],
-    description: "Codec of track #{inspect(__MODULE__)} will forward."
-  ]
+                type: :atom,
+                spec: [:H264 | :VP8 | :OPUS],
+                description: "Codec of track #{inspect(__MODULE__)} will forward."
+              ]
 
   def_input_pad :input,
     availability: :always,
@@ -20,7 +20,6 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
     availability: :on_request,
     mode: :push,
     caps: :any
-
 
   @impl true
   def handle_init(opts) do
