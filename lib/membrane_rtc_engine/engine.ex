@@ -959,15 +959,15 @@ defmodule Membrane.RTC.Engine do
       end
     ]
 
-    {pending_subscriptions, rest} =
+    {pending_track_subscriptions, pending_rest_subscriptions} =
       Enum.split_with(state.pending_subscriptions, fn s -> s.track_id == track.id end)
 
     {links, state} =
-      Enum.flat_map_reduce(pending_subscriptions, state, fn subscription, state ->
+      Enum.flat_map_reduce(pending_track_subscriptions, state, fn subscription, state ->
         fulfill_subscription(subscription, ctx, state)
       end)
 
-    state = %{state | pending_subscriptions: rest}
+    state = %{state | pending_subscriptions: pending_rest_subscriptions}
     {endpoint_to_tee_links ++ links, state}
   end
 
