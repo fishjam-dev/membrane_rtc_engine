@@ -94,6 +94,7 @@ defmodule Membrane.RTC.Utils do
     {username, password}
   end
 
+  @spec emit_telemetry_event_with_packet_mesaurments(binary(), integer(), atom()) :: :ok
   def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :VP8) do
     frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
     keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
@@ -103,6 +104,8 @@ defmodule Membrane.RTC.Utils do
       %{keyframe_indicator: keyframe_indicator, frame_indicator: frame_indicator},
       %{ssrc: ssrc}
     )
+
+    :ok
   end
 
   def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :H264) do
@@ -113,6 +116,8 @@ defmodule Membrane.RTC.Utils do
       %{keyframe_indicator: keyframe_indicator},
       %{ssrc: ssrc}
     )
+
+    :ok
   end
 
   def emit_telemetry_event_with_packet_mesaurments(_payload, ssrc, :OPUS) do
@@ -121,5 +126,7 @@ defmodule Membrane.RTC.Utils do
       %{},
       %{ssrc: ssrc}
     )
+
+    :ok
   end
 end
