@@ -51,7 +51,9 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_telemetry_metrics, path: "/Users/feliks/membrane/membrane_telemetry_metrics"},
+      {:membrane_telemetry_metrics,
+       branch: "basic-functionality-implementation",
+       github: "membraneframework/membrane_telemetry_metrics"},
       {:membrane_core, "~> 0.9.0", override: true},
       {:membrane_tee_plugin, "~> 0.8.0", override: true},
       {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
