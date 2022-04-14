@@ -839,13 +839,19 @@ defmodule Membrane.RTC.Engine do
 
     state = put_in(state, [:filters, track_id], depayloading_filter)
     track = state.endpoints |> Map.fetch!(endpoint_id) |> Endpoint.get_track_by_id(track_id)
-    {links, state} = link_inbound_track(track_id, rid, track, endpoint_id, ctx, state)
+    {tee_links, state} = create_tee_and_link(track_id, rid, track, endpoint_id, ctx, state)
 
-    spec = %ParentSpec{
-      links: links,
-      crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc: state.id]
-    }
+    # check if there are subscriptions for this track and fulfill them
+    {pending_track_subscriptions, pending_rest_subscriptions} =
+      Enum.split_with(state.pending_subscriptions, &(&1.track_id == track.id))
+
+    {subscription_links, state} =
+      Enum.flat_map_reduce(pending_track_subscriptions, state, fn subscription, state ->
+        fulfill_subscription(subscription, ctx, state)
+      end)
+
+    links = tee_links ++ subscription_links
+    state = %{state | pending_subscriptions: pending_rest_subscriptions}
 
     state =
       update_in(
@@ -853,6 +859,12 @@ defmodule Membrane.RTC.Engine do
         [:endpoints, endpoint_id],
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
+
+    spec = %ParentSpec{
+      links: links,
+      crash_group: {endpoint_id, :temporary},
+      log_metadata: [rtc: state.id]
+    }
 
     {{:ok, spec: spec}, state}
   end
@@ -925,7 +937,7 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp link_inbound_track(track_id, rid, track, endpoint_id, ctx, state) do
+  defp create_tee_and_link(track_id, rid, track, endpoint_id, ctx, state) do
     tee =
       cond do
         rid != nil ->
@@ -959,16 +971,7 @@ defmodule Membrane.RTC.Engine do
       end
     ]
 
-    {pending_track_subscriptions, pending_rest_subscriptions} =
-      Enum.split_with(state.pending_subscriptions, &(&1.track_id == track.id))
-
-    {links, state} =
-      Enum.flat_map_reduce(pending_track_subscriptions, state, fn subscription, state ->
-        fulfill_subscription(subscription, ctx, state)
-      end)
-
-    state = %{state | pending_subscriptions: pending_rest_subscriptions}
-    {endpoint_to_tee_links ++ links, state}
+    {endpoint_to_tee_links, state}
   end
 
   defp check_subscription(subscription, state) do
