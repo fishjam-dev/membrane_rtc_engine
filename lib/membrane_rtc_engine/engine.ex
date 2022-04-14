@@ -960,7 +960,7 @@ defmodule Membrane.RTC.Engine do
     ]
 
     {pending_track_subscriptions, pending_rest_subscriptions} =
-      Enum.split_with(state.pending_subscriptions, fn s -> s.track_id == track.id end)
+      Enum.split_with(state.pending_subscriptions, &(&1.track_id == track.id))
 
     {links, state} =
       Enum.flat_map_reduce(pending_track_subscriptions, state, fn subscription, state ->
@@ -1005,27 +1005,29 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp fulfill_subscription(%Subscription{format: :raw} = s, ctx, state) do
+  defp fulfill_subscription(%Subscription{format: :raw} = subscription, ctx, state) do
     raw_format_links =
-      if Map.has_key?(ctx.children, {:raw_format_tee, s.track_id}) do
+      if Map.has_key?(ctx.children, {:raw_format_tee, subscription.track_id}) do
         []
       else
-        prepare_raw_format_links(s.track_id, state)
+        prepare_raw_format_links(subscription.track_id, state)
       end
 
-    {links, state} = do_fulfill_subscription(s, :raw_format_tee, state)
+    {links, state} = do_fulfill_subscription(subscription, :raw_format_tee, state)
 
     {raw_format_links ++ links, state}
   end
 
-  defp fulfill_subscription(%Subscription{format: _remote_format} = s, _ctx, state) do
-    do_fulfill_subscription(s, :tee, state)
+  defp fulfill_subscription(%Subscription{format: _remote_format} = subscription, _ctx, state) do
+    do_fulfill_subscription(subscription, :tee, state)
   end
 
   defp do_fulfill_subscription(s, tee_kind, state) do
     links = prepare_track_to_endpoint_links(s, tee_kind, state)
-    s = %Subscription{s | status: :active}
-    state = update_in(state, [:subscriptions, s.endpoint_id], &Map.put(&1, s.track_id, s))
+    subscription = %Subscription{s | status: :active}
+    endpoint_id = subscription.endpoint_id
+    track_id = subscription.track_id
+    state = put_in(state, [:subscriptions, endpoint_id, track_id], subscription)
     {links, state}
   end
 
@@ -1179,7 +1181,7 @@ defmodule Membrane.RTC.Engine do
 
       state =
         update_in(state, [:pending_subscriptions], fn subscriptions ->
-          Enum.filter(subscriptions, fn s -> s.endpoint_id != endpoint_id end)
+          Enum.filter(subscriptions, &(&1.endpoint_id != endpoint_id))
         end)
 
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
