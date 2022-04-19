@@ -839,7 +839,7 @@ defmodule Membrane.RTC.Engine do
 
     state = put_in(state, [:filters, track_id], depayloading_filter)
     track = state.endpoints |> Map.fetch!(endpoint_id) |> Endpoint.get_track_by_id(track_id)
-    {tee_links, state} = create_tee_and_link(track_id, rid, track, endpoint_id, ctx, state)
+    {tee_links, state} = create_and_link_tee(track_id, rid, track, endpoint_id, ctx, state)
 
     # check if there are subscriptions for this track and fulfill them
     {pending_track_subscriptions, pending_rest_subscriptions} =
@@ -937,7 +937,7 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp create_tee_and_link(track_id, rid, track, endpoint_id, ctx, state) do
+  defp create_and_link_tee(track_id, rid, track, endpoint_id, ctx, state) do
     tee =
       cond do
         rid != nil ->
@@ -1025,9 +1025,9 @@ defmodule Membrane.RTC.Engine do
     do_fulfill_subscription(subscription, :tee, state)
   end
 
-  defp do_fulfill_subscription(s, tee_kind, state) do
-    links = prepare_track_to_endpoint_links(s, tee_kind, state)
-    subscription = %Subscription{s | status: :active}
+  defp do_fulfill_subscription(subscription, tee_kind, state) do
+    links = prepare_track_to_endpoint_links(subscription, tee_kind, state)
+    subscription = %Subscription{subscription | status: :active}
     endpoint_id = subscription.endpoint_id
     track_id = subscription.track_id
     state = put_in(state, [:subscriptions, endpoint_id, track_id], subscription)
