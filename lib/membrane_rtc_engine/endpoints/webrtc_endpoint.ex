@@ -13,6 +13,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.RTC.Engine
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig
 
   require Membrane.Logger
 
@@ -147,15 +148,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 For more information refer to RFC 5104 section 4.3.1.
                 """
               ],
-              simulcast?: [
-                spec: boolean(),
-                default: true,
-                description: """
-                Whether to accept simulcast tracks or not.
-
-                Setting this to false will result in rejecting all incoming
-                simulcast tracks i.e. client will not send them.
-                """
+              simulcast_config: [
+                spec: SimulcastConfig.t(),
+                default: %SimulcastConfig{},
+                description: "Simulcast configuration"
               ]
 
   def_input_pad :input,
@@ -185,7 +181,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       trace_metadata: [name: opts.ice_name],
       rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
       rtcp_sender_report_interval: opts.rtcp_sender_report_interval,
-      simulcast?: opts.simulcast?
+      simulcast?: opts.simulcast_config.enabled
     }
 
     spec = %ParentSpec{
@@ -203,7 +199,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       integrated_turn_domain: opts.integrated_turn_domain,
       owner: opts.owner,
       video_tracks_limit: opts.video_tracks_limit,
-      rtcp_fir_interval: opts.rtcp_fir_interval
+      rtcp_fir_interval: opts.rtcp_fir_interval,
+      simulcast_config: opts.simulcast_config
     }
 
     {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
@@ -243,25 +240,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     new_outbound_tracks =
       Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
 
-    subscriptions = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
-
     {:endpoint, endpoint_id} = ctx.name
 
-    case Engine.subscribe(state.rtc_engine, subscriptions, endpoint_id) do
-      :ok ->
-        send_if_not_nil(
-          state.display_manager,
-          {:subscribe_tracks, ctx.name, new_outbound_tracks}
-        )
+    Enum.each(new_outbound_tracks, fn track ->
+      opts = [default_simulcast_encoding: state.simulcast_config.default_encoding.(track)]
 
-        {:ok, state}
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP, opts) do
+        :ok ->
+          :ok
 
-      {:error, track_id, reason} ->
-        raise "Couldn't subscribe for track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
+        {:error, reason} ->
+          raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+      end
+    end)
 
-      {:error, :timeout} ->
-        raise "Timeout subscribing on track in Engine with pid #{inspect(state.rtc_engine)}"
-    end
+    send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
+    {:ok, state}
   end
 
   @impl true
