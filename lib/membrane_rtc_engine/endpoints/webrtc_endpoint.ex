@@ -590,19 +590,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_rtc_track(%WebRTC.Track{} = track, track_id_to_metadata) do
     extension_key = WebRTC.Extension
 
-    %Engine.Track{
-      type: track.type,
-      stream_id: track.stream_id,
+    Engine.Track.new(
+      track.type,
+      track.stream_id,
+      track.encoding,
+      track.rtp_mapping.clock_rate,
+      [:RTP, :raw],
+      track.fmtp,
       id: track.id,
-      encoding: track.encoding,
-      simulcast_encodings: track.rids,
-      clock_rate: track.rtp_mapping.clock_rate,
-      format: [:RTP, :raw],
-      fmtp: track.fmtp,
+      simulcast_encodings: track.rids || [],
       active?: track.status != :disabled,
       metadata: Map.get(track_id_to_metadata, track.id),
       ctx: %{extension_key => track.extmaps, :clock_rate => track.rtp_mapping.clock_rate}
-    }
+    )
   end
 
   defp to_webrtc_track(%Engine.Track{} = track) do

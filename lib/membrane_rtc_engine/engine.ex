@@ -244,7 +244,9 @@ defmodule Membrane.RTC.Engine do
   Subscription options.
 
   * `default_simulcast_encoding` - initial encoding that
-  endpoint making subscription wants to receive
+  endpoint making subscription wants to receive.
+  This option has no effect for audio tracks and video tracks
+  that are not simulcast.
   """
   @type subscription_opts_t() :: [default_simulcast_encoding: String.t()]
 
@@ -986,8 +988,10 @@ defmodule Membrane.RTC.Engine do
       subscription.format not in track.format ->
         {:error, :invalid_format}
 
-      # TODO maybe simulcast_encodings should be always a list
-      default_simulcast_encoding != nil and track.simulcast_encodings != nil and
+      # check if subscribed for existing simulcast encoding;
+      # for audio tracks this doesn't matter as we are ignoring
+      # default_simulcast_encoding option while linking
+      track.type == :video and default_simulcast_encoding != nil and
           default_simulcast_encoding not in track.simulcast_encodings ->
         {:error, :invalid_default_simulcast_encoding}
 
@@ -1048,7 +1052,7 @@ defmodule Membrane.RTC.Engine do
     track = get_track(subscription.track_id, state.endpoints)
 
     options =
-      if track.simulcast_encodings != nil do
+      if track.type == :video and track.simulcast_encodings != [] do
         [default_simulcast_encoding: subscription.opts[:default_simulcast_encoding]]
       else
         []
