@@ -53,7 +53,9 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       {:membrane_core, "~> 0.9.0", override: true},
       {:membrane_tee_plugin, "~> 0.8.0", override: true},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
+      {:membrane_webrtc_plugin,
+       github: "membraneframework/membrane_webrtc_plugin",
+       branch: "feature/endpoint-bin-recvonly-mode"},
       {:membrane_rtp_h264_plugin, "~> 0.10.0", override: true},
       {:membrane_rtp_vp8_plugin, "~> 0.3.0", override: true},
       {:membrane_rtp_format, "~> 0.3.0"},

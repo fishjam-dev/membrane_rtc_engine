@@ -90,11 +90,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 them are actively speaking.
                 """
               ],
-              use_integrated_turn: [
-                spec: boolean(),
-                default: false,
-                description: "Set to `true`, to use integrated TURN instead of libnice"
-              ],
               integrated_turn_domain: [
                 spec: binary() | nil,
                 default: nil,
@@ -152,6 +147,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 spec: SimulcastConfig.t(),
                 default: %SimulcastConfig{},
                 description: "Simulcast configuration"
+              ],
+              recv_only: [
+                spec: boolean(),
+                default: false,
+                description: """
+                Configure the peer to only receive tracks and make sure that they don't send any media.
+                """
               ]
 
   def_input_pad :input,
@@ -167,21 +169,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_init(opts) do
     endpoint_bin = %EndpointBin{
-      stun_servers: opts.stun_servers,
-      turn_servers: opts.turn_servers,
       handshake_opts: opts.handshake_opts,
       log_metadata: opts.log_metadata,
       filter_codecs: opts.filter_codecs,
       inbound_tracks: [],
       outbound_tracks: [],
       extensions: opts.webrtc_extensions || [],
-      use_integrated_turn: opts.use_integrated_turn,
       integrated_turn_options: opts.integrated_turn_options,
       trace_context: opts.trace_context,
       trace_metadata: [name: opts.ice_name],
       rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
       rtcp_sender_report_interval: opts.rtcp_sender_report_interval,
-      simulcast?: opts.simulcast_config.enabled
+      simulcast?: opts.simulcast_config.enabled,
+      recv_only: opts.recv_only
     }
 
     spec = %ParentSpec{
@@ -194,13 +194,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       outbound_tracks: %{},
       inbound_tracks: %{},
       extensions: opts.extensions || %{},
-      use_integrated_turn: opts.use_integrated_turn,
       integrated_turn_options: opts.integrated_turn_options,
       integrated_turn_domain: opts.integrated_turn_domain,
       owner: opts.owner,
       video_tracks_limit: opts.video_tracks_limit,
       rtcp_fir_interval: opts.rtcp_fir_interval,
-      simulcast_config: opts.simulcast_config
+      simulcast_config: opts.simulcast_config,
+      recv_only: opts.recv_only
     }
 
     {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
@@ -217,7 +217,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:removed_tracks, tracks}, _from, _ctx, state) do
+  def handle_notification({:removed_tracks, _tracks}, _from, _ctx, %{recv_only: true} = state),
+    do: raise("Peer is not allowed to send any media")
+
+  @impl true
+  def handle_notification({:removed_tracks, tracks}, _from, _ctx, %{recv_only: false} = state) do
     tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
@@ -275,7 +279,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         state
       ) do
     turns = get_turn_configs(turns, state)
-    enforce_turns? = state.use_integrated_turn || false
+    enforce_turns? = true
 
     media_event_data = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
     {{:ok, notify: {:custom_media_event, serialize(media_event_data)}}, state}

@@ -121,7 +121,6 @@ defmodule TestVideoroom.Room do
       owner: self(),
       stun_servers: state.network_options[:stun_servers] || [],
       turn_servers: state.network_options[:turn_servers] || [],
-      use_integrated_turn: state.network_options[:use_integrated_turn],
       integrated_turn_options: state.network_options[:integrated_turn_options],
       integrated_turn_domain: state.network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
