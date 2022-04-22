@@ -270,8 +270,7 @@ to peer and information regarding the integrated TURN server.
             transport: string,
             password: string,
             username: string
-        }],
-        iceTransportPolicy: "relay" | "all"
+        }]
     }
 ``` 
 ### candidate 

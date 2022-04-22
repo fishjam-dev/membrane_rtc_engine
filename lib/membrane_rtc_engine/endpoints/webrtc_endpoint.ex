@@ -29,23 +29,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 spec: String.t(),
                 description: "Ice name is used in creating credentials for ice connnection"
               ],
-              stun_servers: [
-                type: :list,
-                spec: [ExLibnice.stun_server()],
-                default: [],
-                description: "List of stun servers"
-              ],
-              turn_servers: [
-                type: :list,
-                spec: [ExLibnice.relay_info()],
-                default: [],
-                description: "List of turn servers"
-              ],
-              port_range: [
-                spec: Range.t(),
-                default: 0..0,
-                description: "Port range to be used by `Membrane.ICE.Bin`"
-              ],
               handshake_opts: [
                 type: :list,
                 spec: Keyword.t(),
@@ -89,11 +72,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
                 them are actively speaking.
                 """
-              ],
-              use_integrated_turn: [
-                spec: boolean(),
-                default: false,
-                description: "Set to `true`, to use integrated TURN instead of libnice"
               ],
               integrated_turn_domain: [
                 spec: binary() | nil,
@@ -167,15 +145,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_init(opts) do
     endpoint_bin = %EndpointBin{
-      stun_servers: opts.stun_servers,
-      turn_servers: opts.turn_servers,
       handshake_opts: opts.handshake_opts,
       log_metadata: opts.log_metadata,
       filter_codecs: opts.filter_codecs,
       inbound_tracks: [],
       outbound_tracks: [],
       extensions: opts.webrtc_extensions || [],
-      use_integrated_turn: opts.use_integrated_turn,
       integrated_turn_options: opts.integrated_turn_options,
       trace_context: opts.trace_context,
       trace_metadata: [name: opts.ice_name],
@@ -194,7 +169,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       outbound_tracks: %{},
       inbound_tracks: %{},
       extensions: opts.extensions || %{},
-      use_integrated_turn: opts.use_integrated_turn,
       integrated_turn_options: opts.integrated_turn_options,
       integrated_turn_domain: opts.integrated_turn_domain,
       owner: opts.owner,
@@ -275,9 +249,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         state
       ) do
     turns = get_turn_configs(turns, state)
-    enforce_turns? = state.use_integrated_turn || false
 
-    media_event_data = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
+    media_event_data = {:signal, {:offer_data, media_count, turns}}
     {{:ok, notify: {:custom_media_event, serialize(media_event_data)}}, state}
   end
 
@@ -444,7 +417,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-  defp serialize({:signal, {:offer_data, tracks_types, turns, enforce_turns?}}) do
+  defp serialize({:signal, {:offer_data, tracks_types, turns}}) do
     integrated_turn_servers =
       Enum.map(turns, fn turn ->
         addr =
@@ -465,8 +438,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       type: "offerData",
       data: %{
         tracksTypes: tracks_types,
-        integratedTurnServers: integrated_turn_servers,
-        iceTransportPolicy: if(enforce_turns?, do: "relay", else: "all")
+        integratedTurnServers: integrated_turn_servers
       }
     }
   end
