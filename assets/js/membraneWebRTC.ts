@@ -42,6 +42,10 @@ export interface MembraneWebRTCConfig {
 
 /**
  * Simulcast configuration passed to {@link addTrack}.
+ *
+ * At the moment, simulcast track is initialized in three versions - low, medium and high.
+ * High resolution is the original track resolution, while medium and low resolutions
+ * are the original track resoultion scaled down by 2 and 4 respectively.
  */
 export interface SimulcastConfig {
   /**
@@ -50,6 +54,7 @@ export interface SimulcastConfig {
   enabled: boolean;
   /**
    * List of initially active encodings.
+   *
    * Encoding that is not present in this list might still be
    * enabled using {@link enableTrackEncoding}.
    */
@@ -159,6 +164,9 @@ export interface Callbacks {
   onConnectionError?: (message: string) => void;
 
   /**
+   * Currently, this callback is only invoked when DisplayManager in RTC Engine is
+   * enabled and simulcast is disabled.
+   *
    * Called when priority of video tracks have changed.
    * @param enabledTracks - list of tracks which will be sent to client from SFU
    * @param disabledTracks - list of tracks which will not be sent to client from SFU
@@ -170,8 +178,6 @@ export interface Callbacks {
    *
    * Track encoding can change in the following cases:
    * * when user requested a change
-   * * when there was a significant change in network bandwidth and client library is
-   * no longer able to receive given encoding
    * * when sender stopped sending some encoding (because of bandwidth change)
    *
    * @param {string} peerId - id of peer that owns track
@@ -424,11 +430,12 @@ export class MembraneWebRTC {
    * @param trackMetadata - Any information about this track that other peers will
    * receive in {@link onPeerJoined}. E.g. this can source of the track - wheather it's
    * screensharing, webcam or some other media device.
-   * @param isSimulcast - Defines whether track should be simulcasted or not.
-   * At the moment simulcast track is sent in three versions - low, medium and high.
-   * High resolution is the original track resolution, while medium and low resolutions
-   * are the original track resoultion scaled down by 2 and 4 respectively.
-   * Those settings are not configurable at the moment.
+   * @param simulcastConfig - Simulcast configuration. By default simulcast is disabled.
+   * For more information refer to {@link SimulcastConfig}.
+   * @param maxBandwidth - maximal bandwidth this track can use.
+   * Defaults to 0 which is unlimited.
+   * This option has no effect for simulcast and audio tracks.
+   * For simulcast tracks use `{@link setTrackBandwidth}.
    * @returns {string} Returns id of added track
    * @example
    * ```ts
@@ -705,7 +712,11 @@ export class MembraneWebRTC {
   }
 
   /**
+   * Currently, this function only works when DisplayManager in RTC Engine is
+   * enabled and simulcast is disabled.
+   *
    * Prioritizes a track in connection to be always sent to browser.
+   *
    * @param {string} trackId - Id of video track to prioritize.
    */
   public prioritizeTrack(trackId: string) {
@@ -713,7 +724,11 @@ export class MembraneWebRTC {
     this.sendMediaEvent(mediaEvent);
   }
   /**
+   * Currently, this function only works when DisplayManager in RTC Engine is
+   * enabled and simulcast is disabled.
+   *
    * Unprioritizes a track.
+   *
    * @param {string} trackId - Id of video track to unprioritize.
    */
   public unprioritizeTrack(trackId: string) {
@@ -722,6 +737,8 @@ export class MembraneWebRTC {
   }
 
   /**
+   * Currently this function has no effect.
+   *
    * This function allows to adjust resolution and number of video tracks sent by an SFU to a client.
    *
    * @param {number} bigScreens - number of screens with big size
@@ -770,7 +787,7 @@ export class MembraneWebRTC {
    * @param {TrackEncoding} encoding - encoding that will be enabled
    * @example
    * ```ts
-   * const trackId = webrtc.addTrack(track, stream, {}, true);
+   * const trackId = webrtc.addTrack(track, stream, {}, {enabled: true, active_encodings: ["l", "m", "h"]});
    * webrtc.disableTrackEncoding(trackId, "l");
    * // wait some time
    * webrtc.enableTrackEncoding(trackId, "l");
@@ -794,7 +811,7 @@ export class MembraneWebRTC {
    * @param {rackEncoding} encoding - encoding that will be disabled
    * @example
    * ```ts
-   * const trackId = webrtc.addTrack(track, stream, {}, true);
+   * const trackId = webrtc.addTrack(track, stream, {}, {enabled: true, active_encodings: ["l", "m", "h"]});
    * webrtc.disableTrackEncoding(trackId, "l");
    * ```
    */

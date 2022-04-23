@@ -4,13 +4,14 @@
  */
 
 export {
-  Peer,
+  BandwidthLimit,
+  Callbacks,
   MembraneWebRTCConfig,
   MembraneWebRTC,
+  Peer,
+  SimulcastConfig,
   TrackContext,
   TrackEncoding,
-  Callbacks,
-  BandwidthLimit,
 } from "./membraneWebRTC";
 
 export { SerializedMediaEvent } from "./mediaEvent";
