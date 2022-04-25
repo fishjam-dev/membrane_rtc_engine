@@ -181,8 +181,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:new_tracks, tracks}, _from, ctx, state) do
-    tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+  def handle_notification({:new_tracks, tracks}, :endpoint_bin, ctx, state) do
+    {:endpoint, endpoint_id} = ctx.name
+    metadata = Map.get(state.track_id_to_metadata, &1.id)
+    tracks = Enum.map(tracks, &to_rtc_track(&1, endpoint_id, metadata))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
     send_if_not_nil(state.display_manager, {:add_inbound_tracks, ctx.name, tracks})
@@ -191,8 +193,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:removed_tracks, tracks}, _from, _ctx, state) do
-    tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+  def handle_notification({:removed_tracks, tracks}, :endpoint_bin, _ctx, state) do
+    {:endpoint, endpoint_id} = ctx.name
+    tracks = Enum.map(tracks, &to_rtc_track(&1, Map.get(state.inbound_tracks, &1.id)))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
     {{:ok, notify: {:publish, {:removed_tracks, tracks}}},
@@ -212,7 +215,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_notification({:negotiation_done, new_outbound_tracks}, _from, ctx, state) do
     new_outbound_tracks =
-      Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+      Enum.map(new_outbound_tracks, &to_rtc_track(&1, Map.get(state.outbound_tracks, &1.id)))
 
     {:endpoint, endpoint_id} = ctx.name
 
@@ -559,12 +562,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     end
   end
 
-  defp to_rtc_track(%WebRTC.Track{} = track, track_id_to_metadata) do
+  defp to_rtc_track(%WebRTC.Track{} = track, %Engine.Track{} = original_track) do
+    to_rtc_track(track, original_track.origin, original_track.metadata)
+  end
+
+  defp to_rtc_track(%WebRTC.Track{} = track, origin, metadata) do
     extension_key = WebRTC.Extension
 
     Engine.Track.new(
       track.type,
       track.stream_id,
+      origin,
       track.encoding,
       track.rtp_mapping.clock_rate,
       [:RTP, :raw],
@@ -572,7 +580,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       id: track.id,
       simulcast_encodings: track.rids || [],
       active?: track.status != :disabled,
-      metadata: Map.get(track_id_to_metadata, track.id),
+      metadata: metadata,
       ctx: %{extension_key => track.extmaps, :clock_rate => track.rtp_mapping.clock_rate}
     )
   end
