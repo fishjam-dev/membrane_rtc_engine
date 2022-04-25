@@ -183,8 +183,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_notification({:new_tracks, tracks}, :endpoint_bin, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
-    metadata = Map.get(state.track_id_to_metadata, &1.id)
-    tracks = Enum.map(tracks, &to_rtc_track(&1, endpoint_id, metadata))
+
+    tracks =
+      Enum.map(tracks, fn track ->
+        metadata = Map.get(state.track_id_to_metadata, track.id)
+        to_rtc_track(track, endpoint_id, metadata)
+      end)
+
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
     send_if_not_nil(state.display_manager, {:add_inbound_tracks, ctx.name, tracks})
@@ -194,7 +199,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification({:removed_tracks, tracks}, :endpoint_bin, _ctx, state) do
-    {:endpoint, endpoint_id} = ctx.name
     tracks = Enum.map(tracks, &to_rtc_track(&1, Map.get(state.inbound_tracks, &1.id)))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
