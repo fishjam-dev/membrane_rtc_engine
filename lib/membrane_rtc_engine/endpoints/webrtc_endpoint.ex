@@ -581,7 +581,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       simulcast_encodings: track.rids || [],
       active?: track.status != :disabled,
       metadata: metadata,
-      ctx: %{extension_key => track.extmaps, :clock_rate => track.rtp_mapping.clock_rate}
+      ctx: %{extension_key => track.extmaps}
     )
   end
 
