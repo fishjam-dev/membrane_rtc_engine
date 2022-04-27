@@ -31,8 +31,6 @@ defmodule TestVideoroom.Room do
     turn_mock_ip = Application.fetch_env!(:test_videoroom, :integrated_turn_ip)
     turn_ip = if Mix.env() == :prod, do: {0, 0, 0, 0}, else: turn_mock_ip
 
-    use_integrated_turn = Application.fetch_env!(:test_videoroom, :use_integrated_turn)
-
     turn_cert_file =
       case Application.fetch_env(:test_videoroom, :integrated_turn_cert_pkey) do
         {:ok, val} -> val
@@ -47,11 +45,6 @@ defmodule TestVideoroom.Room do
     ]
 
     network_options = [
-      stun_servers: [
-        %{server_addr: "stun.l.google.com", server_port: 19_302}
-      ],
-      turn_servers: Application.fetch_env!(:test_videoroom, :turn_servers),
-      use_integrated_turn: use_integrated_turn,
       integrated_turn_options: integrated_turn_options,
       integrated_turn_domain: Application.fetch_env!(:test_videoroom, :integrated_turn_domain),
       dtls_pkey: Application.get_env(:test_videoroom, :dtls_pkey),
@@ -119,9 +112,6 @@ defmodule TestVideoroom.Room do
       ice_name: peer.id,
       extensions: %{},
       owner: self(),
-      stun_servers: state.network_options[:stun_servers] || [],
-      turn_servers: state.network_options[:turn_servers] || [],
-      use_integrated_turn: state.network_options[:use_integrated_turn],
       integrated_turn_options: state.network_options[:integrated_turn_options],
       integrated_turn_domain: state.network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
