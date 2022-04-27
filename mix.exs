@@ -110,10 +110,12 @@ defmodule Membrane.RTC.Engine.MixProject do
       groups_for_modules: [
         Endpoints: [
           Membrane.RTC.Engine.Endpoint.WebRTC,
+          Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig,
           Membrane.RTC.Engine.Endpoint.HLS
         ],
         Messages: [
           Membrane.RTC.Engine.Message,
+          Membrane.RTC.Engine.Message.EndpointCrashed,
           Membrane.RTC.Engine.Message.MediaEvent,
           Membrane.RTC.Engine.Message.NewPeer,
           Membrane.RTC.Engine.Message.PeerLeft
