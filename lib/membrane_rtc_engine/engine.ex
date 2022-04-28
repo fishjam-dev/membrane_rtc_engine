@@ -632,7 +632,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_crash_group_down(endpoint_id, _ctx, state) do
+  def handle_crash_group_down(endpoint_id, ctx, state) do
     if Map.has_key?(state.peers, endpoint_id) do
       MediaEvent.create_peer_removed_event(endpoint_id, "Internal server error.")
       |> then(&%Message.MediaEvent{rtc_engine: self(), to: endpoint_id, data: &1})
@@ -642,7 +642,9 @@ defmodule Membrane.RTC.Engine do
     %Message.EndpointCrashed{endpoint_id: endpoint_id}
     |> dispatch()
 
-    {:ok, state}
+    {_status, actions, state} = do_remove_endpoint(endpoint_id, ctx, state)
+
+    {{:ok, actions}, state}
   end
 
   defp handle_media_event(%{type: :join, data: data}, peer_id, _ctx, state) do
