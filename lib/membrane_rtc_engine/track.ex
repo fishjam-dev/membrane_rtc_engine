@@ -13,6 +13,7 @@ defmodule Membrane.RTC.Engine.Track do
     :type,
     :stream_id,
     :id,
+    :origin,
     :fmtp,
     :encoding,
     :simulcast_encodings,
@@ -35,6 +36,7 @@ defmodule Membrane.RTC.Engine.Track do
   can be indicated by assigning each of them the same `stream_id`. One `stream_id` can be assign to any
   number of tracks.
   * `id` - track id
+  * `origin` - id of Endpoint this track belongs to
   * `encoding` - track encoding
   * `simulcast_encodings` - for simulcast tracks this is a list of simulcast encoding identifiers.
   In other case, this is an empty list.
@@ -51,6 +53,7 @@ defmodule Membrane.RTC.Engine.Track do
           type: :audio | :video,
           stream_id: String.t(),
           id: id,
+          origin: String.t(),
           encoding: encoding,
           simulcast_encodings: [String.t()],
           clock_rate: Membrane.RTP.clock_rate_t(),
@@ -88,18 +91,20 @@ defmodule Membrane.RTC.Engine.Track do
   @spec new(
           :audio | :video,
           String.t(),
+          String.t(),
           encoding(),
           Membrane.RTP.clock_rate_t(),
           format(),
           FMTP,
           opts_t()
         ) :: t
-  def new(type, stream_id, encoding, clock_rate, format, fmtp, opts \\ []) do
+  def new(type, stream_id, origin, encoding, clock_rate, format, fmtp, opts \\ []) do
     id = Keyword.get(opts, :id, Base.encode16(:crypto.strong_rand_bytes(8)))
 
     %__MODULE__{
       type: type,
       stream_id: stream_id,
+      origin: origin,
       encoding: encoding,
       clock_rate: clock_rate,
       format: format,
