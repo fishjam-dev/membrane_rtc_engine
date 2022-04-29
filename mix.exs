@@ -79,8 +79,6 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp aliases() do
     [
-      compile: ["compile", &compile_ts/1],
-      docs: ["docs", &generate_ts_docs/1],
       integration_test: &run_integration_tests/1
     ]
   end
@@ -145,24 +143,6 @@ defmodule Membrane.RTC.Engine.MixProject do
     ]
   end
 
-  defp compile_ts(_) do
-    Mix.shell().info("Installing npm dependencies")
-
-    if packages_installed?("assets") do
-      Mix.shell().info("* Already installed")
-    else
-      {_io_stream, exit_status} = System.cmd("npm", ["ci"], cd: "assets", into: IO.stream())
-      if exit_status != 0, do: raise("Failed to install npm dependecies")
-    end
-
-    Mix.shell().info("Compiling TS files")
-
-    {_io_stream, exit_status} =
-      System.cmd("npm", ["run", "build"], cd: "assets", into: IO.stream())
-
-    if exit_status != 0, do: raise("Failed to compile TS files")
-  end
-
   defp run_integration_tests(_) do
     Mix.shell().info("Getting mix dependencies in test_videoroom")
 
@@ -188,13 +168,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       System.cmd("mix", ["test"], cd: "integration_test/test_videoroom", into: IO.stream())
 
     if exit_status != 0, do: raise("Failed to run integration tests")
-  end
-
-  defp generate_ts_docs(_) do
-    Mix.shell().info("Generating TS docs")
-    {result, exit_status} = System.cmd("npm", ["run", "docs"], cd: "assets")
-    Mix.shell().info(result)
-    if exit_status != 0, do: raise("Failed to generate TS docs")
   end
 
   defp packages_installed?(dir) do

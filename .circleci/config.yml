@@ -28,8 +28,6 @@ jobs:
       - run: mix compile --force --warnings-as-errors
       - run: mix credo
       - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
-      - run: cd assets && npm install
-      - run: cd assets && npm run format:check
 
   integration_test:
     docker:
@@ -49,7 +47,7 @@ jobs:
       - run: cd ./integration_test/test_videoroom && npm ci --prefix=assets
       - run: cd ./integration_test/test_videoroom && mix test
 
-      
+
 
 workflows:
   version: 2
