@@ -217,10 +217,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:removed_tracks, _tracks}, _from, _ctx, %{recv_only: true} = _state),
-    do: raise("Peer is not allowed to send any media")
-
-  @impl true
   def handle_notification({:removed_tracks, tracks}, _from, _ctx, %{recv_only: false} = state) do
     tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
