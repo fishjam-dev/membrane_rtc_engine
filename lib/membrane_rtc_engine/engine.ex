@@ -927,7 +927,7 @@ defmodule Membrane.RTC.Engine do
     |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
     |> dispatch()
 
-    tracks_children = Enum.flat_map(tracks, &get_track_elements(endpoint_id, &1.id, ctx))
+    tracks_children = Enum.flat_map(tracks, &get_track_elements(&1.id, ctx))
 
     {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
   end
@@ -1203,7 +1203,7 @@ defmodule Membrane.RTC.Engine do
         if endpoint_bin == nil or endpoint_bin.terminating? do
           []
         else
-          [remove_child: find_children_for_endpoint(endpoint, endpoint_id, ctx)]
+          [remove_child: find_children_for_endpoint(endpoint, ctx)]
         end
 
       {:present, tracks_msgs ++ actions, state}
@@ -1212,24 +1212,21 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp find_children_for_endpoint(endpoint, endpoint_id, ctx) do
+  defp find_children_for_endpoint(endpoint, ctx) do
     children =
       endpoint
       |> Endpoint.get_tracks()
-      |> Enum.flat_map(fn track -> get_track_elements(endpoint_id, track.id, ctx) end)
+      |> Enum.flat_map(fn track -> get_track_elements(track.id, ctx) end)
 
-    [endpoint: endpoint_id] ++ children
+    [endpoint: endpoint.id] ++ children
   end
 
-  defp get_track_elements(endpoint_id, track_id, ctx) do
-    {endpoint_id, track_id}
-    |> then(
-      &[
-        tee: &1,
-        raw_format_filter: &1,
-        raw_format_tee: &1
-      ]
-    )
+  defp get_track_elements(track_id, ctx) do
+    [
+      tee: track_id,
+      raw_format_filter: track_id,
+      raw_format_tee: track_id
+    ]
     |> Enum.filter(&Map.has_key?(ctx.children, &1))
   end
 
