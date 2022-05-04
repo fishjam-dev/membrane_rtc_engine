@@ -1,7 +1,7 @@
 {
     "license": "MIT",
     "dependencies": {
-        "membrane_rtc_engine": "file:../../..",
+        "membrane-webrtc-js": "membraneframework/membrane-webrtc-js#master",
         "phoenix": "file:../deps/phoenix",
         "typescript": "^4.5.5",
         "playwright": "1.18.1"

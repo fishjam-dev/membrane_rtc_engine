@@ -4,13 +4,14 @@
 [![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_rtc_engine)
 [![CircleCI](https://circleci.com/gh/membraneframework/membrane_rtc_engine.svg?style=svg)](https://circleci.com/gh/membraneframework/membrane_rtc_engine)
 
-Client and server libraries for Membrane RTC Engine.
+Customizable Real-time Communication Engine/SFU library focused on WebRTC.
 
-## Documentation
+## Client SDKs
 
-Documentation of client library is available at https://hexdocs.pm/membrane_rtc_engine/js
-
-Documentation of server library is available at https://hexdocs.pm/membrane_rtc_engine
+* [JS/TS](https://github.com/membraneframework/membrane-webrtc-js)
+* [Android](https://github.com/membraneframework/membrane-webrtc-android)
+* [iOS](https://github.com/membraneframework/membrane-webrtc-ios)
+* [React Native](https://github.com/membraneframework/react-native-membrane-webrtc)
 
 ## Installation
 
@@ -26,19 +27,14 @@ end
 
 ## Usage
 
-For usage examples, please refer to our [membrane_demo](https://github.com/membraneframework/membrane_demo/tree/master/webrtc/videoroom) repository.
+For usage examples, please refer to our [membrane_demo](https://github.com/membraneframework/membrane_demo/tree/master/webrtc/videoroom) or
+[membrane_videoroom](https://github.com/membraneframework/membrane_videoroom) repositories.
 
 
 ## Developing
 
-To make the development a little easier, we augmented `mix compile` and `mix docs` tasks so that `mix compile` also installs npm dependencies and compiles TypeScript code
-and `mix docs` also generates documentation for TypeScript code.
+To make the development a little easier, we have added `mix integration_test` task, which runs integration tests from `integration/test_videoroom`.
 
-Thanks to this, there is no need to include compiled JS code in `priv/static`. It will be generated each time `mix compile` is called.
-
-TypeScript documentation will be generated under `doc/js/`.
-
-We also added `mix integration` task, which runs integration tests from `integration/test_videoroom`.
 ## Copyright and License
 
 Copyright 2021, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_rtc_engine)

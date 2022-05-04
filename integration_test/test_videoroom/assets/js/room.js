@@ -1,4 +1,4 @@
-import { MembraneWebRTC, Peer, SerializedMediaEvent } from "membrane_rtc_engine";
+import { MembraneWebRTC } from "membrane-webrtc-js";
 
 import { Socket } from "phoenix";
 
