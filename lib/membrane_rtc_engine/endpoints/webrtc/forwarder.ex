@@ -24,31 +24,52 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
           old_encoding: String.t() | nil,
           rtp_munger: RTPMunger.t(),
           vp8_munger: VP8Munger.t(),
+          encodings: [String.t()],
           active_encodings: [String.t()],
           started?: boolean()
         }
 
-  @enforce_keys [:codec, :rtp_munger]
+  @enforce_keys [:codec, :selected_encoding, :encodings, :active_encodings, :rtp_munger]
   defstruct @enforce_keys ++
               [
                 :queued_encoding,
                 :old_encoding,
                 :vp8_munger,
-                selected_encoding: "h",
-                active_encodings: ["h", "m", "l"],
                 started?: false
               ]
 
   @doc """
   Creates a new forwarder.
+
+  * `encodings` - a list of possible encodings.
+  * `selected_encoding` - encoding to forward. If not provided,
+  the highest possible encoding will be choosen.
   """
-  @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t()) :: t()
-  def new(:VP8, clock_rate) do
-    %__MODULE__{codec: :VP8, rtp_munger: RTPMunger.new(clock_rate), vp8_munger: VP8Munger.new()}
+  @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t(), [String.t()], String.t() | nil) :: t()
+  def new(codec, clock_rate, encodings, selected_encoding \\ nil)
+
+  def new(:VP8, clock_rate, encodings, selected_encoding) do
+    %__MODULE__{
+      codec: :VP8,
+      rtp_munger: RTPMunger.new(clock_rate),
+      vp8_munger: VP8Munger.new(),
+      encodings: encodings,
+      # assume that, at the beginning, all encodings are active
+      # if some encoding is inactive, we will be notified
+      # about this in `encoding_inactive` function
+      active_encodings: encodings,
+      selected_encoding: selected_encoding || get_next_encoding(encodings)
+    }
   end
 
-  def new(:H264, clock_rate) do
-    %__MODULE__{codec: :H264, rtp_munger: RTPMunger.new(clock_rate)}
+  def new(:H264, clock_rate, encodings, selected_encoding) do
+    %__MODULE__{
+      codec: :H264,
+      rtp_munger: RTPMunger.new(clock_rate),
+      encodings: encodings,
+      active_encodings: encodings,
+      selected_encoding: selected_encoding || get_next_encoding(encodings)
+    }
   end
 
   @doc """
@@ -59,26 +80,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   active again.
   """
   @spec encoding_inactive(t(), String.t()) :: t()
-  def encoding_inactive(
-        %__MODULE__{selected_encoding: encoding, old_encoding: nil} = forwarder,
-        encoding
-      ) do
-    forwarder = %__MODULE__{
-      forwarder
-      | old_encoding: encoding,
-        active_encodings: List.delete(forwarder.active_encodings, encoding)
-    }
-
-    do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
-  end
-
   def encoding_inactive(forwarder, encoding) do
     forwarder = %__MODULE__{
       forwarder
       | active_encodings: List.delete(forwarder.active_encodings, encoding)
     }
 
-    do_select_encoding(forwarder, List.first(forwarder.active_encodings))
+    cond do
+      # if this is currently used and selected encoding
+      forwarder.selected_encoding == encoding and forwarder.old_encoding == nil ->
+        forwarder = %__MODULE__{forwarder | old_encoding: encoding}
+        do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+
+      # if this is currently used encoding but it wasn't explicitly selected
+      # i.e. we switched to it automatically
+      forwarder.selected_encoding == encoding ->
+        do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+
+      true ->
+        forwarder
+    end
   end
 
   @doc """
@@ -101,7 +122,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
         forwarder = %__MODULE__{forwarder | old_encoding: nil}
         do_select_encoding(forwarder, encoding)
 
-      # if we don't have any active encoding
+      # if we are waiting for selected encoding to become
+      # active again, try to select a new encoding
+      # it might be better than currently used
+      forwarder.old_encoding != nil ->
+        do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+
+      # if we didn't have any active encoding
       forwarder.selected_encoding == nil ->
         do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
 

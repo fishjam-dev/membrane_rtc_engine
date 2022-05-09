@@ -63,7 +63,7 @@ defmodule Membrane.RTC.Engine.MixProject do
        github: "membraneframework/membrane_rtp_vp8_plugin",
        branch: "support-telemetry",
        override: true},
-      {:membrane_rtp_format, "~> 0.3.0"},
+      {:membrane_rtp_format, "~> 0.4.0", override: true},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 0.7.0", override: true},
@@ -86,8 +86,6 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp aliases() do
     [
-      compile: ["compile", &compile_ts/1],
-      docs: ["docs", &generate_ts_docs/1],
       integration_test: &run_integration_tests/1
     ]
   end
@@ -117,10 +115,12 @@ defmodule Membrane.RTC.Engine.MixProject do
       groups_for_modules: [
         Endpoints: [
           Membrane.RTC.Engine.Endpoint.WebRTC,
+          Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig,
           Membrane.RTC.Engine.Endpoint.HLS
         ],
         Messages: [
           Membrane.RTC.Engine.Message,
+          Membrane.RTC.Engine.Message.EndpointCrashed,
           Membrane.RTC.Engine.Message.MediaEvent,
           Membrane.RTC.Engine.Message.NewPeer,
           Membrane.RTC.Engine.Message.PeerLeft
@@ -150,24 +150,6 @@ defmodule Membrane.RTC.Engine.MixProject do
     ]
   end
 
-  defp compile_ts(_) do
-    Mix.shell().info("Installing npm dependencies")
-
-    if packages_installed?("assets") do
-      Mix.shell().info("* Already installed")
-    else
-      {_io_stream, exit_status} = System.cmd("npm", ["ci"], cd: "assets", into: IO.stream())
-      if exit_status != 0, do: raise("Failed to install npm dependecies")
-    end
-
-    Mix.shell().info("Compiling TS files")
-
-    {_io_stream, exit_status} =
-      System.cmd("npm", ["run", "build"], cd: "assets", into: IO.stream())
-
-    if exit_status != 0, do: raise("Failed to compile TS files")
-  end
-
   defp run_integration_tests(_) do
     Mix.shell().info("Getting mix dependencies in test_videoroom")
 
@@ -193,13 +175,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       System.cmd("mix", ["test"], cd: "integration_test/test_videoroom", into: IO.stream())
 
     if exit_status != 0, do: raise("Failed to run integration tests")
-  end
-
-  defp generate_ts_docs(_) do
-    Mix.shell().info("Generating TS docs")
-    {result, exit_status} = System.cmd("npm", ["run", "docs"], cd: "assets")
-    Mix.shell().info(result)
-    if exit_status != 0, do: raise("Failed to generate TS docs")
   end
 
   defp packages_installed?(dir) do

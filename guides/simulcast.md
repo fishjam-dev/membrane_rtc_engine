@@ -4,21 +4,19 @@ Simulcast is a technique where a client sends multiple encodings of the same vid
 
 * receiver awailable bandwidth
 * receiver preferences (e.g. explicit request to receive video in HD resolution instead of FHD)
-* UI layaout (e.g. videos being displayed in smaller video tiles will be sent in lower resolution)
+* UI layaout (e.g. videos being displayed in smaller video tiles will be sent in a lower resolution)
 
-At the moment, Membrane supports only receiver preferences i.e. receiver can chose which encoding it is willing to receive. Additionaly, sender can turn off/on specific encoding. Membrane RTC Engine will detect changes and switch to another available encoding.Simulcast is a technique where client sends multiple encodings (different resolutions) of the same
-video to a server and the server forwards proper encoding to each other client basing on 
-client preferences, network bandwidth or UI layaout.
+At the moment, Membrane supports only receiver preferences i.e. receiver can chose which encoding it is willing to receive. Additionaly, sender can turn off/on specific encoding. Membrane RTC Engine will detect changes and switch to another available encoding.
 
 ## Turning simulcast on/off
 
-On the client side simulcast can be enabled while adding new track e.g.:
+On the client side simulcast can be enabled while adding a new track e.g.:
 
 ```ts
     // create MembraneWebRTC class instance
     // ...
     // add simulcasted track
-    let trackId = webrtc.addTrack(track, stream, {}, true);
+    let trackId = webrtc.addTrack(track, stream, {}, {enabled: true, active_encodings: ["l", "m", "h"]});
 ```
 
 This will add a new track that will be sent in three versions:
@@ -26,7 +24,8 @@ This will add a new track that will be sent in three versions:
 * original scaled down by 2 (identified as `m`)
 * original scaled down by 4 (identified as `l`)
 
-Those settings are not configurable at the moment.
+You can turn off some of the encodings by excluding them from `active_encodings` list.
+Encodings that are turned off might still be enabled using `enableTrackEncoding` function.
 
 > #### Minimal required resolution {: .warning}
 >
@@ -36,7 +35,24 @@ Those settings are not configurable at the moment.
 > passed to [`getUserMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia) 
 > or [`getDisplayMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia).
 
-On the server side, simulcast is by default enabled and cannot be turned off at the moment.
+On the server side, simulcast can be configured while adding new WebRTC Endpoint by setting its `simulcast_config` option.
+
+For example
+
+```elixir
+%WebRTC{
+  rtc_engine: rtc_engine,
+  # ...
+  simulcast_config: %SimulcastConfig{
+    enabled: true,
+    default_encoding: fn %Track{simulcast_encodings: _simulcast_encodings} -> "m" end
+  }
+}
+```
+
+Here we turn simulcast on and choose medium encoding for each track to be forwarded to the client.
+
+On the other hand, setting `enabled` to `false` will result in rejecting all incoming simulcast tracks i.e. client will not send them to the server.
 
 ## Disabling and enabling specific track encoding
 
@@ -56,7 +72,7 @@ Disabled encoding can be turned on again using `enableTrackEncoding` function.
 Membrane RTC Engine tracks encoding activity. 
 Therefore, when some encoding is turned off, RTC Engine will detect this and switch to 
 the highest awailable encoding.
-If turned off encoding returns, RTC Engine will switch back to it.
+When disabled encoding becomes active again, RTC Engine will switch back to it.
 
 ## Selecting encoding to receive
 

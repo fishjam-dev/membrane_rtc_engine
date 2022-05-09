@@ -13,6 +13,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.RTC.Engine
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig
 
   require Membrane.Logger
 
@@ -27,23 +28,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
               ice_name: [
                 spec: String.t(),
                 description: "Ice name is used in creating credentials for ice connnection"
-              ],
-              stun_servers: [
-                type: :list,
-                spec: [ExLibnice.stun_server()],
-                default: [],
-                description: "List of stun servers"
-              ],
-              turn_servers: [
-                type: :list,
-                spec: [ExLibnice.relay_info()],
-                default: [],
-                description: "List of turn servers"
-              ],
-              port_range: [
-                spec: Range.t(),
-                default: 0..0,
-                description: "Port range to be used by `Membrane.ICE.Bin`"
               ],
               handshake_opts: [
                 type: :list,
@@ -88,11 +72,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
                 them are actively speaking.
                 """
-              ],
-              use_integrated_turn: [
-                spec: boolean(),
-                default: false,
-                description: "Set to `true`, to use integrated TURN instead of libnice"
               ],
               integrated_turn_domain: [
                 spec: binary() | nil,
@@ -146,6 +125,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
                 For more information refer to RFC 5104 section 4.3.1.
                 """
+              ],
+              simulcast_config: [
+                spec: SimulcastConfig.t(),
+                default: %SimulcastConfig{},
+                description: "Simulcast configuration"
               ]
 
   def_input_pad :input,
@@ -161,20 +145,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_init(opts) do
     endpoint_bin = %EndpointBin{
-      stun_servers: opts.stun_servers,
-      turn_servers: opts.turn_servers,
       handshake_opts: opts.handshake_opts,
       log_metadata: opts.log_metadata,
       filter_codecs: opts.filter_codecs,
       inbound_tracks: [],
       outbound_tracks: [],
       extensions: opts.webrtc_extensions || [],
-      use_integrated_turn: opts.use_integrated_turn,
       integrated_turn_options: opts.integrated_turn_options,
       trace_context: opts.trace_context,
       trace_metadata: [name: opts.ice_name],
       rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
-      rtcp_sender_report_interval: opts.rtcp_sender_report_interval
+      rtcp_sender_report_interval: opts.rtcp_sender_report_interval,
+      simulcast?: opts.simulcast_config.enabled
     }
 
     spec = %ParentSpec{
@@ -187,20 +169,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       outbound_tracks: %{},
       inbound_tracks: %{},
       extensions: opts.extensions || %{},
-      use_integrated_turn: opts.use_integrated_turn,
       integrated_turn_options: opts.integrated_turn_options,
       integrated_turn_domain: opts.integrated_turn_domain,
       owner: opts.owner,
       video_tracks_limit: opts.video_tracks_limit,
-      rtcp_fir_interval: opts.rtcp_fir_interval
+      rtcp_fir_interval: opts.rtcp_fir_interval,
+      simulcast_config: opts.simulcast_config
     }
 
     {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
   end
 
   @impl true
-  def handle_notification({:new_tracks, tracks}, _from, ctx, state) do
-    tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+  def handle_notification({:new_tracks, tracks}, :endpoint_bin, ctx, state) do
+    {:endpoint, endpoint_id} = ctx.name
+
+    tracks =
+      Enum.map(tracks, fn track ->
+        metadata = Map.get(state.track_id_to_metadata, track.id)
+        to_rtc_track(track, endpoint_id, metadata)
+      end)
+
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
     send_if_not_nil(state.display_manager, {:add_inbound_tracks, ctx.name, tracks})
@@ -209,8 +198,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:removed_tracks, tracks}, _from, _ctx, state) do
-    tracks = Enum.map(tracks, &to_rtc_track(&1, state.track_id_to_metadata))
+  def handle_notification({:removed_tracks, tracks}, :endpoint_bin, _ctx, state) do
+    tracks = Enum.map(tracks, &to_rtc_track(&1, Map.get(state.inbound_tracks, &1.id)))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
     {{:ok, notify: {:publish, {:removed_tracks, tracks}}},
@@ -230,27 +219,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_notification({:negotiation_done, new_outbound_tracks}, _from, ctx, state) do
     new_outbound_tracks =
-      Enum.map(new_outbound_tracks, &to_rtc_track(&1, state.track_id_to_metadata))
-
-    subscriptions = Enum.map(new_outbound_tracks, fn track -> {track.id, :RTP} end)
+      Enum.map(new_outbound_tracks, &to_rtc_track(&1, Map.get(state.outbound_tracks, &1.id)))
 
     {:endpoint, endpoint_id} = ctx.name
 
-    case Engine.subscribe(state.rtc_engine, subscriptions, endpoint_id) do
-      :ok ->
-        send_if_not_nil(
-          state.display_manager,
-          {:subscribe_tracks, ctx.name, new_outbound_tracks}
-        )
+    Enum.each(new_outbound_tracks, fn track ->
+      opts = [default_simulcast_encoding: state.simulcast_config.default_encoding.(track)]
 
-        {:ok, state}
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP, opts) do
+        :ok ->
+          :ok
 
-      {:error, track_id, reason} ->
-        raise "Couldn't subscribe for track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
+        {:error, reason} ->
+          raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+      end
+    end)
 
-      {:error, :timeout} ->
-        raise "Timeout subscribing on track in Engine with pid #{inspect(state.rtc_engine)}"
-    end
+    send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
+    {:ok, state}
   end
 
   @impl true
@@ -270,9 +256,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         state
       ) do
     turns = get_turn_configs(turns, state)
-    enforce_turns? = state.use_integrated_turn || false
 
-    media_event_data = {:signal, {:offer_data, media_count, turns, enforce_turns?}}
+    media_event_data = {:signal, {:offer_data, media_count, turns}}
     {{:ok, notify: {:custom_media_event, serialize(media_event_data)}}, state}
   end
 
@@ -439,7 +424,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-  defp serialize({:signal, {:offer_data, tracks_types, turns, enforce_turns?}}) do
+  defp serialize({:signal, {:offer_data, tracks_types, turns}}) do
     integrated_turn_servers =
       Enum.map(turns, fn turn ->
         addr =
@@ -460,8 +445,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       type: "offerData",
       data: %{
         tracksTypes: tracks_types,
-        integratedTurnServers: integrated_turn_servers,
-        iceTransportPolicy: if(enforce_turns?, do: "relay", else: "all")
+        integratedTurnServers: integrated_turn_servers
       }
     }
   end
@@ -582,22 +566,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     end
   end
 
-  defp to_rtc_track(%WebRTC.Track{} = track, track_id_to_metadata) do
+  defp to_rtc_track(%WebRTC.Track{} = track, %Engine.Track{} = original_track) do
+    to_rtc_track(track, original_track.origin, original_track.metadata)
+  end
+
+  defp to_rtc_track(%WebRTC.Track{} = track, origin, metadata) do
     extension_key = WebRTC.Extension
 
-    %Engine.Track{
-      type: track.type,
-      stream_id: track.stream_id,
+    Engine.Track.new(
+      track.type,
+      track.stream_id,
+      origin,
+      track.encoding,
+      track.rtp_mapping.clock_rate,
+      [:RTP, :raw],
+      track.fmtp,
       id: track.id,
-      encoding: track.encoding,
-      simulcast_encodings: track.rids,
-      clock_rate: track.rtp_mapping.clock_rate,
-      format: [:RTP, :raw],
-      fmtp: track.fmtp,
+      simulcast_encodings: track.rids || [],
       active?: track.status != :disabled,
-      metadata: Map.get(track_id_to_metadata, track.id),
-      ctx: %{extension_key => track.extmaps, :clock_rate => track.rtp_mapping.clock_rate}
-    }
+      metadata: metadata,
+      ctx: %{extension_key => track.extmaps}
+    )
   end
 
   defp to_webrtc_track(%Engine.Track{} = track) do

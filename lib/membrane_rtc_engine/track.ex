@@ -9,18 +9,21 @@ defmodule Membrane.RTC.Engine.Track do
   """
   alias ExSDP.Attribute.FMTP
 
-  @enforce_keys [:type, :stream_id, :id, :fmtp]
-  # TODO should clock rate be optional?
-  defstruct @enforce_keys ++
-              [
-                encoding: nil,
-                simulcast_encodings: [],
-                clock_rate: nil,
-                format: nil,
-                active?: true,
-                metadata: nil,
-                ctx: %{}
-              ]
+  @enforce_keys [
+    :type,
+    :stream_id,
+    :id,
+    :origin,
+    :fmtp,
+    :encoding,
+    :simulcast_encodings,
+    :clock_rate,
+    :format,
+    :active?,
+    :metadata,
+    :ctx
+  ]
+  defstruct @enforce_keys
 
   @type id :: String.t()
   @type encoding :: atom()
@@ -33,9 +36,10 @@ defmodule Membrane.RTC.Engine.Track do
   can be indicated by assigning each of them the same `stream_id`. One `stream_id` can be assign to any
   number of tracks.
   * `id` - track id
+  * `origin` - id of Endpoint this track belongs to
   * `encoding` - track encoding
-  * `simulcast_encodings` - list of simulcast encoding identifiers if track is a simulcast track.
-  In other case an empty list.
+  * `simulcast_encodings` - for simulcast tracks this is a list of simulcast encoding identifiers.
+  In other case, this is an empty list.
   * `clock_rate` - track clock rate
   * `format` - list of available track formats. At this moment max two formats can be specified.
   One of them has to be `:raw` which indicates that other Endpoints will receive this track in format
@@ -49,6 +53,7 @@ defmodule Membrane.RTC.Engine.Track do
           type: :audio | :video,
           stream_id: String.t(),
           id: id,
+          origin: String.t(),
           encoding: encoding,
           simulcast_encodings: [String.t()],
           clock_rate: Membrane.RTP.clock_rate_t(),
@@ -59,6 +64,24 @@ defmodule Membrane.RTC.Engine.Track do
           ctx: map()
         }
 
+  @typedoc """
+  Options that can be passed to `new/7`.
+
+  If not provided:
+  * `id` - will be generated
+  * `simulcast_encodings` - `[]`
+  * `metadata` - `nil`
+  * `ctx` - `%{}`
+
+  For more information refer to `t:t/0`.
+  """
+  @type opts_t :: [
+          id: String.t(),
+          simulcast_encodings: [String.t()],
+          metadata: any(),
+          ctx: map()
+        ]
+
   @doc """
   Creates a new track.
 
@@ -67,28 +90,28 @@ defmodule Membrane.RTC.Engine.Track do
   """
   @spec new(
           :audio | :video,
-          stream_id :: String.t(),
-          id: String.t(),
-          encoding: encoding,
-          simulcast_encodings: [String.t()],
-          clock_rate: non_neg_integer(),
-          format: format,
-          fmtp: FMTP,
-          metadata: any(),
-          ctx: map()
+          String.t(),
+          String.t(),
+          encoding(),
+          Membrane.RTP.clock_rate_t(),
+          format(),
+          FMTP,
+          opts_t()
         ) :: t
-  def new(type, stream_id, opts \\ []) do
+  def new(type, stream_id, origin, encoding, clock_rate, format, fmtp, opts \\ []) do
     id = Keyword.get(opts, :id, Base.encode16(:crypto.strong_rand_bytes(8)))
 
     %__MODULE__{
       type: type,
       stream_id: stream_id,
+      origin: origin,
+      encoding: encoding,
+      clock_rate: clock_rate,
+      format: format,
+      fmtp: fmtp,
       id: id,
-      encoding: Keyword.get(opts, :encoding),
+      active?: true,
       simulcast_encodings: Keyword.get(opts, :simulcast_encodings, []),
-      clock_rate: Keyword.get(opts, :clock_rate),
-      format: Keyword.get(opts, :format),
-      fmtp: Keyword.get(opts, :fmtp),
       metadata: Keyword.get(opts, :metadata),
       ctx: Keyword.get(opts, :ctx, %{})
     }

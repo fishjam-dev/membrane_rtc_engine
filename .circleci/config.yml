@@ -28,8 +28,6 @@ jobs:
       - run: mix compile --force --warnings-as-errors
       - run: mix credo
       - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
-      - run: cd assets && npm install
-      - run: cd assets && npm run format:check
 
   integration_test:
     docker:
@@ -43,34 +41,15 @@ jobs:
 
     steps:
       - checkout
+      # TODO remove this after updating Node in out docker_membrane repository
+      - run: npm install npm@8.9.0 -g
       - run: mix deps.get
       - run: cd ./integration_test/test_videoroom && mix deps.get
       - run: cd ./integration_test/test_videoroom && mix compile --force --warnings-as-errors
       - run: cd ./integration_test/test_videoroom && npm ci --prefix=assets
       - run: cd ./integration_test/test_videoroom && mix test
 
-  integration_test_with_turns:
-    docker:
-      - image: membraneframeworklabs/docker_membrane:latest
-        environment:
-          MIX_ENV: test
-          NODE_ENV: development
-          USE_INTEGRATED_TURN: "true"
-          INTEGRATED_TURN_IP: "127.0.0.1"
-          INTEGRATED_TURN_PORT_RANGE: "50000-50500"
-        user: root
 
-    working_directory: ~/app
-
-    steps:
-      - checkout
-      - run: mix deps.get
-      - run: cd ./integration_test/test_videoroom && mix deps.get
-      - run: cd ./integration_test/test_videoroom && mix compile --force --warnings-as-errors
-      - run: cd ./integration_test/test_videoroom && npm ci --prefix=assets
-      - run: cd ./integration_test/test_videoroom && mix test
-
-      
 
 workflows:
   version: 2
@@ -79,5 +58,3 @@ workflows:
       - test
       - lint
       - integration_test
-      - integration_test_with_turns
-      

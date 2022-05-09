@@ -10,20 +10,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @supported_codecs [:H264, :VP8]
 
-  def_options codec: [
-                type: :atom,
-                spec: [:H264 | :VP8],
-                description: "Codec of track #{inspect(__MODULE__)} will forward."
-              ],
-              clock_rate: [
-                type: :integer,
-                spec: Membrane.RTP.clock_rate_t(),
-                description: "Clock rate of track #{inspect(__MODULE__)} will forward."
-              ],
-              endpoint_id: [
+  def_options endpoint_id: [
                 type: :binary,
                 description:
                   "Identifier of WebRTC Endpoint forwarding tracks to #{inspect(__MODULE__)}"
+              ],
+              track: [
+                type: :struct,
+                spec: Membrane.RTC.Engine.Track.t(),
+                description: "Track this tee is going to forward to other endpoints"
               ]
 
   def_input_pad :input,
@@ -35,7 +30,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   def_output_pad :output,
     availability: :on_request,
     mode: :push,
-    caps: Membrane.RTP
+    caps: Membrane.RTP,
+    options: [
+      default_simulcast_encoding: [
+        spec: String.t() | nil,
+        default: nil,
+        description: """
+        Initial encoding that should be sent via this pad.
+        `nil` means that the best possible encoding should be used.
+        """
+      ]
+    ]
 
   @typedoc """
   Notifies that encoding for endpoint with id `endpoint_id` was switched to encoding `encoding`.
@@ -45,27 +50,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_init(opts) do
-    codec = opts.codec
-
-    if codec not in @supported_codecs do
+    if opts.track.encoding not in @supported_codecs do
       raise("""
-      #{inspect(__MODULE__)} does not support codec #{inspect(codec)}.
+      #{inspect(__MODULE__)} does not support codec #{inspect(opts.track.encoding)}.
       Supported codecs: #{inspect(@supported_codecs)}
       """)
     end
 
+    trackers = Map.new(opts.track.simulcast_encodings, &{&1, EncodingTracker.new(&1)})
+
     {:ok,
      %{
-       codec: codec,
-       clock_rate: opts.clock_rate,
+       track: opts.track,
        forwarders: %{},
-       trackers: %{
-         "l" => EncodingTracker.new("l"),
-         "m" => EncodingTracker.new("m"),
-         "h" => EncodingTracker.new("h")
-       },
-       update?: false,
        endpoint_id: opts.endpoint_id
+       trackers: trackers,
+       inactive_encodings: []
      }}
   end
 
@@ -75,10 +75,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {:endpoint, endpoint_id}), _context, state) do
-    state =
-      put_in(state, [:forwarders, endpoint_id], Forwarder.new(state.codec, state.clock_rate))
+  def handle_pad_added(Pad.ref(:output, {:endpoint, endpoint_id}), context, state) do
+    forwarder =
+      Forwarder.new(
+        state.track.encoding,
+        state.track.clock_rate,
+        state.track.simulcast_encodings,
+        context.options[:default_simulcast_encoding]
+      )
 
+    forwarder =
+      Enum.reduce(state.inactive_encodings, forwarder, fn encoding, forwarder ->
+        Forwarder.encoding_inactive(forwarder, encoding)
+      end)
+
+    state = put_in(state, [:forwarders, endpoint_id], forwarder)
     {:ok, state}
   end
 
@@ -111,7 +122,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       [:video_track, :packet_arrival],
       %{
         bitrate: bit_size(buffer.payload),
-        keyframe_indicator: keyframe_indicator(buffer.payload, state.codec)
+        keyframe_indicator: keyframe_indicator(buffer.payload, state.track.codec)
       },
       %{endpoint_id: state.endpoint_id, track_id: track_id, encoding: encoding}
     )
@@ -119,7 +130,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
       buffer.metadata.rtp.ssrc,
-      state.codec
+      state.track.codec
     )
 
     state = update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))
@@ -150,18 +161,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       {:ok, tracker} ->
         put_in(state, [:trackers, rid], tracker)
 
-      {:status_changed, tracker, new_status} ->
-        func =
-          if new_status == :inactive,
-            do: &Forwarder.encoding_inactive(&1, rid),
-            else: &Forwarder.encoding_active(&1, rid)
-
+      {:status_changed, tracker, :active} ->
         state =
           Enum.reduce(state.forwarders, state, fn {endpoint_id, forwarder}, state ->
-            put_in(state, [:forwarders, endpoint_id], func.(forwarder))
+            put_in(state, [:forwarders, endpoint_id], Forwarder.encoding_active(forwarder, rid))
           end)
 
-        put_in(state, [:trackers, rid], tracker)
+        state
+        |> update_in([:inactive_encodings], &List.delete(&1, rid))
+        |> put_in([:trackers, rid], tracker)
+
+      {:status_changed, tracker, :inactive} ->
+        state =
+          Enum.reduce(state.forwarders, state, fn {endpoint_id, forwarder}, state ->
+            put_in(state, [:forwarders, endpoint_id], Forwarder.encoding_inactive(forwarder, rid))
+          end)
+
+        state
+        |> update_in([:inactive_encodings], &[rid | &1])
+        |> put_in([:trackers, rid], tracker)
     end
   end
 
