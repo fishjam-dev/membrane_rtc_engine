@@ -63,7 +63,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
      %{
        track: opts.track,
        forwarders: %{},
-       endpoint_id: opts.endpoint_id
+       endpoint_id: opts.endpoint_id,
        trackers: trackers,
        inactive_encodings: []
      }}
@@ -118,12 +118,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_process(Pad.ref(:input, {track_id, encoding}), buffer, _context, state) do
+    IO.inspect({buffer.metadata.rtp.ssrc, buffer.payload}, label: "a simulcast tee payload", limit: :infinity)
+
     Membrane.TelemetryMetrics.execute(
       [:video_track, :packet_arrival],
       %{
-        bitrate: bit_size(buffer.payload),
-        keyframe_indicator: keyframe_indicator(buffer.payload, state.track.codec)
-      },
+        bitrate: byte_size(buffer.payload),
+        keyframe_indicator: keyframe_indicator(buffer.payload, state.codec)
+      } |> IO.inspect(label: "simulcast tee measurements"),
       %{endpoint_id: state.endpoint_id, track_id: track_id, encoding: encoding}
     )
 
