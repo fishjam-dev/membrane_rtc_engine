@@ -51,12 +51,13 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.9.0", override: true},
-      {:membrane_tee_plugin, "~> 0.8.0", override: true},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
-      {:membrane_rtp_h264_plugin, "~> 0.10.0", override: true},
-      {:membrane_rtp_vp8_plugin, "~> 0.3.0", override: true},
-      {:membrane_rtp_format, "~> 0.3.0"},
+      {:membrane_core, "~> 0.10.0"},
+      {:membrane_rtp_plugin, "~> 0.12.0"},
+      {:membrane_tee_plugin, "~> 0.9.0"},
+      {:membrane_webrtc_plugin, "~>0.3.0"},
+      {:membrane_rtp_h264_plugin, "~> 0.12.0"},
+      {:membrane_rtp_vp8_plugin, "~> 0.4.0"},
+      {:membrane_rtp_format, "~> 0.4.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 0.7.0", override: true},
@@ -65,10 +66,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:credo, "~> 1.6", only: :dev, runtime: false, override: true},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin, "~> 0.5.0", optional: true},
-      {:membrane_mp4_plugin, "~> 0.11.0", optional: true},
-      {:membrane_aac_plugin, "~> 0.11.0", optional: true},
-      {:membrane_aac_fdk_plugin, "~> 0.9.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.6.0", optional: true},
+      {:membrane_mp4_plugin, "~> 0.14.0", optional: true},
+      {:membrane_aac_plugin, "~> 0.12.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.12.0", optional: true},
 
       # Otel
       {:opentelemetry_api, "~> 0.6.0"},

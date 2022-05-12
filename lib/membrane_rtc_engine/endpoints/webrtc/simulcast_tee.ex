@@ -68,7 +68,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {:endpoint, endpoint_id}), context, state) do
+  def handle_pad_added(
+        Pad.ref(:output, {:endpoint, endpoint_id}) = pad,
+        %{playback_state: playback_state} = context,
+        state
+      ) do
     forwarder =
       Forwarder.new(
         state.track.encoding,
@@ -83,7 +87,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       end)
 
     state = put_in(state, [:forwarders, endpoint_id], forwarder)
-    {:ok, state}
+
+    actions =
+      if playback_state == :playing do
+        [caps: {pad, %Membrane.RTP{}}]
+      else
+        []
+      end
+
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -104,9 +116,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_prepared_to_playing(_context, state) do
+  def handle_prepared_to_playing(context, state) do
+    caps =
+      Enum.flat_map(context.pads, fn
+        {Pad.ref(:output, _ref) = pad, _pad_data} -> [caps: {pad, %Membrane.RTP{}}]
+        _other -> []
+      end)
+
     start_timer = [start_timer: {:check_encoding_statuses, 1_000_000_000}]
-    {{:ok, start_timer}, state}
+    {{:ok, start_timer ++ caps}, state}
   end
 
   @impl true
