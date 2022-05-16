@@ -223,6 +223,7 @@ defmodule Membrane.RTC.Engine do
   @type options_t() :: [
           id: String.t(),
           trace_ctx: map(),
+          telemetry_metadata: [{atom(), term()}],
           display_manager?: boolean()
         ]
 
@@ -478,6 +479,7 @@ defmodule Membrane.RTC.Engine do
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
        trace_context: trace_ctx,
+       telemetry_metadata: options[:telemetry_metadata] || [],
        peers: %{},
        endpoints: %{},
        pending_subscriptions: [],
@@ -964,6 +966,14 @@ defmodule Membrane.RTC.Engine do
           }
       end
 
+    tee_input_pad_options = [
+      telemetry_metadata:
+        [
+          track_id: "#{track_id}:#{rid}",
+          peer_id: endpoint_id
+        ] ++ state.telemetry_metadata
+    ]
+
     # spawn tee if it doesn't exist
     tee_link =
       if Map.has_key?(ctx.children, {:tee, track_id}) do
@@ -976,11 +986,12 @@ defmodule Membrane.RTC.Engine do
       if rid do
         link({:endpoint, endpoint_id})
         |> via_out(Pad.ref(:output, {track_id, rid}))
-        |> via_in(Pad.ref(:input, {track_id, rid}))
+        |> via_in(Pad.ref(:input, {track_id, rid}), options: tee_input_pad_options)
         |> then(&tee_link.(&1))
       else
         link({:endpoint, endpoint_id})
         |> via_out(Pad.ref(:output, {track_id, rid}))
+        |> via_in(:input, options: tee_input_pad_options)
         |> then(&tee_link.(&1))
       end
     ]

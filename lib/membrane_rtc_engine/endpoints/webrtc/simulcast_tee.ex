@@ -25,7 +25,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     availability: :on_request,
     mode: :pull,
     demand_mode: :auto,
-    caps: Membrane.RTP
+    caps: Membrane.RTP,
+    options: [
+      telemetry_metadata: [
+        spec: [{atom(), term()}],
+        default: []
+      ]
+    ]
 
   def_output_pad :output,
     availability: :on_request,
@@ -117,22 +123,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, {track_id, encoding}), buffer, _context, state) do
-    IO.inspect({buffer.metadata.rtp.ssrc, buffer.payload}, label: "a simulcast tee payload", limit: :infinity)
-
-    Membrane.TelemetryMetrics.execute(
-      [:video_track, :packet_arrival],
-      %{
-        bitrate: byte_size(buffer.payload),
-        keyframe_indicator: keyframe_indicator(buffer.payload, state.codec)
-      } |> IO.inspect(label: "simulcast tee measurements"),
-      %{endpoint_id: state.endpoint_id, track_id: track_id, encoding: encoding}
-    )
-
+  def handle_process(Pad.ref(:input, {track_id, encoding}) = pad, buffer, ctx, state) do
     Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
-      buffer.metadata.rtp.ssrc,
-      state.track.codec
+      ctx.pads[pad].options.telemetry_metadata,
+      state.track.encoding
     )
 
     state = update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))
@@ -211,15 +206,5 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     else
       {:ok, state}
     end
-  end
-
-  defp keyframe_indicator(payload, codec) do
-    is_keyframe =
-      case codec do
-        :H264 -> Membrane.RTP.H264.Utils.is_keyframe(payload)
-        :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(payload)
-      end
-
-    if is_keyframe, do: 1, else: 0
   end
 end

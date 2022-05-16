@@ -37,7 +37,13 @@ defmodule Membrane.RTC.Engine.FilterTee do
     availability: :always,
     mode: :pull,
     demand_mode: :auto,
-    caps: :any
+    caps: :any,
+    options: [
+      telemetry_metadata: [
+        spec: [{atom(), term()}],
+        default: []
+      ]
+    ]
 
   def_output_pad :output,
     availability: :on_request,
@@ -58,10 +64,10 @@ defmodule Membrane.RTC.Engine.FilterTee do
   end
 
   @impl true
-  def handle_process(:input, %Membrane.Buffer{} = buffer, _ctx, %{type: :audio} = state) do
+  def handle_process(:input, %Membrane.Buffer{} = buffer, ctx, %{type: :audio} = state) do
     Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
-      buffer.metadata.rtp.ssrc,
+      ctx.pads[:input].options.telemetry_metadata,
       state.codec
     )
 
@@ -72,12 +78,12 @@ defmodule Membrane.RTC.Engine.FilterTee do
   def handle_process(
         :input,
         %Membrane.Buffer{} = buffer,
-        _ctx,
+        ctx,
         %{type: :video, counter: 1000} = state
       ) do
     Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
-      buffer.metadata.rtp.ssrc,
+      ctx.pads[:input].options.telemetry_metadata,
       state.codec
     )
 
@@ -88,7 +94,7 @@ defmodule Membrane.RTC.Engine.FilterTee do
   def handle_process(:input, %Membrane.Buffer{} = buffer, ctx, %{type: :video} = state) do
     Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
-      buffer.metadata.rtp.ssrc,
+      ctx.pads[:input].options.telemetry_metadata,
       state.codec
     )
 

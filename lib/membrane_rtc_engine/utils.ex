@@ -95,36 +95,36 @@ defmodule Membrane.RTC.Utils do
   end
 
   @spec emit_telemetry_event_with_packet_mesaurments(binary(), integer(), atom()) :: :ok
-  def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :VP8) do
+  def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_metadata, :VP8) do
     frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
     keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
 
     Membrane.TelemetryMetrics.execute(
       [:packet_arrival, :rtp, :VP8],
-      %{keyframe_indicator: keyframe_indicator, frame_indicator: frame_indicator},
-      %{ssrc: ssrc}
+      %{encoding: :VP8, keyframe_indicator: keyframe_indicator, frame_indicator: frame_indicator},
+      %{telemetry_metadata: telemetry_metadata}
     )
 
     :ok
   end
 
-  def emit_telemetry_event_with_packet_mesaurments(payload, ssrc, :H264) do
+  def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_metadata, :H264) do
     keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
 
     Membrane.TelemetryMetrics.execute(
       [:packet_arrival, :rtp, :H264],
-      %{keyframe_indicator: keyframe_indicator},
-      %{ssrc: ssrc}
+      %{encoding: :H264, keyframe_indicator: keyframe_indicator},
+      %{telemetry_metadata: telemetry_metadata}
     )
 
     :ok
   end
 
-  def emit_telemetry_event_with_packet_mesaurments(_payload, ssrc, :OPUS) do
+  def emit_telemetry_event_with_packet_mesaurments(_payload, telemetry_metadata, :OPUS) do
     Membrane.TelemetryMetrics.execute(
       [:packet_arrival, :rtp, :OPUS],
-      %{},
-      %{ssrc: ssrc}
+      %{encoding: :OPUS},
+      %{telemetry_metadata: telemetry_metadata}
     )
 
     :ok

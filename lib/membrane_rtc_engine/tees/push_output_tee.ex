@@ -14,7 +14,13 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
     availability: :always,
     mode: :pull,
     demand_mode: :auto,
-    caps: :any
+    caps: :any,
+    options: [
+      telemetry_metadata: [
+        spec: [{atom(), term()}],
+        default: []
+      ]
+    ]
 
   def_output_pad :output,
     availability: :on_request,
@@ -27,10 +33,10 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
   end
 
   @impl true
-  def handle_process(:input, %Membrane.Buffer{} = buffer, _ctx, state) do
+  def handle_process(:input, %Membrane.Buffer{} = buffer, ctx, state) do
     Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
-      buffer.metadata.rtp.ssrc,
+      ctx.pads[:input].options.telemetry_metadata,
       state.codec
     )
 
