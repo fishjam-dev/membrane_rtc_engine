@@ -87,14 +87,11 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp package do
     [
       maintainers: ["Membrane Team"],
-      licenses: ["Apache 2.0"],
+      licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @github_url,
         "Membrane Framework Homepage" => "https://membraneframework.org"
-      },
-      files:
-        ~w(lib mix.exs .formatter.exs LICENSE README.md) ++
-          ~w(assets/js assets/package.json assets/package-lock.json assets/tsconfig.json assets/esbuild.js package.json)
+      }
     ]
   end
 
