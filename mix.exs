@@ -60,10 +60,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_rtp_format, "~> 0.4.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
-      {:unifex, "~> 0.7.0", override: true},
+      {:unifex, "~> 0.7.0"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.28.3", only: :dev, runtime: false},
-      {:credo, "~> 1.6", only: :dev, runtime: false, override: true},
+      {:credo, "~> 1.6", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
       {:membrane_http_adaptive_stream_plugin, "~> 0.6.0", optional: true},
