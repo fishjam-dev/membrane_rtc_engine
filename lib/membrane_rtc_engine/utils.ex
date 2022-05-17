@@ -94,6 +94,31 @@ defmodule Membrane.RTC.Utils do
     {username, password}
   end
 
+  @spec emitted_metrics() :: [Telemetry.Metrics.t()]
+  def emitted_metrics() do
+    [
+      Telemetry.Metrics.sum(
+        "inbound-rtp.VP8.frames",
+        event_name: [:packet_arrival, :rtp, :VP8],
+        measurement: :frame_indicator
+      ),
+      Telemetry.Metrics.sum(
+        "inbound-rtp.VP8.keyframes",
+        event_name: [:packet_arrival, :rtp, :VP8],
+        measurement: :keyframe_indicator
+      ),
+      Telemetry.Metrics.sum(
+        "inbound-rtp.H264.keyframes",
+        event_name: [:packet_arrival, :rtp, :H264],
+        measurement: :keyframe_indicator
+      ),
+      Telemetry.Metrics.counter(
+        "inbound-rtp.OPUS.frames",
+        event_name: [:packet_arrival, :rtp, :OPUS]
+      )
+    ]
+  end
+
   @spec emit_telemetry_event_with_packet_mesaurments(binary(), integer(), atom()) :: :ok
   def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_metadata, :VP8) do
     frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
