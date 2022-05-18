@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
@@ -56,24 +56,25 @@ defmodule Membrane.RTC.Engine.MixProject do
         branch: "basic-functionality-implementation",
         github: "membraneframework/membrane_telemetry_metrics"
       },
-      {:membrane_core, "~> 0.9.0", override: true},
-      {:membrane_tee_plugin, "~> 0.8.0", override: true},
       {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
-      {:membrane_rtp_h264_plugin, "~> 0.10.0", override: true},
-      {:membrane_rtp_vp8_plugin, "~> 0.3.0", override: true},
       {:membrane_rtp_format, "~> 0.4.0", override: true},
+      {:membrane_core, "~> 0.10.0"},
+      {:membrane_rtp_plugin, "~> 0.12.0"},
+      {:membrane_tee_plugin, "~> 0.9.0"},
+      {:membrane_rtp_h264_plugin, "~> 0.12.0"},
+      {:membrane_rtp_vp8_plugin, "~> 0.4.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
-      {:unifex, "~> 0.7.0", override: true},
+      {:unifex, "~> 0.7.0"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.28.3", only: :dev, runtime: false},
-      {:credo, "~> 1.6", only: :dev, runtime: false, override: true},
+      {:credo, "~> 1.6", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin, "~> 0.5.0", optional: true},
-      {:membrane_mp4_plugin, "~> 0.11.0", optional: true},
-      {:membrane_aac_plugin, "~> 0.11.0", optional: true},
-      {:membrane_aac_fdk_plugin, "~> 0.9.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.6.0", optional: true},
+      {:membrane_mp4_plugin, "~> 0.14.0", optional: true},
+      {:membrane_aac_plugin, "~> 0.12.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.12.0", optional: true},
 
       # Otel
       {:opentelemetry_api, "~> 0.6.0"},
@@ -91,14 +92,11 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp package do
     [
       maintainers: ["Membrane Team"],
-      licenses: ["Apache 2.0"],
+      licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @github_url,
         "Membrane Framework Homepage" => "https://membraneframework.org"
-      },
-      files:
-        ~w(lib mix.exs .formatter.exs LICENSE README.md) ++
-          ~w(assets/js assets/package.json assets/package-lock.json assets/tsconfig.json assets/esbuild.js package.json)
+      }
     ]
   end
 

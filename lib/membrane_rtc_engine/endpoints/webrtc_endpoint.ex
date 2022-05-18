@@ -166,7 +166,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     }
 
     spec = %ParentSpec{
-      children: %{endpoint_bin: endpoint_bin}
+      children: %{endpoint_bin: endpoint_bin},
+      log_metadata: opts.log_metadata
     }
 
     state = %{
@@ -183,7 +184,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       simulcast_config: opts.simulcast_config
     }
 
-    {{:ok, spec: spec, log_metadata: opts.log_metadata}, state}
+    {{:ok, spec: spec}, state}
   end
 
   @impl true

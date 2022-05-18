@@ -1,4 +1,4 @@
-import { MembraneWebRTC } from "membrane-webrtc-js";
+import { MembraneWebRTC } from "@membraneframework/membrane-webrtc-js";
 
 import { Socket } from "phoenix";
 
