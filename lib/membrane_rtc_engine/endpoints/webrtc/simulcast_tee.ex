@@ -141,7 +141,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, {track_id, encoding}) = pad, buffer, ctx, state) do
+  def handle_process(Pad.ref(:input, {_track_id, encoding}) = pad, buffer, ctx, state) do
     Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
       ctx.pads[pad].options.telemetry_metadata,

@@ -29,7 +29,22 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
 
   @impl true
   def handle_init(opts) do
-    {:ok, %{codec: opts.codec}}
+    {:ok, %{codec: opts.codec, caps: nil}}
+  end
+
+  @impl true
+  def handle_caps(_pad, caps, _ctx, state) do
+    {{:ok, forward: caps}, %{state | caps: caps}}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:output, _ref), _ctx, %{caps: nil} = state) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:output, _ref) = pad, _ctx, %{caps: caps} = state) do
+    {{:ok, caps: {pad, caps}}, state}
   end
 
   @impl true
