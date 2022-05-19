@@ -44,7 +44,7 @@
   "membrane_rtp_format": {:git, "https://github.com/membraneframework/membrane_rtp_format.git", "a60f7fb2794449f578e0133f06c2ce53448379b7", [branch: "support-telemetry"]},
   "membrane_rtp_h264_plugin": {:git, "https://github.com/membraneframework/membrane_rtp_h264_plugin.git", "6b3c479bb89855d87fd665e766e7faf3609a3589", [branch: "support-telemetry"]},
   "membrane_rtp_opus_plugin": {:git, "https://github.com/membraneframework/membrane_rtp_opus_plugin.git", "fc87414ea22ac2092c40440a20a25ad1afe35e48", [branch: "support-telemetry"]},
-  "membrane_rtp_plugin": {:git, "https://github.com/membraneframework/membrane_rtp_plugin.git", "207d6258ab96972eeee5db7b387b8dc8f7e7677c", [branch: "support-telemetry-2"]},
+  "membrane_rtp_plugin": {:git, "https://github.com/membraneframework/membrane_rtp_plugin.git", "1a087f349416a1d511c383d90a07a4708c58dd70", [branch: "support-telemetry-2"]},
   "membrane_rtp_vp8_plugin": {:git, "https://github.com/membraneframework/membrane_rtp_vp8_plugin.git", "84f2279e038fe3baf8ae6dac62c60cf6c9cbcf41", [branch: "support-telemetry"]},
   "membrane_tee_plugin": {:hex, :membrane_tee_plugin, "0.9.1", "87bc24629718a43dd8b5ba7b721c5d59da43b4e954ed86ca9d2b050095c94483", [:mix], [{:bunch, "~> 1.0", [hex: :bunch, repo: "hexpm", optional: false]}, {:membrane_core, "~> 0.10.0", [hex: :membrane_core, repo: "hexpm", optional: false]}], "hexpm", "0a27e8efd5414fbe3cd7d88d812905ba7030c82a5f0b5799ad5ddbc637ac7aeb"},
   "membrane_telemetry_metrics": {:git, "https://github.com/membraneframework/membrane_telemetry_metrics.git", "2cb465407c9c3e0dfe43ea254bf582f68924f20b", [branch: "basic-functionality-implementation"]},
