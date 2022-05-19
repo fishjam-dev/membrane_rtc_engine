@@ -455,11 +455,6 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @spec metrics() :: [Telemetry.Metrics.t()]
-  def metrics() do
-    Membrane.RTP.Metrics.metrics() ++ Membrane.RTC.Utils.emitted_metrics()
-  end
-
   @impl true
   def handle_init(options) do
     play(self())
