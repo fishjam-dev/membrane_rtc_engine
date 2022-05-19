@@ -474,12 +474,14 @@ defmodule Membrane.RTC.Engine do
         nil
       end
 
+    telemetry_metadata = [room_id: options[:id]] ++ (options[:telemetry_metadata] || [])
+
     {:ok,
      %{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
        trace_context: trace_ctx,
-       telemetry_metadata: options[:telemetry_metadata] || [],
+       telemetry_metadata: telemetry_metadata,
        peers: %{},
        endpoints: %{},
        pending_subscriptions: [],
@@ -546,6 +548,16 @@ defmodule Membrane.RTC.Engine do
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
     endpoint_id = opts[:endpoint_id] || opts[:peer_id]
+
+    endpoint =
+      case endpoint do
+        %Endpoint.WebRTC{} ->
+          telemetry_metadata = [peer_id: peer_id] ++ state.telemetry_metadata
+          %Endpoint.WebRTC{endpoint | telemetry_metadata: telemetry_metadata}
+
+        another_endpoint ->
+          another_endpoint
+      end
 
     cond do
       Map.has_key?(state.endpoints, endpoint_id) ->
