@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
@@ -52,24 +52,24 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.10.0"},
-      {:membrane_rtp_plugin, "~> 0.12.0"},
+      {:membrane_rtp_plugin, "~> 0.13.0"},
       {:membrane_tee_plugin, "~> 0.9.0"},
-      {:membrane_webrtc_plugin, "~>0.3.0"},
+      {:membrane_webrtc_plugin, "~> 0.4.0"},
       {:membrane_rtp_h264_plugin, "~> 0.12.0"},
-      {:membrane_rtp_vp8_plugin, "~> 0.4.0"},
+      {:membrane_rtp_vp8_plugin, "~> 0.5.0"},
       {:membrane_rtp_format, "~> 0.4.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
-      {:unifex, "~> 0.7.0"},
+      {:unifex, "~> 1.0"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.28.3", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin, "~> 0.6.0", optional: true},
-      {:membrane_mp4_plugin, "~> 0.14.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.7.0", optional: true},
+      {:membrane_mp4_plugin, "~> 0.15.0", optional: true},
       {:membrane_aac_plugin, "~> 0.12.0", optional: true},
-      {:membrane_aac_fdk_plugin, "~> 0.12.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.13.0", optional: true},
 
       # Otel
       {:opentelemetry_api, "~> 0.6.0"},
