@@ -94,7 +94,22 @@ defmodule Membrane.RTC.Utils do
     {username, password}
   end
 
-  @spec emit_telemetry_event_with_packet_mesaurments(binary(), integer(), atom()) :: :ok
+  @spec register_event_with_telemetry_metadata([{atom(), any()}], :VP8 | :H264 | :OPUS) :: :ok
+  def register_event_with_telemetry_metadata(telemetry_metadata, codec)
+      when codec in [:VP8, :H264, :OPUS] do
+    Membrane.TelemetryMetrics.register_event_with_telemetry_metadata(
+      [:packet_arrival, :rtp, codec],
+      telemetry_metadata
+    )
+
+    :ok
+  end
+
+  @spec emit_telemetry_event_with_packet_mesaurments(
+          binary(),
+          [{atom(), any()}],
+          :VP8 | :H264 | :OPUS
+        ) :: :ok
   def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_metadata, :VP8) do
     frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
     keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0

@@ -956,6 +956,12 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp create_and_link_tee(track_id, rid, track, endpoint_id, ctx, state) do
+    telemetry_metadata =
+      [
+        track_id: "#{track_id}:#{rid}",
+        peer_id: endpoint_id
+      ] ++ state.telemetry_metadata
+
     tee =
       cond do
         rid != nil ->
@@ -969,22 +975,16 @@ defmodule Membrane.RTC.Engine do
             ets_name: state.id,
             track_id: track_id,
             type: track.type,
-            codec: track.encoding
+            codec: track.encoding,
+            telemetry_metadata: telemetry_metadata
           }
 
         true ->
           %Engine.PushOutputTee{
-            codec: track.encoding
+            codec: track.encoding,
+            telemetry_metadata: telemetry_metadata
           }
       end
-
-    tee_input_pad_options = [
-      telemetry_metadata:
-        [
-          track_id: "#{track_id}:#{rid}",
-          peer_id: endpoint_id
-        ] ++ state.telemetry_metadata
-    ]
 
     # spawn tee if it doesn't exist
     tee_link =
@@ -998,12 +998,13 @@ defmodule Membrane.RTC.Engine do
       if rid do
         link({:endpoint, endpoint_id})
         |> via_out(Pad.ref(:output, {track_id, rid}))
-        |> via_in(Pad.ref(:input, {track_id, rid}), options: tee_input_pad_options)
+        |> via_in(Pad.ref(:input, {track_id, rid}),
+          options: [telemetry_metadata: telemetry_metadata]
+        )
         |> then(&tee_link.(&1))
       else
         link({:endpoint, endpoint_id})
         |> via_out(Pad.ref(:output, {track_id, rid}))
-        |> via_in(:input, options: tee_input_pad_options)
         |> then(&tee_link.(&1))
       end
     ]
