@@ -231,8 +231,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         :ok ->
           :ok
 
+        {:error, :invalid_track_id} ->
+          Membrane.Logger.debug("""
+          Couldn't subscribe to track: #{inspect(track.id)}. No such track.
+          It was probably removed before we restarted ICE. Ignoring.
+          """)
+
         {:error, reason} ->
-          raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+          raise "Couldn't subscribe to track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
       end
     end)
 
