@@ -151,7 +151,11 @@ defmodule Membrane.RTC.Engine.Metrics do
 
   @spec metrics() :: [Telemetry.Metrics.t()]
   def metrics() do
-    rtc_engine_metrics() ++ Membrane.RTP.Metrics.metrics()
+    Enum.concat([
+      rtc_engine_metrics(),
+      Membrane.RTP.Metrics.metrics(),
+      Membrane.ICE.Metrics.metrics()
+    ])
   end
 
   defp rtc_engine_metrics() do
