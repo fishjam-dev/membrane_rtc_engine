@@ -11,7 +11,7 @@ defmodule Membrane.RTC.Engine.Message do
 
   defmodule MediaEvent do
     @moduledoc """
-    Message emitted when RTC Engine need to send some Media Event to the Client Library.
+    Message emitted when RTC Engine needs to send some Media Event to the Client Library.
     """
 
     @typedoc """
