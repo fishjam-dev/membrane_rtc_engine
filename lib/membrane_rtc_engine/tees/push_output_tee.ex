@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
                 spec: [:H264 | :VP8 | :OPUS],
                 description: "Codec of track #{inspect(__MODULE__)} will forward."
               ],
-              telemetry_metadata: [
+              telemetry_label: [
                 spec: Keyword.t(),
                 default: []
               ]
@@ -27,8 +27,8 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
 
   @impl true
   def handle_init(opts) do
-    Membrane.RTC.Utils.register_event_with_telemetry_metadata(
-      opts.telemetry_metadata,
+    Membrane.RTC.Utils.telemetry_register(
+      opts.telemetry_label,
       opts.codec
     )
 
@@ -36,7 +36,7 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
      %{
        codec: opts.codec,
        caps: nil,
-       telemetry_metadata: opts.telemetry_metadata
+       telemetry_label: opts.telemetry_label
      }}
   end
 
@@ -59,7 +59,7 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
   def handle_process(:input, %Membrane.Buffer{} = buffer, _ctx, state) do
     Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
-      state.telemetry_metadata,
+      state.telemetry_label,
       state.codec
     )
 

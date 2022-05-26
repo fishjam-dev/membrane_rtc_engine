@@ -131,10 +131,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 default: %SimulcastConfig{},
                 description: "Simulcast configuration"
               ],
-              telemetry_metadata: [
+              telemetry_label: [
                 spec: [{atom(), any()}],
                 default: [],
-                description: "Value passed to Membrane.Telemetry events in metadata"
+                description: "Label passed to Membrane.TelemetryMetrics functions"
               ]
 
   def_input_pad :input,
@@ -162,7 +162,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
       rtcp_sender_report_interval: opts.rtcp_sender_report_interval,
       simulcast?: opts.simulcast_config.enabled,
-      telemetry_metadata: opts.telemetry_metadata
+      telemetry_label: opts.telemetry_label
     }
 
     spec = %ParentSpec{

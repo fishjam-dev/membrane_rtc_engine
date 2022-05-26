@@ -94,13 +94,10 @@ defmodule Membrane.RTC.Utils do
     {username, password}
   end
 
-  @spec register_event_with_telemetry_metadata([{atom(), any()}], :VP8 | :H264 | :OPUS) :: :ok
-  def register_event_with_telemetry_metadata(telemetry_metadata, codec)
+  @spec telemetry_register([{atom(), any()}], :VP8 | :H264 | :OPUS) :: :ok
+  def telemetry_register(telemetry_label, codec)
       when codec in [:VP8, :H264, :OPUS] do
-    Membrane.TelemetryMetrics.register_event_with_telemetry_metadata(
-      [:packet_arrival, :rtp, codec],
-      telemetry_metadata
-    )
+    Membrane.TelemetryMetrics.register([:packet_arrival, :rtp, codec], telemetry_label)
 
     :ok
   end
@@ -110,36 +107,39 @@ defmodule Membrane.RTC.Utils do
           [{atom(), any()}],
           :VP8 | :H264 | :OPUS
         ) :: :ok
-  def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_metadata, :VP8) do
+  def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_label, :VP8) do
     frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
     keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
 
     Membrane.TelemetryMetrics.execute(
       [:packet_arrival, :rtp, :VP8],
       %{encoding: :VP8, keyframe_indicator: keyframe_indicator, frame_indicator: frame_indicator},
-      %{telemetry_metadata: telemetry_metadata}
+      %{},
+      telemetry_label
     )
 
     :ok
   end
 
-  def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_metadata, :H264) do
+  def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_label, :H264) do
     keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
 
     Membrane.TelemetryMetrics.execute(
       [:packet_arrival, :rtp, :H264],
       %{encoding: :H264, keyframe_indicator: keyframe_indicator},
-      %{telemetry_metadata: telemetry_metadata}
+      %{},
+      telemetry_label
     )
 
     :ok
   end
 
-  def emit_telemetry_event_with_packet_mesaurments(_payload, telemetry_metadata, :OPUS) do
+  def emit_telemetry_event_with_packet_mesaurments(_payload, telemetry_label, :OPUS) do
     Membrane.TelemetryMetrics.execute(
       [:packet_arrival, :rtp, :OPUS],
       %{encoding: :OPUS},
-      %{telemetry_metadata: telemetry_metadata}
+      %{},
+      telemetry_label
     )
 
     :ok

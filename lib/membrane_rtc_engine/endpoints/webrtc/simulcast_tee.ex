@@ -23,7 +23,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     demand_mode: :auto,
     caps: Membrane.RTP,
     options: [
-      telemetry_metadata: [
+      telemetry_label: [
         spec: [{atom(), term()}],
         default: []
       ]
@@ -72,8 +72,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, {_track_id, _rid}) = pad, ctx, state) do
-    Utils.register_event_with_telemetry_metadata(
-      ctx.pads[pad].options.telemetry_metadata,
+    Utils.telemetry_register(
+      ctx.pads[pad].options.telemetry_label,
       state.track.encoding
     )
 
@@ -144,7 +144,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   def handle_process(Pad.ref(:input, {_track_id, encoding}) = pad, buffer, ctx, state) do
     Utils.emit_telemetry_event_with_packet_mesaurments(
       buffer.payload,
-      ctx.pads[pad].options.telemetry_metadata,
+      ctx.pads[pad].options.telemetry_label,
       state.track.encoding
     )
 

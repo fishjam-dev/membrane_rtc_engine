@@ -223,7 +223,7 @@ defmodule Membrane.RTC.Engine do
   @type options_t() :: [
           id: String.t(),
           trace_ctx: map(),
-          telemetry_metadata: [{atom(), term()}],
+          telemetry_label: [{atom(), term()}],
           display_manager?: boolean()
         ]
 
@@ -474,14 +474,14 @@ defmodule Membrane.RTC.Engine do
         nil
       end
 
-    telemetry_metadata = [room_id: options[:id]] ++ (options[:telemetry_metadata] || [])
+    telemetry_label = [room_id: options[:id]] ++ (options[:telemetry_label] || [])
 
     {:ok,
      %{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
        trace_context: trace_ctx,
-       telemetry_metadata: telemetry_metadata,
+       telemetry_label: telemetry_label,
        peers: %{},
        endpoints: %{},
        pending_subscriptions: [],
@@ -552,8 +552,8 @@ defmodule Membrane.RTC.Engine do
     endpoint =
       case endpoint do
         %Endpoint.WebRTC{} ->
-          telemetry_metadata = [peer_id: peer_id] ++ state.telemetry_metadata
-          %Endpoint.WebRTC{endpoint | telemetry_metadata: telemetry_metadata}
+          telemetry_label = [peer_id: peer_id] ++ state.telemetry_label
+          %Endpoint.WebRTC{endpoint | telemetry_label: telemetry_label}
 
         another_endpoint ->
           another_endpoint
@@ -956,11 +956,11 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp create_and_link_tee(track_id, rid, track, endpoint_id, ctx, state) do
-    telemetry_metadata =
+    telemetry_label =
       [
         track_id: "#{track_id}:#{rid}",
         peer_id: endpoint_id
-      ] ++ state.telemetry_metadata
+      ] ++ state.telemetry_label
 
     tee =
       cond do
@@ -973,13 +973,13 @@ defmodule Membrane.RTC.Engine do
             track_id: track_id,
             type: track.type,
             codec: track.encoding,
-            telemetry_metadata: telemetry_metadata
+            telemetry_label: telemetry_label
           }
 
         true ->
           %Engine.PushOutputTee{
             codec: track.encoding,
-            telemetry_metadata: telemetry_metadata
+            telemetry_label: telemetry_label
           }
       end
 
@@ -996,7 +996,7 @@ defmodule Membrane.RTC.Engine do
         link({:endpoint, endpoint_id})
         |> via_out(Pad.ref(:output, {track_id, rid}))
         |> via_in(Pad.ref(:input, {track_id, rid}),
-          options: [telemetry_metadata: telemetry_metadata]
+          options: [telemetry_label: telemetry_label]
         )
         |> then(&tee_link.(&1))
       else

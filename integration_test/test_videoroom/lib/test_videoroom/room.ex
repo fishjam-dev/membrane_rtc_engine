@@ -116,7 +116,7 @@ defmodule TestVideoroom.Room do
       integrated_turn_domain: state.network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
       log_metadata: [peer_id: peer.id],
-      telemetry_metadata: [peer_id: peer.id, room_id: state.room_id]
+      telemetry_label: [peer_id: peer.id, room_id: state.room_id]
     }
 
     Engine.accept_peer(rtc_engine, peer.id)
