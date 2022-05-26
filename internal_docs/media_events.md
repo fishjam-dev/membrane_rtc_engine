@@ -45,6 +45,7 @@ Messages used by any RTC Engine plugin
 | [peerAccepted](#peeraccepted)     | sent to a peer after he joins the RTC Engine                                            |
 | [peerLeft](#peerleft)             | sent when some peer lefts the RTC Engine                                                |
 | [peerRemoved](#peerremoved)       | sent when peer is forcibly removed by the server                                        |
+| [error](#error)                   | Notifies about an error that occurred                                                   |
 | [custom](#custom-1)               | custom message forwarded from endpoint to client                                        |
 
 ### WebRTC custom media events
@@ -234,6 +235,16 @@ Messages used by any RTC Engine plugin
   {
     peerId: peer_id,
     reason: any
+  }
+  ```
+
+### `error`
+
+* Informs that an error occurred on the server providing a message to show
+
+  ```json
+  {
+    message: any()
   }
   ```
 
