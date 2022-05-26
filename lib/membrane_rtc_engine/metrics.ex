@@ -8,141 +8,164 @@ defmodule Membrane.RTC.Engine.Metrics do
   ```
   %{
     {:room_id, "daily_meeting"} => %{
-      {:peer_id, "9d9a632d-3d46-4908-b040-bebe63ec6d19"} => %{
+      {:peer_id, "32bfdd9b-916f-4a06-980a-5961a157b858"} => %{
         {:track_id,
-        "9d9a632d-3d46-4908-b040-bebe63ec6d19:7553bc03-e0c4-4a1f-9cf7-0f9e923d33ae:"} => %{
-          "inbound-rtp.OPUS.frames" => 8859,
-          "inbound-rtp.bytes_received" => 850978,
+        "32bfdd9b-916f-4a06-980a-5961a157b858:486dddfe-2c83-4637-a801-a7e8c950fac5:l"} => %{
+          "inbound-rtp.VP8.frames" => 1430,
+          "inbound-rtp.VP8.keyframes" => 7,
+          "inbound-rtp.bytes_received" => 1039741,
+          "inbound-rtp.encoding" => :VP8,
+          "inbound-rtp.keyframe_request_sent" => 5,
+          "inbound-rtp.packets" => 1519,
+          "inbound-rtp.ssrc" => 4108675401
+        },
+        {:track_id,
+        "32bfdd9b-916f-4a06-980a-5961a157b858:486dddfe-2c83-4637-a801-a7e8c950fac5:m"} => %{
+          "inbound-rtp.VP8.frames" => 1423,
+          "inbound-rtp.VP8.keyframes" => 6,
+          "inbound-rtp.bytes_received" => 5329455,
+          "inbound-rtp.encoding" => :VP8,
+          "inbound-rtp.keyframe_request_sent" => 5,
+          "inbound-rtp.packets" => 5101,
+          "inbound-rtp.ssrc" => 1150647132
+        },
+        {:track_id,
+        "32bfdd9b-916f-4a06-980a-5961a157b858:d88da4bc-8d29-4ba2-a179-28a5f3b530b7:"} => %{
+          "inbound-rtp.OPUS.frames" => 2987,
+          "inbound-rtp.bytes_received" => 313779,
           "inbound-rtp.encoding" => :OPUS,
-          "inbound-rtp.keyframe_request_sent" => 17,
-          "inbound-rtp.packets" => 8859,
-          "inbound-rtp.ssrc" => 312037136
+          "inbound-rtp.keyframe_request_sent" => 5,
+          "inbound-rtp.packets" => 2987,
+          "inbound-rtp.ssrc" => 3787421452
         },
-        {:track_id,
-        "9d9a632d-3d46-4908-b040-bebe63ec6d19:7e803d01-bf0c-435c-bc80-fe39f586c202:l"} => %{
-          "inbound-rtp.VP8.frames" => 4248,
-          "inbound-rtp.VP8.keyframes" => 20,
-          "inbound-rtp.bytes_received" => 3112012,
-          "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 17,
-          "inbound-rtp.packets" => 4460,
-          "inbound-rtp.ssrc" => 2348844088
-        },
-        {:track_id,
-        "9d9a632d-3d46-4908-b040-bebe63ec6d19:7e803d01-bf0c-435c-bc80-fe39f586c202:m"} => %{
-          "inbound-rtp.VP8.frames" => 4243,
-          "inbound-rtp.VP8.keyframes" => 19,
-          "inbound-rtp.bytes_received" => 16819092,
-          "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 17,
-          "inbound-rtp.packets" => 16015,
-          "inbound-rtp.ssrc" => 1844234322
-        }
+        "ice.binding_requests_received" => 27,
+        "ice.binding_responses_sent" => 27,
+        "ice.bytes_received" => 6715001,
+        "ice.bytes_sent" => 5684471,
+        "ice.packets_received" => 10145,
+        "ice.packets_sent" => 8452
       },
-      {:peer_id, "c557f2f2-f42c-406e-823a-233cd1158fde"} => %{
+      {:peer_id, "a1635f0e-f52c-4254-9d4f-ab7a69c8cc11"} => %{
         {:track_id,
-        "c557f2f2-f42c-406e-823a-233cd1158fde:090d83a9-d050-4c71-9de5-83e9e3fa2db4:"} => %{
-          "inbound-rtp.OPUS.frames" => 8520,
-          "inbound-rtp.bytes_received" => 894702,
+        "a1635f0e-f52c-4254-9d4f-ab7a69c8cc11:4195e933-b390-4a47-9e9b-31d2e357b7af:l"} => %{
+          "inbound-rtp.VP8.frames" => 1540,
+          "inbound-rtp.VP8.keyframes" => 9,
+          "inbound-rtp.bytes_received" => 1125831,
+          "inbound-rtp.encoding" => :VP8,
+          "inbound-rtp.keyframe_request_sent" => 6,
+          "inbound-rtp.packets" => 1650,
+          "inbound-rtp.ssrc" => 1214983820
+        },
+        {:track_id,
+        "a1635f0e-f52c-4254-9d4f-ab7a69c8cc11:4195e933-b390-4a47-9e9b-31d2e357b7af:m"} => %{
+          "inbound-rtp.VP8.frames" => 1533,
+          "inbound-rtp.VP8.keyframes" => 8,
+          "inbound-rtp.bytes_received" => 5747531,
+          "inbound-rtp.encoding" => :VP8,
+          "inbound-rtp.keyframe_request_sent" => 6,
+          "inbound-rtp.packets" => 5535,
+          "inbound-rtp.ssrc" => 2221261902
+        },
+        {:track_id,
+        "a1635f0e-f52c-4254-9d4f-ab7a69c8cc11:bcde16ce-4192-4341-bf9b-e573c5933bea:"} => %{
+          "inbound-rtp.OPUS.frames" => 3225,
+          "inbound-rtp.bytes_received" => 327717,
           "inbound-rtp.encoding" => :OPUS,
-          "inbound-rtp.keyframe_request_sent" => 17,
-          "inbound-rtp.packets" => 8520,
-          "inbound-rtp.ssrc" => 814952113
+          "inbound-rtp.keyframe_request_sent" => 6,
+          "inbound-rtp.packets" => 3225,
+          "inbound-rtp.ssrc" => 2054950190
         },
-        {:track_id,
-        "c557f2f2-f42c-406e-823a-233cd1158fde:76cf884d-4f69-4f53-b1f2-143d269f7527:l"} => %{
-          "inbound-rtp.VP8.frames" => 4089,
-          "inbound-rtp.VP8.keyframes" => 19,
-          "inbound-rtp.bytes_received" => 3037526,
-          "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 17,
-          "inbound-rtp.packets" => 4312,
-          "inbound-rtp.ssrc" => 977746364
-        },
-        {:track_id,
-        "c557f2f2-f42c-406e-823a-233cd1158fde:76cf884d-4f69-4f53-b1f2-143d269f7527:m"} => %{
-          "inbound-rtp.VP8.frames" => 4083,
-          "inbound-rtp.VP8.keyframes" => 18,
-          "inbound-rtp.bytes_received" => 16342230,
-          "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 17,
-          "inbound-rtp.packets" => 15470,
-          "inbound-rtp.ssrc" => 3945285486
-        }
+        "ice.binding_requests_received" => 33,
+        "ice.binding_responses_sent" => 33,
+        "ice.bytes_received" => 7268971,
+        "ice.bytes_sent" => 5632112,
+        "ice.packets_received" => 11919,
+        "ice.packets_sent" => 8355
       }
     },
     {:room_id, "technical_interview"} => %{
-      {:peer_id, "bd222d11-cb39-47d5-8923-2cee951cb315"} => %{
+      {:peer_id, "ae42e869-5ecb-47b0-8956-f1390a4f8283"} => %{
         {:track_id,
-        "bd222d11-cb39-47d5-8923-2cee951cb315:f261f378-b372-43c8-a475-197f991c844f:"} => %{
-          "inbound-rtp.OPUS.frames" => 7031,
-          "inbound-rtp.bytes_received" => 734163,
+        "ae42e869-5ecb-47b0-8956-f1390a4f8283:46da3c72-1e60-4029-9b22-bff9b28e9405:"} => %{
+          "inbound-rtp.OPUS.frames" => 2163,
+          "inbound-rtp.bytes_received" => 221643,
           "inbound-rtp.encoding" => :OPUS,
-          "inbound-rtp.keyframe_request_sent" => 14,
-          "inbound-rtp.packets" => 7031,
-          "inbound-rtp.ssrc" => 3491539918
+          "inbound-rtp.keyframe_request_sent" => 4,
+          "inbound-rtp.packets" => 2163,
+          "inbound-rtp.ssrc" => 3893001048
         },
         {:track_id,
-        "bd222d11-cb39-47d5-8923-2cee951cb315:ffc70c38-c864-4d2b-8ff3-694a25f467c5:h"} => %{
-          "inbound-rtp.VP8.frames" => 2288,
-          "inbound-rtp.VP8.keyframes" => 20,
-          "inbound-rtp.bytes_received" => 18396438,
+        "ae42e869-5ecb-47b0-8956-f1390a4f8283:9f287163-c174-46b0-84b9-31d6b90e7029:h"} => %{
+          "inbound-rtp.VP8.frames" => 85,
+          "inbound-rtp.VP8.keyframes" => 2,
+          "inbound-rtp.bytes_received" => 527060,
           "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 9,
-          "inbound-rtp.packets" => 16313,
-          "inbound-rtp.ssrc" => 1290379009
+          "inbound-rtp.packets" => 478,
+          "inbound-rtp.ssrc" => 3705327476
         },
         {:track_id,
-        "bd222d11-cb39-47d5-8923-2cee951cb315:ffc70c38-c864-4d2b-8ff3-694a25f467c5:l"} => %{
-          "inbound-rtp.VP8.frames" => 1051,
-          "inbound-rtp.VP8.keyframes" => 6,
-          "inbound-rtp.bytes_received" => 769436,
+        "ae42e869-5ecb-47b0-8956-f1390a4f8283:9f287163-c174-46b0-84b9-31d6b90e7029:l"} => %{
+          "inbound-rtp.VP8.frames" => 905,
+          "inbound-rtp.VP8.keyframes" => 5,
+          "inbound-rtp.bytes_received" => 666511,
           "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 14,
-          "inbound-rtp.packets" => 1103,
-          "inbound-rtp.ssrc" => 2168821977
+          "inbound-rtp.keyframe_request_sent" => 4,
+          "inbound-rtp.packets" => 962,
+          "inbound-rtp.ssrc" => 1265024678
         },
         {:track_id,
-        "bd222d11-cb39-47d5-8923-2cee951cb315:ffc70c38-c864-4d2b-8ff3-694a25f467c5:m"} => %{
-          "inbound-rtp.VP8.frames" => 1065,
-          "inbound-rtp.VP8.keyframes" => 6,
-          "inbound-rtp.bytes_received" => 4293386,
+        "ae42e869-5ecb-47b0-8956-f1390a4f8283:9f287163-c174-46b0-84b9-31d6b90e7029:m"} => %{
+          "inbound-rtp.VP8.frames" => 915,
+          "inbound-rtp.VP8.keyframes" => 5,
+          "inbound-rtp.bytes_received" => 3773921,
           "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 14,
-          "inbound-rtp.packets" => 4060,
-          "inbound-rtp.ssrc" => 2213291804
-        }
+          "inbound-rtp.keyframe_request_sent" => 4,
+          "inbound-rtp.packets" => 3556,
+          "inbound-rtp.ssrc" => 1916623047
+        },
+        "ice.binding_requests_received" => 21,
+        "ice.binding_responses_sent" => 21,
+        "ice.bytes_received" => 5212479,
+        "ice.bytes_sent" => 4162929,
+        "ice.packets_received" => 7562,
+        "ice.packets_sent" => 6186
       },
-      {:peer_id, "e89038c4-ac21-4c2d-bea1-1ed605cfba0f"} => %{
+      {:peer_id, "d0285bcd-f77f-4075-9fed-4c602bc68842"} => %{
         {:track_id,
-        "e89038c4-ac21-4c2d-bea1-1ed605cfba0f:5e66b21c-c825-4ede-8f31-6ac7d3027c83:l"} => %{
-          "inbound-rtp.VP8.frames" => 3485,
-          "inbound-rtp.VP8.keyframes" => 17,
-          "inbound-rtp.bytes_received" => 2571619,
+        "d0285bcd-f77f-4075-9fed-4c602bc68842:0536a203-7ea7-4b15-b857-5f34b855cde7:l"} => %{
+          "inbound-rtp.VP8.frames" => 1134,
+          "inbound-rtp.VP8.keyframes" => 7,
+          "inbound-rtp.bytes_received" => 812627,
           "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 14,
-          "inbound-rtp.packets" => 3682,
-          "inbound-rtp.ssrc" => 129978023
+          "inbound-rtp.keyframe_request_sent" => 4,
+          "inbound-rtp.packets" => 1221,
+          "inbound-rtp.ssrc" => 3862273492
         },
         {:track_id,
-        "e89038c4-ac21-4c2d-bea1-1ed605cfba0f:5e66b21c-c825-4ede-8f31-6ac7d3027c83:m"} => %{
-          "inbound-rtp.VP8.frames" => 3478,
-          "inbound-rtp.VP8.keyframes" => 16,
-          "inbound-rtp.bytes_received" => 13630727,
+        "d0285bcd-f77f-4075-9fed-4c602bc68842:0536a203-7ea7-4b15-b857-5f34b855cde7:m"} => %{
+          "inbound-rtp.VP8.frames" => 1128,
+          "inbound-rtp.VP8.keyframes" => 6,
+          "inbound-rtp.bytes_received" => 4256915,
           "inbound-rtp.encoding" => :VP8,
-          "inbound-rtp.keyframe_request_sent" => 14,
-          "inbound-rtp.packets" => 12989,
-          "inbound-rtp.ssrc" => 1330927960
+          "inbound-rtp.keyframe_request_sent" => 4,
+          "inbound-rtp.packets" => 4134,
+          "inbound-rtp.ssrc" => 2664561968
         },
         {:track_id,
-        "e89038c4-ac21-4c2d-bea1-1ed605cfba0f:784a3b30-1007-4f88-b8df-b76a5f29d737:"} => %{
-          "inbound-rtp.OPUS.frames" => 7264,
-          "inbound-rtp.bytes_received" => 678239,
+        "d0285bcd-f77f-4075-9fed-4c602bc68842:9c7c0ed2-b567-4b56-9528-c38011d82998:"} => %{
+          "inbound-rtp.OPUS.frames" => 2375,
+          "inbound-rtp.bytes_received" => 243441,
           "inbound-rtp.encoding" => :OPUS,
-          "inbound-rtp.keyframe_request_sent" => 14,
-          "inbound-rtp.packets" => 7264,
-          "inbound-rtp.ssrc" => 4131688258
-        }
+          "inbound-rtp.keyframe_request_sent" => 4,
+          "inbound-rtp.packets" => 2375,
+          "inbound-rtp.ssrc" => 4063921578
+        },
+        "ice.binding_requests_received" => 26,
+        "ice.binding_responses_sent" => 26,
+        "ice.bytes_received" => 5362055,
+        "ice.bytes_sent" => 3988571,
+        "ice.packets_received" => 8825,
+        "ice.packets_sent" => 5913
       }
     }
   }
