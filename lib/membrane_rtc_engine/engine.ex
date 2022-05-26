@@ -965,10 +965,7 @@ defmodule Membrane.RTC.Engine do
     tee =
       cond do
         rid != nil ->
-          %SimulcastTee{
-            endpoint_id: endpoint_id,
-            track: track
-          }
+          %SimulcastTee{track: track}
 
         state.display_manager != nil ->
           %Engine.FilterTee{

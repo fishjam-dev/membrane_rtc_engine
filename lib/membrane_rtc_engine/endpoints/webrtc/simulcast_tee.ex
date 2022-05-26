@@ -11,12 +11,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @supported_codecs [:H264, :VP8]
 
-  def_options endpoint_id: [
-                type: :binary,
-                description:
-                  "Identifier of WebRTC Endpoint forwarding tracks to #{inspect(__MODULE__)}"
-              ],
-              track: [
+  def_options track: [
                 type: :struct,
                 spec: Membrane.RTC.Engine.Track.t(),
                 description: "Track this tee is going to forward to other endpoints"
@@ -70,7 +65,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
      %{
        track: opts.track,
        forwarders: %{},
-       endpoint_id: opts.endpoint_id,
        trackers: trackers,
        inactive_encodings: []
      }}
