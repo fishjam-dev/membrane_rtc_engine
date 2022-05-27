@@ -34,6 +34,4 @@ config :logger, level: :info
 
 config :phoenix, :json_library, Jason
 
-config :ex_libnice, impl: NIF
-
 import_config "#{config_env()}.exs"

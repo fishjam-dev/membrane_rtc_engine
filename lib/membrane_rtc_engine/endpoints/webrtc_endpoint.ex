@@ -17,8 +17,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   require Membrane.Logger
 
-  @type stun_server_t() :: ExLibnice.stun_server()
-  @type turn_server_t() :: ExLibnice.relay_info()
   @type encoding_t() :: String.t()
 
   def_options rtc_engine: [
@@ -79,7 +77,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 description: "Domain address of integrated TURN Servers. Required for TLS TURN"
               ],
               integrated_turn_options: [
-                spec: Membrane.TURN.Endpoint.integrated_turn_options_t(),
+                spec: Membrane.ICE.Endpoint.integrated_turn_options_t(),
                 default: []
               ],
               owner: [
