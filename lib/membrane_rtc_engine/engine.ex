@@ -456,8 +456,6 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_init(options) do
-    play(self())
-
     trace_ctx =
       if Keyword.has_key?(options, :trace_ctx) do
         OpenTelemetry.Ctx.attach(options[:trace_ctx])
@@ -473,7 +471,7 @@ defmodule Membrane.RTC.Engine do
         nil
       end
 
-    {:ok,
+    {{:ok, playback: :playing},
      %{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
