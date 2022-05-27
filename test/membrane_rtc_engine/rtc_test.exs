@@ -3,7 +3,6 @@ defmodule Membrane.RTC.EngineTest do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.{Message, Peer}
-  alias Membrane.RTC.Engine.Endpoint.WebRTC
 
   setup do
     options = [
