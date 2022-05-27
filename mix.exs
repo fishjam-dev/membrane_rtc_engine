@@ -29,7 +29,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       # they are not included in PLT
       dialyzer: [
         plt_add_apps: [
-          :ex_libnice,
           :ex_sdp,
           :membrane_rtp_plugin,
           :membrane_ice_plugin,
@@ -99,6 +98,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       main: "readme",
       extras: extras(),
+      formatters: ["html"],
       groups_for_extras: groups_for_extras(),
       assets: "internal_docs/simulcast/assets",
       source_ref: "v#{@version}",
