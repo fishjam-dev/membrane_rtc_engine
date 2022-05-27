@@ -456,8 +456,6 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_init(options) do
-    play(self())
-
     trace_ctx =
       if Keyword.has_key?(options, :trace_ctx) do
         OpenTelemetry.Ctx.attach(options[:trace_ctx])
@@ -473,7 +471,7 @@ defmodule Membrane.RTC.Engine do
         nil
       end
 
-    {:ok,
+    {{:ok, playback: :playing},
      %{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
@@ -990,10 +988,8 @@ defmodule Membrane.RTC.Engine do
       subscription.format not in track.format ->
         {:error, :invalid_format}
 
-      # check if subscribed for existing simulcast encoding;
-      # for audio tracks this doesn't matter as we are ignoring
-      # default_simulcast_encoding option while linking
-      track.type == :video and default_simulcast_encoding != nil and
+      # check if subscribed for existing simulcast encoding if simulcast is used
+      track.simulcast_encodings != [] and default_simulcast_encoding != nil and
           default_simulcast_encoding not in track.simulcast_encodings ->
         {:error, :invalid_default_simulcast_encoding}
 
