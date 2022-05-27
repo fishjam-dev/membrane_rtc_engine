@@ -10,8 +10,9 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
                 description: "Codec of track #{inspect(__MODULE__)} will forward."
               ],
               telemetry_label: [
-                spec: Keyword.t(),
-                default: []
+                spec: Membrane.TelemetryMetrics.label(),
+                default: [],
+                description: "Label passed to Membrane.TelemetryMetrics functions"
               ]
 
   def_input_pad :input,

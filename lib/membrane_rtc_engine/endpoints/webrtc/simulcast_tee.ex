@@ -24,8 +24,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     caps: Membrane.RTP,
     options: [
       telemetry_label: [
-        spec: [{atom(), term()}],
-        default: []
+        spec: Membrane.TelemetryMetrics.label(),
+        default: [],
+        description: "Label passed to Membrane.TelemetryMetrics functions"
       ]
     ]
 

@@ -132,7 +132,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 description: "Simulcast configuration"
               ],
               telemetry_label: [
-                spec: [{atom(), any()}],
+                spec: Membrane.TelemetryMetrics.label(),
                 default: [],
                 description: "Label passed to Membrane.TelemetryMetrics functions"
               ]

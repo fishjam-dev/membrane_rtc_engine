@@ -223,7 +223,7 @@ defmodule Membrane.RTC.Engine do
   @type options_t() :: [
           id: String.t(),
           trace_ctx: map(),
-          telemetry_label: [{atom(), term()}],
+          telemetry_label: Membrane.TelemetryMetrics.label(),
           display_manager?: boolean()
         ]
 
@@ -474,7 +474,7 @@ defmodule Membrane.RTC.Engine do
         nil
       end
 
-    telemetry_label = [room_id: options[:id]] ++ (options[:telemetry_label] || [])
+    telemetry_label = (options[:telemetry_label] || []) ++ [room_id: options[:id]]
 
     {:ok,
      %{
@@ -552,7 +552,7 @@ defmodule Membrane.RTC.Engine do
     endpoint =
       case endpoint do
         %Endpoint.WebRTC{} ->
-          telemetry_label = [peer_id: peer_id] ++ state.telemetry_label
+          telemetry_label = state.telemetry_label ++ [peer_id: peer_id]
           %Endpoint.WebRTC{endpoint | telemetry_label: telemetry_label}
 
         another_endpoint ->
@@ -957,10 +957,11 @@ defmodule Membrane.RTC.Engine do
 
   defp create_and_link_tee(track_id, rid, track, endpoint_id, ctx, state) do
     telemetry_label =
-      [
-        track_id: "#{track_id}:#{rid}",
-        peer_id: endpoint_id
-      ] ++ state.telemetry_label
+      state.telemetry_label ++
+        [
+          peer_id: endpoint_id,
+          track_id: "#{track_id}:#{rid}"
+        ]
 
     tee =
       cond do
