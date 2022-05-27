@@ -17,8 +17,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   require Membrane.Logger
 
-  @type stun_server_t() :: ExLibnice.stun_server()
-  @type turn_server_t() :: ExLibnice.relay_info()
   @type encoding_t() :: String.t()
 
   def_options rtc_engine: [
@@ -79,7 +77,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 description: "Domain address of integrated TURN Servers. Required for TLS TURN"
               ],
               integrated_turn_options: [
-                spec: Membrane.TURN.Endpoint.integrated_turn_options_t(),
+                spec: Membrane.ICE.Endpoint.integrated_turn_options_t(),
                 default: []
               ],
               owner: [
@@ -237,8 +235,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         :ok ->
           :ok
 
+        {:error, :invalid_track_id} ->
+          Membrane.Logger.debug("""
+          Couldn't subscribe to track: #{inspect(track.id)}. No such track.
+          It was probably removed before we restarted ICE. Ignoring.
+          """)
+
         {:error, reason} ->
-          raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+          raise "Couldn't subscribe to track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
       end
     end)
 

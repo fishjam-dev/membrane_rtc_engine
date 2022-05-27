@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.1"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
@@ -29,7 +29,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       # they are not included in PLT
       dialyzer: [
         plt_add_apps: [
-          :ex_libnice,
           :ex_sdp,
           :membrane_rtp_plugin,
           :membrane_ice_plugin,
@@ -51,6 +50,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
+      {:membrane_core, "~> 0.10.0"},
       {
         :membrane_telemetry_metrics,
         branch: "basic-functionality-implementation",
@@ -81,18 +81,19 @@ defmodule Membrane.RTC.Engine.MixProject do
        github: "membraneframework/membrane_rtp_h264_plugin",
        override: true,
        branch: "support-telemetry"},
+      {:membrane_tee_plugin, "~> 0.9.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
-      {:unifex, "~> 0.7.0"},
+      {:unifex, "~> 1.0"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.28.3", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin, "~> 0.6.0", optional: true},
-      {:membrane_mp4_plugin, "~> 0.14.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.7.0", optional: true},
+      {:membrane_mp4_plugin, "~> 0.15.0", optional: true},
       {:membrane_aac_plugin, "~> 0.12.0", optional: true},
-      {:membrane_aac_fdk_plugin, "~> 0.12.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.13.0", optional: true},
 
       # Otel
       {:opentelemetry_api, "~> 0.6.0"},
@@ -122,6 +123,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       main: "readme",
       extras: extras(),
+      formatters: ["html"],
       groups_for_extras: groups_for_extras(),
       assets: "internal_docs/simulcast/assets",
       source_ref: "v#{@version}",
