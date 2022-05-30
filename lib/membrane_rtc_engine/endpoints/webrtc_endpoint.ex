@@ -23,6 +23,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 spec: pid(),
                 description: "Pid of parent Engine"
               ],
+              direction: [
+                spec: EndpointBin.direction(),
+                default: :sendrecv,
+                description: """
+                Direction of WebRTC Endpoint. Determines whether
+                EndpointBin can send, receive or both send and receive media.
+                For more information refer to t:EndpointBin.direction/0.
+                """
+              ],
               ice_name: [
                 spec: String.t(),
                 description: "Ice name is used in creating credentials for ice connnection"
@@ -153,6 +162,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       filter_codecs: opts.filter_codecs,
       inbound_tracks: [],
       outbound_tracks: [],
+      direction: opts.direction,
       extensions: opts.webrtc_extensions || [],
       integrated_turn_options: opts.integrated_turn_options,
       trace_context: opts.trace_context,
@@ -171,6 +181,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     state = %{
       rtc_engine: opts.rtc_engine,
       ice_name: opts.ice_name,
+      direction: opts.direction,
       outbound_tracks: %{},
       inbound_tracks: %{},
       extensions: opts.extensions || %{},
