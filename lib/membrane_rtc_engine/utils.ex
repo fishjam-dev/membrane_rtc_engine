@@ -1,5 +1,7 @@
 defmodule Membrane.RTC.Utils do
   @moduledoc false
+  alias Membrane.RTP.PayloadFormatResolver
+
   use OpenTelemetryDecorator
   require OpenTelemetry.Tracer, as: Tracer
   require Membrane.TelemetryMetrics
@@ -118,17 +120,23 @@ defmodule Membrane.RTC.Utils do
     :ok
   end
 
-  defp packet_measurements(payload, :VP8) do
-    frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
-    keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
+  defp packet_measurements(payload, codec) do
+    measurements =
+      case PayloadFormatResolver.keyframe_detector(codec) do
+        {:ok, detector} -> %{keyframe_indicator: detector.(payload) |> bool_to_int()}
+        :error -> %{}
+      end
 
-    %{frame_indicator: frame_indicator, keyframe_indicator: keyframe_indicator}
+    case PayloadFormatResolver.frame_detector(codec) do
+      {:ok, detector} ->
+        frame_indicator = detector.(payload) |> bool_to_int()
+        Map.put(measurements, :frame_indicator, frame_indicator)
+
+      :error ->
+        measurements
+    end
   end
 
-  defp packet_measurements(payload, :H264) do
-    keyframe_indicator = if Membrane.RTP.H264.Utils.is_keyframe(payload), do: 1, else: 0
-    %{keyframe_indicator: keyframe_indicator}
-  end
-
-  defp packet_measurements(_payload, :OPUS), do: %{frame_indicator: 1}
+  defp bool_to_int(true), do: 1
+  defp bool_to_int(false), do: 0
 end
