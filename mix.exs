@@ -146,6 +146,11 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp before_closing_body_tag(:html) do
     """
     <script src="https://cdn.jsdelivr.net/npm/mermaid@9.1.1/dist/mermaid.min.js"></script>
+    <style>
+      .diagramWrapper svg {
+        background-color: white;
+      }
+    </style>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         mermaid.initialize({ startOnLoad: false });
@@ -154,6 +159,7 @@ defmodule Membrane.RTC.Engine.MixProject do
           const preEl = codeEl.parentElement;
           const graphDefinition = codeEl.textContent;
           const graphEl = document.createElement("div");
+          graphEl.classList.add("diagramWrapper");
           const graphId = "mermaid-graph-" + id++;
           mermaid.render(graphId, graphDefinition, function (svgSource, bindListeners) {
             graphEl.innerHTML = svgSource;
