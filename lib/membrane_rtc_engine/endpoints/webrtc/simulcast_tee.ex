@@ -73,10 +73,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, {_track_id, _rid}) = pad, ctx, state) do
-    Utils.telemetry_register(
-      ctx.pads[pad].options.telemetry_label,
-      state.track.encoding
-    )
+    Utils.telemetry_register(ctx.pads[pad].options.telemetry_label)
 
     {:ok, state}
   end
@@ -143,10 +140,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_process(Pad.ref(:input, {_track_id, encoding}) = pad, buffer, ctx, state) do
-    Utils.emit_telemetry_event_with_packet_mesaurments(
+    Utils.emit_packet_arrival_event(
       buffer.payload,
-      ctx.pads[pad].options.telemetry_label,
-      state.track.encoding
+      state.track.encoding,
+      ctx.pads[pad].options.telemetry_label
     )
 
     state = update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))

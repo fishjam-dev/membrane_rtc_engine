@@ -42,23 +42,14 @@ defmodule Membrane.RTC.Engine.Metrics do
   defp rtc_engine_metrics() do
     [
       Telemetry.Metrics.sum(
-        "inbound-rtp.VP8.frames",
-        event_name: [:packet_arrival, :rtp, :VP8],
+        "inbound-rtp.frames",
+        event_name: [Membrane.RTC.Engine, :RTP, :packet, :arrival],
         measurement: :frame_indicator
       ),
       Telemetry.Metrics.sum(
-        "inbound-rtp.VP8.keyframes",
-        event_name: [:packet_arrival, :rtp, :VP8],
+        "inbound-rtp.keyframes",
+        event_name: [Membrane.RTC.Engine, :RTP, :packet, :arrival],
         measurement: :keyframe_indicator
-      ),
-      Telemetry.Metrics.sum(
-        "inbound-rtp.H264.keyframes",
-        event_name: [:packet_arrival, :rtp, :H264],
-        measurement: :keyframe_indicator
-      ),
-      Telemetry.Metrics.counter(
-        "inbound-rtp.OPUS.frames",
-        event_name: [:packet_arrival, :rtp, :OPUS]
       )
     ]
   end

@@ -51,10 +51,7 @@ defmodule Membrane.RTC.Engine.FilterTee do
 
   @impl true
   def handle_init(opts) do
-    Membrane.RTC.Utils.telemetry_register(
-      opts.telemetry_label,
-      opts.codec
-    )
+    Membrane.RTC.Utils.telemetry_register(opts.telemetry_label)
 
     {:ok,
      %{
@@ -70,10 +67,10 @@ defmodule Membrane.RTC.Engine.FilterTee do
 
   @impl true
   def handle_process(:input, %Membrane.Buffer{} = buffer, _ctx, %{type: :audio} = state) do
-    Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
+    Membrane.RTC.Utils.emit_packet_arrival_event(
       buffer.payload,
-      state.telemetry_label,
-      state.codec
+      state.codec,
+      state.telemetry_label
     )
 
     {{:ok, forward: buffer}, state}
@@ -86,10 +83,10 @@ defmodule Membrane.RTC.Engine.FilterTee do
         _ctx,
         %{type: :video, counter: 1000} = state
       ) do
-    Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
+    Membrane.RTC.Utils.emit_packet_arrival_event(
       buffer.payload,
-      state.telemetry_label,
-      state.codec
+      state.codec,
+      state.telemetry_label
     )
 
     {{:ok, forward: buffer}, %{state | counter: 0}}
@@ -97,10 +94,10 @@ defmodule Membrane.RTC.Engine.FilterTee do
 
   @impl true
   def handle_process(:input, %Membrane.Buffer{} = buffer, ctx, %{type: :video} = state) do
-    Membrane.RTC.Utils.emit_telemetry_event_with_packet_mesaurments(
+    Membrane.RTC.Utils.emit_packet_arrival_event(
       buffer.payload,
-      state.telemetry_label,
-      state.codec
+      state.codec,
+      state.telemetry_label
     )
 
     pads =

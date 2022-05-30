@@ -4,6 +4,8 @@ defmodule Membrane.RTC.Utils do
   require OpenTelemetry.Tracer, as: Tracer
   require Membrane.TelemetryMetrics
 
+  @rtp_packet_arrival_event [Membrane.RTC.Engine, :RTP, :packet, :arrival]
+
   # This is workaround to make dialyzer happy.
   # In other case we would have to specify all possible CallbackContext types here.
   # Maybe membrane_core should have something like
@@ -94,54 +96,39 @@ defmodule Membrane.RTC.Utils do
     {username, password}
   end
 
-  @spec telemetry_register([{atom(), any()}], :VP8 | :H264 | :OPUS) :: :ok
-  def telemetry_register(telemetry_label, codec)
-      when codec in [:VP8, :H264, :OPUS] do
-    Membrane.TelemetryMetrics.register([:packet_arrival, :rtp, codec], telemetry_label)
+  @spec telemetry_register(Membrane.TelemetryMetrics.label()) :: :ok
+  def telemetry_register(telemetry_label) do
+    Membrane.TelemetryMetrics.register(@rtp_packet_arrival_event, telemetry_label)
+    :ok
+  end
+
+  @spec emit_packet_arrival_event(
+          binary(),
+          :VP8 | :H264 | :OPUS,
+          Membrane.TelemetryMetrics.label()
+        ) :: :ok
+  def emit_packet_arrival_event(payload, codec, telemetry_label) do
+    Membrane.TelemetryMetrics.execute(
+      @rtp_packet_arrival_event,
+      packet_measurements(payload, codec),
+      %{},
+      telemetry_label
+    )
 
     :ok
   end
 
-  @spec emit_telemetry_event_with_packet_mesaurments(
-          binary(),
-          [{atom(), any()}],
-          :VP8 | :H264 | :OPUS
-        ) :: :ok
-  def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_label, :VP8) do
+  defp packet_measurements(payload, :VP8) do
     frame_indicator = if Membrane.RTP.VP8.Utils.is_new_frame(payload), do: 1, else: 0
     keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
 
-    Membrane.TelemetryMetrics.execute(
-      [:packet_arrival, :rtp, :VP8],
-      %{encoding: :VP8, keyframe_indicator: keyframe_indicator, frame_indicator: frame_indicator},
-      %{},
-      telemetry_label
-    )
-
-    :ok
+    %{frame_indicator: frame_indicator, keyframe_indicator: keyframe_indicator}
   end
 
-  def emit_telemetry_event_with_packet_mesaurments(payload, telemetry_label, :H264) do
-    keyframe_indicator = if Membrane.RTP.VP8.Utils.is_keyframe(payload), do: 1, else: 0
-
-    Membrane.TelemetryMetrics.execute(
-      [:packet_arrival, :rtp, :H264],
-      %{encoding: :H264, keyframe_indicator: keyframe_indicator},
-      %{},
-      telemetry_label
-    )
-
-    :ok
+  defp packet_measurements(payload, :H264) do
+    keyframe_indicator = if Membrane.RTP.H264.Utils.is_keyframe(payload), do: 1, else: 0
+    %{keyframe_indicator: keyframe_indicator}
   end
 
-  def emit_telemetry_event_with_packet_mesaurments(_payload, telemetry_label, :OPUS) do
-    Membrane.TelemetryMetrics.execute(
-      [:packet_arrival, :rtp, :OPUS],
-      %{encoding: :OPUS},
-      %{},
-      telemetry_label
-    )
-
-    :ok
-  end
+  defp packet_measurements(_payload, :OPUS), do: %{frame_indicator: 1}
 end
