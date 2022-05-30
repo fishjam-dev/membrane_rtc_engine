@@ -1,4 +1,4 @@
-# RTC Engine Signaling Protocol
+# Signaling Protocol
 
 ### Joining the server
 
