@@ -22,8 +22,8 @@ There is a report example below, with only one room with one peer inside
     {:peer_id, "aa83837e-c18a-4d0e-b7f1-565acdddd3e0"} => %{
       {:track_id,
        "aa83837e-c18a-4d0e-b7f1-565acdddd3e0:2cfee338-37f9-46cf-8c5b-d3909caa4dce:l"} => %{
-        "inbound-rtp.VP8.frames" => 5450,
-        "inbound-rtp.VP8.keyframes" => 46,
+        "inbound-rtp.frames" => 5450,
+        "inbound-rtp.keyframes" => 46,
         "inbound-rtp.bytes_received" => 4106974,
         "inbound-rtp.encoding" => :VP8,
         "inbound-rtp.keyframe_request_sent" => 22,
@@ -32,8 +32,8 @@ There is a report example below, with only one room with one peer inside
       },
       {:track_id,
        "aa83837e-c18a-4d0e-b7f1-565acdddd3e0:2cfee338-37f9-46cf-8c5b-d3909caa4dce:m"} => %{
-        "inbound-rtp.VP8.frames" => 5303,
-        "inbound-rtp.VP8.keyframes" => 45,
+        "inbound-rtp.frames" => 5303,
+        "inbound-rtp.keyframes" => 45,
         "inbound-rtp.bytes_received" => 21999552,
         "inbound-rtp.encoding" => :VP8,
         "inbound-rtp.keyframe_request_sent" => 22,
@@ -42,7 +42,7 @@ There is a report example below, with only one room with one peer inside
       },
       {:track_id,
        "aa83837e-c18a-4d0e-b7f1-565acdddd3e0:a8ffd71d-932a-4955-b4da-d941449aa329:"} => %{
-        "inbound-rtp.OPUS.frames" => 11348,
+        "inbound-rtp.frames" => 11348,
         "inbound-rtp.bytes_received" => 1175977,
         "inbound-rtp.encoding" => :OPUS,
         "inbound-rtp.keyframe_request_sent" => 22,

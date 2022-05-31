@@ -15,10 +15,8 @@ defmodule Membrane.RTC.Engine.Metrics do
                 :"inbound-rtp.bytes_received" => integer(),
                 :"inbound-rtp.keyframe_request_sent" => integer(),
                 :"inbound-rtp.packets" => integer(),
-                :"inbound-rtp.VP8.frames" => integer(),
-                :"inbound-rtp.VP8.keyframes" => integer(),
-                :"inbound-rtp.OPUS.frames" => integer(),
-                :"inbound-rtp.H264.keyframes" => integer()
+                :"inbound-rtp.frames" => integer(),
+                :"inbound-rtp.keyframes" => integer()
               },
               :"ice.binding_requests_received" => integer(),
               :"ice.binding_responses_sent" => integer(),
