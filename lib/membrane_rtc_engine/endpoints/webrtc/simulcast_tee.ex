@@ -4,8 +4,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker
   alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
+  alias Membrane.RTC.Utils
 
   require Membrane.Logger
+  require Membrane.TelemetryMetrics
 
   @supported_codecs [:H264, :VP8]
 
@@ -19,7 +21,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     availability: :on_request,
     mode: :pull,
     demand_mode: :auto,
-    caps: Membrane.RTP
+    caps: Membrane.RTP,
+    options: [
+      telemetry_label: [
+        spec: Membrane.TelemetryMetrics.label(),
+        default: [],
+        description: "Label passed to Membrane.TelemetryMetrics functions"
+      ]
+    ]
 
   def_output_pad :output,
     availability: :on_request,
@@ -63,7 +72,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, _rid), _context, state) do
+  def handle_pad_added(Pad.ref(:input, {_track_id, _rid}) = pad, ctx, state) do
+    Utils.telemetry_register(ctx.pads[pad].options.telemetry_label)
+
     {:ok, state}
   end
 
@@ -110,7 +121,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:input, rid), _context, state) do
+  def handle_pad_removed(Pad.ref(:input, {_track_id, rid}), _context, state) do
     {_tracker, state} = pop_in(state, [:trackers, rid])
     {:ok, state}
   end
@@ -128,7 +139,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, encoding), buffer, _context, state) do
+  def handle_process(Pad.ref(:input, {_track_id, encoding}) = pad, buffer, ctx, state) do
+    Utils.emit_packet_arrival_event(
+      buffer.payload,
+      state.track.encoding,
+      ctx.pads[pad].options.telemetry_label
+    )
+
     state = update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))
 
     {actions, state} =

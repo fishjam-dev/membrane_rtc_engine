@@ -59,7 +59,7 @@ defmodule TestVideoroom.Room do
     Process.monitor(pid)
     Engine.register(pid, self())
 
-    {:ok, %{rtc_engine: pid, peer_channels: %{}, network_options: network_options, listeners: []}}
+    {:ok, %{rtc_engine: pid, peer_channels: %{}, network_options: network_options, listeners: [], room_id: room_id}}
   end
 
   @impl true
@@ -115,7 +115,8 @@ defmodule TestVideoroom.Room do
       integrated_turn_options: state.network_options[:integrated_turn_options],
       integrated_turn_domain: state.network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
-      log_metadata: [peer_id: peer.id]
+      log_metadata: [peer_id: peer.id],
+      telemetry_label: [room_id: state.room_id, peer_id: peer.id]
     }
 
     Engine.accept_peer(rtc_engine, peer.id)

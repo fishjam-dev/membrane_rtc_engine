@@ -1,7 +1,12 @@
 defmodule Membrane.RTC.Utils do
   @moduledoc false
+
   use OpenTelemetryDecorator
+  alias Membrane.RTP.PayloadFormatResolver
   require OpenTelemetry.Tracer, as: Tracer
+  require Membrane.TelemetryMetrics
+
+  @rtp_packet_arrival_event [Membrane.RTC.Engine, :RTP, :packet, :arrival]
 
   # This is workaround to make dialyzer happy.
   # In other case we would have to specify all possible CallbackContext types here.
@@ -92,4 +97,46 @@ defmodule Membrane.RTC.Utils do
 
     {username, password}
   end
+
+  @spec telemetry_register(Membrane.TelemetryMetrics.label()) :: :ok
+  def telemetry_register(telemetry_label) do
+    Membrane.TelemetryMetrics.register(@rtp_packet_arrival_event, telemetry_label)
+    :ok
+  end
+
+  @spec emit_packet_arrival_event(
+          binary(),
+          :VP8 | :H264 | :OPUS,
+          Membrane.TelemetryMetrics.label()
+        ) :: :ok
+  def emit_packet_arrival_event(payload, codec, telemetry_label) do
+    Membrane.TelemetryMetrics.execute(
+      @rtp_packet_arrival_event,
+      packet_measurements(payload, codec),
+      %{},
+      telemetry_label
+    )
+
+    :ok
+  end
+
+  defp packet_measurements(payload, codec) do
+    measurements =
+      case PayloadFormatResolver.keyframe_detector(codec) do
+        {:ok, detector} -> %{keyframe_indicator: detector.(payload) |> bool_to_int()}
+        :error -> %{}
+      end
+
+    case PayloadFormatResolver.frame_detector(codec) do
+      {:ok, detector} ->
+        frame_indicator = detector.(payload) |> bool_to_int()
+        Map.put(measurements, :frame_indicator, frame_indicator)
+
+      :error ->
+        measurements
+    end
+  end
+
+  defp bool_to_int(true), do: 1
+  defp bool_to_int(false), do: 0
 end

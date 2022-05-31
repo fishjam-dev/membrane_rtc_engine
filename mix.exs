@@ -51,12 +51,14 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.10.0"},
-      {:membrane_rtp_plugin, "~> 0.13.0"},
+      {:membrane_telemetry_metrics, github: "membraneframework/membrane_telemetry_metrics"},
+      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
+      {:membrane_rtp_plugin, github: "membraneframework/membrane_rtp_plugin"},
+      {:membrane_rtp_format, github: "membraneframework/membrane_rtp_format"},
+      {:membrane_rtp_vp8_plugin, github: "membraneframework/membrane_rtp_vp8_plugin"},
+      {:membrane_rtp_opus_plugin, github: "membraneframework/membrane_rtp_opus_plugin"},
+      {:membrane_rtp_h264_plugin, github: "membraneframework/membrane_rtp_h264_plugin"},
       {:membrane_tee_plugin, "~> 0.9.0"},
-      {:membrane_webrtc_plugin, "~> 0.4.0"},
-      {:membrane_rtp_h264_plugin, "~> 0.12.0"},
-      {:membrane_rtp_vp8_plugin, "~> 0.5.0"},
-      {:membrane_rtp_format, "~> 0.4.0"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 1.0"},
@@ -128,6 +130,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
       # guides
       "guides/simulcast.md",
+      "guides/metrics.md",
 
       # internal docs
       "internal_docs/media_events.md",

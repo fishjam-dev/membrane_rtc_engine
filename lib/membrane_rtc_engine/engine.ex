@@ -223,6 +223,7 @@ defmodule Membrane.RTC.Engine do
   @type options_t() :: [
           id: String.t(),
           trace_ctx: map(),
+          telemetry_label: Membrane.TelemetryMetrics.label(),
           display_manager?: boolean()
         ]
 
@@ -471,11 +472,14 @@ defmodule Membrane.RTC.Engine do
         nil
       end
 
+    telemetry_label = (options[:telemetry_label] || []) ++ [room_id: options[:id]]
+
     {{:ok, playback: :playing},
      %{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
        trace_context: trace_ctx,
+       telemetry_label: telemetry_label,
        peers: %{},
        endpoints: %{},
        pending_subscriptions: [],
@@ -542,6 +546,16 @@ defmodule Membrane.RTC.Engine do
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
     endpoint_id = opts[:endpoint_id] || opts[:peer_id]
+
+    endpoint =
+      case endpoint do
+        %Endpoint.WebRTC{} ->
+          telemetry_label = state.telemetry_label ++ [peer_id: peer_id]
+          %Endpoint.WebRTC{endpoint | telemetry_label: telemetry_label}
+
+        another_endpoint ->
+          another_endpoint
+      end
 
     cond do
       Map.has_key?(state.endpoints, endpoint_id) ->
@@ -940,16 +954,32 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp create_and_link_tee(track_id, rid, track, endpoint_id, ctx, state) do
+    telemetry_label =
+      state.telemetry_label ++
+        [
+          peer_id: endpoint_id,
+          track_id: "#{track_id}:#{rid}"
+        ]
+
     tee =
       cond do
         rid != nil ->
           %SimulcastTee{track: track}
 
         state.display_manager != nil ->
-          %Engine.Tee{ets_name: state.id, track_id: track_id, type: track.type}
+          %Engine.FilterTee{
+            ets_name: state.id,
+            track_id: track_id,
+            type: track.type,
+            codec: track.encoding,
+            telemetry_label: telemetry_label
+          }
 
         true ->
-          Membrane.Tee.PushOutput
+          %Engine.PushOutputTee{
+            codec: track.encoding,
+            telemetry_label: telemetry_label
+          }
       end
 
     # spawn tee if it doesn't exist
@@ -964,7 +994,9 @@ defmodule Membrane.RTC.Engine do
       if rid do
         link({:endpoint, endpoint_id})
         |> via_out(Pad.ref(:output, {track_id, rid}))
-        |> via_in(Pad.ref(:input, rid))
+        |> via_in(Pad.ref(:input, {track_id, rid}),
+          options: [telemetry_label: telemetry_label]
+        )
         |> then(&tee_link.(&1))
       else
         link({:endpoint, endpoint_id})
@@ -1040,7 +1072,7 @@ defmodule Membrane.RTC.Engine do
     [
       link({:tee, track_id})
       |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
-      |> to({:raw_format_tee, track_id}, Membrane.Tee.PushOutput)
+      |> to({:raw_format_tee, track_id}, Engine.PushOutputTee)
     ]
   end
 
