@@ -103,6 +103,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       assets: "internal_docs/simulcast/assets",
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
+      before_closing_body_tag: &before_closing_body_tag/1,
       groups_for_modules: [
         Endpoints: [
           Membrane.RTC.Engine.Endpoint.WebRTC,
@@ -130,6 +131,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
       # internal docs
       "internal_docs/media_events.md",
+      "internal_docs/protocol.md",
       "internal_docs/simulcast/simulcast.md": [filename: "internal_simulcast"]
     ]
   end
@@ -139,6 +141,36 @@ defmodule Membrane.RTC.Engine.MixProject do
       {"Developer docs", ~r/internal_docs\//},
       {"Guides", ~r/guides\//}
     ]
+  end
+
+  defp before_closing_body_tag(:html) do
+    """
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@9.1.1/dist/mermaid.min.js"></script>
+    <style>
+      .diagramWrapper svg {
+        background-color: white;
+      }
+    </style>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        mermaid.initialize({ startOnLoad: false });
+        let id = 0;
+        for (const codeEl of document.querySelectorAll("pre code.mermaid")) {
+          const preEl = codeEl.parentElement;
+          const graphDefinition = codeEl.textContent;
+          const graphEl = document.createElement("div");
+          graphEl.classList.add("diagramWrapper");
+          const graphId = "mermaid-graph-" + id++;
+          mermaid.render(graphId, graphDefinition, function (svgSource, bindListeners) {
+            graphEl.innerHTML = svgSource;
+            bindListeners && bindListeners(graphEl);
+            preEl.insertAdjacentElement("afterend", graphEl);
+            preEl.remove();
+          });
+        }
+      });
+    </script>
+    """
   end
 
   defp run_integration_tests(_) do
