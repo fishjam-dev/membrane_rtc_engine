@@ -48,6 +48,16 @@ defmodule Membrane.RTC.Engine.Metrics do
         "inbound-rtp.keyframes",
         event_name: [Membrane.RTC.Engine, :RTP, :packet, :arrival],
         measurement: :keyframe_indicator
+      ),
+      Telemetry.Metrics.last_value(
+        "peer.metadata",
+        event_name: [Membrane.RTC.Engine, :peer],
+        measurement: :metadata
+      ),
+      Telemetry.Metrics.last_value(
+        "track.metadata",
+        event_name: [Membrane.RTC.Engine, :track],
+        measurement: :metadata
       )
     ]
   end

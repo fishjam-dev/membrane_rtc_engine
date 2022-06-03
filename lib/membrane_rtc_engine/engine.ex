@@ -208,6 +208,7 @@ defmodule Membrane.RTC.Engine do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee
 
   require Membrane.Logger
+  require Membrane.TelemetryMetrics
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -1135,6 +1136,16 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp setup_endpoint(endpoint_entry, opts, state) do
+    with %Endpoint.WebRTC{} = endpoint_entry do
+      Membrane.TelemetryMetrics.conditional_execute(
+        fn -> if(opts[:peer_metadata], do: true, else: false) end,
+        [Membrane.RTC.Engine, :peer],
+        %{metadata: opts[:peer_metadata]},
+        %{},
+        endpoint_entry.telemetry_label
+      )
+    end
+
     inbound_tracks = []
 
     outbound_tracks = state.endpoints |> get_outbound_tracks() |> Enum.filter(& &1.active?)
