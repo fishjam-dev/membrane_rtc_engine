@@ -1047,7 +1047,7 @@ defmodule Membrane.RTC.Engine do
       if Map.has_key?(ctx.children, {:raw_format_tee, subscription.track_id}) do
         []
       else
-        prepare_raw_format_links(subscription.track_id, state)
+        prepare_raw_format_links(subscription.track_id, subscription.endpoint_id, state)
       end
 
     {links, state} = do_fulfill_subscription(subscription, :raw_format_tee, state)
@@ -1068,11 +1068,14 @@ defmodule Membrane.RTC.Engine do
     {links, state}
   end
 
-  defp prepare_raw_format_links(track_id, state) do
+  defp prepare_raw_format_links(track_id, endpoint_id, state) do
+    track = get_track(track_id, state.endpoints)
+
     [
       link({:tee, track_id})
+      |> via_out(Pad.ref(:output, {:endpoint, endpoint_id}))
       |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
-      |> to({:raw_format_tee, track_id}, Engine.PushOutputTee)
+      |> to({:raw_format_tee, track_id}, %Engine.PushOutputTee{codec: track.encoding})
     ]
   end
 
