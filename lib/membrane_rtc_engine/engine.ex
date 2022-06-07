@@ -190,24 +190,24 @@ defmodule Membrane.RTC.Engine do
   Endpoint will be also notified when some tracks it subscribed for are removed with
   `{:removed_tracks, tracks}` message where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0`.
   """
+
   use Membrane.Pipeline
   use OpenTelemetryDecorator
+  require Membrane.Logger
   import Membrane.RTC.Utils
 
   alias Membrane.RTC.Engine.{
+    DisplayManager,
     Endpoint,
+    Endpoint.WebRTC.SimulcastTee,
+    FilterTee,
     MediaEvent,
     Message,
-    Track,
     Peer,
-    DisplayManager,
-    Subscription
+    PushOutputTee,
+    Subscription,
+    Track
   }
-
-  alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee
-
-  require Membrane.Logger
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -855,18 +855,15 @@ defmodule Membrane.RTC.Engine do
 
     state = put_in(state, [:filters, track_id], depayloading_filter)
     track = state.endpoints |> Map.fetch!(endpoint_id) |> Endpoint.get_track_by_id(track_id)
-    {tee_links, state} = create_and_link_tee(track_id, rid, track, endpoint_id, ctx, state)
+    track_link = build_track_link(track_id, rid, track, endpoint_id, ctx, state)
 
     # check if there are subscriptions for this track and fulfill them
     {pending_track_subscriptions, pending_rest_subscriptions} =
       Enum.split_with(state.pending_subscriptions, &(&1.track_id == track.id))
 
-    {subscription_links, state} =
-      Enum.flat_map_reduce(pending_track_subscriptions, state, fn subscription, state ->
-        fulfill_subscription(subscription, ctx, state)
-      end)
+    {subscription_links, state} = fulfill_subscriptions(pending_track_subscriptions, ctx, state)
 
-    links = tee_links ++ subscription_links
+    links = [tee_link] ++ subscription_links
     state = %{state | pending_subscriptions: pending_rest_subscriptions}
 
     state =
@@ -953,61 +950,6 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp create_and_link_tee(track_id, rid, track, endpoint_id, ctx, state) do
-    telemetry_label =
-      state.telemetry_label ++
-        [
-          peer_id: endpoint_id,
-          track_id: "#{track_id}:#{rid}"
-        ]
-
-    tee =
-      cond do
-        rid != nil ->
-          %SimulcastTee{track: track}
-
-        state.display_manager != nil ->
-          %Engine.FilterTee{
-            ets_name: state.id,
-            track_id: track_id,
-            type: track.type,
-            codec: track.encoding,
-            telemetry_label: telemetry_label
-          }
-
-        true ->
-          %Engine.PushOutputTee{
-            codec: track.encoding,
-            telemetry_label: telemetry_label
-          }
-      end
-
-    # spawn tee if it doesn't exist
-    tee_link =
-      if Map.has_key?(ctx.children, {:tee, track_id}) do
-        &to(&1, {:tee, track_id})
-      else
-        &to(&1, {:tee, track_id}, tee)
-      end
-
-    endpoint_to_tee_links = [
-      if rid do
-        link({:endpoint, endpoint_id})
-        |> via_out(Pad.ref(:output, {track_id, rid}))
-        |> via_in(Pad.ref(:input, {track_id, rid}),
-          options: [telemetry_label: telemetry_label]
-        )
-        |> then(&tee_link.(&1))
-      else
-        link({:endpoint, endpoint_id})
-        |> via_out(Pad.ref(:output, {track_id, rid}))
-        |> then(&tee_link.(&1))
-      end
-    ]
-
-    {endpoint_to_tee_links, state}
-  end
-
   defp check_subscription(subscription, state) do
     # checks whether subscription is correct
     track = get_track(subscription.track_id, state.endpoints)
@@ -1031,81 +973,34 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp try_fulfill_subscription(subscription, ctx, state) do
-    # if tee for this track is already spawned, fulfill subscription
-    # otherwise, save subscription as pending, we will fulfill it
-    # when tee appears
+    # If the tee for this track is already spawned, fulfill subscription.
+    # Otherwise, save subscription as pending, we will fulfill it when the tee is linked.
+
     if Map.has_key?(ctx.children, {:tee, subscription.track_id}) do
-      fulfill_subscription(subscription, ctx, state)
+      fulfill_subscriptions([subscription], ctx, state)
     else
       state = update_in(state, [:pending_subscriptions], &[subscription | &1])
       {[], state}
     end
   end
 
-  defp fulfill_subscription(%Subscription{format: :raw} = subscription, ctx, state) do
-    raw_format_links =
-      if Map.has_key?(ctx.children, {:raw_format_tee, subscription.track_id}) do
-        []
-      else
-        prepare_raw_format_links(subscription.track_id, subscription.endpoint_id, state)
-      end
+  defp fulfill_subscriptions(subscriptions, ctx, state) do
+    # Attempt to fulfill multiple subscriptions. This is done so in simultaneous subscriptions
+    # to the raw format can be fulfilled by linking just one pair of raw format filter/tee.
+    #
+    # After all links were built, the subscriptions are added to the state.
 
-    {links, state} = do_fulfill_subscription(subscription, :raw_format_tee, state)
+    raw_format_links = build_raw_format_links(subscriptions, ctx, state)
+    subscription_links = build_subscription_links(subscriptions, state)
+    links = raw_format_links ++ subscription_links
 
-    {raw_format_links ++ links, state}
-  end
-
-  defp fulfill_subscription(%Subscription{format: _remote_format} = subscription, _ctx, state) do
-    do_fulfill_subscription(subscription, :tee, state)
-  end
-
-  defp do_fulfill_subscription(subscription, tee_kind, state) do
-    links = prepare_track_to_endpoint_links(subscription, tee_kind, state)
-    subscription = %Subscription{subscription | status: :active}
-    endpoint_id = subscription.endpoint_id
-    track_id = subscription.track_id
-    state = put_in(state, [:subscriptions, endpoint_id, track_id], subscription)
-    {links, state}
-  end
-
-  defp prepare_raw_format_links(track_id, endpoint_id, state) do
-    track = get_track(track_id, state.endpoints)
-
-    [
-      link({:tee, track_id})
-      |> via_out(Pad.ref(:output, {:endpoint, endpoint_id}))
-      |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
-      |> to({:raw_format_tee, track_id}, %Engine.PushOutputTee{codec: track.encoding})
-    ]
-  end
-
-  defp prepare_track_to_endpoint_links(subscription, :tee, state) do
-    # if someone subscribed for simulcast track, prepare options
-    # for SimulcastTee
-    track = get_track(subscription.track_id, state.endpoints)
-
-    options =
-      if track.type == :video and track.simulcast_encodings != [] do
-        [default_simulcast_encoding: subscription.opts[:default_simulcast_encoding]]
-      else
-        []
-      end
-
-    [
-      link({:tee, subscription.track_id})
-      |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}), options: options)
-      |> via_in(Pad.ref(:input, subscription.track_id))
-      |> to({:endpoint, subscription.endpoint_id})
-    ]
-  end
-
-  defp prepare_track_to_endpoint_links(subscription, tee_kind, _state) do
-    [
-      link({tee_kind, subscription.track_id})
-      |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
-      |> via_in(Pad.ref(:input, subscription.track_id))
-      |> to({:endpoint, subscription.endpoint_id})
-    ]
+    Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
+      endpoint_id = subscription.endpoint_id
+      track_id = subscription.track_id
+      subscription = %{subscription | status: :active}
+      state = put_in(state, [:subscriptions, endpoint_id, track_id], subscription)
+      {links, state}
+    end)
   end
 
   defp dispatch(msg) do
@@ -1302,5 +1197,111 @@ defmodule Membrane.RTC.Engine do
     )
 
     []
+  end
+
+  defp build_track_link(track_id, rid, track, endpoint_id, ctx, state) do
+    # Create the link from the endpoint which published the track, and start the underlying tee
+    # which is required to bring the content of the track to all subscribers.
+
+    is_simulcast? = rid != nil
+    telemetry_label = [peer_id: endpoint_id, track_id: "#{track_id}:#{rid}"]
+    telemetry_label = Keyword.merge(state.telemetry_label, telemetry_label)
+
+    link({:endpoint, endpoint_id})
+    |> via_out(Pad.ref(:output, {track_id, rid}))
+    |> then(fn link ->
+      if is_simulcast? do
+        options = [telemetry_label: telemetry_label]
+        via_in(link, Pad.ref(:input, {track_id, rid}), options: options)
+      else
+        link
+      end
+    end)
+    |> then(fn link ->
+      if Map.has_key?(ctx.children, {:tee, track_id}) do
+        to(link, {:tee, track_id})
+      else
+        to(link, {:tee, track_id}, build_track_tee(track_id, rid, track, telemetry_label, state))
+      end
+    end)
+  end
+
+  defp build_track_tee(track_id, rid, track, telemetry_label, state) do
+    is_simulcast? = rid != nil
+    is_filter? = state.display_manager != nil
+
+    cond do
+      is_simulcast? -> build_track_tee_simulcast(track)
+      is_filter? -> build_track_tee_filter(state.id, track_id, track, telemetry_label)
+      true -> build_track_tee_push_output(track, telemetry_label)
+    end
+  end
+
+  defp build_track_tee_simulcast(track) do
+    %SimulcastTee{
+      track: track
+    }
+  end
+
+  defp build_track_tee_filter(ets_name, track_id, track, telemetry_label) do
+    %FilterTee{
+      ets_name: ets_name,
+      track_id: track_id,
+      type: track.type,
+      codec: track.encoding,
+      telemetry_label: telemetry_label
+    }
+  end
+
+  defp build_track_tee_push_output(track, telemetry_label) do
+    %PushOutputTee{
+      codec: track.encoding,
+      telemetry_label: telemetry_label
+    }
+  end
+
+  defp build_raw_format_links(subscriptions, ctx, state) do
+    subscriptions
+    |> Enum.filter(&(&1.format == :raw))
+    |> Enum.map(& &1.track_id)
+    |> Enum.uniq()
+    |> Enum.reject(&Map.has_key?(ctx.children, {:raw_format_tee, &1}))
+    |> Enum.map(&build_raw_format_link(&1, state))
+  end
+
+  defp build_raw_format_link(track_id, state) do
+    # Build raw format filters/tees for the given track. This is connected to the output of the
+    # tee that handles the underlying stream with an endpoint name of `:shared`.
+
+    track = get_track(track_id, state.endpoints)
+
+    link({:tee, track_id})
+    |> via_out(Pad.ref(:output, {:endpoint, :shared}))
+    |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
+    |> to({:raw_format_tee, track_id}, %PushOutputTee{codec: track.encoding})
+  end
+
+  defp build_subscription_links(subscriptions, state) do
+    Enum.map(subscriptions, &build_subscription_link(&1, state))
+  end
+
+  defp build_subscription_link(subscription, state) do
+    track = get_track(subscription.track_id, state.endpoints)
+
+    if subscription.format == :raw do
+      link({:raw_format_tee, subscription.track_id})
+    else
+      link({:tee, subscription.track_id})
+    end
+    |> then(fn link ->
+      if track.type == :video and track.simulcast_encodings != [] do
+        options = Keyword.take(subscription.opts, [:default_simulcast_encoding])
+        via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}), options: options)
+      else
+        via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
+      end
+    end)
+    |> via_in(Pad.ref(:input, subscription.track_id))
+    |> to({:endpoint, subscription.endpoint_id})
   end
 end
