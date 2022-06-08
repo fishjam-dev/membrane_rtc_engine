@@ -22,7 +22,7 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
         }
       }
 
-      assert {:ok, expected_media_event} == MediaEvent.deserialize(raw_media_event)
+      assert {:ok, expected_media_event} == MediaEvent.decode(raw_media_event)
     end
 
     test "returns error when event misses key" do
@@ -36,7 +36,7 @@ defmodule Membrane.RTC.Engine.MediaEventTest do
         }
         |> Jason.encode!()
 
-      assert {:error, :invalid_media_event} == MediaEvent.deserialize(raw_media_event)
+      assert {:error, :invalid_media_event} == MediaEvent.decode(raw_media_event)
     end
   end
 end

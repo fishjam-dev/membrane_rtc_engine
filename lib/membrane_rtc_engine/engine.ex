@@ -291,14 +291,8 @@ defmodule Membrane.RTC.Engine do
     display_manager? = options[:display_manager?] || false
     options = Keyword.put(options, :id, id)
     options = Keyword.put(options, :display_manager?, display_manager?)
-
     Membrane.Logger.info("Starting a new RTC Engine instance with id: #{id}")
-
-    apply(Membrane.Pipeline, func, [
-      __MODULE__,
-      options,
-      process_options
-    ])
+    apply(Membrane.Pipeline, func, [__MODULE__, options, process_options])
   end
 
   @spec get_registry_name() :: atom()
@@ -316,13 +310,12 @@ defmodule Membrane.RTC.Engine do
           opts :: endpoint_options_t()
         ) :: :ok | :error
   def add_endpoint(pid, endpoint, opts \\ []) do
-    if Keyword.has_key?(opts, :endpoint_id) and
-         Keyword.has_key?(opts, :peer_id) do
+    if Keyword.has_key?(opts, :endpoint_id) and Keyword.has_key?(opts, :peer_id) do
       raise "You can't pass both option endpoint_id and peer_id"
-    else
-      send(pid, {:add_endpoint, endpoint, opts})
-      :ok
     end
+
+    send(pid, {:add_endpoint, endpoint, opts})
+    :ok
   end
 
   @doc """
@@ -360,10 +353,7 @@ defmodule Membrane.RTC.Engine do
   @doc """
   Allows peer for joining to the RTC Engine
   """
-  @spec accept_peer(
-          pid :: pid(),
-          peer_id :: String.t()
-        ) :: :ok
+  @spec accept_peer(pid :: pid(), peer_id :: String.t()) :: :ok
   def accept_peer(pid, peer_id) do
     send(pid, {:accept_new_peer, peer_id})
     :ok
@@ -444,18 +434,14 @@ defmodule Membrane.RTC.Engine do
     send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, format, opts})
 
     receive do
-      {^ref, :ok} ->
-        :ok
-
-      {^ref, {:error, reason}} ->
-        {:error, reason}
+      {^ref, :ok} -> :ok
+      {^ref, {:error, reason}} -> {:error, reason}
     after
-      5_000 ->
-        {:error, :timeout}
+      5_000 -> {:error, :timeout}
     end
   end
 
-  @impl true
+  @impl Membrane.Pipeline
   def handle_init(options) do
     trace_ctx =
       if Keyword.has_key?(options, :trace_ctx) do
@@ -489,7 +475,7 @@ defmodule Membrane.RTC.Engine do
      }}
   end
 
-  @impl true
+  @impl Membrane.Pipeline
   def handle_playing_to_prepared(ctx, state) do
     {actions, state} =
       state.peers
@@ -502,46 +488,7 @@ defmodule Membrane.RTC.Engine do
     {{:ok, actions}, state}
   end
 
-  @impl true
-  @decorate trace("engine.other.register", include: [[:state, :id]])
-  def handle_other({:register, pid}, _ctx, state) do
-    Registry.register(get_registry_name(), self(), pid)
-    {:ok, state}
-  end
-
-  @impl true
-  @decorate trace("engine.other.unregister", include: [[:state, :id]])
-  def handle_other({:unregister, pid}, _ctx, state) do
-    Registry.unregister_match(get_registry_name(), self(), pid)
-    {:ok, state}
-  end
-
-  @impl true
-  @decorate trace("engine.other.tracks_priority", include: [[:state, :id]])
-  def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
-    _msgs =
-      Enum.map(endpoint_to_tracks, fn {{:endpoint, endpoint_id}, tracks} ->
-        MediaEvent.create_tracks_priority_event(tracks)
-        |> then(&%Message.MediaEvent{rtc_engine: self(), to: endpoint_id, data: &1})
-        |> dispatch()
-      end)
-
-    tee_actions =
-      ctx
-      |> filter_children(pattern: {:tee, _tee_name})
-      |> Enum.flat_map(&[forward: {&1, :track_priorities_updated}])
-
-    {{:ok, tee_actions}, state}
-  end
-
-  @impl true
-  @decorate trace("engine.other.remove_peer", include: [[:state, :id]])
-  def handle_other({:remove_peer, id, reason}, ctx, state) do
-    {actions, state} = handle_remove_peer(id, reason, ctx, state)
-    {{:ok, actions}, state}
-  end
-
-  @impl true
+  @impl Membrane.Pipeline
   @decorate trace("engine.other.add_endpoint", include: [[:state, :component_path], [:state, :id]])
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
@@ -573,28 +520,68 @@ defmodule Membrane.RTC.Engine do
         {:ok, state}
 
       true ->
-        {actions, state} = setup_endpoint(endpoint, opts, state)
+        {actions, state} = handle_add_endpoint(endpoint, opts, state)
         {{:ok, actions}, state}
     end
   end
 
-  @impl true
-  @decorate trace("engine.other.add_peer", include: [[:state, :id]])
-  def handle_other({:add_peer, peer}, _ctx, state) do
-    {actions, state} = do_accept_new_peer(peer, state)
-    {{:ok, actions}, state}
-  end
-
-  @impl true
+  @impl Membrane.Pipeline
   @decorate trace("engine.other.remove_endpoint", include: [[:state, :id]])
   def handle_other({:remove_endpoint, id}, ctx, state) do
-    case(do_remove_endpoint(id, ctx, state)) do
+    case handle_remove_endpoint(id, ctx, state) do
       {:absent, [], state} ->
         Membrane.Logger.info("Endpoint #{inspect(id)} already removed")
         {:ok, state}
 
       {:present, actions, state} ->
         {{:ok, actions}, state}
+    end
+  end
+
+  @impl Membrane.Pipeline
+  @decorate trace("engine.other.add_peer", include: [[:state, :id]])
+  def handle_other({:add_peer, peer}, _ctx, state) do
+    {actions, state} = handle_add_peer(peer, state)
+    {{:ok, actions}, state}
+  end
+
+  @impl Membrane.Pipeline
+  @decorate trace("engine.other.remove_peer", include: [[:state, :id]])
+  def handle_other({:remove_peer, id, reason}, ctx, state) do
+    {actions, state} = handle_remove_peer(id, reason, ctx, state)
+    {{:ok, actions}, state}
+  end
+
+  @impl Membrane.Pipeline
+  @decorate trace("engine.other.register", include: [[:state, :id]])
+  def handle_other({:register, pid}, _ctx, state) do
+    Registry.register(get_registry_name(), self(), pid)
+    {:ok, state}
+  end
+
+  @impl Membrane.Pipeline
+  @decorate trace("engine.other.unregister", include: [[:state, :id]])
+  def handle_other({:unregister, pid}, _ctx, state) do
+    Registry.unregister_match(get_registry_name(), self(), pid)
+    {:ok, state}
+  end
+
+  @impl Membrane.Pipeline
+  @decorate trace("engine.other.media_event", include: [[:state, :id]])
+  def handle_other({:media_event, from, data}, ctx, state) do
+    case MediaEvent.decode(data) do
+      {:ok, event} ->
+        if event.type == :join or Map.has_key?(state.peers, from) do
+          {actions, state} = handle_media_event(event.type, event[:data], from, ctx, state)
+          {{:ok, actions}, state}
+        else
+          Membrane.Logger.warn("Received media event from unknown peer id: #{inspect(from)}")
+          {:ok, state}
+        end
+
+      {:error, :invalid_media_event} ->
+        Membrane.Logger.warn("Invalid media event #{inspect(data)}")
+        {:ok, state}
     end
   end
 
@@ -611,9 +598,9 @@ defmodule Membrane.RTC.Engine do
       opts: opts
     }
 
-    case check_subscription(subscription, state) do
+    case validate_subscription(subscription, state) do
       :ok ->
-        {links, state} = try_fulfill_subscription(subscription, ctx, state)
+        {links, state} = fulfill_or_postpone_subscription(subscription, ctx, state)
         parent_spec = %ParentSpec{links: links, log_metadata: [rtc: state.id]}
         send(endpoint_pid, {ref, :ok})
         {{:ok, [spec: parent_spec]}, state}
@@ -624,98 +611,92 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl true
-  @decorate trace("engine.other.media_event", include: [[:state, :id]])
-  def handle_other({:media_event, from, data}, ctx, state) do
-    case MediaEvent.deserialize(data) do
-      {:ok, event} ->
-        if event.type == :join or Map.has_key?(state.peers, from) do
-          {actions, state} = handle_media_event(event, from, ctx, state)
-          {{:ok, actions}, state}
-        else
-          Membrane.Logger.warn("Received media event from unknown peer id: #{inspect(from)}")
-          {:ok, state}
-        end
+  @impl Membrane.Pipeline
+  @decorate trace("engine.other.tracks_priority", include: [[:state, :id]])
+  def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
+    for {{:endpoint, endpoint_id}, tracks} <- endpoint_to_tracks do
+      dispatch(endpoint_id, MediaEvent.tracks_priority(tracks))
+    end
 
-      {:error, :invalid_media_event} ->
-        Membrane.Logger.warn("Invalid media event #{inspect(data)}")
-        {:ok, state}
+    tee_actions =
+      ctx
+      |> filter_children(pattern: {:tee, _tee_name})
+      |> Enum.flat_map(&[forward: {&1, :track_priorities_updated}])
+
+    {{:ok, tee_actions}, state}
+  end
+
+  @impl Membrane.Pipeline
+  def handle_notification(notifcation, {:endpoint, endpoint_id}, ctx, state) do
+    if Map.has_key?(state.endpoints, endpoint_id) do
+      handle_endpoint_notification(notifcation, endpoint_id, ctx, state)
+    else
+      {:ok, state}
     end
   end
 
-  @impl true
+  @impl Membrane.Pipeline
+  def handle_notification(notification, {:tee, track_id}, _ctx, state) do
+    handle_track_notification(notification, track_id, state)
+  end
+
+  @impl Membrane.Pipeline
   def handle_crash_group_down(endpoint_id, ctx, state) do
     if Map.has_key?(state.peers, endpoint_id) do
-      MediaEvent.create_peer_removed_event(endpoint_id, "Internal server error.")
-      |> then(&%Message.MediaEvent{rtc_engine: self(), to: endpoint_id, data: &1})
-      |> dispatch()
+      dispatch(endpoint_id, MediaEvent.peer_removed(endpoint_id, "Internal server error."))
     end
 
-    %Message.EndpointCrashed{endpoint_id: endpoint_id}
-    |> dispatch()
-
-    {_status, actions, state} = do_remove_endpoint(endpoint_id, ctx, state)
-
+    dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id})
+    {_status, actions, state} = handle_remove_endpoint(endpoint_id, ctx, state)
     {{:ok, actions}, state}
   end
 
-  defp handle_media_event(%{type: :join, data: data}, peer_id, _ctx, state) do
+  #
+  # Media Events
+  #
+  # - handle_media_event/5: Handles all types of media events including join, custom, leave,
+  #   update_peer_metadata, update_track_metadata, select_encoding
+  #
+
+  defp handle_media_event(:join, data, peer_id, _ctx, state) do
     peer = Peer.new(peer_id, data.metadata || %{})
     dispatch(%Message.NewPeer{rtc_engine: self(), peer: peer})
 
     receive do
       {:accept_new_peer, ^peer_id} ->
-        do_accept_new_peer(peer, state)
+        handle_add_peer(peer, state)
 
       {:accept_new_peer, peer_id} ->
         Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
         {[], state}
 
       {:deny_new_peer, peer_id} ->
-        MediaEvent.create_peer_denied_event()
-        |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
-        |> dispatch()
-
+        dispatch(peer_id, MediaEvent.peer_denied())
         {[], state}
 
       {:deny_new_peer, peer_id, data: data} ->
-        MediaEvent.create_peer_denied_event(data)
-        |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
-        |> dispatch()
-
+        dispatch(peer_id, MediaEvent.peer_denied(data))
         {[], state}
     end
   end
 
-  defp handle_media_event(%{type: :custom, data: event}, peer_id, ctx, state) do
+  defp handle_media_event(:custom, event, peer_id, ctx, state) do
     actions = forward({:endpoint, peer_id}, {:custom_media_event, event}, ctx)
-
     {actions, state}
   end
 
-  defp handle_media_event(%{type: :leave}, peer_id, ctx, state) do
-    %Message.PeerLeft{rtc_engine: self(), peer: state.peers[peer_id]}
-    |> dispatch()
-
+  defp handle_media_event(:leave, _, peer_id, ctx, state) do
+    dispatch(%Message.PeerLeft{rtc_engine: self(), peer: state.peers[peer_id]})
     handle_remove_peer(peer_id, nil, ctx, state)
   end
 
-  defp handle_media_event(
-         %{type: :update_peer_metadata, data: %{metadata: metadata}},
-         peer_id,
-         _ctx,
-         state
-       ) do
+  defp handle_media_event(:update_peer_metadata, %{metadata: metadata}, peer_id, _ctx, state) do
     peer = Map.get(state.peers, peer_id)
 
     if peer.metadata != metadata do
       updated_peer = %{peer | metadata: metadata}
       state = put_in(state, [:peers, peer_id], updated_peer)
-
-      MediaEvent.create_peer_updated_event(updated_peer)
-      |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-      |> dispatch()
-
+      broadcast(MediaEvent.peer_updated(peer))
       {[], state}
     else
       {[], state}
@@ -723,10 +704,8 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(
-         %{
-           type: :update_track_metadata,
-           data: %{track_id: track_id, track_metadata: track_metadata}
-         },
+         :update_track_metadata,
+         %{track_id: track_id, track_metadata: track_metadata},
          endpoint_id,
          _ctx,
          state
@@ -738,11 +717,7 @@ defmodule Membrane.RTC.Engine do
       if track != nil and track.metadata != track_metadata do
         endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
         state = put_in(state, [:endpoints, endpoint_id], endpoint)
-
-        MediaEvent.create_track_updated_event(endpoint_id, track_id, track_metadata)
-        |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-        |> dispatch()
-
+        broadcast(MediaEvent.track_updated(endpoint_id, track_id, track_metadata))
         {[], state}
       else
         {[], state}
@@ -753,10 +728,8 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(
-         %{
-           type: :select_encoding,
-           data: %{peer_id: peer_id, track_id: track_id, encoding: encoding}
-         },
+         :select_encoding,
+         %{peer_id: peer_id, track_id: track_id, encoding: encoding},
          requester,
          _ctx,
          state
@@ -804,67 +777,50 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl true
-  def handle_notification(notifcation, {:endpoint, endpoint_id} = from, ctx, state) do
-    if Map.has_key?(state.endpoints, endpoint_id) do
-      do_handle_notification(notifcation, from, ctx, state)
-    else
-      {:ok, state}
-    end
-  end
-
-  @impl true
-  def handle_notification(
-        {:encoding_switched, receiver_endpoint_id, encoding},
-        {:tee, track_id},
-        _ctx,
-        state
-      ) do
-    # send event that endpoint with id `sender_endpoint_id` is sending encoding `encoding` for track
-    # `track_id` now
-
-    {sender_endpoint_id, _endpoint} =
-      Enum.find(state.endpoints, fn {_endpoint_id, endpoint} ->
-        Endpoint.get_track_by_id(endpoint, track_id) != nil
-      end)
-
-    MediaEvent.create_encoding_switched_event(sender_endpoint_id, track_id, encoding)
-    |> then(&%Message.MediaEvent{rtc_engine: self(), to: receiver_endpoint_id, data: &1})
-    |> dispatch()
-
-    {:ok, state}
-  end
-
-  # NOTE: When `payload_and_depayload_tracks?` options is set to false we may still want to depayload
-  # some streams just in one place to e.g. dump them to HLS or perform any actions on depayloaded
-  # media without adding payload/depayload elements to all EndpointBins (performing unnecessary work).
   #
-  # To do that one just need to apply `depayloading_filter` after the tee element on which filter's the notification arrived.
+  # Endpoint Notifications
+  #
+  # - handle_endpoint_notification/4: Handles incoming notifications from an Endpoint, usually
+  #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
+  #   removed tracks. Also forwards custom media events.
+  #
+  # - handle_track_notification/3: Handles incoming notifications from the tee, mainly this is
+  #   used by the Simulcast tee to signal change of encoding.
+  #
+
   @decorate trace("engine.notification.track_ready",
               include: [:track_id, :encoding, [:state, :id]]
             )
-  defp do_handle_notification(
+  defp handle_endpoint_notification(
          {:track_ready, track_id, rid, encoding, depayloading_filter},
-         {:endpoint, endpoint_id},
+         endpoint_id,
          ctx,
          state
        ) do
+    # NOTE: When `payload_and_depayload_tracks?` options is set to false we may still want to
+    # depayload some streams just in one place to e.g. dump them to HLS or perform any actions on
+    # depayloaded media without adding payload/depayload elements to all EndpointBins (performing
+    # unnecessary work).
+    #
+    # To do that one just need to apply `depayloading_filter` after the tee element on which
+    # filter's the notification arrived.
+
     Membrane.Logger.info(
       "New incoming #{encoding} track #{track_id} from endpoint #{inspect(endpoint_id)}"
     )
 
     state = put_in(state, [:filters, track_id], depayloading_filter)
-    track = state.endpoints |> Map.fetch!(endpoint_id) |> Endpoint.get_track_by_id(track_id)
+    track = get_in(state, [:endpoints, endpoint_id]) |> Endpoint.get_track_by_id(track_id)
     track_link = build_track_link(track_id, rid, track, endpoint_id, ctx, state)
 
     # check if there are subscriptions for this track and fulfill them
-    {pending_track_subscriptions, pending_rest_subscriptions} =
-      Enum.split_with(state.pending_subscriptions, &(&1.track_id == track.id))
+    {subscriptions, pending_subscriptions} =
+      Enum.split_with(state.pending_subscriptions, &(&1.track_id == track_id))
 
-    {subscription_links, state} = fulfill_subscriptions(pending_track_subscriptions, ctx, state)
+    {subscription_links, state} = fulfill_subscriptions(subscriptions, ctx, state)
 
-    links = [tee_link] ++ subscription_links
-    state = %{state | pending_subscriptions: pending_rest_subscriptions}
+    links = [track_link] ++ subscription_links
+    state = %{state | pending_subscriptions: pending_subscriptions}
 
     state =
       update_in(
@@ -883,9 +839,9 @@ defmodule Membrane.RTC.Engine do
   end
 
   @decorate trace("engine.notification.publish.new_tracks", include: [:endpoint_id, [:state, :id]])
-  defp do_handle_notification(
+  defp handle_endpoint_notification(
          {:publish, {:new_tracks, tracks}},
-         {:endpoint, endpoint_id},
+         endpoint_id,
          _ctx,
          state
        ) do
@@ -898,24 +854,19 @@ defmodule Membrane.RTC.Engine do
         &Map.merge(&1, id_to_track)
       )
 
-    tracks_msgs = do_publish({:new_tracks, tracks}, {:endpoint, endpoint_id}, state)
-
+    tracks_msgs = build_track_added_actions(tracks, endpoint_id, state)
     endpoint = get_in(state, [:endpoints, endpoint_id])
     track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
-
-    MediaEvent.create_tracks_added_event(endpoint_id, track_id_to_track_metadata)
-    |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-    |> dispatch()
-
+    broadcast(MediaEvent.tracks_added(endpoint_id, track_id_to_track_metadata))
     {{:ok, tracks_msgs}, state}
   end
 
   @decorate trace("engine.notification.publish.removed_tracks",
               include: [:endpoint_id, [:state, :id]]
             )
-  defp do_handle_notification(
+  defp handle_endpoint_notification(
          {:publish, {:removed_tracks, tracks}},
-         {:endpoint, endpoint_id},
+         endpoint_id,
          ctx,
          state
        ) do
@@ -928,152 +879,52 @@ defmodule Membrane.RTC.Engine do
         &Map.merge(&1, id_to_track)
       )
 
-    tracks_msgs = do_publish({:remove_tracks, tracks}, {:endpoint, endpoint_id}, state)
-
+    tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
     track_ids = Enum.map(tracks, & &1.id)
-
-    MediaEvent.create_tracks_removed_event(endpoint_id, track_ids)
-    |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-    |> dispatch()
-
+    broadcast(MediaEvent.tracks_removed(endpoint_id, track_ids))
     tracks_children = Enum.flat_map(tracks, &get_track_elements(&1.id, ctx))
-
     {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
   end
 
   @decorate trace("engine.notification.custom_media_event", include: [[:state, :id]])
-  defp do_handle_notification({:custom_media_event, data}, {:endpoint, peer_id}, _ctx, state) do
-    MediaEvent.create_custom_event(data)
-    |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
-    |> dispatch()
-
+  defp handle_endpoint_notification({:custom_media_event, data}, peer_id, _ctx, state) do
+    dispatch(peer_id, MediaEvent.custom(data))
     {:ok, state}
   end
 
-  defp check_subscription(subscription, state) do
-    # checks whether subscription is correct
-    track = get_track(subscription.track_id, state.endpoints)
-    default_simulcast_encoding = subscription.opts[:default_simulcast_encoding]
+  defp handle_track_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
+    # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
+    # `track_id` now
 
-    cond do
-      track == nil ->
-        {:error, :invalid_track_id}
+    {from_endpoint_id, _endpoint} =
+      Enum.find(state.endpoints, fn {_, endpoint} ->
+        Endpoint.get_track_by_id(endpoint, track_id) != nil
+      end)
 
-      subscription.format not in track.format ->
-        {:error, :invalid_format}
-
-      # check if subscribed for existing simulcast encoding if simulcast is used
-      track.simulcast_encodings != [] and default_simulcast_encoding != nil and
-          default_simulcast_encoding not in track.simulcast_encodings ->
-        {:error, :invalid_default_simulcast_encoding}
-
-      true ->
-        :ok
-    end
+    dispatch(endpoint_id, MediaEvent.encoding_switched(from_endpoint_id, track_id, encoding))
+    {:ok, state}
   end
 
-  defp try_fulfill_subscription(subscription, ctx, state) do
-    # If the tee for this track is already spawned, fulfill subscription.
-    # Otherwise, save subscription as pending, we will fulfill it when the tee is linked.
+  #
+  # Peer Management
+  #
+  # - handle_add_peer/2: Adds a new Peer, part of the Public API and also called when the “join”
+  #   media event is received.
+  #
+  # - handle_remove_peer/4: Removes a Peer, part of the Public API and also called when the
+  #   “leave” media event is received.
+  #
 
-    if Map.has_key?(ctx.children, {:tee, subscription.track_id}) do
-      fulfill_subscriptions([subscription], ctx, state)
-    else
-      state = update_in(state, [:pending_subscriptions], &[subscription | &1])
-      {[], state}
-    end
-  end
-
-  defp fulfill_subscriptions(subscriptions, ctx, state) do
-    # Attempt to fulfill multiple subscriptions. This is done so in simultaneous subscriptions
-    # to the raw format can be fulfilled by linking just one pair of raw format filter/tee.
-    #
-    # After all links were built, the subscriptions are added to the state.
-
-    raw_format_links = build_raw_format_links(subscriptions, ctx, state)
-    subscription_links = build_subscription_links(subscriptions, state)
-    links = raw_format_links ++ subscription_links
-
-    Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
-      endpoint_id = subscription.endpoint_id
-      track_id = subscription.track_id
-      subscription = %{subscription | status: :active}
-      state = put_in(state, [:subscriptions, endpoint_id, track_id], subscription)
-      {links, state}
-    end)
-  end
-
-  defp dispatch(msg) do
-    Registry.dispatch(get_registry_name(), self(), fn entries ->
-      for {_, pid} <- entries, do: send(pid, msg)
-    end)
-  end
-
-  defp do_accept_new_peer(peer, state) do
+  defp handle_add_peer(peer, state) do
     if Map.has_key?(state.peers, peer.id) do
       Membrane.Logger.warn("Peer with id: #{inspect(peer.id)} has already been added")
       {[], state}
     else
+      dispatch(peer.id, MediaEvent.peer_accepted(peer.id, state.peers, state.endpoints))
+      broadcast(MediaEvent.peer_joined(peer))
       state = put_in(state, [:peers, peer.id], peer)
-
-      MediaEvent.create_peer_accepted_event(
-        peer.id,
-        Map.delete(state.peers, peer.id),
-        state.endpoints
-      )
-      |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer.id, data: &1})
-      |> dispatch()
-
-      MediaEvent.create_peer_joined_event(peer)
-      |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-      |> dispatch()
-
       {[], state}
     end
-  end
-
-  defp setup_endpoint(endpoint_entry, opts, state) do
-    inbound_tracks = []
-
-    outbound_tracks = state.endpoints |> get_outbound_tracks() |> Enum.filter(& &1.active?)
-
-    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || "#{UUID.uuid4()}"
-    endpoint = Endpoint.new(endpoint_id, inbound_tracks)
-
-    endpoint_name = {:endpoint, endpoint_id}
-
-    children = %{
-      endpoint_name => endpoint_entry
-    }
-
-    action = [
-      forward: {endpoint_name, {:display_manager, state.display_manager}},
-      forward: {endpoint_name, {:new_tracks, outbound_tracks}}
-    ]
-
-    state = put_in(state, [:subscriptions, endpoint_id], %{})
-
-    spec = %ParentSpec{
-      node: opts[:node],
-      children: children,
-      crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc: state.id]
-    }
-
-    state = put_in(state.endpoints[endpoint_id], endpoint)
-
-    {[spec: spec] ++ action, state}
-  end
-
-  defp get_outbound_tracks(endpoints),
-    do: Enum.flat_map(endpoints, fn {_id, endpoint} -> Endpoint.get_tracks(endpoint) end)
-
-  defp get_track(track_id, endpoints) do
-    endpoints
-    |> Map.values()
-    |> Enum.flat_map(&Endpoint.get_tracks/1)
-    |> Map.new(&{&1.id, &1})
-    |> Map.get(track_id)
   end
 
   defp handle_remove_peer(peer_id, reason, ctx, state) do
@@ -1083,59 +934,97 @@ defmodule Membrane.RTC.Engine do
         {[], state}
 
       {:present, actions, state} ->
-        MediaEvent.create_peer_left_event(peer_id)
-        |> then(&%Message.MediaEvent{rtc_engine: self(), to: :broadcast, data: &1})
-        |> dispatch()
-
+        broadcast(MediaEvent.peer_left(peer_id))
         send_if_not_nil(state.display_manager, {:unregister_endpoint, {:endpoint, peer_id}})
-
         {actions, state}
     end
   end
 
   defp do_remove_peer(peer_id, reason, ctx, state) do
     if Map.has_key?(state.peers, peer_id) do
-      unless reason == nil,
-        do:
-          MediaEvent.create_peer_removed_event(peer_id, reason)
-          |> then(&%Message.MediaEvent{rtc_engine: self(), to: peer_id, data: &1})
-          |> dispatch()
+      unless reason == nil do
+        dispatch(peer_id, MediaEvent.peer_removed(peer_id, reason))
+      end
 
       {_peer, state} = pop_in(state, [:peers, peer_id])
-      {_status, actions, state} = do_remove_endpoint(peer_id, ctx, state)
+      {_status, actions, state} = handle_remove_endpoint(peer_id, ctx, state)
       {:present, actions, state}
     else
       {:absent, [], state}
     end
   end
 
-  defp do_remove_endpoint(endpoint_id, ctx, state) do
-    if Map.has_key?(state.endpoints, endpoint_id) do
-      {endpoint, state} = pop_in(state, [:endpoints, endpoint_id])
-      {_subscriptions, state} = pop_in(state, [:subscriptions, endpoint_id])
+  #
+  # Endpoint Management
+  #
+  # - handle_add_endpoint/3: Adds a new Endpoint based on the entry provided. Part of the
+  #   implementation for the public API.
+  #
+  # - handle_remove_endpoint/3: Removes the given Endpoint. Part of the implementation for the
+  #   public API. Also called when the peer leaves.
+  #
+  # - get_active_tracks/1: Helper function for add_endpoint/3. Returns a list of Tracks that can
+  #   be provided to the newly added Endpoint straight away.
+  #
+  # - find_children_for_endpoint/2: Convenience function to identify all Elements owned by an
+  #   Endpoint, via its Tracks.
+  #
+  # - get_track_elements/2: Convenience function to identify all shared Elements owned by a Track
+  #   such as the tee.
+  #
 
-      state =
-        update_in(state, [:pending_subscriptions], fn subscriptions ->
-          Enum.filter(subscriptions, &(&1.endpoint_id != endpoint_id))
-        end)
+  defp handle_add_endpoint(endpoint_entry, opts, state) do
+    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || UUID.uuid4()
+    endpoint_name = {:endpoint, endpoint_id}
+
+    spec = %ParentSpec{
+      node: opts[:node],
+      children: %{endpoint_name => endpoint_entry},
+      crash_group: {endpoint_id, :temporary},
+      log_metadata: [rtc: state.id]
+    }
+
+    actions = [
+      spec: spec,
+      forward: {endpoint_name, {:display_manager, state.display_manager}},
+      forward: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}
+    ]
+
+    state = put_in(state, [:subscriptions, endpoint_id], %{})
+    state = put_in(state, [:endpoints, endpoint_id], Endpoint.new(endpoint_id, []))
+    {actions, state}
+  end
+
+  defp handle_remove_endpoint(endpoint_id, ctx, state) do
+    if Map.has_key?(state.endpoints, endpoint_id) do
+      pending_subscriptions_fun = fn subscriptions ->
+        Enum.filter(subscriptions, &(&1.endpoint_id != endpoint_id))
+      end
+
+      {endpoint, state} = pop_in(state, [:endpoints, endpoint_id])
+      {_, state} = pop_in(state, [:subscriptions, endpoint_id])
+      state = update_in(state, [:pending_subscriptions], pending_subscriptions_fun)
 
       tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
-
-      tracks_msgs = do_publish({:remove_tracks, tracks}, {:endpoint, endpoint_id}, state)
-
+      tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
       endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
 
-      actions =
-        if endpoint_bin == nil or endpoint_bin.terminating? do
-          []
-        else
-          [remove_child: find_children_for_endpoint(endpoint, ctx)]
-        end
-
-      {:present, tracks_msgs ++ actions, state}
+      if endpoint_bin == nil or endpoint_bin.terminating? do
+        {:present, tracks_msgs, state}
+      else
+        actions = [remove_child: find_children_for_endpoint(endpoint, ctx)]
+        {:present, tracks_msgs ++ actions, state}
+      end
     else
       {:absent, [], state}
     end
+  end
+
+  defp get_active_tracks(endpoints) do
+    endpoints
+    |> Map.values()
+    |> Enum.flat_map(&Endpoint.get_tracks/1)
+    |> Enum.filter(& &1.active?)
   end
 
   defp find_children_for_endpoint(endpoint, ctx) do
@@ -1156,53 +1045,53 @@ defmodule Membrane.RTC.Engine do
     |> Enum.filter(&Map.has_key?(ctx.children, &1))
   end
 
-  defp do_publish({_, []} = _tracks, _endpoint_bin, _state), do: []
+  #
+  # Track Actions
+  #
+  # - build_track_added_actions/3: Called when new tracks were published by the WebRTC endpoint
+  #   and the Engine has been notified. Notifies all other Endpoints of the new tracks.
+  #
+  # - build_track_removed_actions/3: Called when the underlying endpoint was removed (either
+  #   normally, or due to crash).
+  #
 
-  defp do_publish({:new_tracks, _tracks} = msg, endpoint_bin_name, state) do
-    Enum.flat_map(state.endpoints, fn {endpoint_id, endpoint} ->
-      current_endpoint_bin_name = {:endpoint, endpoint_id}
-
-      if current_endpoint_bin_name != endpoint_bin_name and not is_nil(endpoint) do
-        [forward: {current_endpoint_bin_name, msg}]
-      else
-        []
-      end
+  defp build_track_added_actions(tracks, endpoint_id, state) do
+    Enum.flat_map(state.endpoints, fn
+      {^endpoint_id, _endpoint} -> []
+      {_, nil} -> []
+      {endpoint_id, _} -> [forward: {{:endpoint, endpoint_id}, {:new_tracks, tracks}}]
     end)
   end
 
-  defp do_publish({:remove_tracks, tracks}, endpoint_bin_name, state) do
-    Enum.flat_map(state.endpoints, fn {endpoint_id, endpoint} ->
-      current_endpoint_bin_name = {:endpoint, endpoint_id}
-
-      has_subscription_on_track = fn track_id ->
-        state.subscriptions
-        |> Map.fetch!(endpoint_id)
-        |> Map.has_key?(track_id)
-      end
-
-      tracks_to_remove = Enum.filter(tracks, &has_subscription_on_track.(&1.id))
-      msg = {:remove_tracks, tracks_to_remove}
-
-      if current_endpoint_bin_name != endpoint_bin_name and not is_nil(endpoint) do
-        [forward: {current_endpoint_bin_name, msg}]
-      else
-        []
-      end
+  defp build_track_removed_actions(tracks, from_endpoint_id, state) do
+    state.endpoints
+    |> Enum.reject(&(elem(&1, 0) == from_endpoint_id))
+    |> Enum.reject(&is_nil(elem(&1, 1)))
+    |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
+      subscriptions = state.subscriptions[endpoint_id]
+      tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
+      [forward: {{:endpoint, endpoint_id}, {:remove_tracks, tracks}}]
     end)
   end
 
-  defp do_publish(msg, _endpoint_bin_name, _state) do
-    Membrane.Logger.warn(
-      "Requested unknown message type to be published by RTC Engine #{inspect(msg)}. Ignoring."
-    )
-
-    []
-  end
+  #
+  # Track Links
+  #
+  # - build_track_link/6 - called when the track is ready, via notification from the WebRTC
+  #   endpoint. Create the link from the endpoint which published the track, and starts the
+  #   underlying tee which is required to bring the content of the track to all subscribers.
+  #
+  # - build_track_tee/5 - Called by build_track_link/5; builds the correct tee depending on the
+  #   type of the track (simulcast / filtered / normal).
+  #
+  # - build_track_tee_simulcast/1 - Convenience function, builds a Simulcast tee
+  #
+  # - build_track_tee_filter/4 - Convenience function, builds a Filter tee
+  #
+  # - build_track_tee_push_output/2 - Convenience function, builds a Push Output tee
+  #
 
   defp build_track_link(track_id, rid, track, endpoint_id, ctx, state) do
-    # Create the link from the endpoint which published the track, and start the underlying tee
-    # which is required to bring the content of the track to all subscribers.
-
     is_simulcast? = rid != nil
     telemetry_label = [peer_id: endpoint_id, track_id: "#{track_id}:#{rid}"]
     telemetry_label = Keyword.merge(state.telemetry_label, telemetry_label)
@@ -1260,6 +1149,86 @@ defmodule Membrane.RTC.Engine do
     }
   end
 
+  #
+  # Track Subscriptions
+  #
+  # - validate_subscription/2: Validates proposed subscription, called when a new subscription
+  #   is to be added, via handle_other.
+  #
+  # - fulfill_or_postpone_subscription/3: Called immediately upon validation of subscription,
+  #   optimistically set up tees for the subscriber if the track is ready, otherwise adds the
+  #   subscription to the list of pending subscriptions
+  #
+  # - fulfill_subscriptions/3: Called when a new track is ready and there are pending 
+  #   subscriptions related to the track. Within subscription fulfillment, the raw format
+  #   filter/tee is built and linked, if the subscription is raw. Additional links from either the
+  #   normal tee or the raw tee to the subscribing endpoint are also built.
+  #
+  # - build_raw_format_links/3, build_raw_format_link/2: Called by fulfill_subscriptions/3, these
+  #   functions would build, for each track, links through the root tee, via the depayloader,
+  #   to a PushOutputTee, which exposes outpad pads for each subscription to pull from 
+  #
+  # - build_subscription_links/2, build_subscription_link/2: Called by fulfill_subscriptions/3,
+  #   these functions build the actual links between 1) either the root tee or the raw tee, and
+  #   2) the endpoint subscribing to the given track.
+  #
+  # - get_track/2: Convenience function. Searches for a Track with the given Track ID which is
+  #   owned by one of the Endpoints in the list.
+  #
+
+  defp validate_subscription(subscription, state) do
+    # checks whether subscription is correct
+    track = get_track(subscription.track_id, state.endpoints)
+    default_simulcast_encoding = subscription.opts[:default_simulcast_encoding]
+
+    cond do
+      track == nil ->
+        {:error, :invalid_track_id}
+
+      subscription.format not in track.format ->
+        {:error, :invalid_format}
+
+      # check if subscribed for existing simulcast encoding if simulcast is used
+      track.simulcast_encodings != [] and default_simulcast_encoding != nil and
+          default_simulcast_encoding not in track.simulcast_encodings ->
+        {:error, :invalid_default_simulcast_encoding}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp fulfill_or_postpone_subscription(subscription, ctx, state) do
+    # If the tee for this track is already spawned, fulfill subscription.
+    # Otherwise, save subscription as pending, we will fulfill it when the tee is linked.
+
+    if Map.has_key?(ctx.children, {:tee, subscription.track_id}) do
+      fulfill_subscriptions([subscription], ctx, state)
+    else
+      state = update_in(state, [:pending_subscriptions], &[subscription | &1])
+      {[], state}
+    end
+  end
+
+  defp fulfill_subscriptions(subscriptions, ctx, state) do
+    # Attempt to fulfill multiple subscriptions. This is done so in simultaneous subscriptions
+    # to the raw format can be fulfilled by linking just one pair of raw format filter/tee.
+    #
+    # After all links were built, the subscriptions are added to the state.
+
+    raw_format_links = build_raw_format_links(subscriptions, ctx, state)
+    subscription_links = build_subscription_links(subscriptions, state)
+    links = raw_format_links ++ subscription_links
+
+    Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
+      endpoint_id = subscription.endpoint_id
+      track_id = subscription.track_id
+      subscription = %{subscription | status: :active}
+      state = put_in(state, [:subscriptions, endpoint_id, track_id], subscription)
+      {links, state}
+    end)
+  end
+
   defp build_raw_format_links(subscriptions, ctx, state) do
     subscriptions
     |> Enum.filter(&(&1.format == :raw))
@@ -1303,5 +1272,44 @@ defmodule Membrane.RTC.Engine do
     end)
     |> via_in(Pad.ref(:input, subscription.track_id))
     |> to({:endpoint, subscription.endpoint_id})
+  end
+
+  defp get_track(track_id, endpoints) do
+    endpoints
+    |> Map.values()
+    |> Enum.flat_map(&Endpoint.get_tracks/1)
+    |> Map.new(&{&1.id, &1})
+    |> Map.get(track_id)
+  end
+
+  #
+  # Message Dispatch
+  #
+  # - dispatch/1: Internal function, dispatches the message to all registered processes within the
+  #   registry
+  #
+  # - dispatch/2: Dispatches the Media Event to all registered processes within the registry, with
+  #   the correct `to` field populated
+  #
+  # - brodcast/1: Convenience function, dispatches the data within a Media Event and sets the `to`
+  #   field to `:broadcast`.
+  #
+
+  defp dispatch(message) do
+    Registry.dispatch(get_registry_name(), self(), fn entries ->
+      for {_, pid} <- entries, do: send(pid, message)
+    end)
+  end
+
+  defp dispatch(to, data) when is_binary(data) do
+    dispatch(%Message.MediaEvent{rtc_engine: self(), to: to, data: data})
+  end
+
+  defp dispatch(to, data) when is_map(data) do
+    dispatch(to, MediaEvent.encode(data))
+  end
+
+  defp broadcast(data) when is_map(data) do
+    dispatch(:broadcast, data)
   end
 end
