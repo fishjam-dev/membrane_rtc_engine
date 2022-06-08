@@ -1136,11 +1136,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp setup_endpoint(endpoint_entry, opts, state) do
-    with %Endpoint.WebRTC{} = endpoint_entry do
-      Membrane.TelemetryMetrics.conditional_execute(
-        fn -> if(opts[:peer_metadata], do: true, else: false) end,
+    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || "#{UUID.uuid4()}"
+
+    with %Endpoint.WebRTC{} <- endpoint_entry,
+         %{peers: %{^endpoint_id => %{metadata: metadata}}} <- state do
+      Membrane.TelemetryMetrics.execute(
         [Membrane.RTC.Engine, :peer],
-        %{metadata: opts[:peer_metadata]},
+        %{metadata: metadata},
         %{},
         endpoint_entry.telemetry_label
       )
@@ -1150,7 +1152,6 @@ defmodule Membrane.RTC.Engine do
 
     outbound_tracks = state.endpoints |> get_outbound_tracks() |> Enum.filter(& &1.active?)
 
-    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || "#{UUID.uuid4()}"
     endpoint = Endpoint.new(endpoint_id, inbound_tracks)
 
     endpoint_name = {:endpoint, endpoint_id}
