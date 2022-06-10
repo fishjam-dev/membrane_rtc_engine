@@ -103,6 +103,12 @@ export async function remoteStreamsStats(peerConnection) {
     .filter((track) => !track.muted)
     .map(({ id }) => id);
 
+  const tmp = await peerConnection.getStats();
+  for (let [key, value] of tmp) {
+    console.log(key, value)
+  }
+
+
   const stats = streams.map(async (stream) => {
     const [audioTrack = undefined] = stream.getAudioTracks();
     const [videoTrack = undefined] = stream.getVideoTracks();

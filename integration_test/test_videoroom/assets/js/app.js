@@ -5,28 +5,50 @@ const videos = document.querySelector("#videos");
 const localVideo = document.querySelector("video#local-video");
 const data = document.querySelector("div#data");
 
-const startButtons = ["all", "mic-only", "camera-only", "none"].map((type) =>
+const startButtons = ["simulcast", "all", "mic-only", "camera-only", "none"].map((type) =>
   document.querySelector(`button#start-${type}`)
 );
 
-const [startAllButton, startMicOnlyButton, startCameraOnlyButton, startNoneButton] = startButtons;
+const simulcastButtons = ["own-low", "own-medium", "own-high"].map((type) =>
+  document.querySelector(`button#simulcast-${type}`)
+)
+
+const [startSimulcastButton, startAllButton, startMicOnlyButton, startCameraOnlyButton, startNoneButton] = startButtons;
+const [lowSimulcastButton, mediumSimulcastButton, highSimulcastButton] = simulcastButtons
+
 
 const stopButton = document.querySelector("button#stop");
 const statsButton = document.querySelector("button#stats");
 
 startButtons.forEach((button) => (button.disabled = false));
+simulcastButtons.forEach((button) => (button.disabled = true));
 stopButton.disabled = true;
 statsButton.disabled = false;
 
 let room;
 
-async function start(media) {
+const simulcastPreferences = {
+  width: { max: 1280, ideal: 1280, min: 640 },
+  height: { max: 720, ideal: 720, min: 320 },
+  frameRate: { max: 30, ideal: 24 },
+}
+
+async function start(media, simulcast = false) {
   if (room) return;
 
+  const useVideo = ["all", "camera"].includes(media);
+
+  if (simulcast) {
+    simulcastButtons.map(elem => elem.disabled = false)
+  }
+
+  console.log(useVideo)
   const preferences = {
     audio: ["all", "mic"].includes(media),
-    video: ["all", "camera"].includes(media),
+    video: useVideo && simulcast ? simulcastPreferences : useVideo,
   };
+
+  console.log(preferences)
 
   let localStream = undefined;
   if (preferences.audio || preferences.video) {
@@ -38,7 +60,8 @@ async function start(media) {
   startButtons.forEach((button) => (button.disabled = true));
   stopButton.disabled = false;
 
-  room = new Room(localStream);
+
+  room = new Room(localStream, simulcast);
 
   await room.init();
   await room.join();
@@ -79,10 +102,29 @@ async function refreshStats() {
   data.dataset.version = parseInt(data.dataset.version) + 1;
 }
 
+const change = function (button, encoding) {
+  const isEnabled = button.textContent.startsWith("Disable")
+  let text = button.textContent
+  if (isEnabled) {
+    room.disableSimulcastEncoding(encoding)
+    text = text.replace("Disable", "Enable")
+  } else {
+    room.enableSimulcastEncoding(encoding)
+    text = text.replace("Enable", "Disable")
+  }
+  button.textContent = text
+}
+
 // setup all button callbacks
+startSimulcastButton.onclick = () => start("all", true);
+startAllButton.onclick = () => start("all");
 startAllButton.onclick = () => start("all");
 startMicOnlyButton.onclick = () => start("mic");
 startCameraOnlyButton.onclick = () => start("camera");
 startNoneButton.onclick = () => start("none");
 stopButton.onclick = stop;
 statsButton.onclick = refreshStats;
+lowSimulcastButton.onclick = () => { change(lowSimulcastButton, "l") }
+mediumSimulcastButton.onclick = () => { change(mediumSimulcastButton, "m") }
+highSimulcastButton.onclick = () => { change(highSimulcastButton, "h") }
+

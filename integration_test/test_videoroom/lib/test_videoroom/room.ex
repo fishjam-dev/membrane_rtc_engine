@@ -6,6 +6,8 @@ defmodule TestVideoroom.Room do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Message
   alias Membrane.RTC.Engine.Endpoint.WebRTC
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig
+  alias Membrane.WebRTC.Extension.{Mid, Rid, TWCC}
   require Logger
 
   def start(opts) do
@@ -59,7 +61,14 @@ defmodule TestVideoroom.Room do
     Process.monitor(pid)
     Engine.register(pid, self())
 
-    {:ok, %{rtc_engine: pid, peer_channels: %{}, network_options: network_options, listeners: [], room_id: room_id}}
+    {:ok,
+     %{
+       rtc_engine: pid,
+       peer_channels: %{},
+       network_options: network_options,
+       listeners: [],
+       room_id: room_id
+     }}
   end
 
   @impl true
@@ -116,7 +125,9 @@ defmodule TestVideoroom.Room do
       integrated_turn_domain: state.network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
       log_metadata: [peer_id: peer.id],
-      telemetry_label: [room_id: state.room_id, peer_id: peer.id]
+      telemetry_label: [room_id: state.room_id, peer_id: peer.id],
+      webrtc_extensions: [Mid, Rid, TWCC],
+      simulcast_config: %SimulcastConfig{enabled: true, default_encoding: fn _track -> "m" end}
     }
 
     Engine.accept_peer(rtc_engine, peer.id)
