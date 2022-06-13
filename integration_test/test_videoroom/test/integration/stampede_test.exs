@@ -1,5 +1,5 @@
 defmodule TestVideoroom.Integration.ClientTest do
-  use TestVideoroomWeb.ConnCase, async: true
+  use TestVideoroomWeb.ConnCase, async: false
 
   # in miliseconds
   @peer_delay 500

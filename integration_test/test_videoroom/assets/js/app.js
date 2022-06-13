@@ -1,5 +1,5 @@
 import Room from "./room";
-import { remoteStreamsStats } from "./stats";
+import { remoteStreamsStats, remoteStreamSimulcastStats } from "./stats";
 
 const videos = document.querySelector("#videos");
 const localVideo = document.querySelector("video#local-video");
@@ -9,12 +9,14 @@ const startButtons = ["simulcast", "all", "mic-only", "camera-only", "none"].map
   document.querySelector(`button#start-${type}`)
 );
 
-const simulcastButtons = ["own-low", "own-medium", "own-high"].map((type) =>
-  document.querySelector(`button#simulcast-${type}`)
-)
+const simulcastButtons = ["own-low", "own-medium", "own-high",
+  "other-low", "other-medium", "other-high", "stats"].map((type) =>
+    document.querySelector(`button#simulcast-${type}`)
+  )
 
 const [startSimulcastButton, startAllButton, startMicOnlyButton, startCameraOnlyButton, startNoneButton] = startButtons;
-const [lowSimulcastButton, mediumSimulcastButton, highSimulcastButton] = simulcastButtons
+const [lowSimulcastButton, mediumSimulcastButton, highSimulcastButton,
+  lowEncodingPeerButton, mediumEncodingPeerButton, highEncodingPeerButton, simulcastStatsButton] = simulcastButtons
 
 
 const stopButton = document.querySelector("button#stop");
@@ -102,6 +104,27 @@ async function refreshStats() {
   data.dataset.version = parseInt(data.dataset.version) + 1;
 }
 
+async function refreshSimulcastStats() {
+  if (!room || !room.webrtc || !room.webrtc.connection) {
+    data.innerHTML = `Room error. One of objects doesn't exists: Room ${!room}, WebRTC ${!room.webrtc}, PeerConnection ${!room
+      .webrtc.connection}`;
+    return;
+  }
+  // we are accessing room's private field, in the name of science of course...
+  const stats = await remoteStreamSimulcastStats(room.webrtc.connection);
+
+  window.pc = room.webrtc.connection;
+
+
+  stats.callbackEncoding = room.getPeerEncoding()
+
+  // put the statistics as text inside div
+  data.innerHTML = JSON.stringify(stats);
+
+  // update the current accessed version
+  data.dataset.version = parseInt(data.dataset.version) + 1;
+}
+
 const change = function (button, encoding) {
   const isEnabled = button.textContent.startsWith("Disable")
   let text = button.textContent
@@ -127,4 +150,7 @@ statsButton.onclick = refreshStats;
 lowSimulcastButton.onclick = () => { change(lowSimulcastButton, "l") }
 mediumSimulcastButton.onclick = () => { change(mediumSimulcastButton, "m") }
 highSimulcastButton.onclick = () => { change(highSimulcastButton, "h") }
-
+lowEncodingPeerButton.onclick = () => { room.changePeerSimulcastEncoding("l") }
+mediumEncodingPeerButton.onclick = () => { room.changePeerSimulcastEncoding("m") }
+highEncodingPeerButton.onclick = () => { room.changePeerSimulcastEncoding("h") }
+simulcastStatsButton.onclick = refreshSimulcastStats

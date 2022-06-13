@@ -94,6 +94,20 @@ async function isAudioPlayingFirefox(peerConnection, audioTrack) {
   return packetsStart > 0 && packetsEnd > 0 && packetsEnd > packetsStart;
 }
 
+export async function remoteStreamSimulcastStats(peerConnection) {
+  const stats = await peerConnection.getStats();
+  let data = { height: null, width: null, framesPerSecond: 0 }
+  for (let [key, values] of stats) {
+    if (key.includes("RTCInboundRTPVideoStream") && "frameHeight" in values) {
+      data.height = values.frameHeight
+      data.width = values.frameWidth
+      data.framesPerSecond = values.framesPerSecond != null ? values.framesPerSecond : 0
+    }
+  }
+
+  return data
+}
+
 export async function remoteStreamsStats(peerConnection) {
   const streams = peerConnection.getRemoteStreams();
 
@@ -102,11 +116,6 @@ export async function remoteStreamsStats(peerConnection) {
     .map(({ track }) => track)
     .filter((track) => !track.muted)
     .map(({ id }) => id);
-
-  const tmp = await peerConnection.getStats();
-  for (let [key, value] of tmp) {
-    console.log(key, value)
-  }
 
 
   const stats = streams.map(async (stream) => {
