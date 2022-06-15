@@ -1,28 +1,33 @@
 import Room from "./room";
-import { remoteStreamsStats, remoteStreamSimulcastStats } from "./stats";
+import { remoteStreamsStats, inboundSimulcastStreamStats, outboundSimulcastStreamStats } from "./stats";
 
 const videos = document.querySelector("#videos");
 const localVideo = document.querySelector("video#local-video");
 const data = document.querySelector("div#data");
 
-const startButtons = ["simulcast", "all", "mic-only", "camera-only", "none"].map((type) =>
-  document.querySelector(`button#start-${type}`)
-);
 
-const simulcastButtons = ["own-low", "own-medium", "own-high",
-  "other-low", "other-medium", "other-high", "stats"].map((type) =>
-    document.querySelector(`button#simulcast-${type}`)
-  )
+const getButtonsWithPrefix = (types, prefix) => {
+  return types.map((type) => document.querySelector(`button#${prefix}-${type}`))
+}
+
+const startButtons = getButtonsWithPrefix(["simulcast", "all", "mic-only", "camera-only", "none"], "start");
+
+const simulcastButtons = getButtonsWithPrefix(["own-low", "own-medium", "own-high",
+  "other-low", "other-medium", "other-high", "inbound-stats", "outbound-stats"], "simulcast")
+
+const metadataButtons = getButtonsWithPrefix(["update-peer", "update-track", "peer", "track"], "metadata")
 
 const [startSimulcastButton, startAllButton, startMicOnlyButton, startCameraOnlyButton, startNoneButton] = startButtons;
 const [lowSimulcastButton, mediumSimulcastButton, highSimulcastButton,
-  lowEncodingPeerButton, mediumEncodingPeerButton, highEncodingPeerButton, simulcastStatsButton] = simulcastButtons
+  lowEncodingPeerButton, mediumEncodingPeerButton, highEncodingPeerButton, inboundSimulcastStatsButton, outboundSimulcastStatsButton] = simulcastButtons
 
+const [updatePeerMetadataButton, updateTrackMetadataButton, peerMetadataButton, trackMetadataButton] = metadataButtons
 
 const stopButton = document.querySelector("button#stop");
 const statsButton = document.querySelector("button#stats");
 
 startButtons.forEach((button) => (button.disabled = false));
+metadataButtons.forEach((button) => (button.disabled = false));
 simulcastButtons.forEach((button) => (button.disabled = true));
 stopButton.disabled = true;
 statsButton.disabled = false;
@@ -30,8 +35,8 @@ statsButton.disabled = false;
 let room;
 
 const simulcastPreferences = {
-  width: { max: 1280, ideal: 1280, min: 640 },
-  height: { max: 720, ideal: 720, min: 320 },
+  width: { max: 1280, ideal: 1280, min: 1280 },
+  height: { max: 720, ideal: 720, min: 720 },
   frameRate: { max: 30, ideal: 24 },
 }
 
@@ -44,13 +49,11 @@ async function start(media, simulcast = false) {
     simulcastButtons.map(elem => elem.disabled = false)
   }
 
-  console.log(useVideo)
   const preferences = {
     audio: ["all", "mic"].includes(media),
     video: useVideo && simulcast ? simulcastPreferences : useVideo,
   };
 
-  console.log(preferences)
 
   let localStream = undefined;
   if (preferences.audio || preferences.video) {
@@ -86,6 +89,16 @@ async function stop() {
   stopButton.disabled = true;
 }
 
+function putStats(stats) {
+  window.pc = room.webrtc.connection;
+
+  // put the statistics as text inside div
+  data.innerHTML = JSON.stringify(stats);
+
+  // update the current accessed version
+  data.dataset.version = parseInt(data.dataset.version) + 1;
+}
+
 async function refreshStats() {
   if (!room || !room.webrtc || !room.webrtc.connection) {
     data.innerHTML = `Room error. One of objects doesn't exists: Room ${!room}, WebRTC ${!room.webrtc}, PeerConnection ${!room
@@ -95,35 +108,34 @@ async function refreshStats() {
   // we are accessing room's private field, in the name of science of course...
   const stats = await remoteStreamsStats(room.webrtc.connection);
 
-  window.pc = room.webrtc.connection;
-
-  // put the statistics as text inside div
-  data.innerHTML = JSON.stringify(stats);
-
-  // update the current accessed version
-  data.dataset.version = parseInt(data.dataset.version) + 1;
+  putStats(stats)
 }
 
-async function refreshSimulcastStats() {
+async function refreshSimulcastReceiverStats() {
   if (!room || !room.webrtc || !room.webrtc.connection) {
     data.innerHTML = `Room error. One of objects doesn't exists: Room ${!room}, WebRTC ${!room.webrtc}, PeerConnection ${!room
       .webrtc.connection}`;
     return;
   }
   // we are accessing room's private field, in the name of science of course...
-  const stats = await remoteStreamSimulcastStats(room.webrtc.connection);
-
-  window.pc = room.webrtc.connection;
-
-
+  const stats = await inboundSimulcastStreamStats(room.webrtc.connection);
   stats.callbackEncoding = room.getPeerEncoding()
 
-  // put the statistics as text inside div
-  data.innerHTML = JSON.stringify(stats);
-
-  // update the current accessed version
-  data.dataset.version = parseInt(data.dataset.version) + 1;
+  putStats(stats)
 }
+
+async function refreshSimulcastSenderStats() {
+  if (!room || !room.webrtc || !room.webrtc.connection) {
+    data.innerHTML = `Room error. One of objects doesn't exists: Room ${!room}, WebRTC ${!room.webrtc}, PeerConnection ${!room
+      .webrtc.connection}`;
+    return;
+  }
+  // we are accessing room's private field, in the name of science of course...
+  const stats = await outboundSimulcastStreamStats(room.webrtc.connection);
+
+  putStats(stats)
+}
+
 
 const change = function (button, encoding) {
   const isEnabled = button.textContent.startsWith("Disable")
@@ -147,10 +159,15 @@ startCameraOnlyButton.onclick = () => start("camera");
 startNoneButton.onclick = () => start("none");
 stopButton.onclick = stop;
 statsButton.onclick = refreshStats;
+updatePeerMetadataButton.onclick = () => { room.updateMetadata() }
+updateTrackMetadataButton.onclick = () => { room.updateTrackMetadata() }
+peerMetadataButton.onclick = () => { putStats(room.peerMetadata) }
+trackMetadataButton.onclick = () => { putStats(room.trackMetadata) }
 lowSimulcastButton.onclick = () => { change(lowSimulcastButton, "l") }
 mediumSimulcastButton.onclick = () => { change(mediumSimulcastButton, "m") }
 highSimulcastButton.onclick = () => { change(highSimulcastButton, "h") }
 lowEncodingPeerButton.onclick = () => { room.changePeerSimulcastEncoding("l") }
 mediumEncodingPeerButton.onclick = () => { room.changePeerSimulcastEncoding("m") }
 highEncodingPeerButton.onclick = () => { room.changePeerSimulcastEncoding("h") }
-simulcastStatsButton.onclick = refreshSimulcastStats
+inboundSimulcastStatsButton.onclick = refreshSimulcastReceiverStats
+outboundSimulcastStatsButton.onclick = refreshSimulcastSenderStats

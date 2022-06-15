@@ -16,9 +16,10 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @change_own_high "simulcast-own-high"
   @set_peer_encoding_low "simulcast-other-low"
   @set_peer_encoding_medium "simulcast-other-medium"
-  @set_peer_encoding_high "simulcast-other-high"
-  @simulcast_stats "simulcast-stats"
+  @simulcast_inbound_stats "simulcast-inbound-stats"
+  @simulcast_outbound_stats "simulcast-outbound-stats"
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
+  @start_buttons [@change_own_low, @change_own_medium, @change_own_high]
 
   @moduletag timeout: 180_000
   test "User disable and then enable medium encoding" do
@@ -35,16 +36,31 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       start_button: @start_with_simulcast,
       receiver: receiver,
       buttons: [],
+      receiver_button: @simulcast_inbound_stats,
+      sender_button: @simulcast_outbound_stats,
+      start_buttons: [],
       id: -1
     }
 
     timeouts = [15_000, 15_000]
 
-    buttons1 = [@change_own_medium, @change_own_medium] |> Enum.zip(timeouts)
+    buttons1 =
+      [
+        @change_own_medium,
+        @change_own_medium
+      ]
+      |> Enum.zip(timeouts)
 
-    buttons2 = [@simulcast_stats, @simulcast_stats] |> Enum.zip(timeouts)
+    buttons2 =
+      [
+        @simulcast_inbound_stats,
+        @simulcast_inbound_stats
+      ]
+      |> Enum.zip(timeouts)
 
     stages = [:disable, :enable]
+
+    create_room(mustang_options)
 
     buttons_with_id =
       [buttons1, buttons2]
@@ -53,9 +69,14 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
 
     for {browser_id, buttons} <- buttons_with_id, into: [] do
-      specific_mustang = %{mustang_options | id: browser_id, buttons: buttons}
+      start_buttons = if browser_id == 1, do: @start_buttons, else: []
 
-      Process.sleep(2_000)
+      specific_mustang = %{
+        mustang_options
+        | id: browser_id,
+          buttons: buttons,
+          start_buttons: start_buttons
+      }
 
       Task.async(fn ->
         Stampede.start({SimulcastMustang, specific_mustang}, @browser_options)
@@ -65,27 +86,28 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       acc ->
-        Enum.all?(acc, fn {stage, browsers} ->
-          case stage do
-            :disable ->
-              Enum.all?(browsers, fn
-                {1, stats} ->
-                  assert stats_for_encoding?(stats, "l")
+        for {stage, browsers} <- acc do
+          encoding =
+            case stage do
+              :disable -> "h"
+              :enable -> "m"
+            end
 
-                {_other, _stats} ->
-                  true
-              end)
+          sender = browsers[0]
+          receiver = browsers[1]
+          stats = Enum.zip(sender, receiver)
 
-            :enable ->
-              Enum.all?(browsers, fn
-                {1, stats} ->
-                  assert stats_for_encoding?(stats, "m")
-
-                {_other, _stats} ->
-                  true
-              end)
-          end
-        end)
+          assert(
+            Enum.any?(stats, fn {sender, receiver} ->
+              stats_for_encoding?(receiver, sender, encoding)
+            end),
+            "Failed on stage: #{stage} should be encoding: #{encoding},
+                receiver stats are: #{inspect(receiver)}
+                sender stats are: #{inspect(sender)}
+                all stats are: #{inspect(acc)}
+                "
+          )
+        end
     end
   end
 
@@ -104,18 +126,31 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       start_button: @start_with_simulcast,
       receiver: receiver,
       buttons: [],
+      receiver_button: @simulcast_inbound_stats,
+      sender_button: @simulcast_outbound_stats,
+      start_buttons: [],
       id: -1
     }
 
-    timeouts = [5_000, 15_000, 5_000, 15_000]
+    create_room(mustang_options)
+
+    timeouts = [10_000, 10_000]
 
     buttons1 =
-      [@set_peer_encoding_low, @simulcast_stats, @set_peer_encoding_medium, @simulcast_stats]
+      [
+        @set_peer_encoding_low,
+        @set_peer_encoding_medium
+      ]
       |> Enum.zip(timeouts)
 
-    buttons2 = []
+    buttons2 =
+      [
+        @simulcast_outbound_stats,
+        @simulcast_outbound_stats
+      ]
+      |> Enum.zip(timeouts)
 
-    stages = [1, :disable, 3, :enable]
+    stages = [:disable, :enable]
 
     buttons_with_id =
       [buttons1, buttons2]
@@ -124,9 +159,14 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
 
     for {browser_id, buttons} <- buttons_with_id, into: [] do
-      specific_mustang = %{mustang_options | id: browser_id, buttons: buttons}
+      start_buttons = if browser_id == 0, do: @start_buttons, else: []
 
-      Process.sleep(2_000)
+      specific_mustang = %{
+        mustang_options
+        | id: browser_id,
+          buttons: buttons,
+          start_buttons: start_buttons
+      }
 
       Task.async(fn ->
         Stampede.start({SimulcastMustang, specific_mustang}, @browser_options)
@@ -136,27 +176,28 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       acc ->
-        Enum.all?(acc, fn {stage, browsers} ->
-          case stage do
-            :disable ->
-              Enum.all?(browsers, fn
-                {0, stats} ->
-                  assert stats_for_encoding?(stats, "l")
+        for {stage, browsers} <- acc do
+          encoding =
+            case stage do
+              :disable -> "l"
+              :enable -> "m"
+            end
 
-                {_other, _stats} ->
-                  true
-              end)
+          receiver = browsers[0]
+          sender = browsers[1]
+          stats = Enum.zip(sender, receiver)
 
-            :enable ->
-              Enum.all?(browsers, fn
-                {0, stats} ->
-                  assert stats_for_encoding?(stats, "m")
-
-                {_other, _stats} ->
-                  true
-              end)
-          end
-        end)
+          assert(
+            Enum.any?(stats, fn {sender, receiver} ->
+              stats_for_encoding?(receiver, sender, encoding)
+            end),
+            "Failed on stage: #{stage} should be encoding: #{encoding},
+                receiver stats are: #{inspect(receiver)}
+                sender stats are: #{inspect(sender)}
+                all stats are: #{inspect(acc)}
+                "
+          )
+        end
     end
   end
 
@@ -175,20 +216,46 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       start_button: @start_with_simulcast,
       receiver: receiver,
       buttons: [],
+      receiver_button: @simulcast_inbound_stats,
+      sender_button: @simulcast_outbound_stats,
+      start_buttons: [],
       id: -1
     }
 
-    timeouts = [15_000, 15_000, 15_000, 15_000]
+    create_room(mustang_options)
+
+    timeouts = List.duplicate(10_000, 6)
 
     buttons1 =
-      [@change_own_medium, @change_own_low, @change_own_low, @change_own_medium]
+      [
+        @change_own_medium,
+        @change_own_high,
+        @change_own_low,
+        @change_own_low,
+        @change_own_high,
+        @change_own_medium
+      ]
       |> Enum.zip(timeouts)
 
     buttons2 =
-      [@simulcast_stats, @simulcast_stats, @simulcast_stats, @simulcast_stats]
+      [
+        @simulcast_inbound_stats,
+        @simulcast_inbound_stats,
+        @simulcast_inbound_stats,
+        @simulcast_inbound_stats,
+        @simulcast_inbound_stats,
+        @simulcast_inbound_stats
+      ]
       |> Enum.zip(timeouts)
 
-    stages = [:disable_medium, :disable_low, :enable_low, :enable_medium]
+    stages = [
+      :disable_medium,
+      :disable_high,
+      :disable_low,
+      :enable_low,
+      :enable_high,
+      :enable_medium
+    ]
 
     buttons_with_id =
       [buttons1, buttons2]
@@ -197,9 +264,14 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
 
     for {browser_id, buttons} <- buttons_with_id, into: [] do
-      specific_mustang = %{mustang_options | id: browser_id, buttons: buttons}
+      start_buttons = if browser_id == 1, do: @start_buttons, else: []
 
-      Process.sleep(1_500)
+      specific_mustang = %{
+        mustang_options
+        | id: browser_id,
+          buttons: buttons,
+          start_buttons: start_buttons
+      }
 
       Task.async(fn ->
         Stampede.start({SimulcastMustang, specific_mustang}, @browser_options)
@@ -209,61 +281,62 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       acc ->
-        Enum.all?(acc, fn {stage, browsers} ->
+        for {stage, browsers} <- acc do
+          encoding =
+            case stage do
+              :disable_medium -> "h"
+              :disable_high -> "l"
+              :disable_low -> nil
+              :enable_low -> "l"
+              :enable_high -> "h"
+              :enable_medium -> "m"
+            end
+
+          sender = browsers[0]
+          receiver = browsers[1]
+
+          stats = Enum.zip(sender, receiver)
+
           case stage do
-            :disable_medium ->
-              Enum.all?(browsers, fn
-                {1, stats} ->
-                  assert stats_for_encoding?(stats, "l")
-
-                {_other, _stats} ->
-                  true
-              end)
-
             :disable_low ->
-              Enum.all?(browsers, fn
-                {1, stats} ->
-                  assert stats["framesPerSecond"] == 0
+              assert(
+                Enum.any?(receiver, &(&1["framesPerSecond"] == 0)),
+                "Failed on stage: #{stage} should be all encodings disabled,
+                receiver stats are #{inspect(receiver)}
+                sender stats are #{inspect(sender)}
+                all stats are: #{inspect(acc)}
+                "
+              )
 
-                {_other, _stats} ->
-                  true
-              end)
-
-            :enable_low ->
-              Enum.all?(browsers, fn
-                {1, stats} ->
-                  assert stats_for_encoding?(stats, "l")
-
-                {_other, _stats} ->
-                  true
-              end)
-
-            :enable_medium ->
-              Enum.all?(browsers, fn
-                {1, stats} ->
-                  assert stats_for_encoding?(stats, "m")
-
-                {_other, _stats} ->
-                  true
-              end)
+            _other ->
+              assert(
+                Enum.any?(stats, fn {sender, receiver} ->
+                  stats_for_encoding?(receiver, sender, encoding)
+                end),
+                "Failed on stage: #{stage} should be encoding: #{encoding},
+                receiver stats are: #{inspect(receiver)}
+                sender stats are: #{inspect(sender)}
+                all stats are: #{inspect(acc)}
+                "
+              )
           end
-        end)
+        end
     end
   end
 
-  defp stats_for_encoding?(stats, "l") do
-    stats["height"] == 180 and stats["width"] == 320 and
-      stats["callbackEncoding"] == "l"
+  defp create_room(mustang_options) do
+    # Creating room earlier to avoid error :already_started
+    Task.async(fn ->
+      Stampede.start({RoomMustang, mustang_options}, @browser_options)
+    end)
+    |> Task.await(:infinity)
   end
 
-  defp stats_for_encoding?(stats, "m") do
-    stats["height"] == 360 and stats["width"] == 640 and
-      stats["callbackEncoding"] == "m"
-  end
+  defp stats_for_encoding?(receiver, sender_stats, encoding) do
+    sender = sender_stats[encoding]
 
-  defp stats_for_encoding?(stats, "h") do
-    stats["height"] == 720 and stats["width"] == 1280 and
-      stats["callbackEncoding"] == "h"
+    receiver["height"] == sender["height"] and receiver["width"] == sender["width"] and
+      receiver["callbackEncoding"] == encoding
   end
 
   defp receive_stats(mustangs_number, pid, acc \\ %{}) do
@@ -275,8 +348,16 @@ defmodule TestVideoroom.Integration.SimulcastTest do
         {browser_id, stage, data} ->
           acc
           |> then(fn acc ->
-            default_map = %{browser_id => data}
-            Map.update(acc, stage, default_map, &Map.put(&1, browser_id, data))
+            default_map = %{browser_id => [data]}
+
+            # IO.inspect(acc, label: :acc)
+
+            Map.update(
+              acc,
+              stage,
+              default_map,
+              fn stage_map -> Map.update(stage_map, browser_id, [data], &(&1 ++ [data])) end
+            )
           end)
           |> then(&receive_stats(mustangs_number, pid, &1))
       end

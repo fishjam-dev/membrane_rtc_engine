@@ -33,10 +33,13 @@ class Room {
     this.webrtcChannel = this.socket.channel("room");
     this.videoTrack = null;
     this.audioTrack = null;
-    this.peerTracks = [];
     this.peerEncoding = "m"
-    // this.encodings = ["l", "m", "h"]
-    this.encodings = ["l", "m"]
+    this.encodings = ["l", "m", "h"]
+    // this.encodings = ["l", "m"]
+    this.peerMetadata = null;
+    this.trackMetadata = null;
+    this.selfId = null
+    this.peers = []
 
     this.webrtcSocketRefs = [];
     this.webrtcSocketRefs.push(this.socket.onError(this.leave));
@@ -49,6 +52,7 @@ class Room {
         },
         onConnectionError: setErrorMessage,
         onJoinSuccess: (peerId, peersInRoom) => {
+          this.selfId = peerId
           if (this.localStream) {
             this.localStream
               .getTracks()
@@ -60,7 +64,6 @@ class Room {
                     this.localStream,
                     {},
                     { enabled: true, active_encodings: this.encodings })
-                console.log(trackId);
 
                 if (track.kind == "audio") this.audioTrack = [trackId, track];
                 else this.videoTrack = [trackId, track];
@@ -82,7 +85,7 @@ class Room {
           video.srcObject = stream;
         },
         onTrackAdded: (ctx) => {
-          if (simulcast) this.peerTracks.push(ctx.trackId)
+          console.log(this.selfId, " track added ", ctx.trackId)
         },
         onTrackRemoved: (ctx) => { },
         onPeerJoined: (peer) => {
@@ -95,8 +98,12 @@ class Room {
           removeVideoElement(peer.id);
           this.updateParticipantsList();
         },
-        onPeerUpdated: (ctx) => { },
-        onTrackEncodingChanged: (peerId, trackId, encoding) => { this.peerEncoding = encoding }
+        onPeerUpdated: (ctx) => { this.peerMetadata = ctx.metadata },
+        onTrackUpdated: (ctx) => { this.trackMetadata = ctx.metadata },
+        onTrackEncodingChanged: (peerId, trackId, encoding) => {
+          console.log(this.selfId, "received info that ", peerId, "changed encoding to ", encoding)
+          this.peerEncoding = encoding
+        }
 
       },
     });
@@ -145,12 +152,18 @@ class Room {
     this.webrtc.enableTrackEncoding(this.videoTrack[0], encoding)
   }
 
-  changePeerSimulcastEncoding = (encdoing) => {
-    this.peerTracks.forEach(trackId => this.webrtc.selectTrackEncoding(this.peers[0].id, trackId, encdoing))
+  changePeerSimulcastEncoding = (encoding) => {
+    const peer = this.peers[0]
+    const tracksId = Array.from(peer.trackIdToMetadata.keys())
+    tracksId.forEach(trackId => {
+      this.webrtc.selectTrackEncoding(peer.id, trackId, encoding)
+    })
   }
 
   getPeerEncoding = () => { return this.peerEncoding }
 
+  updateMetadata = () => this.webrtc.updatePeerMetadata("test")
+  updateTrackMetadata = () => this.webrtc.updateTrackMetadata(this.videoTrack[0], "trackMetadata")
 }
 
 export default Room;
