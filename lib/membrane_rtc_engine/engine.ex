@@ -441,7 +441,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_init(options) do
     trace_ctx =
       if Keyword.has_key?(options, :trace_ctx) do
@@ -475,7 +475,7 @@ defmodule Membrane.RTC.Engine do
      }}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_playing_to_prepared(ctx, state) do
     {actions, state} =
       state.peers
@@ -488,7 +488,7 @@ defmodule Membrane.RTC.Engine do
     {{:ok, actions}, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.add_endpoint", include: [[:state, :component_path], [:state, :id]])
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
@@ -525,7 +525,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.remove_endpoint", include: [[:state, :id]])
   def handle_other({:remove_endpoint, id}, ctx, state) do
     case handle_remove_endpoint(id, ctx, state) do
@@ -538,35 +538,35 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.add_peer", include: [[:state, :id]])
   def handle_other({:add_peer, peer}, _ctx, state) do
     {actions, state} = handle_add_peer(peer, state)
     {{:ok, actions}, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.remove_peer", include: [[:state, :id]])
   def handle_other({:remove_peer, id, reason}, ctx, state) do
     {actions, state} = handle_remove_peer(id, reason, ctx, state)
     {{:ok, actions}, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.register", include: [[:state, :id]])
   def handle_other({:register, pid}, _ctx, state) do
     Registry.register(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.unregister", include: [[:state, :id]])
   def handle_other({:unregister, pid}, _ctx, state) do
     Registry.unregister_match(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.media_event", include: [[:state, :id]])
   def handle_other({:media_event, from, data}, ctx, state) do
     case MediaEvent.decode(data) do
@@ -611,7 +611,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.tracks_priority", include: [[:state, :id]])
   def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
     for {{:endpoint, endpoint_id}, tracks} <- endpoint_to_tracks do
@@ -626,7 +626,7 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tee_actions}, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_notification(notifcation, {:endpoint, endpoint_id}, ctx, state) do
     if Map.has_key?(state.endpoints, endpoint_id) do
       handle_endpoint_notification(notifcation, endpoint_id, ctx, state)
@@ -635,12 +635,12 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_notification(notification, {:tee, track_id}, _ctx, state) do
-    handle_track_notification(notification, track_id, state)
+    handle_tee_notification(notification, track_id, state)
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
     if Map.has_key?(state.peers, endpoint_id) do
       dispatch(endpoint_id, MediaEvent.peer_removed(endpoint_id, "Internal server error."))
@@ -784,7 +784,7 @@ defmodule Membrane.RTC.Engine do
   #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
   #   removed tracks. Also forwards custom media events.
   #
-  # - handle_track_notification/3: Handles incoming notifications from the tee, mainly this is
+  # - handle_tee_notification/3: Handles incoming notifications from the tee, mainly this is
   #   used by the Simulcast tee to signal change of encoding.
   #
 
@@ -892,7 +892,7 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp handle_track_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
+  defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
     # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
     # `track_id` now
 
