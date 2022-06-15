@@ -3,266 +3,107 @@ defmodule Membrane.RTC.Engine.MediaEvent do
 
   alias Membrane.RTC.Engine.{Endpoint, Peer, Track}
 
-  @type rtc_media_event_t() :: binary()
+  @type t() :: map()
 
-  @spec create_peer_removed_event(Peer.id(), String.t()) :: rtc_media_event_t()
-  def create_peer_removed_event(peer_id, reason) do
-    %{
-      type: "peerRemoved",
-      data: %{
-        peerId: peer_id,
-        reason: reason
-      }
-    }
-    |> serialize()
-  end
-
-  @spec create_peer_accepted_event(Peer.id(), map(), [Endpoint.t()]) :: rtc_media_event_t()
-  def create_peer_accepted_event(peer_id, peers, endpoints) do
+  @spec peer_accepted(Peer.id(), map(), [Endpoint.t()]) :: t()
+  def peer_accepted(peer_id, peers, endpoints) do
     peers =
       Enum.map(peers, fn {id, peer} ->
         track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoints[id])
         %{id: id, metadata: peer.metadata, trackIdToMetadata: track_id_to_track_metadata}
       end)
 
-    %{
-      type: "peerAccepted",
-      data: %{
-        id: peer_id,
-        peersInRoom: peers
-      }
-    }
-    |> serialize()
+    %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers}}
   end
 
-  @spec create_peer_denied_event(map()) :: rtc_media_event_t()
-  def create_peer_denied_event(metadata \\ %{}) do
+  @spec peer_denied(map()) :: t()
+  def peer_denied(metadata \\ %{}) do
     %{type: "peerDenied", data: metadata}
-    |> serialize()
   end
 
-  @spec create_peer_joined_event(Peer.t()) :: rtc_media_event_t()
-  def create_peer_joined_event(peer) do
-    %{
-      type: "peerJoined",
-      data: %{
-        peer: %{
-          id: peer.id,
-          metadata: peer.metadata
-        }
-      }
-    }
-    |> serialize()
+  @spec peer_joined(Peer.t()) :: t()
+  def peer_joined(%Peer{id: id, metadata: metadata}) do
+    %{type: "peerJoined", data: %{peer: %{id: id, metadata: metadata}}}
   end
 
-  @spec create_peer_left_event(Peer.id()) :: rtc_media_event_t()
-  def create_peer_left_event(peer_id) do
-    %{
-      type: "peerLeft",
-      data: %{
-        peerId: peer_id
-      }
-    }
-    |> serialize()
+  @spec peer_left(Peer.id()) :: t()
+  def peer_left(peer_id) do
+    %{type: "peerLeft", data: %{peerId: peer_id}}
   end
 
-  @spec create_tracks_added_event(Peer.id(), map()) ::
-          rtc_media_event_t()
-  def create_tracks_added_event(peer_id, track_id_to_metadata) do
-    %{
-      type: "tracksAdded",
-      data: %{
-        peerId: peer_id,
-        trackIdToMetadata: track_id_to_metadata
-      }
-    }
-    |> serialize()
+  @spec peer_updated(Peer.t()) :: t()
+  def peer_updated(peer) do
+    %{type: "peerUpdated", data: %{peerId: peer.id, metadata: peer.metadata}}
   end
 
-  @spec create_tracks_removed_event(Peer.id(), [String.t()]) ::
-          rtc_media_event_t()
-  def create_tracks_removed_event(peer_id, track_ids) do
-    %{
-      type: "tracksRemoved",
-      data: %{
-        peerId: peer_id,
-        trackIds: track_ids
-      }
-    }
-    |> serialize()
+  @spec peer_removed(Peer.id(), String.t()) :: t()
+  def peer_removed(peer_id, reason) do
+    %{type: "peerRemoved", data: %{peerId: peer_id, reason: reason}}
   end
 
-  @spec create_peer_updated_event(Peer.t()) :: rtc_media_event_t()
-  def create_peer_updated_event(peer) do
-    %{
-      type: "peerUpdated",
-      data: %{
-        peerId: peer.id,
-        metadata: peer.metadata
-      }
-    }
-    |> serialize()
+  @spec tracks_added(Peer.id(), map()) :: t()
+  def tracks_added(peer_id, track_id_to_metadata) do
+    %{type: "tracksAdded", data: %{peerId: peer_id, trackIdToMetadata: track_id_to_metadata}}
   end
 
-  @spec create_track_updated_event(Peer.id(), String.t(), map()) :: rtc_media_event_t()
-  def create_track_updated_event(peer_id, track_id, metadata) do
-    %{
-      type: "trackUpdated",
-      data: %{
-        peerId: peer_id,
-        trackId: track_id,
-        metadata: metadata
-      }
-    }
-    |> serialize()
+  @spec tracks_removed(Peer.id(), [String.t()]) :: t()
+  def tracks_removed(peer_id, track_ids) do
+    %{type: "tracksRemoved", data: %{peerId: peer_id, trackIds: track_ids}}
   end
 
-  @spec create_tracks_priority_event([String.t()]) :: rtc_media_event_t()
-  def create_tracks_priority_event(tracks) do
-    %{
-      type: "tracksPriority",
-      data: %{
-        tracks: tracks
-      }
-    }
-    |> serialize()
+  @spec track_updated(Peer.id(), String.t(), map()) :: t()
+  def track_updated(peer_id, track_id, metadata) do
+    %{type: "trackUpdated", data: %{peerId: peer_id, trackId: track_id, metadata: metadata}}
   end
 
-  @spec create_encoding_switched_event(Peer.id(), Track.id(), String.t()) :: rtc_media_event_t()
-  def create_encoding_switched_event(peer_id, track_id, encoding) do
-    %{
-      type: "encodingSwitched",
-      data: %{
-        peerId: peer_id,
-        trackId: track_id,
-        encoding: encoding
-      }
-    }
-    |> serialize()
+  @spec tracks_priority([String.t()]) :: t()
+  def tracks_priority(tracks) do
+    %{type: "tracksPriority", data: %{tracks: tracks}}
   end
 
-  @spec create_custom_event(map()) :: rtc_media_event_t()
-  def create_custom_event(msg) do
-    %{
-      type: "custom",
-      data: msg
-    }
-    |> serialize()
+  @spec encoding_switched(Peer.id(), Track.id(), String.t()) :: t()
+  def encoding_switched(peer_id, track_id, encoding) do
+    %{type: "encodingSwitched", data: %{peerId: peer_id, trackId: track_id, encoding: encoding}}
   end
 
-  @spec create_error_event(String.t()) :: rtc_media_event_t()
+  @spec custom(map()) :: t()
+  def custom(msg) do
+    %{type: "custom", data: msg}
+  end
+
+  @spec create_error_event(String.t()) :: t()
   def create_error_event(msg) do
-    %{
-      type: "error",
-      data: %{
-        message: msg
-      }
-    }
-    |> serialize()
+    %{type: "error", data: %{message: msg}}
   end
 
-  @spec serialize(map()) :: binary()
-  def serialize(event), do: Jason.encode!(event)
+  @spec encode(t()) :: binary()
+  def encode(event), do: Jason.encode!(event)
 
-  @spec deserialize(binary()) :: {:ok, map()} | {:error, :invalid_media_event}
-  def deserialize(raw_event) do
-    case Jason.decode(raw_event) do
-      {:ok, event} -> do_deserialize(event)
-      _error -> {:error, :invalid_media_event}
+  @spec decode(binary()) :: {:ok, t()} | {:error, :invalid_media_event}
+  def decode(event_json) do
+    with {:ok, event_map} <- Jason.decode(event_json),
+         event_type = Map.get(event_map, "type"),
+         event_data = Map.get(event_map, "data"),
+         %{} = event <- decode(event_type, event_data) do
+      {:ok, event}
+    else
+      :error -> {:error, :invalid_media_event}
     end
   end
 
-  defp do_deserialize(%{"type" => "join"} = event) do
-    case event do
-      %{
-        "type" => "join",
-        "data" => %{
-          "metadata" => metadata
-        }
-      } ->
-        {:ok,
-         %{
-           type: :join,
-           data: %{
-             metadata: metadata
-           }
-         }}
+  defp decode(event_type, event_data)
+  defp decode("join", %{"metadata" => metadata}), do: %{type: :join, data: %{metadata: metadata}}
+  defp decode("leave", _), do: %{type: :leave}
+  defp decode("custom", data), do: %{type: :custom, data: data}
 
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
+  defp decode("updatePeerMetadata", %{"metadata" => metadata}),
+    do: %{type: :update_peer_metadata, data: %{metadata: metadata}}
 
-  defp do_deserialize(%{"type" => "custom", "data" => data}) do
-    {:ok, %{type: :custom, data: data}}
-  end
+  defp decode("updateTrackMetadata", %{"trackId" => track_id, "trackMetadata" => metadata}),
+    do: %{type: :update_track_metadata, data: %{track_id: track_id, track_metadata: metadata}}
 
-  defp do_deserialize(%{"type" => "updatePeerMetadata"} = event) do
-    case event do
-      %{
-        "type" => "updatePeerMetadata",
-        "data" => %{
-          "metadata" => peer_metadata
-        }
-      } ->
-        {:ok,
-         %{
-           type: :update_peer_metadata,
-           data: %{
-             metadata: peer_metadata
-           }
-         }}
+  defp decode("selectEncoding", %{"peerId" => pid, "trackId" => tid, "encoding" => encoding}),
+    do: %{type: :select_encoding, data: %{peer_id: pid, track_id: tid, encoding: encoding}}
 
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp do_deserialize(%{"type" => "updateTrackMetadata"} = event) do
-    case event do
-      %{
-        "type" => "updateTrackMetadata",
-        "data" => %{
-          "trackId" => track_id,
-          "trackMetadata" => track_metadata
-        }
-      } ->
-        {:ok,
-         %{
-           type: :update_track_metadata,
-           data: %{
-             track_id: track_id,
-             track_metadata: track_metadata
-           }
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp do_deserialize(%{"type" => "leave"}), do: {:ok, %{type: :leave}}
-
-  defp do_deserialize(%{"type" => "selectEncoding"} = event) do
-    case event do
-      %{
-        "type" => "selectEncoding",
-        "data" => %{
-          "peerId" => peer_id,
-          "trackId" => track_id,
-          "encoding" => encoding
-        }
-      } ->
-        {:ok,
-         %{
-           type: :select_encoding,
-           data: %{peer_id: peer_id, track_id: track_id, encoding: encoding}
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp do_deserialize(_event), do: {:error, :invalid_media_event}
+  defp decode(_, _), do: :error
 end
