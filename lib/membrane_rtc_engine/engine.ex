@@ -971,8 +971,8 @@ defmodule Membrane.RTC.Engine do
   # - find_children_for_endpoint/2: Convenience function to identify all Elements owned by an
   #   Endpoint, via its Tracks.
   #
-  # - get_track_elements/2: Convenience function to identify all shared Elements owned by a Track
-  #   such as the tee.
+  # - get_track_elements/2: Convenience function to identify all Elements owned by a Track
+  #   such as the tee, raw_format_filter and raw_format_tee.
   #
 
   defp handle_add_endpoint(endpoint_entry, opts, state) do
@@ -1158,11 +1158,11 @@ defmodule Membrane.RTC.Engine do
   #   is to be added, via handle_other.
   #
   # - fulfill_or_postpone_subscription/3: Called immediately upon validation of subscription,
-  #   optimistically set up tees for the subscriber if the track is ready, otherwise adds the
+  #   optimistically links subscriber to the track's tee if the track is ready, otherwise adds the
   #   subscription to the list of pending subscriptions
   #
   # - fulfill_subscriptions/3: Called when a new track is ready and there are pending 
-  #   subscriptions related to the track. Within subscription fulfillment, the raw format
+  #   subscriptions to the track. Within subscription fulfillment, the raw format
   #   filter/tee is built and linked, if the subscription is raw. Additional links from either the
   #   normal tee or the raw tee to the subscribing endpoint are also built.
   #
@@ -1241,13 +1241,14 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp build_raw_format_link(track_id, state) do
-    # Build raw format filters/tees for the given track. This is connected to the output of the
-    # tee that handles the underlying stream with an endpoint name of `:shared`.
+    # Build raw format filter and tee for the given track. 
+    # Raw format filter and tee are connected to the output of the
+    # track's base tee.
 
     track = get_track(track_id, state.endpoints)
 
     link({:tee, track_id})
-    |> via_out(Pad.ref(:output, {:endpoint, :shared}))
+    |> via_out(Pad.ref(:output, {:endpoint, :raw_format_filter}))
     |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
     |> to({:raw_format_tee, track_id}, %PushOutputTee{codec: track.encoding})
   end
