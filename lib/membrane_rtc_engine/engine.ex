@@ -193,7 +193,7 @@ defmodule Membrane.RTC.Engine do
 
   use Membrane.Pipeline
   use OpenTelemetryDecorator
-  require Membrane.Logger
+
   import Membrane.RTC.Utils
 
   alias Membrane.RTC.Engine.{
@@ -208,6 +208,8 @@ defmodule Membrane.RTC.Engine do
     Subscription,
     Track
   }
+
+  require Membrane.Logger
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -685,7 +687,7 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
-  defp handle_media_event(:leave, _, peer_id, ctx, state) do
+  defp handle_media_event(:leave, _event, peer_id, ctx, state) do
     dispatch(%Message.PeerLeft{rtc_engine: self(), peer: state.peers[peer_id]})
     handle_remove_peer(peer_id, nil, ctx, state)
   end
@@ -1065,8 +1067,8 @@ defmodule Membrane.RTC.Engine do
 
   defp build_track_removed_actions(tracks, from_endpoint_id, state) do
     state.endpoints
-    |> Enum.reject(&(elem(&1, 0) == from_endpoint_id))
-    |> Enum.reject(&is_nil(elem(&1, 1)))
+    |> Stream.reject(&(elem(&1, 0) == from_endpoint_id))
+    |> Stream.reject(&is_nil(elem(&1, 1)))
     |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
       subscriptions = state.subscriptions[endpoint_id]
       tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
@@ -1231,10 +1233,10 @@ defmodule Membrane.RTC.Engine do
 
   defp build_raw_format_links(subscriptions, ctx, state) do
     subscriptions
-    |> Enum.filter(&(&1.format == :raw))
-    |> Enum.map(& &1.track_id)
-    |> Enum.uniq()
-    |> Enum.reject(&Map.has_key?(ctx.children, {:raw_format_tee, &1}))
+    |> Stream.filter(&(&1.format == :raw))
+    |> Stream.map(& &1.track_id)
+    |> Stream.uniq()
+    |> Stream.reject(&Map.has_key?(ctx.children, {:raw_format_tee, &1}))
     |> Enum.map(&build_raw_format_link(&1, state))
   end
 

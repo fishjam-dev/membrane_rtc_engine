@@ -93,7 +93,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
 
   defp decode(event_type, event_data)
   defp decode("join", %{"metadata" => metadata}), do: %{type: :join, data: %{metadata: metadata}}
-  defp decode("leave", _), do: %{type: :leave}
+  defp decode("leave", _event_data), do: %{type: :leave}
   defp decode("custom", data), do: %{type: :custom, data: data}
 
   defp decode("updatePeerMetadata", %{"metadata" => metadata}),
@@ -105,5 +105,5 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   defp decode("selectEncoding", %{"peerId" => pid, "trackId" => tid, "encoding" => encoding}),
     do: %{type: :select_encoding, data: %{peer_id: pid, track_id: tid, encoding: encoding}}
 
-  defp decode(_, _), do: :error
+  defp decode(_event_type, _event_data), do: :error
 end
