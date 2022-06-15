@@ -193,7 +193,7 @@ defmodule Membrane.RTC.Engine do
 
   use Membrane.Pipeline
   use OpenTelemetryDecorator
-  require Membrane.Logger
+
   import Membrane.RTC.Utils
 
   alias Membrane.RTC.Engine.{
@@ -208,6 +208,8 @@ defmodule Membrane.RTC.Engine do
     Subscription,
     Track
   }
+
+  require Membrane.Logger
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -441,7 +443,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_init(options) do
     trace_ctx =
       if Keyword.has_key?(options, :trace_ctx) do
@@ -475,7 +477,7 @@ defmodule Membrane.RTC.Engine do
      }}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_playing_to_prepared(ctx, state) do
     {actions, state} =
       state.peers
@@ -488,7 +490,7 @@ defmodule Membrane.RTC.Engine do
     {{:ok, actions}, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.add_endpoint", include: [[:state, :component_path], [:state, :id]])
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
@@ -525,7 +527,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.remove_endpoint", include: [[:state, :id]])
   def handle_other({:remove_endpoint, id}, ctx, state) do
     case handle_remove_endpoint(id, ctx, state) do
@@ -538,35 +540,35 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.add_peer", include: [[:state, :id]])
   def handle_other({:add_peer, peer}, _ctx, state) do
     {actions, state} = handle_add_peer(peer, state)
     {{:ok, actions}, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.remove_peer", include: [[:state, :id]])
   def handle_other({:remove_peer, id, reason}, ctx, state) do
     {actions, state} = handle_remove_peer(id, reason, ctx, state)
     {{:ok, actions}, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.register", include: [[:state, :id]])
   def handle_other({:register, pid}, _ctx, state) do
     Registry.register(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.unregister", include: [[:state, :id]])
   def handle_other({:unregister, pid}, _ctx, state) do
     Registry.unregister_match(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.media_event", include: [[:state, :id]])
   def handle_other({:media_event, from, data}, ctx, state) do
     case MediaEvent.decode(data) do
@@ -611,7 +613,7 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   @decorate trace("engine.other.tracks_priority", include: [[:state, :id]])
   def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
     for {{:endpoint, endpoint_id}, tracks} <- endpoint_to_tracks do
@@ -626,7 +628,7 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tee_actions}, state}
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_notification(notifcation, {:endpoint, endpoint_id}, ctx, state) do
     if Map.has_key?(state.endpoints, endpoint_id) do
       handle_endpoint_notification(notifcation, endpoint_id, ctx, state)
@@ -635,12 +637,12 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_notification(notification, {:tee, track_id}, _ctx, state) do
-    handle_track_notification(notification, track_id, state)
+    handle_tee_notification(notification, track_id, state)
   end
 
-  @impl Membrane.Pipeline
+  @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
     if Map.has_key?(state.peers, endpoint_id) do
       dispatch(endpoint_id, MediaEvent.peer_removed(endpoint_id, "Internal server error."))
@@ -685,7 +687,7 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
-  defp handle_media_event(:leave, _, peer_id, ctx, state) do
+  defp handle_media_event(:leave, _event, peer_id, ctx, state) do
     dispatch(%Message.PeerLeft{rtc_engine: self(), peer: state.peers[peer_id]})
     handle_remove_peer(peer_id, nil, ctx, state)
   end
@@ -784,7 +786,7 @@ defmodule Membrane.RTC.Engine do
   #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
   #   removed tracks. Also forwards custom media events.
   #
-  # - handle_track_notification/3: Handles incoming notifications from the tee, mainly this is
+  # - handle_tee_notification/3: Handles incoming notifications from the tee, mainly this is
   #   used by the Simulcast tee to signal change of encoding.
   #
 
@@ -892,7 +894,7 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp handle_track_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
+  defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
     # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
     # `track_id` now
 
@@ -969,8 +971,8 @@ defmodule Membrane.RTC.Engine do
   # - find_children_for_endpoint/2: Convenience function to identify all Elements owned by an
   #   Endpoint, via its Tracks.
   #
-  # - get_track_elements/2: Convenience function to identify all shared Elements owned by a Track
-  #   such as the tee.
+  # - get_track_elements/2: Convenience function to identify all Elements owned by a Track
+  #   such as the tee, raw_format_filter and raw_format_tee.
   #
 
   defp handle_add_endpoint(endpoint_entry, opts, state) do
@@ -1065,8 +1067,8 @@ defmodule Membrane.RTC.Engine do
 
   defp build_track_removed_actions(tracks, from_endpoint_id, state) do
     state.endpoints
-    |> Enum.reject(&(elem(&1, 0) == from_endpoint_id))
-    |> Enum.reject(&is_nil(elem(&1, 1)))
+    |> Stream.reject(&(elem(&1, 0) == from_endpoint_id))
+    |> Stream.reject(&is_nil(elem(&1, 1)))
     |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
       subscriptions = state.subscriptions[endpoint_id]
       tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
@@ -1156,11 +1158,11 @@ defmodule Membrane.RTC.Engine do
   #   is to be added, via handle_other.
   #
   # - fulfill_or_postpone_subscription/3: Called immediately upon validation of subscription,
-  #   optimistically set up tees for the subscriber if the track is ready, otherwise adds the
+  #   optimistically links subscriber to the track's tee if the track is ready, otherwise adds the
   #   subscription to the list of pending subscriptions
   #
   # - fulfill_subscriptions/3: Called when a new track is ready and there are pending 
-  #   subscriptions related to the track. Within subscription fulfillment, the raw format
+  #   subscriptions to the track. Within subscription fulfillment, the raw format
   #   filter/tee is built and linked, if the subscription is raw. Additional links from either the
   #   normal tee or the raw tee to the subscribing endpoint are also built.
   #
@@ -1231,21 +1233,22 @@ defmodule Membrane.RTC.Engine do
 
   defp build_raw_format_links(subscriptions, ctx, state) do
     subscriptions
-    |> Enum.filter(&(&1.format == :raw))
-    |> Enum.map(& &1.track_id)
-    |> Enum.uniq()
-    |> Enum.reject(&Map.has_key?(ctx.children, {:raw_format_tee, &1}))
+    |> Stream.filter(&(&1.format == :raw))
+    |> Stream.map(& &1.track_id)
+    |> Stream.uniq()
+    |> Stream.reject(&Map.has_key?(ctx.children, {:raw_format_tee, &1}))
     |> Enum.map(&build_raw_format_link(&1, state))
   end
 
   defp build_raw_format_link(track_id, state) do
-    # Build raw format filters/tees for the given track. This is connected to the output of the
-    # tee that handles the underlying stream with an endpoint name of `:shared`.
+    # Build raw format filter and tee for the given track. 
+    # Raw format filter and tee are connected to the output of the
+    # track's base tee.
 
     track = get_track(track_id, state.endpoints)
 
     link({:tee, track_id})
-    |> via_out(Pad.ref(:output, {:endpoint, :shared}))
+    |> via_out(Pad.ref(:output, {:endpoint, :raw_format_filter}))
     |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
     |> to({:raw_format_tee, track_id}, %PushOutputTee{codec: track.encoding})
   end
