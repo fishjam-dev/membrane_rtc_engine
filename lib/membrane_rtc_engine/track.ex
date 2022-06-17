@@ -7,6 +7,8 @@ defmodule Membrane.RTC.Engine.Track do
   (e.g. audio from microphone that corresponds to video from a web cam) can be grouped into the same stream by
   assigning each of them the same stream id.
   """
+  use Bunch.Access
+
   alias ExSDP.Attribute.FMTP
 
   @enforce_keys [
