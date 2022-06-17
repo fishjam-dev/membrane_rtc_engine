@@ -931,8 +931,13 @@ defmodule Membrane.RTC.Engine do
     endpoint_id = opts[:endpoint_id] || opts[:peer_id] || UUID.uuid4()
     endpoint_name = {:endpoint, endpoint_id}
 
-    with %Endpoint.WebRTC{} <- endpoint_entry,
-         %{peers: %{^endpoint_id => %{metadata: metadata}}} <- state do
+    with %Endpoint.WebRTC{} <- endpoint_entry do
+      metadata =
+        case state.peers do
+          %{^endpoint_id => %{metadata: metadata}} -> metadata
+          _else -> nil
+        end
+
       Membrane.TelemetryMetrics.execute(
         [Membrane.RTC.Engine, :peer, :metadata, :event],
         %{metadata: metadata},
