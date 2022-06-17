@@ -51,12 +51,12 @@ defmodule Membrane.RTC.Engine.Metrics do
       ),
       Telemetry.Metrics.last_value(
         "peer.metadata",
-        event_name: [Membrane.RTC.Engine, :peer],
+        event_name: [Membrane.RTC.Engine, :peer, :metadata, :event],
         measurement: :metadata
       ),
       Telemetry.Metrics.last_value(
         "track.metadata",
-        event_name: [Membrane.RTC.Engine, :track],
+        event_name: [Membrane.RTC.Engine, :track, :metadata, :event],
         measurement: :metadata
       )
     ]

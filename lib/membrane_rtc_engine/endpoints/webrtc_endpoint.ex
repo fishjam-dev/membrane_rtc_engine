@@ -18,7 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   require Membrane.Logger
   require Membrane.TelemetryMetrics
 
-  @track_event [Membrane.RTC.Engine, :track]
+  @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
 
   @type encoding_t() :: String.t()
 
@@ -197,7 +197,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       telemetry_label: opts.telemetry_label
     }
 
-    Membrane.TelemetryMetrics.register([Membrane.RTC.Engine, :peer], opts.telemetry_label)
+    Membrane.TelemetryMetrics.register(
+      [Membrane.RTC.Engine, :peer, :metadata, :event],
+      opts.telemetry_label
+    )
 
     {{:ok, spec: spec}, state}
   end
@@ -238,12 +241,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     track_telemetry_label = state.telemetry_label ++ [track_id: "#{track_id}:#{rid}"]
 
     Membrane.TelemetryMetrics.register(
-      @track_event,
+      @track_metadata_event,
       track_telemetry_label
     )
 
     Membrane.TelemetryMetrics.execute(
-      @track_event,
+      @track_metadata_event,
       %{metadata: Map.get(state.track_id_to_metadata, track_id)},
       %{},
       track_telemetry_label

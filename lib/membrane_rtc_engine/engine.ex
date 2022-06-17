@@ -1141,7 +1141,7 @@ defmodule Membrane.RTC.Engine do
     with %Endpoint.WebRTC{} <- endpoint_entry,
          %{peers: %{^endpoint_id => %{metadata: metadata}}} <- state do
       Membrane.TelemetryMetrics.execute(
-        [Membrane.RTC.Engine, :peer],
+        [Membrane.RTC.Engine, :peer, :metadata, :event],
         %{metadata: metadata},
         %{},
         endpoint_entry.telemetry_label
