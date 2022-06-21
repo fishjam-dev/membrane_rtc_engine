@@ -169,7 +169,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       extensions: opts.webrtc_extensions || [],
       integrated_turn_options: opts.integrated_turn_options,
       trace_context: opts.trace_context,
-      trace_metadata: [name: opts.ice_name],
+      trace_metadata: [ice_name: opts.ice_name],
       rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
       rtcp_sender_report_interval: opts.rtcp_sender_report_interval,
       simulcast?: opts.simulcast_config.enabled,
