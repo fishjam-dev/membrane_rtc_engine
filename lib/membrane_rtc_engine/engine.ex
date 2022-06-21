@@ -210,6 +210,7 @@ defmodule Membrane.RTC.Engine do
   }
 
   require Membrane.Logger
+  require Membrane.TelemetryMetrics
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -250,6 +251,7 @@ defmodule Membrane.RTC.Engine do
   endpoint making subscription wants to receive.
   This option has no effect for audio tracks and video tracks
   that are not simulcast.
+
   """
   @type subscription_opts_t() :: [default_simulcast_encoding: String.t()]
 
@@ -979,6 +981,21 @@ defmodule Membrane.RTC.Engine do
     endpoint_id = opts[:endpoint_id] || opts[:peer_id] || UUID.uuid4()
     endpoint_name = {:endpoint, endpoint_id}
 
+    with %Endpoint.WebRTC{} <- endpoint_entry do
+      metadata =
+        case state.peers do
+          %{^endpoint_id => %{metadata: metadata}} -> metadata
+          _else -> nil
+        end
+
+      Membrane.TelemetryMetrics.execute(
+        [Membrane.RTC.Engine, :peer, :metadata, :event],
+        %{metadata: metadata},
+        %{},
+        endpoint_entry.telemetry_label
+      )
+    end
+
     spec = %ParentSpec{
       node: opts[:node],
       children: %{endpoint_name => endpoint_entry},
@@ -1161,14 +1178,14 @@ defmodule Membrane.RTC.Engine do
   #   optimistically links subscriber to the track's tee if the track is ready, otherwise adds the
   #   subscription to the list of pending subscriptions
   #
-  # - fulfill_subscriptions/3: Called when a new track is ready and there are pending 
+  # - fulfill_subscriptions/3: Called when a new track is ready and there are pending
   #   subscriptions to the track. Within subscription fulfillment, the raw format
   #   filter/tee is built and linked, if the subscription is raw. Additional links from either the
   #   normal tee or the raw tee to the subscribing endpoint are also built.
   #
   # - build_raw_format_links/3, build_raw_format_link/2: Called by fulfill_subscriptions/3, these
   #   functions would build, for each track, links through the root tee, via the depayloader,
-  #   to a PushOutputTee, which exposes outpad pads for each subscription to pull from 
+  #   to a PushOutputTee, which exposes outpad pads for each subscription to pull from
   #
   # - build_subscription_links/2, build_subscription_link/2: Called by fulfill_subscriptions/3,
   #   these functions build the actual links between 1) either the root tee or the raw tee, and
@@ -1241,7 +1258,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp build_raw_format_link(track_id, state) do
-    # Build raw format filter and tee for the given track. 
+    # Build raw format filter and tee for the given track.
     # Raw format filter and tee are connected to the output of the
     # track's base tee.
 

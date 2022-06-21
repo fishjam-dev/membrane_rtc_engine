@@ -16,6 +16,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig
 
   require Membrane.Logger
+  require Membrane.TelemetryMetrics
+
+  @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
 
   @type encoding_t() :: String.t()
 
@@ -190,8 +193,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       owner: opts.owner,
       video_tracks_limit: opts.video_tracks_limit,
       rtcp_fir_interval: opts.rtcp_fir_interval,
-      simulcast_config: opts.simulcast_config
+      simulcast_config: opts.simulcast_config,
+      telemetry_label: opts.telemetry_label
     }
+
+    Membrane.TelemetryMetrics.register(
+      [Membrane.RTC.Engine, :peer, :metadata, :event],
+      opts.telemetry_label
+    )
 
     {{:ok, spec: spec}, state}
   end
@@ -229,6 +238,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
+    track_telemetry_label = state.telemetry_label ++ [track_id: "#{track_id}:#{rid}"]
+
+    Membrane.TelemetryMetrics.register(
+      @track_metadata_event,
+      track_telemetry_label
+    )
+
+    Membrane.TelemetryMetrics.execute(
+      @track_metadata_event,
+      %{metadata: Map.get(state.track_id_to_metadata, track_id)},
+      %{},
+      track_telemetry_label
+    )
+
     {{:ok, notify: {:track_ready, track_id, rid, encoding, depayloading_filter}}, state}
   end
 
