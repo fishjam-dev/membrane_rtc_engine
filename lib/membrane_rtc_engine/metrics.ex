@@ -16,14 +16,16 @@ defmodule Membrane.RTC.Engine.Metrics do
                 :"inbound-rtp.keyframe_request_sent" => integer(),
                 :"inbound-rtp.packets" => integer(),
                 :"inbound-rtp.frames" => integer(),
-                :"inbound-rtp.keyframes" => integer()
+                :"inbound-rtp.keyframes" => integer(),
+                :"track.metadata" => any()
               },
               :"ice.binding_requests_received" => integer(),
               :"ice.binding_responses_sent" => integer(),
               :"ice.bytes_received" => integer(),
               :"ice.bytes_sent" => integer(),
               :"ice.packets_received" => integer(),
-              :"ice.packets_sent" => integer()
+              :"ice.packets_sent" => integer(),
+              :"peer.metadata" => any()
             }
           }
         }
