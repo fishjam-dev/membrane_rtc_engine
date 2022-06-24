@@ -22,7 +22,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
   @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
 
-  @life_span "webrtc_endpoint.life_span"
+  @life_span_id "webrtc_endpoint.life_span"
 
   @type encoding_t() :: String.t()
 
@@ -112,7 +112,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
               parent_span: [
                 spec: :opentelemetry.span_ctx() | nil,
                 default: nil,
-                description: "Parent span of #{@life_span}"
+                description: "Parent span of #{@life_span_id}"
               ],
               video_tracks_limit: [
                 spec: integer() | nil,
@@ -183,10 +183,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     )
 
     if opts.trace_context != [], do: Membrane.OpenTelemetry.attach(opts.trace_context)
-    Membrane.OpenTelemetry.register()
-    start_span_opts = if opts.parent_span, do: [parent: opts.parent_span], else: []
-    Membrane.OpenTelemetry.start_span(@life_span, start_span_opts)
-    Membrane.OpenTelemetry.set_attribute(@life_span, :peer_metadata, inspect(opts.peer_metadata))
+
+    start_span_opts =
+      case opts.parent_span do
+        nil -> []
+        parent_span -> [parent_span: parent_span]
+      end
+
+    Membrane.OpenTelemetry.register_process()
+    Membrane.OpenTelemetry.start_span(@life_span_id, start_span_opts)
+
+    Membrane.OpenTelemetry.set_attribute(
+      @life_span_id,
+      :peer_metadata,
+      inspect(opts.peer_metadata)
+    )
 
     endpoint_bin = %EndpointBin{
       handshake_opts: opts.handshake_opts,
@@ -199,7 +210,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       integrated_turn_options: opts.integrated_turn_options,
       trace_context: opts.trace_context,
       trace_metadata: [ice_name: opts.ice_name],
-      parent_span: Membrane.OpenTelemetry.get_span(@life_span),
+      parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
       rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
       rtcp_sender_report_interval: opts.rtcp_sender_report_interval,
       simulcast?: opts.simulcast_config.enabled,
@@ -328,7 +339,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     turns = get_turn_configs(turns, state)
     media_event = serialize({:signal, {:offer_data, media_count, turns}})
 
-    Membrane.OpenTelemetry.add_event(@life_span, :custom_media_event_sent,
+    Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
       event: inspect(media_event)
     )
 
@@ -344,7 +355,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       ) do
     media_event = serialize(media_event_data)
 
-    Membrane.OpenTelemetry.add_event(@life_span, :custom_media_event_sent,
+    Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
       event: inspect(media_event)
     )
 
@@ -387,7 +398,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_other({:custom_media_event, event}, ctx, state) do
     case deserialize(event) do
       {:ok, data} ->
-        Membrane.OpenTelemetry.add_event(@life_span, :custom_media_event_received,
+        Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_received,
           type: data[:type],
           data: inspect(data[:data])
         )
@@ -395,7 +406,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         handle_custom_media_event(data, ctx, state)
 
       {:error, :invalid_media_event} ->
-        Membrane.OpenTelemetry.add_event(@life_span, :invalid_custom_media_event_received,
+        Membrane.OpenTelemetry.add_event(@life_span_id, :invalid_custom_media_event_received,
           event: inspect(event)
         )
 

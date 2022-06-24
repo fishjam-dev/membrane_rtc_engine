@@ -215,7 +215,7 @@ defmodule Membrane.RTC.Engine do
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
-  @life_span "rtc_engine.life_span"
+  @life_span_id "rtc_engine.life_span"
 
   @typedoc """
   RTC Engine configuration options.
@@ -457,9 +457,14 @@ defmodule Membrane.RTC.Engine do
     if Keyword.has_key?(options, :trace_ctx),
       do: Membrane.OpenTelemetry.attach(options[:trace_ctx])
 
-    Membrane.OpenTelemetry.register()
-    start_span_opts = if options[:parent_span], do: [parent: options[:parent_span]], else: []
-    Membrane.OpenTelemetry.start_span(@life_span, start_span_opts)
+    start_span_opts =
+      case options[:parent_span] do
+        nil -> []
+        parent_span -> [parent_span: parent_span]
+      end
+
+    Membrane.OpenTelemetry.register_process()
+    Membrane.OpenTelemetry.start_span(@life_span_id, start_span_opts)
 
     display_manager =
       if options[:display_manager?] do
@@ -510,7 +515,7 @@ defmodule Membrane.RTC.Engine do
           %Endpoint.WebRTC{
             endpoint
             | telemetry_label: state.telemetry_label ++ [peer_id: peer_id],
-              parent_span: Membrane.OpenTelemetry.get_span(@life_span),
+              parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
               trace_context: state.trace_context
           }
 
