@@ -192,7 +192,6 @@ defmodule Membrane.RTC.Engine do
   """
 
   use Membrane.Pipeline
-  use OpenTelemetryDecorator
 
   import Membrane.RTC.Utils
 
