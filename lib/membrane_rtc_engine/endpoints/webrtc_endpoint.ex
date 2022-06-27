@@ -190,7 +190,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         parent_span -> [parent_span: parent_span]
       end
 
-    Membrane.OpenTelemetry.register_process()
     Membrane.OpenTelemetry.start_span(@life_span_id, start_span_opts)
 
     Membrane.OpenTelemetry.set_attribute(
