@@ -301,7 +301,8 @@ defmodule Membrane.RTC.Engine do
     apply(Membrane.Pipeline, func, [__MODULE__, options, process_options])
   end
 
-  def termiante(pid, options \\ []) do
+  @spec terminate(pid(), Keyword.t()) :: :ok | {:error, :timeout}
+  def terminate(pid, options \\ []) do
     Membrane.Pipeline.terminate(pid, options)
   end
 
