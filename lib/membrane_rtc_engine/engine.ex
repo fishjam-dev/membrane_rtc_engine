@@ -922,6 +922,11 @@ defmodule Membrane.RTC.Engine do
       Membrane.Logger.warn("Peer with id: #{inspect(peer.id)} has already been added")
       {[], state}
     else
+      Membrane.OpenTelemetry.add_event(@life_span_id, :peer_joined,
+        peer_id: peer.id,
+        peer_metadata: inspect(peer.metadata)
+      )
+
       dispatch(peer.id, MediaEvent.peer_accepted(peer.id, state.peers, state.endpoints))
       broadcast(MediaEvent.peer_joined(peer))
       state = put_in(state, [:peers, peer.id], peer)
@@ -936,6 +941,11 @@ defmodule Membrane.RTC.Engine do
         {[], state}
 
       {:present, actions, state} ->
+        Membrane.OpenTelemetry.add_event(@life_span_id, :peer_left,
+          peer_id: peer_id,
+          reason: inspect(reason)
+        )
+
         broadcast(MediaEvent.peer_left(peer_id))
         send_if_not_nil(state.display_manager, {:unregister_endpoint, {:endpoint, peer_id}})
         {actions, state}

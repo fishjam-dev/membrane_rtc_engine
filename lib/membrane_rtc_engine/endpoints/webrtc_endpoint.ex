@@ -254,6 +254,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     send_if_not_nil(state.display_manager, {:add_inbound_tracks, ctx.name, tracks})
 
+    Membrane.OpenTelemetry.add_event(@life_span_id, :publishing_new_tracks,
+      tracks_ids: Enum.map(tracks, & &1.id)
+    )
+
     {{:ok, notify: {:publish, {:new_tracks, tracks}}}, %{state | inbound_tracks: inbound_tracks}}
   end
 
@@ -287,6 +291,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       track_telemetry_label
     )
 
+    Membrane.OpenTelemetry.add_event(@life_span_id, :track_ready, track_id: track_id)
+
     {{:ok, notify: {:track_ready, track_id, rid, encoding, depayloading_filter}}, state}
   end
 
@@ -302,6 +308,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
       case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP, opts) do
         :ok ->
+          Membrane.OpenTelemetry.add_event(@life_span_id, :subscribing_on_track,
+            track_id: track.id
+          )
+
           :ok
 
         {:error, :invalid_track_id} ->
@@ -311,6 +321,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
           """)
 
         {:error, reason} ->
+          Membrane.OpenTelemetry.add_event(@life_span_id, :subscribing_on_track_error,
+            track_id: track.id,
+            reason: inspect(reason)
+          )
+
           raise "Couldn't subscribe to track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
       end
     end)
