@@ -50,14 +50,10 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_opentelemetry,
-       github: "membraneframework/membrane_opentelemetry",
-       branch: "basic-functionalities-implementation"},
+      {:membrane_opentelemetry, github: "membraneframework/membrane_opentelemetry"},
       {:membrane_core, "~> 0.10.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      # {:membrane_webrtc_plugin, "~> 0.6.0"},
-      {:membrane_webrtc_plugin,
-       github: "membraneframework/membrane_webrtc_plugin", branch: "support-opentelemetry"},
+      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
       {:membrane_rtp_plugin, "~> 0.14.0"},
       {:membrane_rtp_format, "~> 0.5.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.6.0"},
