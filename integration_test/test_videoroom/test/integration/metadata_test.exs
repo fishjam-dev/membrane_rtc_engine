@@ -11,7 +11,6 @@ defmodule TestVideoroom.Integration.MetadataTest do
   @join_interval 10_000
 
   @start_all "start-all"
-  @pause "pause"
   @update_peer "metadata-update-peer"
   @update_track "metadata-update-track"
   @metadata_peer "metadata-peer"
@@ -36,13 +35,13 @@ defmodule TestVideoroom.Integration.MetadataTest do
       id: -1
     }
 
-    timeouts = [1_000, 2_000, 1_000, 2_000]
+    timeouts = [4_000, 4_000]
 
-    buttons1 = [@update_peer, @pause, @update_track, @pause] |> Enum.zip(timeouts)
+    buttons1 = [@update_peer, @update_track] |> Enum.zip(timeouts)
 
-    buttons2 = [@pause, @metadata_peer, @pause, @metadata_track] |> Enum.zip(timeouts)
+    buttons2 = [@metadata_peer, @metadata_track] |> Enum.zip(timeouts)
 
-    stages = [0, :peer_metadata, 2, :track_metadata]
+    stages = [:peer_metadata, :track_metadata]
 
     create_room(mustang_options)
 

@@ -20,8 +20,10 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @simulcast_outbound_stats "simulcast-outbound-stats"
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
   @start_buttons [@change_own_low, @change_own_medium, @change_own_high]
+  @step_duration 25_000
+  @test_duration 200_000
 
-  @moduletag timeout: 180_000
+  @moduletag timeout: @test_duration
   test "User disable and then enable medium encoding" do
     browsers_number = 2
 
@@ -42,7 +44,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       id: -1
     }
 
-    timeouts = [15_000, 15_000]
+    timeouts = List.duplicate(@step_duration, 2)
 
     buttons1 =
       [
@@ -86,7 +88,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       acc ->
-        for {stage, browsers} <- acc do
+        for stage <- stages,
+            browsers = Map.get(acc, stage) do
           encoding =
             case stage do
               :disable -> "h"
@@ -104,14 +107,13 @@ defmodule TestVideoroom.Integration.SimulcastTest do
             "Failed on stage: #{stage} should be encoding: #{encoding},
                 receiver stats are: #{inspect(receiver)}
                 sender stats are: #{inspect(sender)}
-                all stats are: #{inspect(acc)}
                 "
           )
         end
     end
   end
 
-  @moduletag timeout: 180_000
+  @moduletag timeout: @test_duration
   test "User change encoding to low and then return to medium" do
     browsers_number = 2
 
@@ -134,7 +136,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     create_room(mustang_options)
 
-    timeouts = [10_000, 10_000]
+    timeouts = List.duplicate(@step_duration, 2)
 
     buttons1 =
       [
@@ -176,7 +178,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       acc ->
-        for {stage, browsers} <- acc do
+        for stage <- stages,
+            browsers = Map.get(acc, stage) do
           encoding =
             case stage do
               :disable -> "l"
@@ -194,14 +197,13 @@ defmodule TestVideoroom.Integration.SimulcastTest do
             "Failed on stage: #{stage} should be encoding: #{encoding},
                 receiver stats are: #{inspect(receiver)}
                 sender stats are: #{inspect(sender)}
-                all stats are: #{inspect(acc)}
                 "
           )
         end
     end
   end
 
-  @moduletag timeout: 180_000
+  @moduletag timeout: @test_duration
   test "User gradually disable all encodings and then gradually enable encodings" do
     browsers_number = 2
 
@@ -224,7 +226,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     create_room(mustang_options)
 
-    timeouts = List.duplicate(10_000, 6)
+    timeouts = List.duplicate(@step_duration, 6)
 
     buttons1 =
       [
@@ -281,7 +283,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       acc ->
-        for {stage, browsers} <- acc do
+        for stage <- stages,
+            browsers = Map.get(acc, stage) do
           encoding =
             case stage do
               :disable_medium -> "h"
@@ -304,7 +307,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
                 "Failed on stage: #{stage} should be all encodings disabled,
                 receiver stats are #{inspect(receiver)}
                 sender stats are #{inspect(sender)}
-                all stats are: #{inspect(acc)}
                 "
               )
 
@@ -316,7 +318,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
                 "Failed on stage: #{stage} should be encoding: #{encoding},
                 receiver stats are: #{inspect(receiver)}
                 sender stats are: #{inspect(sender)}
-                all stats are: #{inspect(acc)}
                 "
               )
           end
@@ -330,6 +331,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       Stampede.start({RoomMustang, mustang_options}, @browser_options)
     end)
     |> Task.await(:infinity)
+
+    Process.sleep(2_000)
   end
 
   defp stats_for_encoding?(receiver, sender_stats, encoding) do
@@ -349,8 +352,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
           acc
           |> then(fn acc ->
             default_map = %{browser_id => [data]}
-
-            # IO.inspect(acc, label: :acc)
 
             Map.update(
               acc,
