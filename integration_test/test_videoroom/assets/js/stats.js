@@ -120,7 +120,7 @@ export async function outboundSimulcastStreamStats(peerConnection) {
       streams[rid].framesSent = values.framesSent
       // streams[rid] = values
       // streams[rid].qualityLimitationChanges = values["qualityLimitationResolutionChanges"]
-      // streams[rid].qualityLimitationDuration = values["qualityLimitationDurations"]
+      streams[rid].qualityLimitationDuration = values["qualityLimitationDurations"]
       streams[rid].qualityLimitationReason = values["qualityLimitationReason"]
     }
   }

@@ -20,8 +20,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @simulcast_outbound_stats "simulcast-outbound-stats"
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
   @start_buttons [@change_own_low, @change_own_medium, @change_own_high]
-  @step_duration 25_000
-  @test_duration 200_000
+  @step_duration 35_000
+  @test_duration 300_000
 
   @moduletag timeout: @test_duration
   test "User disable and then enable medium encoding" do
@@ -106,7 +106,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
             end),
             "Failed on stage: #{stage} should be encoding: #{encoding},
                 receiver stats are: #{inspect(receiver)}
-                sender stats are: #{inspect(sender)}
+                sender stats are: #{inspect(Enum.map(sender, & &1[encoding]))}
                 "
           )
         end
@@ -196,7 +196,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
             end),
             "Failed on stage: #{stage} should be encoding: #{encoding},
                 receiver stats are: #{inspect(receiver)}
-                sender stats are: #{inspect(sender)}
+                sender stats are: #{inspect(Enum.map(sender, & &1[encoding]))}
                 "
           )
         end
@@ -317,7 +317,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
                 end),
                 "Failed on stage: #{stage} should be encoding: #{encoding},
                 receiver stats are: #{inspect(receiver)}
-                sender stats are: #{inspect(sender)}
+                sender stats are: #{inspect(Enum.map(sender, & &1[encoding]))}
                 "
               )
           end
@@ -338,7 +338,10 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   defp stats_for_encoding?(receiver, sender_stats, encoding) do
     sender = sender_stats[encoding]
 
-    receiver["height"] == sender["height"] and receiver["width"] == sender["width"] and
+    correct_dimensions? =
+      receiver["height"] == sender["height"] and receiver["width"] == sender["width"]
+
+    (correct_dimensions? or sender["qualityLimitationReason"] != "none") and
       receiver["callbackEncoding"] == encoding
   end
 

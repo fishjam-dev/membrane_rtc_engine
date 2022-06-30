@@ -59,8 +59,9 @@ defmodule SimulcastMustang do
           measurments(button, page, options, stage, timeout)
 
         stats when stats in ["metadata-track", "metadata-peer"] ->
-          Process.sleep(timeout)
+          Process.sleep(timeout - 1_000)
           get_stats(page, options.receiver, options.id, stage, button)
+          Process.sleep(1_000)
 
         _other ->
           :ok = Playwright.Page.click(page, "[id=#{button}]")
