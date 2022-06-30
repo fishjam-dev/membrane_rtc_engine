@@ -700,7 +700,7 @@ defmodule Membrane.RTC.Engine do
     if peer.metadata != metadata do
       updated_peer = %{peer | metadata: metadata}
       state = put_in(state, [:peers, peer_id], updated_peer)
-      broadcast(MediaEvent.peer_updated(peer))
+      broadcast(MediaEvent.peer_updated(updated_peer))
       {[], state}
     else
       {[], state}
