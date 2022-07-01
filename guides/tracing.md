@@ -1,7 +1,7 @@
 # Metrics
 
-RTC Engine uses [`membrane_opentelemetry`](https://github.com/membraneframework/membrane_opentelemetry) to create OpenTelemetry traces and spans describing flow of operations in it.
-To enable generating spans, you have to put line 
+RTC Engine uses [`membrane_opentelemetry`](https://github.com/membraneframework/membrane_opentelemetry) to generate OpenTelemetry traces and spans.
+To enable it, you have to put line 
 ```elixir
 config :membrane_opentelemetry, enabled: true
 ```
