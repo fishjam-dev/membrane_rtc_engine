@@ -447,6 +447,8 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_init(options) do
+    Logger.metadata(rtc: options[:id])
+
     trace_ctx =
       if Keyword.has_key?(options, :trace_ctx) do
         OpenTelemetry.Ctx.attach(options[:trace_ctx])
