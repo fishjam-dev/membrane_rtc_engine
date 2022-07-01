@@ -164,4 +164,37 @@ defmodule Membrane.RTC.EngineTest do
              } == Jason.decode!(data)
     end
   end
+
+  describe "Update peer metadata" do
+    test "triggers peerUpdated events", %{rtc_engine: rtc_engine} do
+      peer_id = "test_peer"
+      metadata = %{display_name: "test_peer"}
+      peer = Peer.new(peer_id, metadata)
+      :ok = Engine.add_peer(rtc_engine, peer)
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: ^peer_id, data: data}
+
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+      media_event =
+        %{
+          type: "updatePeerMetadata",
+          data: %{
+            metadata: %{"info" => "test"}
+          }
+        }
+        |> Jason.encode!()
+
+      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
+
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+      assert %{
+               "type" => "peerUpdated",
+               "data" => %{
+                 "peerId" => "test_peer",
+                 "metadata" => %{"info" => "test"}
+               }
+             } == Jason.decode!(data)
+    end
+  end
 end
