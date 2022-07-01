@@ -301,11 +301,6 @@ defmodule Membrane.RTC.Engine do
     apply(Membrane.Pipeline, func, [__MODULE__, options, process_options])
   end
 
-  @spec terminate(pid(), Keyword.t()) :: :ok | {:error, :timeout}
-  def terminate(pid, options \\ []) do
-    Membrane.Pipeline.terminate(pid, options)
-  end
-
   @spec get_registry_name() :: atom()
   def get_registry_name(), do: @registry_name
 
