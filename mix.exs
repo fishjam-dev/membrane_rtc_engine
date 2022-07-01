@@ -131,6 +131,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # guides
       "guides/simulcast.md",
       "guides/metrics.md",
+      "guides/logs.md",
 
       # internal docs
       "internal_docs/media_events.md",
