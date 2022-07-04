@@ -50,6 +50,8 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
+      {:postgrex, "~> 0.16"},
+      {:ecto_sql, "~> 3.7"},
       {:membrane_core, "~> 0.10.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:membrane_webrtc_plugin, "~> 0.6.0"},
