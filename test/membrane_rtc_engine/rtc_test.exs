@@ -179,7 +179,9 @@ defmodule Membrane.RTC.EngineTest do
              } == Jason.decode!(data)
     end
 
-    test "same metadata doesn't trigger peerUpdated event", %{rtc_engine: rtc_engine} do
+    test "doesn't trigger peerUpdated event, when metadata doesn't differ", %{
+      rtc_engine: rtc_engine
+    } do
       peer_id = "test_peer"
       metadata = %{"display_name" => "test_peer"}
       add_peer(rtc_engine, peer_id, metadata)
@@ -195,12 +197,7 @@ defmodule Membrane.RTC.EngineTest do
 
       :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
 
-      receive do
-        msg -> assert(msg == "")
-      after
-        500 ->
-          assert(true)
-      end
+      refute_receive(_, 1000)
     end
   end
 
