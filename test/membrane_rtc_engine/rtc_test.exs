@@ -146,22 +146,76 @@ defmodule Membrane.RTC.EngineTest do
   describe "adding a new peer" do
     test "triggers peerAccepted and peerJoined events", %{rtc_engine: rtc_engine} do
       peer_id = "test_peer"
-      metadata = %{display_name: "test_peer"}
-      peer = Peer.new(peer_id, metadata)
-      :ok = Engine.add_peer(rtc_engine, peer)
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: ^peer_id, data: data}
+      metadata = %{"display_name" => "test_peer"}
+      add_peer(rtc_engine, peer_id, metadata)
+    end
+  end
 
-      assert %{"type" => "peerAccepted", "data" => %{"id" => peer_id, "peersInRoom" => []}} ==
-               Jason.decode!(data)
+  describe "updating peer metadata" do
+    test "triggers peerUpdated event", %{rtc_engine: rtc_engine} do
+      peer_id = "test_peer"
+      metadata = %{"display_name" => "test_peer"}
+      add_peer(rtc_engine, peer_id, metadata)
+
+      media_event =
+        %{
+          type: "updatePeerMetadata",
+          data: %{
+            metadata: %{"info" => "test"}
+          }
+        }
+        |> Jason.encode!()
+
+      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
 
       assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
 
       assert %{
-               "type" => "peerJoined",
+               "type" => "peerUpdated",
                "data" => %{
-                 "peer" => %{"id" => peer_id, "metadata" => %{"display_name" => "test_peer"}}
+                 "peerId" => "test_peer",
+                 "metadata" => %{"info" => "test"}
                }
              } == Jason.decode!(data)
     end
+
+    test "doesn't trigger peerUpdated event, when metadata doesn't differ", %{
+      rtc_engine: rtc_engine
+    } do
+      peer_id = "test_peer"
+      metadata = %{"display_name" => "test_peer"}
+      add_peer(rtc_engine, peer_id, metadata)
+
+      media_event =
+        %{
+          type: "updatePeerMetadata",
+          data: %{
+            metadata: metadata
+          }
+        }
+        |> Jason.encode!()
+
+      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
+
+      refute_receive(_, 1000)
+    end
+  end
+
+  defp add_peer(rtc_engine, peer_id, metadata) do
+    peer = Peer.new(peer_id, metadata)
+    :ok = Engine.add_peer(rtc_engine, peer)
+    assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: ^peer_id, data: data}
+
+    assert %{"type" => "peerAccepted", "data" => %{"id" => peer_id, "peersInRoom" => []}} ==
+             Jason.decode!(data)
+
+    assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+    assert %{
+             "type" => "peerJoined",
+             "data" => %{
+               "peer" => %{"id" => peer_id, "metadata" => metadata}
+             }
+           } == Jason.decode!(data)
   end
 end
