@@ -16,7 +16,7 @@ defmodule TestVideoroom.Integration.ClientTest do
   @start_with_nothing "start-none"
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
 
-  @moduletag timeout: 180_000
+  @tag timeout: 180_000
   test "Users gradually joining and leaving can hear and see each other" do
     browsers_number = 4
 
@@ -67,7 +67,7 @@ defmodule TestVideoroom.Integration.ClientTest do
     end
   end
 
-  @moduletag timeout: 180_000
+  @tag timeout: 180_000
   test "Users joining all at once can hear and see each other" do
     browsers_number = 4
 
@@ -114,7 +114,7 @@ defmodule TestVideoroom.Integration.ClientTest do
     end
   end
 
-  @moduletag timeout: 180_000
+  @tag timeout: 180_000
   test "Users joining without either microphone, camera or both can see or hear other users" do
     browsers_number = 4
 
@@ -219,7 +219,6 @@ defmodule TestVideoroom.Integration.ClientTest do
        do: audio == expected_audio and video == expected_video
 
   defp create_room(mustang_options) do
-    # Creating room earlier to avoid error :already_started
     Task.async(fn ->
       Stampede.start({RoomMustang, mustang_options}, @browser_options)
     end)

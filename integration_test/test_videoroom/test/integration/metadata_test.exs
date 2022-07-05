@@ -17,7 +17,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
   @metadata_track "metadata-track"
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
 
-  @moduletag timeout: 180_000
+  @tag timeout: 180_000
   test "Check updatePeerMetadata and then updateTrackMetadata" do
     browsers_number = 2
 
@@ -55,7 +55,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
       specific_mustang = %{mustang_options | id: browser_id, buttons: buttons}
 
       Task.async(fn ->
-        Stampede.start({SimulcastMustang, specific_mustang}, @browser_options)
+        Stampede.start({MetadataMustang, specific_mustang}, @browser_options)
       end)
     end
     |> Task.await_many(:infinity)

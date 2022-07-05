@@ -17,12 +17,6 @@ defmodule SimulcastMustang do
   def afterJoin({browser, page}, options) do
     Process.sleep(options.join_interval)
 
-    buttons = Map.get(options, :start_buttons, [])
-
-    for button <- buttons do
-      :ok = Playwright.Page.click(page, "[id=#{button}]")
-    end
-
     {browser, page}
   end
 
@@ -34,40 +28,67 @@ defmodule SimulcastMustang do
 
   @impl true
   def linger({_browser, page} = ctx, options) do
-    for {{button, timeout}, stage} <- options.buttons do
-      case button do
-        stats when stats in ["simulcast-own-low", "simulcast-own-medium", "simulcast-own-high"] ->
-          get_stats(page, options.receiver, options.id, stage, options.sender_button)
+    Enum.each(options.buttons, fn
+      {{button, timeout}, stage}
+      when button in [
+             "simulcast-local-low-encoding",
+             "simulcast-local-medium-encoding",
+             "simulcast-local-high-encoding"
+           ] ->
+        get_stats(
+          page,
+          options.receiver,
+          options.id,
+          stage,
+          options.simulcast_outbound_stats_button
+        )
 
-          Process.sleep(1_000)
+        Process.sleep(1_000)
 
-          :ok = Playwright.Page.click(page, "[id=#{button}]")
+        :ok = Playwright.Page.click(page, "[id=#{button}]")
 
-          measurments(options.sender_button, page, options, stage, timeout - 2_000)
+        get_stats_periodically(
+          options.simulcast_outbound_stats_button,
+          page,
+          options,
+          stage,
+          timeout - 2_000
+        )
 
-        stats
-        when stats in ["simulcast-other-low", "simulcast-other-medium", "simulcast-other-high"] ->
-          get_stats(page, options.receiver, options.id, stage, options.receiver_button)
+      {{button, timeout}, stage}
+      when button in [
+             "simulcast-peer-low-encoding",
+             "simulcast-peer-medium-encoding",
+             "simulcast-peer-high-encoding"
+           ] ->
+        get_stats(
+          page,
+          options.receiver,
+          options.id,
+          stage,
+          options.simulcast_inbound_stats_button
+        )
 
-          Process.sleep(1_000)
+        Process.sleep(1_000)
 
-          :ok = Playwright.Page.click(page, "[id=#{button}]")
+        :ok = Playwright.Page.click(page, "[id=#{button}]")
 
-          measurments(options.receiver_button, page, options, stage, timeout - 2_000)
+        get_stats_periodically(
+          options.simulcast_inbound_stats_button,
+          page,
+          options,
+          stage,
+          timeout - 2_000
+        )
 
-        stats when stats in ["simulcast-inbound-stats", "simulcast-outbound-stats"] ->
-          measurments(button, page, options, stage, timeout)
+      {{button, timeout}, stage}
+      when button in ["simulcast-inbound-stats", "simulcast-outbound-stats"] ->
+        get_stats_periodically(button, page, options, stage, timeout)
 
-        stats when stats in ["metadata-track", "metadata-peer"] ->
-          Process.sleep(timeout - 1_000)
-          get_stats(page, options.receiver, options.id, stage, button)
-          Process.sleep(1_000)
-
-        _other ->
-          :ok = Playwright.Page.click(page, "[id=#{button}]")
-          Process.sleep(timeout)
-      end
-    end
+      {{button, timeout}, stage} ->
+        :ok = Playwright.Page.click(page, "[id=#{button}]")
+        Process.sleep(timeout)
+    end)
 
     ctx
   end
@@ -107,7 +128,7 @@ defmodule SimulcastMustang do
     |> then(fn data -> send(receiver, {browser_id, stage, data}) end)
   end
 
-  defp measurments(button, page, options, stage, timeout) do
+  defp get_stats_periodically(button, page, options, stage, timeout) do
     repeats = div(timeout, 2_000)
 
     timeouts = List.duplicate(1_000, repeats)

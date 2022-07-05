@@ -40,6 +40,7 @@ class Room {
     this.trackMetadata = null;
     this.selfId = null
     this.peers = []
+    this.simulcast = simulcast
 
     this.webrtcSocketRefs = [];
     this.webrtcSocketRefs.push(this.socket.onError(this.leave));
@@ -56,18 +57,7 @@ class Room {
           if (this.localStream) {
             this.localStream
               .getTracks()
-              .forEach((track) => {
-                let trackId = !simulcast || track.kind == "audio"
-                  ? this.webrtc.addTrack(track, this.localStream)
-                  : this.webrtc.addTrack(
-                    track,
-                    this.localStream,
-                    {},
-                    { enabled: true, active_encodings: this.encodings })
-
-                if (track.kind == "audio") this.audioTrack = [trackId, track];
-                else this.videoTrack = [trackId, track];
-              })
+              .forEach((track) => this.addTrack(track))
           }
 
           this.peers = peersInRoom;
@@ -111,6 +101,20 @@ class Room {
     this.webrtcChannel.on("mediaEvent", (event) => this.webrtc.receiveMediaEvent(event.data));
   }
 
+  addTrack = (track) => {
+    let trackId = !this.simulcast || track.kind == "audio"
+      ? this.webrtc.addTrack(track, this.localStream)
+      : this.webrtc.addTrack(
+        track,
+        this.localStream,
+        {},
+        { enabled: true, active_encodings: this.encodings })
+
+
+    if (track.kind == "audio") this.audioTrack = [trackId, track];
+    else this.videoTrack = [trackId, track];
+  }
+
   init = async () => {
     await this.phoenixChannelPushResult(this.webrtcChannel.join());
   };
@@ -152,7 +156,7 @@ class Room {
     this.webrtc.enableTrackEncoding(this.videoTrack[0], encoding)
   }
 
-  changePeerSimulcastEncoding = (encoding) => {
+  selectPeerSimulcastEncoding = (encoding) => {
     const peer = this.peers[0]
     const tracksId = Array.from(peer.trackIdToMetadata.keys())
     tracksId.forEach(trackId => {
