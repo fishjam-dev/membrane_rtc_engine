@@ -85,7 +85,7 @@ defmodule SimulcastMustang do
       when button in ["simulcast-inbound-stats", "simulcast-outbound-stats"] ->
         get_stats_periodically(button, page, options, stage, timeout)
 
-      {{button, timeout}, stage} ->
+      {{button, timeout}, _stage} ->
         :ok = Playwright.Page.click(page, "[id=#{button}]")
         Process.sleep(timeout)
     end)
