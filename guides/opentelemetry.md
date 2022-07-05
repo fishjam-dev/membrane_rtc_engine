@@ -19,6 +19,6 @@ config :opentelemetry, :resource,
     }
   ]
 ```
-To see more about `:opentelemetry` config, you can go to the OpenTelemetry [documentacion](https://opentelemetry.io/docs/instrumentation/erlang/getting-started/#initialization-and-configuration)
+To see more about `:opentelemetry` config, you can go to the OpenTelemetry [documentation](https://opentelemetry.io/docs/instrumentation/erlang/getting-started/#initialization-and-configuration)
 
 You can also go to [`membrane_videoroom`](https://github.com/membraneframework/membrane_videoroom) for more examples.
