@@ -67,8 +67,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:credo, "~> 1.6", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin, "~> 0.7.0", optional: true},
-      {:membrane_mp4_plugin, "~> 0.15.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.8.1", optional: true},
+      {:membrane_mp4_plugin, "~> 0.16.0", optional: true},
       {:membrane_aac_plugin, "~> 0.12.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.13.0", optional: true},
 
