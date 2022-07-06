@@ -449,6 +449,8 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_init(options) do
+    Logger.metadata(rtc_engine_id: options[:id])
+
     if Keyword.has_key?(options, :trace_ctx),
       do: Membrane.OpenTelemetry.attach(options[:trace_ctx])
 
@@ -701,7 +703,7 @@ defmodule Membrane.RTC.Engine do
     if peer.metadata != metadata do
       updated_peer = %{peer | metadata: metadata}
       state = put_in(state, [:peers, peer_id], updated_peer)
-      broadcast(MediaEvent.peer_updated(peer))
+      broadcast(MediaEvent.peer_updated(updated_peer))
       {[], state}
     else
       {[], state}
@@ -834,7 +836,7 @@ defmodule Membrane.RTC.Engine do
     spec = %ParentSpec{
       links: links,
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc: state.id]
+      log_metadata: [rtc_engine_id: state.id]
     }
 
     {{:ok, spec: spec}, state}
@@ -1003,7 +1005,7 @@ defmodule Membrane.RTC.Engine do
       node: opts[:node],
       children: %{endpoint_name => endpoint_entry},
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc: state.id]
+      log_metadata: [rtc_engine_id: state.id]
     }
 
     actions = [
