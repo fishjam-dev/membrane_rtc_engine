@@ -57,10 +57,10 @@ if Enum.all?(
                   """
                 ],
                 target_window_duration: [
-                  spec: pos_integer | :infinity,
+                  spec: Membrane.Time.t() | :infinity,
                   default: Membrane.Time.seconds(20),
                   description: """
-                  Duration of stream, which will be stored. Segments which are older than window duration will be removed.
+                  Max duration of stream that will be stored. Segments that are older than window duration will be removed.
                   """
                 ]
 
