@@ -39,7 +39,7 @@ defmodule SimulcastMustang do
           Process.sleep(timeout)
         end
 
-      {:click, button, repeats, timeout, tag: tag}
+      {:click, button, repeats, timeout, tag: _tag}
       when button in ["simulcast-inbound-stats", "simulcast-outbound-stats"] ->
         timeouts = List.duplicate(timeout, repeats)
 
@@ -88,16 +88,5 @@ defmodule SimulcastMustang do
         Jason.decode!(data)
     end
     |> then(fn data -> send(receiver, {browser_id, stage, data}) end)
-  end
-
-  defp get_stats_periodically(button, page, options, stage, timeout) do
-    repeats = div(timeout, 2_000)
-
-    timeouts = List.duplicate(1_000, repeats)
-
-    for timeout <- timeouts do
-      get_stats(page, options.receiver, options.id, stage, button)
-      Process.sleep(timeout)
-    end
   end
 end
