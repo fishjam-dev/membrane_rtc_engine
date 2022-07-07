@@ -1,4 +1,4 @@
-# OpenTelemetry
+# Traces
 
 RTC Engine uses [`membrane_opentelemetry`](https://github.com/membraneframework/membrane_opentelemetry) to generate OpenTelemetry traces and spans.
 You can enable traces in your `config.exs`:

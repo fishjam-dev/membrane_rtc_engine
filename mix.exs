@@ -129,9 +129,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       "LICENSE",
 
       # guides
-      "guides/simulcast.md",
-      "guides/metrics.md",
       "guides/logs.md",
+      "guides/metrics.md",
+      "guides/simulcast.md",
+      "guides/traces.md",
 
       # internal docs
       "internal_docs/media_events.md",
