@@ -1,5 +1,8 @@
-defmodule MetadataEndpoint do
+defmodule Membrane.RTC.Engine.Support.TrackEndpoint do
   @moduledoc false
+
+  # Simple endpoint that publishes track passed in options
+
   use Membrane.Bin
 
   alias Membrane.RTC.Engine
@@ -13,7 +16,7 @@ defmodule MetadataEndpoint do
               ],
               track: [
                 spec: Engine.Track.t(),
-                description: "Test track"
+                description: "Track to publish"
               ]
 
   def_input_pad :input,
@@ -28,19 +31,18 @@ defmodule MetadataEndpoint do
 
   @impl true
   def handle_init(opts) do
-    state = %{rtc_engine: opts.rtc_engine}
+    state = %{rtc_engine: opts.rtc_engine, track: opts.track}
 
-    {{:ok, notify: {:publish, {:new_tracks, [opts.track]}}}, state}
-  end
-
-  @impl true
-  def handle_other({:new_tracks, []}, _ctx, state) do
     {:ok, state}
   end
 
   @impl true
-  def handle_other({:custom_media_event, event}, _ctx, state) do
-    Membrane.Logger.warn("Invalid media event #{inspect(event)}. Ignoring.")
+  def handle_prepared_to_playing(_ctx, state) do
+    {{:ok, notify: {:publish, {:new_tracks, [state.track]}}}, state}
+  end
+
+  @impl true
+  def handle_other({:new_tracks, []}, _ctx, state) do
     {:ok, state}
   end
 end
