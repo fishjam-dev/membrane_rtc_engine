@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.4.1"
+  @version "0.5.0"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
@@ -50,11 +50,11 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:postgrex, "~> 0.16"},
       {:ecto_sql, "~> 3.7"},
+      {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_core, "~> 0.10.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin, "~> 0.6.0"},
+      {:membrane_webrtc_plugin, "~> 0.7.0"},
       {:membrane_rtp_plugin, "~> 0.14.0"},
       {:membrane_rtp_format, "~> 0.5.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.6.0"},
@@ -69,15 +69,14 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:credo, "~> 1.6", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin, "~> 0.7.0", optional: true},
-      {:membrane_mp4_plugin, "~> 0.15.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.8.1", optional: true},
+      {:membrane_mp4_plugin, "~> 0.16.0", optional: true},
       {:membrane_aac_plugin, "~> 0.12.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.13.0", optional: true},
 
       # Otel
-      {:opentelemetry_api, "~> 0.6.0"},
-      {:opentelemetry, "~> 0.6.0"},
-      {:open_telemetry_decorator, "~> 0.5.4"}
+      {:opentelemetry_api, "~> 1.0.0"},
+      {:opentelemetry, "~> 1.0.0"}
     ]
   end
 
@@ -131,8 +130,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       "LICENSE",
 
       # guides
-      "guides/simulcast.md",
+      "guides/logs.md",
       "guides/metrics.md",
+      "guides/simulcast.md",
+      "guides/traces.md",
 
       # internal docs
       "internal_docs/media_events.md",

@@ -192,7 +192,6 @@ defmodule Membrane.RTC.Engine do
   """
 
   use Membrane.Pipeline
-  use OpenTelemetryDecorator
 
   import Membrane.RTC.Utils
 
@@ -210,9 +209,12 @@ defmodule Membrane.RTC.Engine do
   }
 
   require Membrane.Logger
+  require Membrane.OpenTelemetry
   require Membrane.TelemetryMetrics
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
+
+  @life_span_id "rtc_engine.life_span"
 
   @typedoc """
   RTC Engine configuration options.
@@ -447,12 +449,18 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_init(options) do
-    trace_ctx =
-      if Keyword.has_key?(options, :trace_ctx) do
-        OpenTelemetry.Ctx.attach(options[:trace_ctx])
-      else
-        Membrane.RTC.Utils.create_otel_context("rtc:#{options[:id]}")
+    Logger.metadata(rtc_engine_id: options[:id])
+
+    if Keyword.has_key?(options, :trace_ctx),
+      do: Membrane.OpenTelemetry.attach(options[:trace_ctx])
+
+    start_span_opts =
+      case options[:parent_span] do
+        nil -> []
+        parent_span -> [parent_span: parent_span]
       end
+
+    Membrane.OpenTelemetry.start_span(@life_span_id, start_span_opts)
 
     display_manager =
       if options[:display_manager?] do
@@ -468,7 +476,7 @@ defmodule Membrane.RTC.Engine do
      %{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
-       trace_context: trace_ctx,
+       trace_context: options[:trace_ctx],
        telemetry_label: telemetry_label,
        peers: %{},
        endpoints: %{},
@@ -493,7 +501,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  @decorate trace("engine.other.add_endpoint", include: [[:state, :component_path], [:state, :id]])
   def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
     endpoint_id = opts[:endpoint_id] || opts[:peer_id]
@@ -501,8 +508,12 @@ defmodule Membrane.RTC.Engine do
     endpoint =
       case endpoint do
         %Endpoint.WebRTC{} ->
-          telemetry_label = state.telemetry_label ++ [peer_id: peer_id]
-          %Endpoint.WebRTC{endpoint | telemetry_label: telemetry_label}
+          %Endpoint.WebRTC{
+            endpoint
+            | telemetry_label: state.telemetry_label ++ [peer_id: peer_id],
+              parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
+              trace_context: state.trace_context
+          }
 
         another_endpoint ->
           another_endpoint
@@ -530,7 +541,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  @decorate trace("engine.other.remove_endpoint", include: [[:state, :id]])
   def handle_other({:remove_endpoint, id}, ctx, state) do
     case handle_remove_endpoint(id, ctx, state) do
       {:absent, [], state} ->
@@ -543,35 +553,30 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  @decorate trace("engine.other.add_peer", include: [[:state, :id]])
   def handle_other({:add_peer, peer}, _ctx, state) do
     {actions, state} = handle_add_peer(peer, state)
     {{:ok, actions}, state}
   end
 
   @impl true
-  @decorate trace("engine.other.remove_peer", include: [[:state, :id]])
   def handle_other({:remove_peer, id, reason}, ctx, state) do
     {actions, state} = handle_remove_peer(id, reason, ctx, state)
     {{:ok, actions}, state}
   end
 
   @impl true
-  @decorate trace("engine.other.register", include: [[:state, :id]])
   def handle_other({:register, pid}, _ctx, state) do
     Registry.register(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
   @impl true
-  @decorate trace("engine.other.unregister", include: [[:state, :id]])
   def handle_other({:unregister, pid}, _ctx, state) do
     Registry.unregister_match(get_registry_name(), self(), pid)
     {:ok, state}
   end
 
   @impl true
-  @decorate trace("engine.other.media_event", include: [[:state, :id]])
   def handle_other({:media_event, from, data}, ctx, state) do
     case MediaEvent.decode(data) do
       {:ok, event} ->
@@ -589,7 +594,6 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  @decorate trace("engine.other.subscribe", include: [[:state, :id]])
   def handle_other(
         {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, format, opts},
         ctx,
@@ -616,7 +620,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  @decorate trace("engine.other.tracks_priority", include: [[:state, :id]])
   def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
     for {{:endpoint, endpoint_id}, tracks} <- endpoint_to_tracks do
       dispatch(endpoint_id, MediaEvent.tracks_priority(tracks))
@@ -700,7 +703,7 @@ defmodule Membrane.RTC.Engine do
     if peer.metadata != metadata do
       updated_peer = %{peer | metadata: metadata}
       state = put_in(state, [:peers, peer_id], updated_peer)
-      broadcast(MediaEvent.peer_updated(peer))
+      broadcast(MediaEvent.peer_updated(updated_peer))
       {[], state}
     else
       {[], state}
@@ -792,9 +795,6 @@ defmodule Membrane.RTC.Engine do
   #   used by the Simulcast tee to signal change of encoding.
   #
 
-  @decorate trace("engine.notification.track_ready",
-              include: [:track_id, :encoding, [:state, :id]]
-            )
   defp handle_endpoint_notification(
          {:track_ready, track_id, rid, encoding, depayloading_filter},
          endpoint_id,
@@ -836,13 +836,12 @@ defmodule Membrane.RTC.Engine do
     spec = %ParentSpec{
       links: links,
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc: state.id]
+      log_metadata: [rtc_engine_id: state.id]
     }
 
     {{:ok, spec: spec}, state}
   end
 
-  @decorate trace("engine.notification.publish.new_tracks", include: [:endpoint_id, [:state, :id]])
   defp handle_endpoint_notification(
          {:publish, {:new_tracks, tracks}},
          endpoint_id,
@@ -865,9 +864,6 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs}, state}
   end
 
-  @decorate trace("engine.notification.publish.removed_tracks",
-              include: [:endpoint_id, [:state, :id]]
-            )
   defp handle_endpoint_notification(
          {:publish, {:removed_tracks, tracks}},
          endpoint_id,
@@ -890,7 +886,6 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
   end
 
-  @decorate trace("engine.notification.custom_media_event", include: [[:state, :id]])
   defp handle_endpoint_notification({:custom_media_event, data}, peer_id, _ctx, state) do
     dispatch(peer_id, MediaEvent.custom(data))
     {:ok, state}
@@ -924,6 +919,11 @@ defmodule Membrane.RTC.Engine do
       Membrane.Logger.warn("Peer with id: #{inspect(peer.id)} has already been added")
       {[], state}
     else
+      Membrane.OpenTelemetry.add_event(@life_span_id, :peer_joined,
+        peer_id: peer.id,
+        peer_metadata: inspect(peer.metadata)
+      )
+
       dispatch(peer.id, MediaEvent.peer_accepted(peer.id, state.peers, state.endpoints))
       broadcast(MediaEvent.peer_joined(peer))
       state = put_in(state, [:peers, peer.id], peer)
@@ -938,6 +938,11 @@ defmodule Membrane.RTC.Engine do
         {[], state}
 
       {:present, actions, state} ->
+        Membrane.OpenTelemetry.add_event(@life_span_id, :peer_left,
+          peer_id: peer_id,
+          reason: inspect(reason)
+        )
+
         broadcast(MediaEvent.peer_left(peer_id))
         send_if_not_nil(state.display_manager, {:unregister_endpoint, {:endpoint, peer_id}})
         {actions, state}
@@ -1000,7 +1005,7 @@ defmodule Membrane.RTC.Engine do
       node: opts[:node],
       children: %{endpoint_name => endpoint_entry},
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc: state.id]
+      log_metadata: [rtc_engine_id: state.id]
     }
 
     actions = [

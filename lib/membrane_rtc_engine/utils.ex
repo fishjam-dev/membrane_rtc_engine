@@ -1,7 +1,6 @@
 defmodule Membrane.RTC.Utils do
   @moduledoc false
 
-  use OpenTelemetryDecorator
   alias Membrane.RTP.PayloadFormatResolver
   require OpenTelemetry.Tracer, as: Tracer
   require Membrane.TelemetryMetrics

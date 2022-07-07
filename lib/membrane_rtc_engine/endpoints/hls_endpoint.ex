@@ -3,7 +3,8 @@ if Enum.all?(
        Membrane.H264.FFmpeg.Parser,
        Membrane.HTTPAdaptiveStream.SinkBin,
        Membrane.AAC.FDK.Encoder,
-       Membrane.AAC.Parser
+       Membrane.AAC.Parser,
+       Membrane.Opus.Decoder
      ],
      &Code.ensure_loaded?/1
    ) do
@@ -45,13 +46,6 @@ if Enum.all?(
                     * `{:cleanup, clean_function, stream_id}`
                   """
                 ],
-                framerate: [
-                  spec: {integer(), integer()},
-                  description: """
-                  Framerate of tracks
-                  """,
-                  default: {30, 1}
-                ],
                 hls_mode: [
                   spec: :separate_av | :muxed_av,
                   default: :separate_av,
@@ -60,6 +54,13 @@ if Enum.all?(
 
                   - `:separate_av` - audio and video tracks will be separated
                   - `:muxed_av` - audio will be attached to every video track
+                  """
+                ],
+                target_window_duration: [
+                  spec: Membrane.Time.t() | :infinity,
+                  default: Membrane.Time.seconds(20),
+                  description: """
+                  Max duration of stream that will be stored. Segments that are older than window duration will be removed.
                   """
                 ]
 
@@ -71,8 +72,8 @@ if Enum.all?(
         stream_ids: MapSet.new(),
         output_directory: opts.output_directory,
         owner: opts.owner,
-        framerate: opts.framerate,
-        hls_mode: opts.hls_mode
+        hls_mode: opts.hls_mode,
+        target_window_duration: opts.target_window_duration
       }
 
       {:ok, state}
@@ -152,8 +153,7 @@ if Enum.all?(
           link_builder,
           track.encoding,
           track_id,
-          track.stream_id,
-          state.framerate
+          track.stream_id
         )
 
       {spec, state} =
@@ -162,7 +162,7 @@ if Enum.all?(
         else
           hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
             manifest_module: Membrane.HTTPAdaptiveStream.HLS,
-            target_window_duration: 20 |> Membrane.Time.seconds(),
+            target_window_duration: state.target_window_duration,
             target_segment_duration: 2 |> Membrane.Time.seconds(),
             persist?: false,
             storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
@@ -182,7 +182,7 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id, _framerate),
+    defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id),
       do: %ParentSpec{
         children: %{
           {:opus_decoder, track_id} => Membrane.Opus.Decoder,
@@ -199,7 +199,7 @@ if Enum.all?(
         ]
       }
 
-    defp hls_links_and_children(link_builder, :AAC, track_id, stream_id, _framerate),
+    defp hls_links_and_children(link_builder, :AAC, track_id, stream_id),
       do: %ParentSpec{
         children: %{},
         links: [
@@ -209,11 +209,10 @@ if Enum.all?(
         ]
       }
 
-    defp hls_links_and_children(link_builder, :H264, track_id, stream_id, framerate),
+    defp hls_links_and_children(link_builder, :H264, track_id, stream_id),
       do: %ParentSpec{
         children: %{
           {:video_parser, track_id} => %Membrane.H264.FFmpeg.Parser{
-            framerate: framerate,
             alignment: :au,
             attach_nalus?: true
           }
