@@ -110,7 +110,7 @@ async function refreshStats(statsFunction) {
 }
 
 
-const changeSimulcastEncoding = function (button, encoding) {
+const toggleSimulcastEncoding = function (button, encoding) {
   const isEnabled = button.textContent.startsWith("Disable")
   let text = button.textContent
   if (isEnabled) {
@@ -136,16 +136,16 @@ updatePeerMetadataButton.onclick = () => { room.updateMetadata() }
 updateTrackMetadataButton.onclick = () => { room.updateTrackMetadata() }
 peerMetadataButton.onclick = () => { putStats(room.peerMetadata) }
 trackMetadataButton.onclick = () => { putStats(room.trackMetadata) }
-localLowEncodingButton.onclick = () => { changeSimulcastEncoding(localLowEncodingButton, "l") }
-localMediumEncodingButton.onclick = () => { changeSimulcastEncoding(localMediumEncodingButton, "m") }
-localHighEncodingButton.onclick = () => { changeSimulcastEncoding(localHighEncodingButton, "h") }
+localLowEncodingButton.onclick = () => { toggleSimulcastEncoding(localLowEncodingButton, "l") }
+localMediumEncodingButton.onclick = () => { toggleSimulcastEncoding(localMediumEncodingButton, "m") }
+localHighEncodingButton.onclick = () => { toggleSimulcastEncoding(localHighEncodingButton, "h") }
 peerLowEncodingButton.onclick = () => { room.selectPeerSimulcastEncoding("l") }
 peerMediumEncodingButton.onclick = () => { room.selectPeerSimulcastEncoding("m") }
 peerHighEncodingButton.onclick = () => { room.selectPeerSimulcastEncoding("h") }
 inboundSimulcastStatsButton.onclick = () => {
   refreshStats(async (connection) => {
     let stats = await inboundSimulcastStreamStats(connection)
-    stats.callbackEncoding = room.getPeerEncoding()
+    stats.encoding = room.getPeerEncoding()
     return stats
   })
 }

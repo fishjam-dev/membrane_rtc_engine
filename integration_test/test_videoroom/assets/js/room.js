@@ -35,7 +35,6 @@ class Room {
     this.audioTrack = null;
     this.peerEncoding = "m"
     this.encodings = ["l", "m", "h"]
-    // this.encodings = ["l", "m"]
     this.peerMetadata = null;
     this.trackMetadata = null;
     this.selfId = null

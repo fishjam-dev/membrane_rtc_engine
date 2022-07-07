@@ -62,8 +62,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     stage_to_expected_encoding = %{disable: "h", enable: "m"}
 
-    create_room(mustang_options)
-
     buttons_with_id =
       [buttons1, buttons2]
       |> Enum.map(&Enum.zip(&1, stages))
@@ -95,7 +93,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
           assert(
             Enum.any?(stats, fn {all_encodings_sender_stats, receiver_stats} ->
-              stats_for_encoding?(receiver_stats, all_encodings_sender_stats, encoding)
+              assert_stats_equal(receiver_stats, all_encodings_sender_stats[encoding]) and
+                assert_receiver_encoding(receiver_stats, encoding)
             end),
             "Failed on stage: #{stage} should be encoding: #{encoding},
                 receiver stats are: #{inspect(receiver_iterated_stats)}
@@ -125,8 +124,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       simulcast_outbound_stats_button: @simulcast_outbound_stats,
       id: -1
     }
-
-    create_room(mustang_options)
 
     timeouts = List.duplicate(@step_duration, 2)
 
@@ -179,7 +176,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
           assert(
             Enum.any?(stats, fn {all_encodings_sender_stats, receiver_stats} ->
-              stats_for_encoding?(receiver_stats, all_encodings_sender_stats, encoding)
+              assert_stats_equal(receiver_stats, all_encodings_sender_stats[encoding]) and
+                assert_receiver_encoding(receiver_stats, encoding)
             end),
             "Failed on stage: #{stage} should be encoding: #{encoding},
                 receiver stats are: #{inspect(receiver_iterated_stats)}
@@ -209,8 +207,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       simulcast_outbound_stats_button: @simulcast_outbound_stats,
       id: -1
     }
-
-    create_room(mustang_options)
 
     timeouts = List.duplicate(@step_duration, 6)
 
@@ -296,7 +292,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
             _other ->
               assert(
                 Enum.any?(stats, fn {all_encodings_sender_stats, receiver_stats} ->
-                  stats_for_encoding?(receiver_stats, all_encodings_sender_stats, encoding)
+                  assert_stats_equal(receiver_stats, all_encodings_sender_stats[encoding]) and
+                    assert_receiver_encoding(receiver_stats, encoding)
                 end),
                 "Failed on stage: #{stage} should be encoding: #{encoding},
                     receiver stats are: #{inspect(receiver_iterated_stats)}
@@ -308,25 +305,16 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     end
   end
 
-  defp create_room(mustang_options) do
-    # Creating room earlier to avoid error :already_started
-    Task.async(fn ->
-      Stampede.start({RoomMustang, mustang_options}, @browser_options)
-    end)
-    |> Task.await(:infinity)
-
-    Process.sleep(2_000)
+  defp assert_receiver_encoding(receiver_stats, encoding) do
+    receiver_stats["encoding"] == encoding
   end
 
-  defp stats_for_encoding?(receiver_stats, all_encoding_sender_stats, encoding) do
-    sender_stats = all_encoding_sender_stats[encoding]
-
+  defp assert_stats_equal(receiver_stats, sender_stats) do
     correct_dimensions? =
       receiver_stats["height"] == sender_stats["height"] and
         receiver_stats["width"] == sender_stats["width"]
 
-    (correct_dimensions? or sender_stats["qualityLimitationReason"] != "none") and
-      receiver_stats["callbackEncoding"] == encoding
+    correct_dimensions? or sender_stats["qualityLimitationReason"] != "none"
   end
 
   defp receive_stats(mustangs_number, pid, acc \\ %{}) do

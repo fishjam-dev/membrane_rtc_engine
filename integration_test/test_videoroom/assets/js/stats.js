@@ -99,7 +99,7 @@ export async function inboundSimulcastStreamStats(peerConnection) {
   let data = { height: null, width: null, framesPerSecond: 0 }
   for (let [_key, report] of stats) {
     if (report.type == "inbound-rtp") {
-      data = getDataFromRTPVideoStreamValues(report)
+      data = getDataFromReport(report)
       data.framesReceived = report.framesReceived
     }
   }
@@ -116,10 +116,8 @@ export async function outboundSimulcastStreamStats(peerConnection) {
   for (let [_key, report] of stats) {
     if (report.type == "outbound-rtp") {
       let rid = report.rid
-      streams[rid] = getDataFromRTPVideoStreamValues(report)
+      streams[rid] = getDataFromReport(report)
       streams[rid].framesSent = report.framesSent
-      // streams[rid] = report
-      // streams[rid].qualityLimitationChanges = report["qualityLimitationResolutionChanges"]
       streams[rid].qualityLimitationDuration = report["qualityLimitationDurations"]
       streams[rid].qualityLimitationReason = report["qualityLimitationReason"]
     }
@@ -128,7 +126,7 @@ export async function outboundSimulcastStreamStats(peerConnection) {
   return streams
 }
 
-function getDataFromRTPVideoStreamValues(values) {
+function getDataFromReport(values) {
   let data = { height: null, width: null, framesPerSecond: 0 }
   data.height = values.frameHeight
   data.width = values.frameWidth

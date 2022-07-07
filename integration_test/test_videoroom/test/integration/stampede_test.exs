@@ -84,9 +84,6 @@ defmodule TestVideoroom.Integration.ClientTest do
       id: -1
     }
 
-    # Creating room earlier to avoid error :already_started
-    create_room(mustang_options)
-
     for browser <- 0..(browsers_number - 1), into: [] do
       mustang_options = %{mustang_options | id: browser}
       Process.sleep(500)
@@ -130,9 +127,6 @@ defmodule TestVideoroom.Integration.ClientTest do
       receiver: receiver,
       id: -1
     }
-
-    # Creating room earlier to avoid error :already_started
-    create_room(mustang_options)
 
     buttons_with_id =
       [@start_with_all, @start_with_camera, @start_with_mic, @start_with_nothing]
@@ -217,11 +211,4 @@ defmodule TestVideoroom.Integration.ClientTest do
          %{audio: expected_audio, video: expected_video}
        ),
        do: audio == expected_audio and video == expected_video
-
-  defp create_room(mustang_options) do
-    Task.async(fn ->
-      Stampede.start({RoomMustang, mustang_options}, @browser_options)
-    end)
-    |> Task.await(:infinity)
-  end
 end
