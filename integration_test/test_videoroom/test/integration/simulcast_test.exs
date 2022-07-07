@@ -19,7 +19,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @simulcast_inbound_stats "simulcast-inbound-stats"
   @simulcast_outbound_stats "simulcast-outbound-stats"
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
-  @step_duration 20_000
   @test_duration 240_000
 
   @tag timeout: @test_duration
@@ -36,43 +35,35 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       join_interval: @join_interval,
       start_button: @start_with_simulcast,
       receiver: receiver,
-      buttons: [],
+      actions: [],
       simulcast_inbound_stats_button: @simulcast_inbound_stats,
       simulcast_outbound_stats_button: @simulcast_outbound_stats,
       id: -1
     }
 
-    timeouts = List.duplicate(@step_duration, 2)
+    actions1 = [
+      {:click, @change_own_medium, 1, 1_000, tag: nil},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_disabling_medium_en},
+      {:click, @change_own_medium, 1, 1_000, tag: nil},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_enabling_medium_en}
+    ]
 
-    buttons1 =
-      [
-        @change_own_medium,
-        @change_own_medium
-      ]
-      |> Enum.zip(timeouts)
+    actions2 = [
+      {:wait, 1_000},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_disabling_medium_en},
+      {:wait, 1_000},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_enabling_medium_en}
+    ]
 
-    buttons2 =
-      [
-        @simulcast_inbound_stats,
-        @simulcast_inbound_stats
-      ]
-      |> Enum.zip(timeouts)
+    actions_with_id = [actions1, actions2] |> Enum.with_index()
 
-    stages = [:disable, :enable]
+    stage_to_expected_encoding = %{after_disabling_medium_en: "h", after_enabling_medium_en: "m"}
 
-    stage_to_expected_encoding = %{disable: "h", enable: "m"}
-
-    buttons_with_id =
-      [buttons1, buttons2]
-      |> Enum.map(&Enum.zip(&1, stages))
-      |> Enum.with_index()
-      |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
-
-    for {browser_id, buttons} <- buttons_with_id, into: [] do
+    for {actions, browser_id} <- actions_with_id, into: [] do
       specific_mustang = %{
         mustang_options
         | id: browser_id,
-          buttons: buttons
+          actions: actions
       }
 
       Task.async(fn ->
@@ -83,7 +74,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       accumulated_stats ->
-        for stage <- stages,
+        for stage <- Map.keys(stage_to_expected_encoding),
             browser_id_to_iterated_stats = Map.get(accumulated_stats, stage) do
           encoding = stage_to_expected_encoding[stage]
 
@@ -119,43 +110,38 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       join_interval: @join_interval,
       start_button: @start_with_simulcast,
       receiver: receiver,
-      buttons: [],
+      actions: [],
       simulcast_inbound_stats_button: @simulcast_inbound_stats,
       simulcast_outbound_stats_button: @simulcast_outbound_stats,
       id: -1
     }
 
-    timeouts = List.duplicate(@step_duration, 2)
+    actions1 = [
+      {:click, @set_peer_encoding_low, 1, 1_000, tag: nil},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_switching_to_low_en},
+      {:click, @set_peer_encoding_medium, 1, 1_000, tag: nil},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_switching_to_medium_en}
+    ]
 
-    buttons1 =
-      [
-        @set_peer_encoding_low,
-        @set_peer_encoding_medium
-      ]
-      |> Enum.zip(timeouts)
+    actions2 = [
+      {:wait, 1_000},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_switching_to_low_en},
+      {:wait, 1_000},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_switching_to_medium_en}
+    ]
 
-    buttons2 =
-      [
-        @simulcast_outbound_stats,
-        @simulcast_outbound_stats
-      ]
-      |> Enum.zip(timeouts)
+    actions_with_id = [actions1, actions2] |> Enum.with_index()
 
-    stages = [:disable, :enable]
+    stage_to_expected_encoding = %{
+      after_switching_to_low_en: "l",
+      after_switching_to_medium_en: "m"
+    }
 
-    stage_to_expected_encoding = %{disable: "l", enable: "m"}
-
-    buttons_with_id =
-      [buttons1, buttons2]
-      |> Enum.map(&Enum.zip(&1, stages))
-      |> Enum.with_index()
-      |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
-
-    for {browser_id, buttons} <- buttons_with_id, into: [] do
+    for {actions, browser_id} <- actions_with_id, into: [] do
       specific_mustang = %{
         mustang_options
         | id: browser_id,
-          buttons: buttons
+          actions: actions
       }
 
       Task.async(fn ->
@@ -166,7 +152,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       accumulated_stats ->
-        for stage <- stages,
+        for stage <- Map.keys(stage_to_expected_encoding),
             browser_id_to_iterated_stats = Map.get(accumulated_stats, stage) do
           encoding = stage_to_expected_encoding[stage]
 
@@ -202,65 +188,58 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       join_interval: @join_interval,
       start_button: @start_with_simulcast,
       receiver: receiver,
-      buttons: [],
+      actions: [],
       simulcast_inbound_stats_button: @simulcast_inbound_stats,
       simulcast_outbound_stats_button: @simulcast_outbound_stats,
       id: -1
     }
 
-    timeouts = List.duplicate(@step_duration, 6)
-
-    buttons1 =
-      [
-        @change_own_medium,
-        @change_own_high,
-        @change_own_low,
-        @change_own_low,
-        @change_own_high,
-        @change_own_medium
-      ]
-      |> Enum.zip(timeouts)
-
-    buttons2 =
-      [
-        @simulcast_inbound_stats,
-        @simulcast_inbound_stats,
-        @simulcast_inbound_stats,
-        @simulcast_inbound_stats,
-        @simulcast_inbound_stats,
-        @simulcast_inbound_stats
-      ]
-      |> Enum.zip(timeouts)
-
-    stages = [
-      :disable_medium,
-      :disable_high,
-      :disable_low,
-      :enable_low,
-      :enable_high,
-      :enable_medium
+    actions1 = [
+      {:click, @change_own_medium, 1, 1_000, tag: nil},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_disabling_medium_en},
+      {:click, @change_own_high, 1, 1_000, tag: nil},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_disabling_high_en},
+      {:click, @change_own_low, 1, 1_000, tag: nil},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_disabling_low_en},
+      {:click, @change_own_low, 1, 1_000, tag: nil},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_enabling_low_en},
+      {:click, @change_own_high, 1, 1_000, tag: nil},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_enabling_high_en},
+      {:click, @change_own_medium, 1, 1_000, tag: nil},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_enabling_medium_en}
     ]
 
+    actions2 = [
+      {:wait, 1_000},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_disabling_medium_en},
+      {:wait, 1_000},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_disabling_high_en},
+      {:wait, 1_000},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_disabling_low_en},
+      {:wait, 1_000},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_enabling_low_en},
+      {:wait, 1_000},
+      {:click, @simulcast_inbound_stats, 10, 1_000, tag: :after_enabling_high_en},
+      {:wait, 1_000},
+      {:click, @simulcast_outbound_stats, 10, 1_000, tag: :after_enabling_medium_en}
+    ]
+
+    actions_with_id = [actions1, actions2] |> Enum.with_index()
+
     stage_to_expected_encoding = %{
-      disable_medium: "h",
-      disable_high: "l",
-      disable_low: nil,
-      enable_low: "l",
-      enable_high: "h",
-      enable_medium: "m"
+      after_disabling_medium_en: "h",
+      after_disabling_high_en: "l",
+      after_disabling_low_en: nil,
+      after_enabling_low_en: "l",
+      after_enabling_high_en: "h",
+      after_enabling_medium_en: "m"
     }
 
-    buttons_with_id =
-      [buttons1, buttons2]
-      |> Enum.map(&Enum.zip(&1, stages))
-      |> Enum.with_index()
-      |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
-
-    for {browser_id, buttons} <- buttons_with_id, into: [] do
+    for {actions, browser_id} <- actions_with_id, into: [] do
       specific_mustang = %{
         mustang_options
         | id: browser_id,
-          buttons: buttons
+          actions: actions
       }
 
       Task.async(fn ->
@@ -271,7 +250,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receive do
       accumulated_stats ->
-        for stage <- stages,
+        for stage <- Map.keys(stage_to_expected_encoding),
             browser_id_to_iterated_stats = Map.get(accumulated_stats, stage) do
           encoding = stage_to_expected_encoding[stage]
 
@@ -280,7 +259,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
           stats = Enum.zip(sender_iterated_stats, receiver_iterated_stats)
 
           case stage do
-            :disable_low ->
+            :after_disabling_low_en ->
               assert(
                 Enum.any?(receiver_iterated_stats, &(&1["framesPerSecond"] == 0)),
                 "Failed on stage: #{stage} should be all encodings disabled,

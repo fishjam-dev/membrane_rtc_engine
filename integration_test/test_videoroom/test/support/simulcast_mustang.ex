@@ -21,72 +21,34 @@ defmodule SimulcastMustang do
   end
 
   @impl true
-  def linger({_browser, _page} = ctx, options) when options.buttons == [] do
-    Process.sleep(options.linger)
-    ctx
-  end
-
-  @impl true
   def linger({_browser, page} = ctx, options) do
-    Enum.each(options.buttons, fn
-      {{button, timeout}, stage}
+    Enum.each(options.actions, fn
+      {:click, button, repeats, timeout, tag: tag}
       when button in [
              "simulcast-local-low-encoding",
              "simulcast-local-medium-encoding",
-             "simulcast-local-high-encoding"
-           ] ->
-        get_stats(
-          page,
-          options.receiver,
-          options.id,
-          stage,
-          options.simulcast_outbound_stats_button
-        )
-
-        Process.sleep(1_000)
-
-        :ok = Playwright.Page.click(page, "[id=#{button}]")
-
-        get_stats_periodically(
-          options.simulcast_outbound_stats_button,
-          page,
-          options,
-          stage,
-          timeout - 2_000
-        )
-
-      {{button, timeout}, stage}
-      when button in [
+             "simulcast-local-high-encoding",
              "simulcast-peer-low-encoding",
              "simulcast-peer-medium-encoding",
              "simulcast-peer-high-encoding"
            ] ->
-        get_stats(
-          page,
-          options.receiver,
-          options.id,
-          stage,
-          options.simulcast_inbound_stats_button
-        )
+        timeouts = List.duplicate(timeout, repeats)
 
-        Process.sleep(1_000)
+        for timeout <- timeouts do
+          get_stats(page, options.receiver, options.id, tag, button)
+          Process.sleep(timeout)
+        end
 
-        :ok = Playwright.Page.click(page, "[id=#{button}]")
-
-        get_stats_periodically(
-          options.simulcast_inbound_stats_button,
-          page,
-          options,
-          stage,
-          timeout - 2_000
-        )
-
-      {{button, timeout}, stage}
+      {:click, button, repeats, timeout, tag: tag}
       when button in ["simulcast-inbound-stats", "simulcast-outbound-stats"] ->
-        get_stats_periodically(button, page, options, stage, timeout)
+        timeouts = List.duplicate(timeout, repeats)
 
-      {{button, timeout}, _stage} ->
-        :ok = Playwright.Page.click(page, "[id=#{button}]")
+        for timeout <- timeouts do
+          :ok = Playwright.Page.click(page, "[id=#{button}]")
+          Process.sleep(timeout)
+        end
+
+      {:wait, timeout} ->
         Process.sleep(timeout)
     end)
 
