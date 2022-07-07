@@ -12,8 +12,6 @@ defmodule Membrane.RTC.Engine.Metrics.Model do
 
   @spec insert_report(Metrics.rtc_engine_report()) :: :ok
   def insert_report(report) do
-    IO.inspect(report, label: "inserting report")
-
     for {{:room_id, room_id}, room_report} <- report do
       for {{:peer_id, peer_id}, peer_report} <- room_report do
         {peer_metrics, tracks_reports} =
@@ -50,43 +48,27 @@ defmodule Membrane.RTC.Engine.Metrics.Model do
   end
 
   defp insert_peer_metrics(peer_metrics) do
-    IO.inspect(peer_metrics, label: "data")
-
     %PeerMetrics{}
     |> PeerMetrics.changeset(peer_metrics)
-    |> IO.inspect(label: "inserting")
     |> Repo.insert()
-    |> IO.inspect(label: "inserted")
   end
 
   defp insert_track_metrics(track_metrics) do
-    IO.inspect(track_metrics, label: "data")
-
     %TrackMetrics{}
     |> TrackMetrics.changeset(track_metrics)
-    |> IO.inspect(label: "inserting")
     |> Repo.insert()
-    |> IO.inspect(label: "inserted")
   end
 
   defp upsert_peer_to_room(peer_to_room) do
-    IO.inspect(peer_to_room, label: "data")
-
     %PeerToRoom{}
     |> PeerToRoom.changeset(peer_to_room)
-    |> IO.inspect(label: "inserting")
     |> Repo.insert()
-    |> IO.inspect(label: "inserted")
   end
 
   defp upsert_track_to_peer(track_to_peer) do
-    IO.inspect(track_to_peer, label: "data")
-
     %TrackToPeer{}
     |> TrackToPeer.changeset(track_to_peer)
-    |> IO.inspect(label: "inserting")
     |> Repo.insert()
-    |> IO.inspect(label: "inserted")
   end
 
   def remove_outdated_records(days \\ 7) do
