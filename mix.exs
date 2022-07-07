@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.5.0"
+  @version "0.5.1"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
