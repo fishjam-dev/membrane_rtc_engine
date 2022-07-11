@@ -234,7 +234,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       video_tracks_limit: opts.video_tracks_limit,
       rtcp_fir_interval: opts.rtcp_fir_interval,
       simulcast_config: opts.simulcast_config,
-      telemetry_label: opts.telemetry_label
+      telemetry_label: opts.telemetry_label,
+      display_manager: nil
     }
 
     {{:ok, spec: spec}, state}
@@ -405,7 +406,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       {:register_endpoint, ctx.name, state.video_tracks_limit}
     )
 
-    {:ok, Map.put(state, :display_manager, display_manager_pid)}
+    {:ok, %{state | display_manager: display_manager_pid}}
   end
 
   @impl true

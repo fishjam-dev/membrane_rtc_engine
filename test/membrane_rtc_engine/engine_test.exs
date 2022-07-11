@@ -3,6 +3,7 @@ defmodule Membrane.RTC.EngineTest do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.{Message, Peer}
+  alias Membrane.RTC.Engine.Support.TrackEndpoint
 
   setup do
     options = [
@@ -54,33 +55,6 @@ defmodule Membrane.RTC.EngineTest do
       metadata = %{
         "displayName" => "Bob"
       }
-
-      state = %{
-        network_options: [
-          stun_servers: [
-            %{server_addr: "stun.l.google.com", server_port: 19_302}
-          ],
-          turn_servers: [],
-          dtls_pkey: Application.get_env(:membrane_videoroom_demo, :dtls_pkey),
-          dtls_cert: Application.get_env(:membrane_videoroom_demo, :dtls_cert)
-        ]
-      }
-
-      handshake_opts =
-        if state.network_options[:dtls_pkey] &&
-             state.network_options[:dtls_cert] do
-          [
-            client_mode: false,
-            dtls_srtp: true,
-            pkey: state.network_options[:dtls_pkey],
-            cert: state.network_options[:dtls_cert]
-          ]
-        else
-          [
-            client_mode: false,
-            dtls_srtp: true
-          ]
-        end
 
       media_event =
         %{
@@ -197,7 +171,124 @@ defmodule Membrane.RTC.EngineTest do
 
       :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
 
-      refute_receive(_, 1000)
+      refute_receive(
+        %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: _media_event},
+        1000
+      )
+    end
+  end
+
+  describe "updating track metadata" do
+    test "triggers trackUpdated event", %{rtc_engine: rtc_engine} do
+      peer_id = "test_peer"
+      metadata = %{"display_name" => "test_peer"}
+
+      add_peer(rtc_engine, peer_id, metadata)
+      track_id = "test-track-id"
+
+      metadata = %{"source" => "camera1"}
+
+      track =
+        Engine.Track.new(
+          :video,
+          "test-stream",
+          peer_id,
+          :VP8,
+          nil,
+          :raw,
+          nil,
+          id: track_id,
+          metadata: metadata
+        )
+
+      endpoint = %TrackEndpoint{rtc_engine: rtc_engine, track: track}
+
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, peer_id: peer_id)
+
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+      assert %{
+               "type" => "tracksAdded",
+               "data" => %{"trackIdToMetadata" => %{track_id => metadata}, "peerId" => peer_id}
+             } == Jason.decode!(data)
+
+      metadata = %{"source" => "camera2"}
+
+      media_event =
+        %{
+          type: "updateTrackMetadata",
+          data: %{
+            "trackId" => track_id,
+            "trackMetadata" => metadata
+          }
+        }
+        |> Jason.encode!()
+
+      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
+
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+      assert %{
+               "type" => "trackUpdated",
+               "data" => %{
+                 "peerId" => peer_id,
+                 "metadata" => metadata,
+                 "trackId" => track_id
+               }
+             } == Jason.decode!(data)
+    end
+
+    test "doesn't trigger trackUpdated event, when metadata doesn't differ", %{
+      rtc_engine: rtc_engine
+    } do
+      peer_id = "test_peer"
+      metadata = %{"display_name" => "test_peer"}
+
+      add_peer(rtc_engine, peer_id, metadata)
+      track_id = "test-track-id"
+
+      metadata = %{"source" => "camera1"}
+
+      track =
+        Engine.Track.new(
+          :video,
+          "test-stream",
+          peer_id,
+          :VP8,
+          nil,
+          :raw,
+          nil,
+          id: track_id,
+          metadata: metadata
+        )
+
+      endpoint = %TrackEndpoint{rtc_engine: rtc_engine, track: track}
+
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, peer_id: peer_id)
+
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+      assert %{
+               "type" => "tracksAdded",
+               "data" => %{"trackIdToMetadata" => %{track_id => metadata}, "peerId" => peer_id}
+             } == Jason.decode!(data)
+
+      media_event =
+        %{
+          type: "updateTrackMetadata",
+          data: %{
+            "trackId" => track_id,
+            "trackMetadata" => track.metadata
+          }
+        }
+        |> Jason.encode!()
+
+      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
+
+      refute_receive(
+        %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: _media_event},
+        1000
+      )
     end
   end
 

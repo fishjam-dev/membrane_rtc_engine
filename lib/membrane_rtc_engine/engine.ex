@@ -993,11 +993,21 @@ defmodule Membrane.RTC.Engine do
       log_metadata: [rtc_engine_id: state.id]
     }
 
-    actions = [
-      spec: spec,
-      forward: {endpoint_name, {:display_manager, state.display_manager}},
-      forward: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}
-    ]
+    display_manager_message =
+      if state.display_manager != nil,
+        do: {endpoint_name, {:display_manager, state.display_manager}},
+        else: nil
+
+    actions =
+      [
+        spec: spec,
+        forward: display_manager_message,
+        forward: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}
+      ]
+      |> Keyword.filter(fn
+        {:forward, nil} -> false
+        _other -> true
+      end)
 
     state = put_in(state, [:subscriptions, endpoint_id], %{})
     state = put_in(state, [:endpoints, endpoint_id], Endpoint.new(endpoint_id, []))
