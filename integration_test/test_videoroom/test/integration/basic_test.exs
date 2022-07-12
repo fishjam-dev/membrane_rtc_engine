@@ -1,4 +1,4 @@
-defmodule TestVideoroom.Integration.ClientTest do
+defmodule TestVideoroom.Integration.BasicTest do
   use TestVideoroomWeb.ConnCase, async: false
 
   # in miliseconds
@@ -14,7 +14,12 @@ defmodule TestVideoroom.Integration.ClientTest do
   @start_with_mic "start-mic-only"
   @start_with_camera "start-camera-only"
   @start_with_nothing "start-none"
+  @stats "stats"
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
+  @actions [
+    {:get_stats, @stats, 1, @peer_duration, tag: :after_join},
+    {:get_stats, @stats, 1, 0, tag: :before_leave}
+  ]
 
   @tag timeout: 180_000
   test "Users gradually joining and leaving can hear and see each other" do
@@ -29,6 +34,7 @@ defmodule TestVideoroom.Integration.ClientTest do
       linger: @peer_duration,
       join_interval: @join_interval,
       start_button: @start_with_all,
+      actions: @actions,
       receiver: receiver,
       id: -1
     }
@@ -38,7 +44,7 @@ defmodule TestVideoroom.Integration.ClientTest do
 
       task =
         Task.async(fn ->
-          Stampede.start({IntegrationMustang, mustang_options}, @browser_options)
+          Stampede.start({SimulcastMustang, mustang_options}, @browser_options)
         end)
 
       Process.sleep(10_000)
@@ -48,13 +54,12 @@ defmodule TestVideoroom.Integration.ClientTest do
 
     receive do
       acc ->
-        Enum.all?(acc, fn {stage, browsers} ->
+        for {stage, browsers} <- acc do
           case stage do
             :after_join ->
               Enum.all?(browsers, fn {browser_id, stats} ->
                 assert length(stats) == browser_id
                 assert Enum.all?(stats, &is_stream_playing(&1))
-                true
               end)
 
             :before_leave ->
@@ -63,7 +68,7 @@ defmodule TestVideoroom.Integration.ClientTest do
                 assert Enum.all?(stats, &is_stream_playing(&1))
               end)
           end
-        end)
+        end
     end
   end
 
@@ -80,6 +85,7 @@ defmodule TestVideoroom.Integration.ClientTest do
       linger: @peer_duration,
       join_interval: @join_interval,
       start_button: @start_with_all,
+      actions: @actions,
       receiver: receiver,
       id: -1
     }
@@ -89,7 +95,7 @@ defmodule TestVideoroom.Integration.ClientTest do
       Process.sleep(500)
 
       Task.async(fn ->
-        Stampede.start({IntegrationMustang, mustang_options}, @browser_options)
+        Stampede.start({SimulcastMustang, mustang_options}, @browser_options)
       end)
     end
     |> Task.await_many(:infinity)
@@ -124,6 +130,7 @@ defmodule TestVideoroom.Integration.ClientTest do
       linger: @peer_duration,
       join_interval: @join_interval,
       start_button: @start_with_all,
+      actions: @actions,
       receiver: receiver,
       id: -1
     }
@@ -139,7 +146,7 @@ defmodule TestVideoroom.Integration.ClientTest do
       Process.sleep(1000)
 
       Task.async(fn ->
-        Stampede.start({IntegrationMustang, specific_mustang}, @browser_options)
+        Stampede.start({SimulcastMustang, specific_mustang}, @browser_options)
       end)
     end
     |> Task.await_many(:infinity)

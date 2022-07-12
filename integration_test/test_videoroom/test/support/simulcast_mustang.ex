@@ -23,28 +23,15 @@ defmodule SimulcastMustang do
   @impl true
   def linger({_browser, page} = ctx, options) do
     Enum.each(options.actions, fn
-      {:click, button, repeats, timeout, tag: tag}
-      when button in [
-             "simulcast-local-low-encoding",
-             "simulcast-local-medium-encoding",
-             "simulcast-local-high-encoding",
-             "simulcast-peer-low-encoding",
-             "simulcast-peer-medium-encoding",
-             "simulcast-peer-high-encoding"
-           ] ->
+      {:click, button, timeout} ->
+        :ok = Playwright.Page.click(page, "[id=#{button}]")
+        Process.sleep(timeout)
+
+      {:get_stats, button, repeats, timeout, tag: tag} ->
         timeouts = List.duplicate(timeout, repeats)
 
         for timeout <- timeouts do
           get_stats(page, options.receiver, options.id, tag, button)
-          Process.sleep(timeout)
-        end
-
-      {:click, button, repeats, timeout, tag: _tag}
-      when button in ["simulcast-inbound-stats", "simulcast-outbound-stats"] ->
-        timeouts = List.duplicate(timeout, repeats)
-
-        for timeout <- timeouts do
-          :ok = Playwright.Page.click(page, "[id=#{button}]")
           Process.sleep(timeout)
         end
 
@@ -57,7 +44,6 @@ defmodule SimulcastMustang do
 
   @impl true
   def beforeLeave(ctx, _options) do
-    Process.sleep(10_000)
     ctx
   end
 

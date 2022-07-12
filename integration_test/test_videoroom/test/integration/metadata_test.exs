@@ -18,7 +18,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
 
   @tag timeout: 180_000
-  test "Check updatePeerMetadata and then updateTrackMetadata" do
+  test "updating peer metadata works and updating track metadata works correctly" do
     browsers_number = 2
 
     pid = self()
@@ -31,43 +31,42 @@ defmodule TestVideoroom.Integration.MetadataTest do
       join_interval: @join_interval,
       start_button: @start_all,
       receiver: receiver,
-      buttons: [],
+      actions: [],
       id: -1
     }
 
-    timeouts = [4_000, 4_000]
+    actions1 = [
+      {:click, @update_peer, 4_000},
+      {:click, @update_track, 4_000}
+    ]
 
-    buttons1 = [@update_peer, @update_track] |> Enum.zip(timeouts)
+    actions2 = [
+      {:wait, 3_000},
+      {:get_stats, @metadata_peer, 1, 1_000, tag: :peer_metadata},
+      {:wait, 3_000},
+      {:get_stats, @metadata_track, 1, 1_000, tag: :track_metadata}
+    ]
 
-    buttons2 = [@metadata_peer, @metadata_track] |> Enum.zip(timeouts)
+    stage_to_text = %{
+      peer_metadata: "test",
+      track_metadata: "trackMetadata"
+    }
 
-    stages = [:peer_metadata, :track_metadata]
+    actions_with_id = [actions1, actions2] |> Enum.with_index()
 
-    create_room(mustang_options)
-
-    buttons_with_id =
-      [buttons1, buttons2]
-      |> Enum.map(&Enum.zip(&1, stages))
-      |> Enum.with_index()
-      |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
-
-    for {browser_id, buttons} <- buttons_with_id, into: [] do
-      specific_mustang = %{mustang_options | id: browser_id, buttons: buttons}
+    for {actions, browser_id} <- actions_with_id, into: [] do
+      specific_mustang = %{mustang_options | id: browser_id, actions: actions}
 
       Task.async(fn ->
-        Stampede.start({MetadataMustang, specific_mustang}, @browser_options)
+        Stampede.start({SimulcastMustang, specific_mustang}, @browser_options)
       end)
     end
     |> Task.await_many(:infinity)
 
     receive do
-      acc ->
-        for {stage, browsers} <- acc do
-          text =
-            case stage do
-              :peer_metadata -> "test"
-              :track_metadata -> "trackMetadata"
-            end
+      stats ->
+        for {stage, browsers} <- stats do
+          text = stage_to_text[stage]
 
           Enum.all?(browsers, fn
             {1, stats} ->
@@ -81,14 +80,6 @@ defmodule TestVideoroom.Integration.MetadataTest do
           end)
         end
     end
-  end
-
-  defp create_room(mustang_options) do
-    # Creating room earlier to avoid error :already_started
-    Task.async(fn ->
-      Stampede.start({RoomMustang, mustang_options}, @browser_options)
-    end)
-    |> Task.await(:infinity)
   end
 
   defp receive_stats(mustangs_number, pid, acc \\ %{}) do
