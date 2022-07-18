@@ -1,6 +1,8 @@
 defmodule TestVideoroom.Integration.MetadataTest do
   use TestVideoroomWeb.ConnCase, async: false
 
+  import TestVideoroom.Integration.Utils
+
   # in miliseconds
   @peer_delay 500
   # in miliseconds
@@ -58,7 +60,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
       specific_mustang = %{mustang_options | id: browser_id, actions: actions}
 
       Task.async(fn ->
-        Stampede.start({SimulcastMustang, specific_mustang}, @browser_options)
+        Stampede.start({TestMustang, specific_mustang}, @browser_options)
       end)
     end
     |> Task.await_many(:infinity)
@@ -71,7 +73,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
           Enum.all?(browsers, fn
             {1, stats} ->
               assert(
-                stats == text,
+                Enum.any?(stats, &(&1 == text)),
                 "Failed on stage: #{stage} should be metadata: #{text}, but stats are #{inspect(stats)}"
               )
 
@@ -79,25 +81,6 @@ defmodule TestVideoroom.Integration.MetadataTest do
               true
           end)
         end
-    end
-  end
-
-  defp receive_stats(mustangs_number, pid, acc \\ %{}) do
-    if mustangs_number > 0 do
-      receive do
-        {_browser_id, :end} ->
-          receive_stats(mustangs_number - 1, pid, acc)
-
-        {browser_id, stage, data} ->
-          acc
-          |> then(fn acc ->
-            default_map = %{browser_id => data}
-            Map.update(acc, stage, default_map, &Map.put(&1, browser_id, data))
-          end)
-          |> then(&receive_stats(mustangs_number, pid, &1))
-      end
-    else
-      send(pid, acc)
     end
   end
 end

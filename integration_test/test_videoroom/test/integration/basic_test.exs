@@ -1,6 +1,8 @@
 defmodule TestVideoroom.Integration.BasicTest do
   use TestVideoroomWeb.ConnCase, async: false
 
+  import TestVideoroom.Integration.Utils
+
   # in miliseconds
   @peer_delay 500
   # in miliseconds
@@ -44,7 +46,7 @@ defmodule TestVideoroom.Integration.BasicTest do
 
       task =
         Task.async(fn ->
-          Stampede.start({SimulcastMustang, mustang_options}, @browser_options)
+          Stampede.start({TestMustang, mustang_options}, @browser_options)
         end)
 
       Process.sleep(10_000)
@@ -57,15 +59,19 @@ defmodule TestVideoroom.Integration.BasicTest do
         for {stage, browsers} <- acc do
           case stage do
             :after_join ->
-              Enum.all?(browsers, fn {browser_id, stats} ->
-                assert length(stats) == browser_id
-                assert Enum.all?(stats, &is_stream_playing(&1))
+              Enum.all?(browsers, fn {browser_id, stats_list} ->
+                Enum.each(stats_list, fn stats ->
+                  assert length(stats) == browser_id
+                  assert Enum.all?(stats, &is_stream_playing(&1))
+                end)
               end)
 
             :before_leave ->
-              Enum.all?(browsers, fn {browser_id, stats} ->
-                assert length(stats) == browsers_number - browser_id - 1
-                assert Enum.all?(stats, &is_stream_playing(&1))
+              Enum.all?(browsers, fn {browser_id, stats_list} ->
+                Enum.each(stats_list, fn stats ->
+                  assert length(stats) == browsers_number - browser_id - 1
+                  assert Enum.all?(stats, &is_stream_playing(&1))
+                end)
               end)
           end
         end
@@ -95,7 +101,7 @@ defmodule TestVideoroom.Integration.BasicTest do
       Process.sleep(500)
 
       Task.async(fn ->
-        Stampede.start({SimulcastMustang, mustang_options}, @browser_options)
+        Stampede.start({TestMustang, mustang_options}, @browser_options)
       end)
     end
     |> Task.await_many(:infinity)
@@ -105,9 +111,11 @@ defmodule TestVideoroom.Integration.BasicTest do
         Enum.all?(acc, fn {stage, browsers} ->
           case stage do
             :after_join ->
-              Enum.all?(browsers, fn {_browser_id, stats} ->
-                assert length(stats) == browsers_number - 1
-                assert Enum.all?(stats, &is_stream_playing(&1))
+              Enum.all?(browsers, fn {_browser_id, stats_list} ->
+                Enum.each(stats_list, fn stats ->
+                  assert length(stats) == browsers_number - 1
+                  assert Enum.all?(stats, &is_stream_playing(&1))
+                end)
               end)
 
             :before_leave ->
@@ -146,7 +154,7 @@ defmodule TestVideoroom.Integration.BasicTest do
       Process.sleep(1000)
 
       Task.async(fn ->
-        Stampede.start({SimulcastMustang, specific_mustang}, @browser_options)
+        Stampede.start({TestMustang, specific_mustang}, @browser_options)
       end)
     end
     |> Task.await_many(:infinity)
@@ -158,36 +166,19 @@ defmodule TestVideoroom.Integration.BasicTest do
         Enum.all?(acc, fn {stage, browsers} ->
           case stage do
             :after_join ->
-              Enum.all?(browsers, fn {browser_id, stats} ->
-                assert length(stats) == if(browser_id == 3, do: 3, else: 2)
-                {_value, new_buttons} = Map.pop(buttons_with_id, browser_id)
-                new_buttons = Map.values(new_buttons)
-                assert which_streams_playing(stats, new_buttons)
+              Enum.all?(browsers, fn {browser_id, stats_list} ->
+                Enum.each(stats_list, fn stats ->
+                  assert length(stats) == if(browser_id == 3, do: 3, else: 2)
+                  {_value, new_buttons} = Map.pop(buttons_with_id, browser_id)
+                  new_buttons = Map.values(new_buttons)
+                  assert which_streams_playing(stats, new_buttons)
+                end)
               end)
 
             :before_leave ->
               true
           end
         end)
-    end
-  end
-
-  defp receive_stats(mustangs_number, pid, acc \\ %{}) do
-    if mustangs_number > 0 do
-      receive do
-        {_browser_id, :end} ->
-          receive_stats(mustangs_number - 1, pid, acc)
-
-        {browser_id, stage, data} ->
-          acc
-          |> then(fn acc ->
-            default_map = %{browser_id => data}
-            Map.update(acc, stage, default_map, &Map.put(&1, browser_id, data))
-          end)
-          |> then(&receive_stats(mustangs_number, pid, &1))
-      end
-    else
-      send(pid, acc)
     end
   end
 

@@ -1,4 +1,4 @@
-defmodule SimulcastMustang do
+defmodule TestMustang do
   use Stampede.Mustang
 
   @impl true
@@ -57,7 +57,7 @@ defmodule SimulcastMustang do
     browser
   end
 
-  defp get_stats(page, receiver, browser_id, stage, button) do
+  defp get_stats(page, receiver, browser_id, tag, button) do
     :ok = Playwright.Page.click(page, "[id=#{button}]")
     Process.sleep(1_000)
 
@@ -73,6 +73,6 @@ defmodule SimulcastMustang do
       data ->
         Jason.decode!(data)
     end
-    |> then(fn data -> send(receiver, {browser_id, stage, data}) end)
+    |> then(fn data -> send(receiver, {browser_id, tag, data}) end)
   end
 end

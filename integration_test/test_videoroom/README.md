@@ -11,6 +11,19 @@ The interface allows only for several actions:
 * joining without any media sources 
 * leaving the room 
 * displaying statistics of all remote media streams
+* joining with simulcast
+* displaying statistics of inbound video stream (this assumes max two peers are in room)
+* displaying statistics of outbound video streams
+* turning on/off low encoding of simulcast track
+* turning on/off medium encoding of simulcast track
+* turning on/off high encoding of simulcast track
+* change encoding of received track to low encoding (assuming that it is simulcast track)
+* change encoding of received track to medium encoding (assuming that it is simulcast track)
+* change encoding of received track to high encoding (assuming that it is simulcast track)
+* updating your metadata
+* updating your video track metadata
+* displaying metadata of second peer
+* displaying metadata of received video track
 
 Tests are performed using a [playwright](https://github.com/geometerio/playwright-elixir) library
 which allows to control browser actions using a selected web driver.
@@ -33,14 +46,6 @@ is queried to return the information about its video/audio received statistics.
 ### Chrome
 For audio stream `audioTotalEnergy` gets measured, for video it is `framesDecoded`.
 
-### Firefox
-For both audio and video `packetsReceived` gets measured.
-
-
-To calculate if the media data is flowing a delta of those two measurements (for firefox and chrome) gets calculated on
-an interval of `200 ms`. If the delta is `0` then it means that the stream is not receiving any 
-media for either audio or video.
-
 ## Exposing the statistics to playwright
 By default there is no way to interact with a JS API from `playwright` level, so to
 get around that limitation the gathered statistics are being put into a div elements
@@ -56,10 +61,18 @@ gathering it gets incremented by `1`. `playwright` can use that information to w
 So in all tests a version for each client's sessions is maintained and gets incremented once `playwright` extracts the statistics.
 
 ## Testing scenarios
-There are currently 3 major testing scenarios:
-* clients gradually joining and leaving the room (up to 5 clients)
-* clients joining all at once (5 clients)
+There are currently 3 testing scenarios of basic functionalities:
+* clients gradually joining and leaving the room (up to 4 clients)
+* clients joining all at once (4 clients)
 * clients joining with: camera and mic, camera only, mic only, without any media sources (a single client for each of the cases, all in a single room at once)
+
+There are currently 3 testing scenarios of simulcast functionalities:
+* client disables medium encoding and then enables it
+* client changes received encoding to low and then changes to medium
+* client gradually disables all encoding and then gradually enables them
+
+There is one test of updating metadata functionalities:
+* client updates peer metadata and then updates track metadata
 
 ## Running tests 
 
