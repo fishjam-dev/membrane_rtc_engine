@@ -67,9 +67,9 @@ There are currently 3 testing scenarios of basic functionalities:
 * clients joining with: camera and mic, camera only, mic only, without any media sources (a single client for each of the cases, all in a single room at once)
 
 There are currently 3 testing scenarios of simulcast functionalities:
-* client disables medium encoding and then enables it
+* client disables medium encoding and then enables it again
 * client changes received encoding to low and then changes to medium
-* client gradually disables all encoding and then gradually enables them
+* client gradually disables all encodings and then gradually enables them again
 
 There is one test of updating metadata functionalities:
 * client updates peer metadata and then updates track metadata

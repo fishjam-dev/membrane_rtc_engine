@@ -285,16 +285,21 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     correct_dimensions? or sender_encoding_stats["qualityLimitationReason"] != "none"
   end
 
-  defp assert_sender_receiver_stats(tag, encoding, sender_stats_samples, receiver_stats_samples) do
+  defp assert_sender_receiver_stats(
+         tag,
+         receiver_encoding,
+         sender_stats_samples,
+         receiver_stats_samples
+       ) do
     sender_stats_samples
     |> Enum.zip(receiver_stats_samples)
     |> Enum.any?(fn {sender_stats, receiver_stats} ->
-      assert_stats_equal(receiver_stats, sender_stats[encoding]) and
-        assert_receiver_encoding(receiver_stats, encoding)
+      assert_stats_equal(receiver_stats, sender_stats[receiver_encoding]) and
+        assert_receiver_encoding(receiver_stats, receiver_encoding)
     end)
-    |> assert("Failed on tag: #{tag} should be encoding: #{encoding},
+    |> assert("Failed on tag: #{tag} should be encoding: #{receiver_encoding},
           receiver stats are: #{inspect(receiver_stats_samples)}
-          sender stats are: #{inspect(Enum.map(sender_stats_samples, & &1[encoding]))}
+          sender stats are: #{inspect(Enum.map(sender_stats_samples, & &1[receiver_encoding]))}
           ")
   end
 end
