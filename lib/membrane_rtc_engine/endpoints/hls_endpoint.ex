@@ -69,10 +69,20 @@ if Enum.all?(
                   """
                 ],
                 target_window_duration: [
+                  type: :time,
                   spec: Membrane.Time.t() | :infinity,
                   default: Membrane.Time.seconds(20),
                   description: """
                   Max duration of stream that will be stored. Segments that are older than window duration will be removed.
+                  """
+                ],
+                target_segment_duration: [
+                  type: :time,
+                  spec: Membrane.Time.t(),
+                  default: Membrane.Time.seconds(5),
+                  description: """
+                  Expected length of each segment. Setting it is not necessary, but
+                  may help players achieve better UX.
                   """
                 ],
                 framerate: [
@@ -93,7 +103,8 @@ if Enum.all?(
         owner: opts.owner,
         hls_mode: opts.hls_mode,
         target_window_duration: opts.target_window_duration,
-        framerate: opts.framerate
+        framerate: opts.framerate,
+        target_segment_duration: opts.target_segment_duration
       }
 
       {:ok, state}
@@ -104,10 +115,10 @@ if Enum.all?(
       {:endpoint, endpoint_id} = ctx.name
       tracks = Enum.filter(tracks, fn track -> :raw in track.format end)
 
-      Enum.reduce_while(tracks, {:ok, state}, fn track, {:ok, state} ->
+      Enum.reduce(tracks, state, fn track, state ->
         case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :raw) do
           :ok ->
-            {:cont, {:ok, put_in(state, [:tracks, track.id], track)}}
+            put_in(state, [:tracks, track.id], track)
 
           {:error, :invalid_track_id} ->
             Membrane.Logger.debug("""
@@ -115,7 +126,7 @@ if Enum.all?(
             It had to be removed just after publishing it. Ignoring.
             """)
 
-            {:cont, {:ok, state}}
+            state
 
           {:error, reason} ->
             raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
@@ -173,6 +184,7 @@ if Enum.all?(
           link_builder,
           track.encoding,
           track,
+          state.target_segment_duration,
           state.framerate
         )
 
@@ -183,7 +195,7 @@ if Enum.all?(
           hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
             manifest_module: Membrane.HTTPAdaptiveStream.HLS,
             target_window_duration: state.target_window_duration,
-            target_segment_duration: 2 |> Membrane.Time.seconds(),
+            target_segment_duration: state.target_segment_duration,
             persist?: false,
             storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
               directory: directory
@@ -203,7 +215,7 @@ if Enum.all?(
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id) do
+      defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id, _segment_duration) do
         %ParentSpec{
           children: %{
             {:opus_decoder, track_id} => Membrane.Opus.Decoder,
@@ -229,7 +241,7 @@ if Enum.all?(
       end
     end
 
-    defp hls_links_and_children(link_builder, :AAC, track, _framerate),
+    defp hls_links_and_children(link_builder, :AAC, track, _segment_duration, _framerate),
       do: %ParentSpec{
         children: %{},
         links: [
@@ -239,9 +251,12 @@ if Enum.all?(
         ]
       }
 
-    defp hls_links_and_children(link_builder, :H264, track, framerate),
+    defp hls_links_and_children(link_builder, :H264, track, segment_duration, framerate),
       do: %ParentSpec{
         children: %{
+          {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
+            interval: segment_duration
+          },
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
             attach_nalus?: true,
