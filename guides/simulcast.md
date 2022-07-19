@@ -36,7 +36,7 @@ Encodings that are turned off might still be enabled using `enableTrackEncoding`
 > or [`getDisplayMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia).
 
 On the server side, simulcast can be configured while adding new WebRTC Endpoint by setting its `simulcast_config` option.
-Remember to ensure `Rid` and `Mid` extensions are used.
+Remember to ensure `Rid`, `Mid` and `TWCC` extensions are used.
 
 For example
 
