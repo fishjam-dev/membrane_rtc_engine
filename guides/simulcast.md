@@ -1,12 +1,12 @@
 # Simulcast
 
-Simulcast is a technique where a client sends multiple encodings of the same video to the server and the server is responsbile for choosing and forwarding proper encoding to proper receiver (other client). The encoding selection is dynamic (i.e. SFU switches between encodings in time) and it is based on:
+Simulcast is a technique where a client sends multiple encodings of the same video to the server and the server is responsible for choosing and forwarding proper encoding to proper receiver (other client). The encoding selection is dynamic (i.e. SFU switches between encodings in time) and it is based on:
 
-* receiver awailable bandwidth
+* receiver available bandwidth
 * receiver preferences (e.g. explicit request to receive video in HD resolution instead of FHD)
-* UI layaout (e.g. videos being displayed in smaller video tiles will be sent in a lower resolution)
+* UI layout (e.g. videos being displayed in smaller video tiles will be sent in a lower resolution)
 
-At the moment, Membrane supports only receiver preferences i.e. receiver can chose which encoding it is willing to receive. Additionaly, sender can turn off/on specific encoding. Membrane RTC Engine will detect changes and switch to another available encoding.
+At the moment, Membrane supports only receiver preferences i.e. receiver can chose which encoding it is willing to receive. Additionally, sender can turn off/on specific encoding. Membrane RTC Engine will detect changes and switch to another available encoding.
 
 ## Turning simulcast on/off
 
@@ -36,13 +36,19 @@ Encodings that are turned off might still be enabled using `enableTrackEncoding`
 > or [`getDisplayMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia).
 
 On the server side, simulcast can be configured while adding new WebRTC Endpoint by setting its `simulcast_config` option.
+Remember to ensure `Rid` and `Mid` extensions are used.
 
 For example
 
 ```elixir
+alias Membrane.RTC.Engine.Endpoint.WebRTC
+alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig
+alias Membrane.WebRTC.Extension.{Mid, Rid, TWCC}
+# ...
 %WebRTC{
   rtc_engine: rtc_engine,
   # ...
+  webrtc_extensions: [Rid, Mid, TWCC],
   simulcast_config: %SimulcastConfig{
     enabled: true,
     default_encoding: fn %Track{simulcast_encodings: _simulcast_encodings} -> "m" end
@@ -71,7 +77,7 @@ Disabled encoding can be turned on again using `enableTrackEncoding` function.
 
 Membrane RTC Engine tracks encoding activity. 
 Therefore, when some encoding is turned off, RTC Engine will detect this and switch to 
-the highest awailable encoding.
+the highest available encoding.
 When disabled encoding becomes active again, RTC Engine will switch back to it.
 
 ## Selecting encoding to receive
