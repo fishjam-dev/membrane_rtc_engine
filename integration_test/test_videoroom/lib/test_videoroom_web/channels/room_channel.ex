@@ -11,11 +11,11 @@ defmodule TestVideoroomWeb.RoomChannel do
     end
     |> case do
       {:ok, room} ->
-        peer_id = "#{UUID.uuid4()}"
-        # TODO handle crash of room?
-        Process.monitor(room)
-        TestVideoroom.Room.add_peer_channel(room, self(), peer_id)
-        {:ok, Phoenix.Socket.assign(socket, %{room_id: room_id, room: room, peer_id: peer_id})}
+        join_room(room_id, room, socket)
+
+      {:error, {:already_started, _pid}} ->
+        room = :global.whereis_name(room_id)
+        join_room(room_id, room, socket)
 
       {:error, reason} ->
         Logger.error("""
@@ -26,6 +26,14 @@ defmodule TestVideoroomWeb.RoomChannel do
 
         {:error, %{reason: "failed to start room"}}
     end
+  end
+
+  defp join_room(room_id, room, socket) do
+    peer_id = "#{UUID.uuid4()}"
+    # TODO handle crash of room?
+    Process.monitor(room)
+    TestVideoroom.Room.add_peer_channel(room, self(), peer_id)
+    {:ok, Phoenix.Socket.assign(socket, %{room_id: room_id, room: room, peer_id: peer_id})}
   end
 
   @impl true
