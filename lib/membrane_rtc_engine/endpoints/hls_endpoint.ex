@@ -1,10 +1,7 @@
 if Enum.all?(
      [
        Membrane.H264.FFmpeg.Parser,
-       Membrane.HTTPAdaptiveStream.SinkBin,
-       Membrane.AAC.FDK.Encoder,
-       Membrane.AAC.Parser,
-       Membrane.Opus.Decoder
+       Membrane.HTTPAdaptiveStream.SinkBin
      ],
      &Code.ensure_loaded?/1
    ) do
@@ -12,15 +9,28 @@ if Enum.all?(
     @moduledoc """
     An Endpoint responsible for converting incoming tracks to HLS playlist.
 
-    This module requires the following plugins to be present in your `mix.exs`:
-    * membrane_http_adaptive_stream_plugin,
-    * membrane_mp4_plugin,
-    * membrane_aac_plugin,
-    * membrane_aac_fdk_plugin,
+    This module requires the following plugins to be present in your `mix.exs` for H264 & AAC input:
+    ```
+    [
+      :membrane_h264_ffmpeg_plugin,
+      :membrane_http_adaptive_stream_plugin,
+    ]
+    ```
+
+    Plus, optionally it supports OPUS audio input - for that, additional dependencies are needed:
+    ```
+    [
+      :membrane_opus_plugin,
+      :membrane_aac_plugin,
+      :membrane_aac_fdk_plugin,
+    ]
+    ```
     """
     use Membrane.Bin
     alias Membrane.RTC.Engine
     require Membrane.Logger
+
+    @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
 
     def_input_pad :input,
       demand_unit: :buffers,
@@ -182,22 +192,32 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id),
-      do: %ParentSpec{
-        children: %{
-          {:opus_decoder, track_id} => Membrane.Opus.Decoder,
-          {:aac_encoder, track_id} => Membrane.AAC.FDK.Encoder,
-          {:aac_parser, track_id} => %Membrane.AAC.Parser{out_encapsulation: :none}
-        },
-        links: [
-          link_builder
-          |> to({:opus_decoder, track_id})
-          |> to({:aac_encoder, track_id})
-          |> to({:aac_parser, track_id})
-          |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
-          |> to({:hls_sink_bin, stream_id})
-        ]
-      }
+    if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
+      defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id) do
+        %ParentSpec{
+          children: %{
+            {:opus_decoder, track_id} => Membrane.Opus.Decoder,
+            {:aac_encoder, track_id} => Membrane.AAC.FDK.Encoder,
+            {:aac_parser, track_id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+          },
+          links: [
+            link_builder
+            |> to({:opus_decoder, track_id})
+            |> to({:aac_encoder, track_id})
+            |> to({:aac_parser, track_id})
+            |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
+            |> to({:hls_sink_bin, stream_id})
+          ]
+        }
+      end
+    else
+      defp hls_links_and_children(_link_builder, :OPUS, _track_id, _stream_id) do
+        raise """
+        Cannot find one of the modules required to support Opus audio input.
+        Ensure `:membrane_opus_plugin`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
+        """
+      end
+    end
 
     defp hls_links_and_children(link_builder, :AAC, track_id, stream_id),
       do: %ParentSpec{
