@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.5.1"
+  @version "0.6.0-rc.1"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
@@ -53,8 +53,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_core, "~> 0.10.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin, "~> 0.7.0"},
-      {:membrane_rtp_plugin, "~> 0.14.0"},
+      {:membrane_webrtc_plugin, "~> 0.8.0-rc.1"},
+      {:membrane_rtp_plugin, "~> 0.15.0-rc.1"},
       {:membrane_rtp_format, "~> 0.5.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.6.0"},
       {:membrane_rtp_opus_plugin, "~> 0.6.0"},
@@ -180,7 +180,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     """
   end
 
-  defp run_integration_tests(_) do
+  defp run_integration_tests(_cli_args) do
     Mix.shell().info("Getting mix dependencies in test_videoroom")
 
     {_io_stream, exit_status} =

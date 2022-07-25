@@ -136,15 +136,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 description:
                   "Sender reports's generation interval, set to nil to avoid reports generation"
               ],
-              rtcp_fir_interval: [
-                spec: Membrane.Time.t() | nil,
-                default: Membrane.Time.second(),
-                description: """
-                Defines how often FIR should be sent.
-
-                For more information refer to RFC 5104 section 4.3.1.
-                """
-              ],
               simulcast_config: [
                 spec: SimulcastConfig.t(),
                 default: %SimulcastConfig{},
@@ -232,7 +223,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       integrated_turn_domain: opts.integrated_turn_domain,
       owner: opts.owner,
       video_tracks_limit: opts.video_tracks_limit,
-      rtcp_fir_interval: opts.rtcp_fir_interval,
       simulcast_config: opts.simulcast_config,
       telemetry_label: opts.telemetry_label,
       display_manager: nil
@@ -457,8 +447,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         |> via_out(pad,
           options: [
             extensions: extensions,
-            use_depayloader?: false,
-            rtcp_fir_interval: state.rtcp_fir_interval
+            use_depayloader?: false
           ]
         )
         |> to_bin_output(pad)
