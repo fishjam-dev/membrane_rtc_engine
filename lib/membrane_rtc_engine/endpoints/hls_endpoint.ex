@@ -236,7 +236,7 @@ if Enum.all?(
         }
       end
     else
-      defp hls_links_and_children(_link_builder, :OPUS, _track_id, _stream_id) do
+      defp hls_links_and_children(_link_builder, :OPUS, _track_id, _stream_id, _segment_duration) do
         raise """
         Cannot find one of the modules required to support Opus audio input.
         Ensure `:membrane_opus_plugin`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
