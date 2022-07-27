@@ -421,7 +421,7 @@ defmodule Membrane.RTC.Engine do
   @spec message_endpoint(rtc_engine :: pid(), endpoint_id :: String.t(), message :: any()) ::
           :ok
   def message_endpoint(rtc_engine, endpoint_id, message) do
-    send(rtc_engine, {:endpoint_message, {:endpoint, endpoint_id}, message})
+    send(rtc_engine, {:message_endpoint, {:endpoint, endpoint_id}, message})
     :ok
   end
 
@@ -646,8 +646,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_other({:endpoint_message, endpoint, message}, _ctx, state) do
-    {{:ok, forward: {endpoint, message}}, state}
+  def handle_other({:message_endpoint, endpoint, message}, ctx, state) do
+    actions =
+      if find_child(ctx, pattern: ^endpoint) != nil,
+        do: [forward: {endpoint, message}],
+        else: []
+
+    {{:ok, actions}, state}
   end
 
   @impl true

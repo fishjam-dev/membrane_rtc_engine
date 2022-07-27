@@ -76,8 +76,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_h264_ffmpeg_plugin, "~> 0.21.5", optional: true},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.12.0"},
       {:membrane_h264_ffmpeg_plugin, "~> 0.21.5"},
+      {:membrane_file_plugin, "~> 0.12.0"},
       {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
 
       # Otel
@@ -144,8 +144,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       # internal docs
       "internal_docs/media_events.md",
       "internal_docs/protocol.md",
-      "internal_docs/simulcast/simulcast.md": [filename: "internal_simulcast"],
-      "internal_docs/track_publishing/track_publish.md": [filename: "internal_track_publish"]
+      "internal_docs/simulcast.md": [filename: "internal_simulcast"],
+      "internal_docs/engine_architecture.md": [filename: "internal_engine_architecture"]
     ]
   end
 

@@ -56,18 +56,19 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
 
+      parser = %Membrane.H264.FFmpeg.Parser{
+        attach_nalus?: true,
+        skip_until_parameters?: false,
+        framerate: {60, 1}
+      }
+
       file_endpoint = %FileEndpoint{
         rtc_engine: rtc_engine,
         file_path: file_path,
         track: track,
-        processing_children: %{
-          parser: %Membrane.H264.FFmpeg.Parser{
-            attach_nalus?: true,
-            skip_until_parameters?: false,
-            framerate: {60, 1}
-          }
-        },
-        processing_link: fn link_builder -> Membrane.ParentSpec.to(link_builder, :parser) end
+        interceptor: fn link_builder ->
+          Membrane.ParentSpec.to(link_builder, :parser, parser)
+        end
       }
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)

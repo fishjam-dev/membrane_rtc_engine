@@ -1,8 +1,8 @@
 defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   @moduledoc false
 
-  # Endpoint that publishes data from a file in realtime. It will start publishing data when it receives message :start.
-  # Buffers from file must have timestamps, because it will be used in Realtimer.
+  # Endpoint that publishes data from a file in the realtime. It will start publishing data when it receives message :start.
+  # Buffers from the file must have timestamps, because they will be used by Realtimer.
 
   use Membrane.Bin
 
@@ -24,11 +24,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
                 spec: Engine.Track.t(),
                 description: "Track to publish"
               ],
-              processing_children: [
-                spec: %{any() => Membrane.ParentSpec.child_spec_t()},
-                description: "Children required for processing input from file."
-              ],
-              processing_link: [
+              interceptor: [
                 spec:
                   (Membrane.ParentSpec.link_builder_t() -> Membrane.ParentSpec.link_builder_t()),
                 description: "Function which link source with processing children"
@@ -45,8 +41,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       rtc_engine: opts.rtc_engine,
       file_path: opts.file_path,
       track: opts.track,
-      processing_children: opts.processing_children,
-      processing_link: opts.processing_link
+      interceptor: opts.interceptor
     }
 
     {:ok, state}
@@ -58,19 +53,17 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {track_id, _rid}) = pad, _ctx, state) do
-    base_children = %{
-      source: %Membrane.File.Source{
-        location: state.file_path
-      },
-      realtimer: Membrane.Realtimer
-    }
-
+  def handle_pad_added(Pad.ref(:output, {_track_id, _rid}) = pad, _ctx, state) do
     spec = %ParentSpec{
-      children: Map.merge(base_children, state.processing_children),
+      children: %{
+        source: %Membrane.File.Source{
+          location: state.file_path
+        },
+        realtimer: Membrane.Realtimer
+      },
       links: [
         link(:source)
-        |> then(state.processing_link)
+        |> then(state.interceptor)
         |> to(:realtimer)
         |> to_bin_output(pad)
       ]
