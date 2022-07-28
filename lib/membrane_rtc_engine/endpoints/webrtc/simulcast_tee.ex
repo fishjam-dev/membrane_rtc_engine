@@ -197,13 +197,34 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_other({:select_encoding, {endpoint_id, encoding}}, _ctx, state) do
-    state =
-      update_in(state, [:forwarders, endpoint_id], fn forwarder ->
-        Forwarder.select_encoding(forwarder, encoding)
-      end)
+  def handle_other({:select_encoding, {endpoint_id, encoding}}, ctx, state) do
+    forwarder =
+      state.forwarders[endpoint_id]
+      |> Forwarder.select_encoding(encoding)
 
-    {:ok, state}
+    actions =
+      if forwarder.queued_encoding == encoding do
+        ctx.pads
+        |> Map.keys()
+        |> Enum.find(fn
+          Pad.ref(:input, {_track_id, ^encoding}) -> true
+          _other -> false
+        end)
+        |> case do
+          nil ->
+            Membrane.Logger.warn("Cannot find pad for requested encoding #{encoding}")
+            []
+
+          pad_ref ->
+            Membrane.Logger.warn("KeyframeRequest for encoding #{encoding}")
+            [event: {pad_ref, %Membrane.KeyframeRequestEvent{}}]
+        end
+      else
+        []
+      end
+
+    state = put_in(state, [:forwarders, endpoint_id], forwarder)
+    {{:ok, actions}, state}
   end
 
   @impl true
