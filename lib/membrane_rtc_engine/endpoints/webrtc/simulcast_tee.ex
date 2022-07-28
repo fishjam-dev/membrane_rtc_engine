@@ -72,10 +72,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, {_track_id, _rid}) = pad, ctx, state) do
+  def handle_pad_added(Pad.ref(:input, {_track_id, encoding}) = pad, ctx, state) do
     Utils.telemetry_register(ctx.pads[pad].options.telemetry_label)
 
-    {:ok, state}
+    actions =
+      state.forwarders
+      |> Map.values()
+      |> Enum.find(&(&1.queued_encoding == encoding))
+      |> case do
+        nil -> []
+        _otherwise -> [event: {pad, %Membrane.KeyframeRequestEvent{}}]
+      end
+
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -160,44 +169,55 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_tick(:check_encoding_statuses, _ctx, state) do
-    state =
-      Enum.reduce(state.trackers, state, fn {rid, tracker}, state ->
-        check_encoding_status(rid, tracker, state)
+  def handle_tick(:check_encoding_statuses, ctx, state) do
+    {actions, state} =
+      Enum.reduce(state.trackers, {[], state}, fn {rid, tracker}, {old_actions, state} ->
+        {actions, state} = check_encoding_status(rid, tracker, ctx, state)
+        {old_actions ++ actions, state}
       end)
 
-    {:ok, state}
+    {{:ok, actions}, state}
   end
 
-  defp check_encoding_status(rid, tracker, state) do
+  defp check_encoding_status(rid, tracker, ctx, state) do
     case EncodingTracker.check_encoding_status(tracker) do
       {:ok, tracker} ->
         put_in(state, [:trackers, rid], tracker)
+        |> then(&{[], &1})
 
       {:status_changed, tracker, :active} ->
-        state =
-          Enum.reduce(state.forwarders, state, fn {endpoint_id, forwarder}, state ->
+        {actions, state} =
+          state.forwarders
+          |> Enum.reduce(state, fn {endpoint_id, forwarder}, state ->
             put_in(state, [:forwarders, endpoint_id], Forwarder.encoding_active(forwarder, rid))
           end)
+          |> generate_keyframe_requests(ctx)
 
         state
         |> update_in([:inactive_encodings], &List.delete(&1, rid))
         |> put_in([:trackers, rid], tracker)
+        |> then(&{actions, &1})
 
       {:status_changed, tracker, :inactive} ->
-        state =
-          Enum.reduce(state.forwarders, state, fn {endpoint_id, forwarder}, state ->
-            put_in(state, [:forwarders, endpoint_id], Forwarder.encoding_inactive(forwarder, rid))
+        {actions, state} =
+          state.forwarders
+          |> Enum.reduce(state, fn {endpoint_id, forwarder}, state ->
+            forwarder = Forwarder.encoding_inactive(forwarder, rid)
+            put_in(state, [:forwarders, endpoint_id], forwarder)
           end)
+          |> generate_keyframe_requests(ctx)
 
         state
         |> update_in([:inactive_encodings], &[rid | &1])
         |> put_in([:trackers, rid], tracker)
+        |> then(&{actions, &1})
     end
   end
 
   @impl true
   def handle_other({:select_encoding, {endpoint_id, encoding}}, ctx, state) do
+    Membrane.Logger.error("Select encoding called")
+
     forwarder =
       state.forwarders[endpoint_id]
       |> Forwarder.select_encoding(encoding)
@@ -242,6 +262,30 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       {{:ok, forward: :end_of_stream}, state}
     else
       {:ok, state}
+    end
+  end
+
+  defp generate_keyframe_requests(state, ctx) do
+    ctx.pads
+    |> Enum.find(fn {_key, %{direction: direction}} -> direction == :input end)
+    |> case do
+      nil ->
+        {[], state}
+
+      {Pad.ref(:input, {track_id, _encoding}), _pad_data} ->
+        state.forwarders
+        |> Map.values()
+        |> Enum.filter(
+          &(&1.selected_encoding != &1.queued_encoding and not is_nil(&1.queued_encoding))
+        )
+        |> Enum.flat_map(
+          &[
+            event:
+              {Pad.ref(:input, {track_id, &1.queued_encoding}), %Membrane.KeyframeRequestEvent{}}
+          ]
+        )
+        |> Enum.uniq()
+        |> then(&{&1, state})
     end
   end
 end
