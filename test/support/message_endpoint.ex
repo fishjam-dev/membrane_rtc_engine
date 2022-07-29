@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Support.MessageEndpoint do
   @moduledoc false
 
-  # Simple endpoint that publishes track passed in options
+  # Simple endpoint that sends message it received to its owner.
 
   use Membrane.Bin
 
