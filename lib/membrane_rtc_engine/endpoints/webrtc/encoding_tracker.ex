@@ -2,13 +2,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker do
   @moduledoc false
   # Module responsible for tracking encoding activity.
   #
-  # It is heavily inspired by livekit StreamTracker
+  # It is heavily inspired by livekit StreamTracker:
   # https://github.com/livekit/livekit-server/blob/f3572d2654dd5d1c276c9ab20e4b7bbd2184992e/pkg/sfu/streamtracker.go
   #
-  # When client does not have enough bandwidth to send
-  # all encodings it can disable some of them.
-  # This is not signalised so that SFU has to track
-  # encoding activity.
+  # When client does not have enough bandwidth to send all encodings it can disable some of them.
+  # This is not signalled so SFU has to track encoding activity.
 
   require Membrane.Logger
 
