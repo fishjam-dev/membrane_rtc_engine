@@ -269,6 +269,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
     state.forwarders
     |> Enum.filter(fn {key, forwarder} ->
+      # Queued encoding has been changed
+      # And this forwarder requires a keyframe request
       forwarder.queued_encoding != old_state.forwarders[key].queued_encoding and
         forwarder.selected_encoding != forwarder.queued_encoding and
         not is_nil(forwarder.queued_encoding)
