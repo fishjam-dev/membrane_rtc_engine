@@ -111,6 +111,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     end
   end
 
+  @spec set_available_encodings(t(), list()) :: t()
+  def set_available_encodings(forwarder, encodings) do
+    forwarder = %{forwarder | allowed_encodings: encodings}
+
+    forwarder_with_new_encoding =
+      select_encoding(forwarder, get_next_encoding(forwarder.active_encodings, encodings))
+
+    cond do
+      forwarder.queued_encoding not in [nil | encodings] ->
+        forwarder_with_new_encoding
+
+      forwarder.selected_encoding not in encodings ->
+        %{forwarder_with_new_encoding | old_encoding: forwarder.selected_encoding}
+
+      true ->
+        forwarder
+    end
+  end
+
   @doc """
   Marks given `encoding` as active.
 
