@@ -246,8 +246,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_other({:bandwidth_limitation, _limitations}, _ctx, state) do
-    {:ok, state}
+  def handle_other({:bandwidth_limitation, limitations}, _ctx, state) do
+    forwarders =
+      Map.new(state.forwarders, fn {endpoint_id, forwarder} ->
+        {endpoint_id, %{forwarder | allowed_encodings: Map.get(limitations, endpoint_id)}}
+      end)
+
+    {:ok, %{state | forwarders: forwarders}}
   end
 
   @impl true

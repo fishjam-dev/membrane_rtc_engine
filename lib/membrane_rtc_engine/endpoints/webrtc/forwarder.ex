@@ -26,7 +26,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
           vp8_munger: VP8Munger.t(),
           encodings: [String.t()],
           active_encodings: [String.t()],
-          started?: boolean()
+          started?: boolean(),
+          allowed_encodings: [String.t()]
         }
 
   @enforce_keys [:codec, :selected_encoding, :encodings, :active_encodings, :rtp_munger]
@@ -35,7 +36,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
                 :queued_encoding,
                 :old_encoding,
                 :vp8_munger,
-                started?: false
+                started?: false,
+                allowed_encodings: ["h", "m", "l"]
               ]
 
   @doc """
@@ -90,12 +92,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       # if this is currently used and selected encoding
       forwarder.selected_encoding == encoding and forwarder.old_encoding == nil ->
         forwarder = %__MODULE__{forwarder | old_encoding: encoding}
-        select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+
+        select_encoding(
+          forwarder,
+          get_next_encoding(forwarder.active_encodings, forwarder.allowed_encodings)
+        )
 
       # if this is currently used encoding but it wasn't explicitly selected
       # i.e. we switched to it automatically
       forwarder.selected_encoding == encoding ->
-        select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+        select_encoding(
+          forwarder,
+          get_next_encoding(forwarder.active_encodings, forwarder.allowed_encodings)
+        )
 
       true ->
         forwarder
@@ -126,11 +135,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       # active again, try to select a new encoding
       # it might be better than currently used
       forwarder.old_encoding != nil ->
-        select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+        select_encoding(
+          forwarder,
+          get_next_encoding(forwarder.active_encodings, forwarder.allowed_encodings)
+        )
 
       # if we didn't have any active encoding
       forwarder.selected_encoding == nil ->
-        select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+        select_encoding(
+          forwarder,
+          get_next_encoding(forwarder.active_encodings, forwarder.allowed_encodings)
+        )
 
       true ->
         forwarder
@@ -171,8 +186,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     %__MODULE__{forwarder | queued_encoding: encoding}
   end
 
-  defp get_next_encoding(encodings) do
-    encodings |> sort_encodings() |> List.first()
+  defp get_next_encoding(encodings, allowed_encodings \\ ["h", "m", "l"]) do
+    encodings |> Enum.filter(&(&1 in allowed_encodings)) |> sort_encodings() |> List.first()
   end
 
   defp sort_encodings(encodings) do
