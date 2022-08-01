@@ -2,6 +2,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @moduledoc false
   use Membrane.Filter
 
+  alias Membrane.Time
   alias Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker
   alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
   alias Membrane.RTC.Utils
@@ -67,7 +68,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
        track: opts.track,
        forwarders: %{},
        trackers: trackers,
-       inactive_encodings: []
+       inactive_encodings: [],
+       layer_bandwidth_estimation_buffer: %{}
      }}
   end
 
@@ -144,8 +146,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         _other -> []
       end)
 
-    start_timer = [start_timer: {:check_encoding_statuses, 1_000_000_000}]
-    {{:ok, start_timer ++ caps}, state}
+    start_timers = [
+      start_timer: {:check_encoding_statuses, Time.seconds(1)},
+      start_timer: {:bandwidth_estimation_timer, Time.seconds(1)}
+    ]
+
+    {{:ok, start_timers ++ caps}, state}
   end
 
   @impl true
@@ -156,7 +162,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       ctx.pads[pad].options.telemetry_label
     )
 
-    state = update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))
+    updated_estimation_buffer =
+      Map.update(state.layer_bandwidth_estimation_buffer, pad, [buffer], &[buffer | &1])
+
+    state =
+      state
+      |> update_in([:trackers, encoding], &EncodingTracker.increment_samples(&1))
+      |> Map.put(:layer_bandwidth_estimation_buffer, updated_estimation_buffer)
 
     {actions, state} =
       Enum.flat_map_reduce(state.forwarders, state, fn
@@ -167,6 +179,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       end)
 
     {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_tick(:bandwidth_estimation_timer, _ctx, state) do
+    estimation =
+      state.layer_bandwidth_estimation_buffer
+      |> Map.new(fn {Pad.ref(:input, {_track_id, layer}), buffers} ->
+        bitrate =
+          if length(buffers) >= 10 do
+            buffers
+            |> Enum.map(&byte_size(&1.payload))
+            |> Enum.sum()
+            |> then(&(&1 * 8 / 1024))
+          else
+            0
+          end
+
+        {layer, bitrate}
+      end)
+
+    {{:ok, notify: {:bandwidth_estimation, estimation}},
+     %{state | layer_bandwidth_estimation_buffer: %{}}}
   end
 
   @impl true
@@ -209,6 +243,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         |> update_in([:inactive_encodings], &[rid | &1])
         |> put_in([:trackers, rid], tracker)
     end
+  end
+
+  @impl true
+  def handle_other({:bandwidth_limitation, _limitations}, _ctx, state) do
+    {:ok, state}
   end
 
   @impl true

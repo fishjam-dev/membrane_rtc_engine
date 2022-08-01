@@ -196,6 +196,7 @@ defmodule Membrane.RTC.Engine do
   import Membrane.RTC.Utils
 
   alias Membrane.RTC.Engine.{
+    BandwidthManager,
     DisplayManager,
     Endpoint,
     Endpoint.WebRTC.SimulcastTee,
@@ -483,7 +484,8 @@ defmodule Membrane.RTC.Engine do
        pending_subscriptions: [],
        filters: %{},
        subscriptions: %{},
-       display_manager: display_manager
+       display_manager: display_manager,
+       bandwidth_manager: BandwidthManager.new()
      }}
   end
 
@@ -891,6 +893,30 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
+  defp handle_endpoint_notification({:bandwidth_estimation, estimation}, endpoint_id, _ctx, state) do
+    state =
+      Map.update!(
+        state,
+        :bandwidth_manager,
+        &BandwidthManager.add_endpoint_estimation(&1, endpoint_id, estimation)
+      )
+
+    messages =
+      state.bandwidth_manager
+      |> BandwidthManager.generate_allowed_layers(state.subscriptions)
+      |> Enum.group_by(fn {{_endpoint_id, track_id}, _value} -> track_id end, fn {{endpoint_id,
+                                                                                   _track_id},
+                                                                                  value} ->
+        {endpoint_id, value}
+      end)
+      |> Enum.flat_map(fn {track_id, limitations} ->
+        message = {:bandwidth_limitation, Map.new(limitations)}
+        [forward: {{:tee, track_id}, message}]
+      end)
+
+    {{:ok, messages}, state}
+  end
+
   defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
     # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
     # `track_id` now
@@ -901,6 +927,17 @@ defmodule Membrane.RTC.Engine do
       end)
 
     dispatch(endpoint_id, MediaEvent.encoding_switched(from_endpoint_id, track_id, encoding))
+    {:ok, state}
+  end
+
+  defp handle_tee_notification({:bandwidth_estimation, estimation}, track_id, state) do
+    state =
+      Map.update!(
+        state,
+        :bandwidth_manager,
+        &BandwidthManager.add_track_estimation(&1, track_id, estimation)
+      )
+
     {:ok, state}
   end
 
