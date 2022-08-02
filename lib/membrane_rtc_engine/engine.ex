@@ -901,6 +901,10 @@ defmodule Membrane.RTC.Engine do
         &BandwidthManager.add_endpoint_estimation(&1, endpoint_id, estimation)
       )
 
+    Membrane.Logger.info(
+      "Received bandwidth estimation for endpoint #{endpoint_id} of #{estimation}"
+    )
+
     messages =
       state.bandwidth_manager
       |> BandwidthManager.generate_allowed_layers(state.subscriptions)
@@ -938,7 +942,24 @@ defmodule Membrane.RTC.Engine do
         &BandwidthManager.add_track_estimation(&1, track_id, estimation)
       )
 
-    {:ok, state}
+    Membrane.Logger.info(
+      "Received layer bandwidth estimation for track #{track_id} of #{inspect(estimation, pretty: true)}"
+    )
+
+    messages =
+      state.bandwidth_manager
+      |> BandwidthManager.generate_allowed_layers(state.subscriptions)
+      |> Enum.group_by(fn {{_endpoint_id, track_id}, _value} -> track_id end, fn {{endpoint_id,
+                                                                                   _track_id},
+                                                                                  value} ->
+        {endpoint_id, value}
+      end)
+      |> Enum.flat_map(fn {track_id, limitations} ->
+        message = {:bandwidth_limitation, Map.new(limitations)}
+        [forward: {{:tee, track_id}, message}]
+      end)
+
+    {{:ok, messages}, state}
   end
 
   #

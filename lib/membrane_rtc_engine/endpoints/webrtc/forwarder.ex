@@ -120,9 +120,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
     cond do
       forwarder.queued_encoding not in [nil | encodings] ->
+        Membrane.Logger.info(
+          "Currently queued encoding doesn't satisfy bandwidth requirements and is being changed to #{forwarder_with_new_encoding.queued_encoding}"
+        )
+
         forwarder_with_new_encoding
 
       forwarder.selected_encoding not in encodings ->
+        Membrane.Logger.info(
+          "Currently selected encoding doesn't satisfy bandwidth requirements and is being changed to #{forwarder_with_new_encoding.queued_encoding}"
+        )
+
         %{forwarder_with_new_encoding | old_encoding: forwarder.selected_encoding}
 
       true ->
