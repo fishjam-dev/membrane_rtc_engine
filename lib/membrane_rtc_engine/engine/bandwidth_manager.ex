@@ -66,7 +66,7 @@ defmodule Membrane.RTC.Engine.BandwidthManager do
       Enum.reduce_while(
         ["h", "m", "l"],
         values,
-        &if(Map.has_key?(&2, &1), do: {:halt, Map.drop(&2, &1)}, else: {:cont, &2})
+        &if(Map.has_key?(&2, &1), do: {:halt, Map.delete(&2, &1)}, else: {:cont, &2})
       )
     end
 
