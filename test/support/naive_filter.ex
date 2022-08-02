@@ -1,4 +1,5 @@
 defmodule Membrane.RTC.Engine.Support.NaiveFilter do
+  @moduledoc false
   # Naive filter which only forwards packets
   use Membrane.Filter
 
