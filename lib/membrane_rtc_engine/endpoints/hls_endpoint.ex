@@ -172,6 +172,36 @@ if Enum.all?(
     end
 
     @impl true
+    def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
+      children =
+        [
+          :opus_decoder,
+          :aac_encoder,
+          :aac_parser,
+          :keyframe_requester,
+          :video_parser
+        ]
+        |> Enum.map(&{&1, track_id})
+        |> Enum.filter(&Map.has_key?(ctx.children, &1))
+
+      # TODO: Remove SinkBin after removing first track is removed
+
+      {removed_track, tracks} = Map.pop!(state.tracks, track_id)
+
+      sink_bin_used? =
+        Enum.any?(tracks, fn {_id, track} ->
+          track.stream_id == removed_track.stream_id
+        end)
+
+      children =
+        if sink_bin_used?,
+          do: children,
+          else: [{:sink_bin, removed_track.stream_id} | children]
+
+      {{:ok, remove_child: children}, state}
+    end
+
+    @impl true
     def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
@@ -218,25 +248,25 @@ if Enum.all?(
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id, _segment_duration) do
+      defp hls_links_and_children(link_builder, :OPUS, track, _segment_duration, _framerate) do
         %ParentSpec{
           children: %{
-            {:opus_decoder, track_id} => Membrane.Opus.Decoder,
-            {:aac_encoder, track_id} => Membrane.AAC.FDK.Encoder,
-            {:aac_parser, track_id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+            {:opus_decoder, track.id} => Membrane.Opus.Decoder,
+            {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
+            {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
           },
           links: [
             link_builder
-            |> to({:opus_decoder, track_id})
-            |> to({:aac_encoder, track_id})
-            |> to({:aac_parser, track_id})
-            |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
-            |> to({:hls_sink_bin, stream_id})
+            |> to({:opus_decoder, track.id})
+            |> to({:aac_encoder, track.id})
+            |> to({:aac_parser, track.id})
+            |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+            |> to({:hls_sink_bin, track.stream_id})
           ]
         }
       end
     else
-      defp hls_links_and_children(_link_builder, :OPUS, _track_id, _stream_id, _segment_duration) do
+      defp hls_links_and_children(_link_builder, :OPUS, _track, _segment_duration, _framerate) do
         raise """
         Cannot find one of the modules required to support Opus audio input.
         Ensure `:membrane_opus_plugin`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
@@ -268,6 +298,7 @@ if Enum.all?(
         },
         links: [
           link_builder
+          |> to({:keyframe_requester, track.id})
           |> to({:video_parser, track.id})
           |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
           |> to({:hls_sink_bin, track.stream_id})

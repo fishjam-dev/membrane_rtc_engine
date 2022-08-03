@@ -1299,17 +1299,15 @@ defmodule Membrane.RTC.Engine do
     |> Enum.map(&build_raw_format_link(&1, state))
   end
 
-  defp build_raw_format_link(track_id, state) do
+  defp build_raw_format_link(track, state) do
     # Build raw format filter and tee for the given track.
     # Raw format filter and tee are connected to the output of the
     # track's base tee.
 
-    track = get_track(track_id, state.endpoints)
-
-    link({:tee, track_id})
+    link({:tee, track.id})
     |> via_out(Pad.ref(:output, {:endpoint, :raw_format_filter}))
-    |> to({:raw_format_filter, track_id}, get_in(state, [:filters, track_id]))
-    |> to({:raw_format_tee, track_id}, %PushOutputTee{codec: track.encoding})
+    |> to({:raw_format_filter, track.id}, get_in(state, [:filters, track.id]))
+    |> to({:raw_format_tee, track.id}, %PushOutputTee{codec: track.encoding})
   end
 
   defp build_subscription_links(subscriptions, state) do
