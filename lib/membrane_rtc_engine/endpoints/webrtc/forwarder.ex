@@ -8,6 +8,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
 
+  alias __MODULE__.EncodingReport
+
   require Membrane.Pad
   require Membrane.Logger
 
@@ -17,17 +19,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   * `old_encoding` - encoding that was used before becoming inactive. Once this encoding
   becomes active again, forwarder will switch back to it.
   """
-  @type t() :: %__MODULE__{
-          codec: :H264 | :VP8,
-          selected_encoding: String.t() | nil,
-          queued_encoding: String.t() | nil,
-          old_encoding: String.t() | nil,
-          rtp_munger: RTPMunger.t(),
-          vp8_munger: VP8Munger.t(),
-          encodings: [String.t()],
-          active_encodings: [String.t()],
-          started?: boolean()
-        }
+  @opaque t() :: %__MODULE__{
+            codec: :H264 | :VP8,
+            selected_encoding: String.t() | nil,
+            queued_encoding: String.t() | nil,
+            old_encoding: String.t() | nil,
+            rtp_munger: RTPMunger.t(),
+            vp8_munger: VP8Munger.t(),
+            encodings: [String.t()],
+            active_encodings: [String.t()],
+            started?: boolean()
+          }
 
   @enforce_keys [:codec, :selected_encoding, :encodings, :active_encodings, :rtp_munger]
   defstruct @enforce_keys ++
@@ -43,7 +45,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
   * `encodings` - a list of possible encodings.
   * `selected_encoding` - encoding to forward. If not provided,
-  the highest possible encoding will be choosen.
+  the highest possible encoding will be chosen.
   """
   @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t(), [String.t()], String.t() | nil) :: t()
   def new(codec, clock_rate, encodings, selected_encoding \\ nil)
@@ -171,20 +173,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     %__MODULE__{forwarder | queued_encoding: encoding}
   end
 
+  @spec encodings_report(t()) :: EncodingReport.t()
+  def encodings_report(forwarder),
+    do: %EncodingReport{
+      currently_playing: forwarder.selected_encoding,
+      awaiting_keyframe: forwarder.queued_encoding
+    }
+
   defp get_next_encoding(encodings) do
     encodings |> sort_encodings() |> List.first()
   end
 
   defp sort_encodings(encodings) do
-    get_value = fn encoding ->
-      case encoding do
+    Enum.sort_by(
+      encodings,
+      fn
         "h" -> 3
         "m" -> 2
         "l" -> 1
-      end
-    end
-
-    Enum.sort(encodings, fn e1, e2 -> get_value.(e1) > get_value.(e2) end)
+      end,
+      :desc
+    )
   end
 
   @spec process(t(), Membrane.Buffer.t(), Endpoint.WebRTC.encoding_t(), any()) ::
