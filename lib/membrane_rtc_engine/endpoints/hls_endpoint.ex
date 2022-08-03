@@ -184,8 +184,6 @@ if Enum.all?(
         |> Enum.map(&{&1, track_id})
         |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
-      # TODO: Remove SinkBin after removing first track is removed
-
       {removed_track, tracks} = Map.pop!(state.tracks, track_id)
 
       sink_bin_used? =

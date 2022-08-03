@@ -3,7 +3,7 @@ defmodule Membrane.RTC.EngineTest do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.{Message, Peer}
-  alias Membrane.RTC.Engine.Support.{TrackEndpoint, MessageEndpoint}
+  alias Membrane.RTC.Engine.Support.{MessageEndpoint, TrackEndpoint}
 
   setup do
     options = [

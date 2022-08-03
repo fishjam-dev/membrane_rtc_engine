@@ -6,9 +6,9 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   use Membrane.Bin
 
-  alias Membrane.RTC.Engine
-
   require Membrane.Logger
+
+  alias Membrane.RTC.Engine
 
   @type encoding_t() :: String.t()
 
