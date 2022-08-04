@@ -194,7 +194,7 @@ if Enum.all?(
       children =
         if sink_bin_used?,
           do: children,
-          else: [{:sink_bin, removed_track.stream_id} | children]
+          else: [{:hls_sink_bin, removed_track.stream_id} | children]
 
       {{:ok, remove_child: children}, state}
     end
