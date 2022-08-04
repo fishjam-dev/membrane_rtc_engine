@@ -89,6 +89,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Process.sleep(15_000)
 
+      Engine.remove_endpoint(rtc_engine, file_endpoint_id)
+
       output_dir = Path.join([@output_dir, stream_id])
       reference_dir = Path.join([@reference_dir, stream_id])
 
@@ -102,6 +104,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
         assert File.read!(output_path) == File.read!(reference_path)
       end
+
+      assert_receive {:cleanup, _cleanup_function, ^stream_id}
 
       File.rm_rf!(@output_dir)
     end
