@@ -894,6 +894,8 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_endpoint_notification({:bandwidth_estimation, estimation}, endpoint_id, _ctx, state) do
+    estimation = estimation / 1024
+
     state =
       Map.update!(
         state,
@@ -902,7 +904,7 @@ defmodule Membrane.RTC.Engine do
       )
 
     Membrane.Logger.info(
-      "Received bandwidth estimation for endpoint #{endpoint_id} of #{estimation / 1024} kbps"
+      "Received bandwidth estimation for endpoint #{endpoint_id} of #{estimation} kbps"
     )
 
     messages =
