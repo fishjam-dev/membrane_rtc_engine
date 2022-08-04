@@ -942,10 +942,6 @@ defmodule Membrane.RTC.Engine do
         &BandwidthManager.add_track_estimation(&1, track_id, estimation)
       )
 
-    Membrane.Logger.info(
-      "Received layer bandwidth estimation for track #{track_id} of #{inspect(estimation, pretty: true)}"
-    )
-
     messages =
       state.bandwidth_manager
       |> BandwidthManager.generate_allowed_layers(state.subscriptions)
