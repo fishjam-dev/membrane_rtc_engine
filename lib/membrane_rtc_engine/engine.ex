@@ -902,7 +902,7 @@ defmodule Membrane.RTC.Engine do
       )
 
     Membrane.Logger.info(
-      "Received bandwidth estimation for endpoint #{endpoint_id} of #{estimation}"
+      "Received bandwidth estimation for endpoint #{endpoint_id} of #{estimation / 1024} kbps"
     )
 
     messages =
