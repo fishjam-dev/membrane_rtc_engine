@@ -152,7 +152,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
         %__MODULE__{selected_encoding: encoding, queued_encoding: nil} = forwarder,
         encoding
       ) do
-    Membrane.Logger.debug("Requested currently used encoding. Ignoring.")
+    Membrane.Logger.debug("Requested currently used encoding #{encoding}. Ignoring.")
     forwarder
   end
 

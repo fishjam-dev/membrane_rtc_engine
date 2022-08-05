@@ -5,6 +5,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker
   alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
   alias Membrane.RTC.Utils
+  alias Membrane.Time
 
   require Membrane.Logger
   require Membrane.TelemetryMetrics
@@ -144,7 +145,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         _other -> []
       end)
 
-    start_timer = [start_timer: {:check_encoding_statuses, 1_000_000_000}]
+    start_timer = [start_timer: {:check_encoding_statuses, Time.seconds(1)}]
     {{:ok, start_timer ++ caps}, state}
   end
 
@@ -211,6 +212,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_other({:select_encoding, {endpoint_id, encoding}}, ctx, state) do
+    Membrane.Logger.debug("Selecting encoding #{encoding} for endpoint #{endpoint_id}")
     forwarder = Forwarder.select_encoding(state.forwarders[endpoint_id], encoding)
     new_state = put_in(state, [:forwarders, endpoint_id], forwarder)
 
