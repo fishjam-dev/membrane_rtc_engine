@@ -8,10 +8,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
 
-  alias __MODULE__.EncodingReport
-
   require Membrane.Pad
   require Membrane.Logger
+
+  defmodule Status do
+    @moduledoc """
+    Struct representing get_status of encodings returned by the Forwarder.
+
+    It contains information about:
+    - currently active encoding
+    - an encoding that's waiting for a keyframe and is queued to become an active encoding
+    """
+
+    @enforce_keys [:currently_playing]
+    defstruct @enforce_keys ++ [awaiting_keyframe: nil]
+
+    @type t() :: %__MODULE__{
+            currently_playing: String.t(),
+            awaiting_keyframe: String.t() | nil
+          }
+  end
 
   @typedoc """
   * `selected_encoding` - encoding currently being forwarded.
@@ -173,9 +189,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     %__MODULE__{forwarder | queued_encoding: encoding}
   end
 
-  @spec encodings_report(t()) :: EncodingReport.t()
-  def encodings_report(forwarder),
-    do: %EncodingReport{
+  @spec get_status(t()) :: Status.t()
+  def get_status(forwarder),
+    do: %Status{
       currently_playing: forwarder.selected_encoding,
       awaiting_keyframe: forwarder.queued_encoding
     }

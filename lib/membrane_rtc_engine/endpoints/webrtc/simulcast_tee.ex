@@ -242,19 +242,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     state.forwarders
     |> Enum.filter(fn {endpoint_id, forwarder} ->
       old_forwarder = old_state.forwarders[endpoint_id]
-      old_encoding = Forwarder.encodings_report(old_forwarder).awaiting_keyframe
-      new_encoding = Forwarder.encodings_report(forwarder).awaiting_keyframe
+      old_encoding = Forwarder.get_status(old_forwarder).awaiting_keyframe
+      new_encoding = Forwarder.get_status(forwarder).awaiting_keyframe
 
       not is_nil(new_encoding) and old_encoding != new_encoding
     end)
     |> Enum.uniq()
     |> Enum.map(fn forwarder -> find_pad(forwarder, ctx) end)
     |> Enum.reject(&is_nil/1)
+    |> tap(fn events ->
+      Enum.each(events, &Membrane.Logger.debug("Sending keyframe request on pad #{inspect(&1)}"))
+    end)
     |> Enum.map(&{:event, {&1, %Membrane.KeyframeRequestEvent{}}})
   end
 
   defp find_pad({_key, forwarder}, ctx) do
-    %Forwarder.EncodingReport{awaiting_keyframe: encoding} = Forwarder.encodings_report(forwarder)
+    %Forwarder.Status{awaiting_keyframe: encoding} = Forwarder.get_status(forwarder)
 
     ctx.pads
     |> Map.keys()
