@@ -18,7 +18,7 @@ defmodule Membrane.RTC.Engine.Testing.Source do
 
   @impl true
   def handle_init(%__MODULE__{} = opts) do
-    {:ok, opts |> Map.from_struct() |> Map.put(:seq_num, 0)}
+    {:ok, opts |> Map.from_struct() |> Map.merge(%{seq_num: 0, active?: true})}
   end
 
   @impl true
@@ -33,7 +33,7 @@ defmodule Membrane.RTC.Engine.Testing.Source do
   end
 
   @impl true
-  def handle_other(:supply_demand, _ctx, state) do
+  def handle_other(:supply_demand, %{playback_state: :playing} = _ctx, %{active?: true} = state) do
     timestamp = state.seq_num * state.interval
 
     buffer = %Buffer{
@@ -51,6 +51,13 @@ defmodule Membrane.RTC.Engine.Testing.Source do
     state = Map.update!(state, :seq_num, &(&1 + 1))
     {{:ok, buffer: {:output, buffer}, redemand: :output}, state}
   end
+
+  @impl true
+  def handle_other(:supply_demand, _ctx, state), do: {:ok, state}
+
+  @impl true
+  def handle_other({:set_active, active?}, _ctx, state),
+    do: {{:ok, redemand: :output}, %{state | active?: active?}}
 
   @impl true
   def handle_event(:output, event, _ctx, state) do
