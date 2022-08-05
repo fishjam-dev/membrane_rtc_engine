@@ -1,5 +1,6 @@
-defmodule Membrane.RTC.Engine.Testing.Source do
+defmodule Membrane.RTC.Engine.Support.TestSource do
   @moduledoc false
+
   use Membrane.Source
   use Bitwise
 

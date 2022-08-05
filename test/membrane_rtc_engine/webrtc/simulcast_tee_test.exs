@@ -6,8 +6,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
   import Membrane.ParentSpec
 
   alias Membrane.{Buffer, Pad, Time}
-  alias Membrane.RTC.Engine.Track
   alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee
+  alias Membrane.RTC.Engine.Track
+  alias Membrane.RTC.Engine.Support.TestSource
   alias Membrane.Testing.{Pipeline, Sink}
 
   require Membrane.Pad
@@ -76,7 +77,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
     layers_links =
       for layer <- @layers do
-        source = %Membrane.RTC.Engine.Testing.Source{
+        source = %TestSource{
           interval: Time.milliseconds(50),
           payload: fake_keyframe(layer)
         }
