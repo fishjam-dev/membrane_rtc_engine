@@ -12,27 +12,43 @@ defmodule Membrane.RTC.Engine.BandwidthManagerTest do
 
   @all_layers ["h", "m", "l"]
 
-  test "Returns all layers when no estimations are present" do
-    manager = BandwidthManager.new()
+  describe "BandwidthManager" do
+    test "returns all layers when no estimations are present" do
+      manager = BandwidthManager.new()
 
-    manager
-    |> BandwidthManager.generate_allowed_layers(@subscriptions)
-    |> Enum.each(fn {_key, layers} ->
-      assert layers |> MapSet.new() |> MapSet.equal?(MapSet.new(@all_layers))
-    end)
-  end
+      manager
+      |> BandwidthManager.generate_allowed_layers(@subscriptions)
+      |> Enum.each(fn {_key, layers} ->
+        assert layers |> MapSet.new() |> MapSet.equal?(MapSet.new(@all_layers))
+      end)
+    end
 
-  test "successfully drops 'h' layer when there isn't enough bandwidth" do
-    manager =
-      BandwidthManager.new()
-      |> BandwidthManager.add_endpoint_estimation("endpoint1", 1_600)
-      |> BandwidthManager.add_track_estimation("track1", %{"h" => 1200, "m" => 800, "l" => 200})
-      |> BandwidthManager.add_track_estimation("track2", %{"h" => 1200, "m" => 800, "l" => 200})
+    test "successfully drops 'h' layer when there isn't enough bandwidth" do
+      manager =
+        BandwidthManager.new()
+        |> BandwidthManager.add_endpoint_estimation("endpoint1", 1_600)
+        |> BandwidthManager.add_track_estimation("track1", %{"h" => 1200, "m" => 800, "l" => 200})
+        |> BandwidthManager.add_track_estimation("track2", %{"h" => 1200, "m" => 800, "l" => 200})
 
-    layers = BandwidthManager.generate_allowed_layers(manager, @subscriptions)
+      layers = BandwidthManager.generate_allowed_layers(manager, @subscriptions)
 
-    layers
-    |> Map.values()
-    |> Enum.each(&assert @all_layers -- &1 == ["h"])
+      layers
+      |> Map.values()
+      |> Enum.each(&assert @all_layers -- &1 == ["h"])
+    end
+
+    test "disabled all layers when there isn't enough bandwidth" do
+      manager =
+        BandwidthManager.new()
+        |> BandwidthManager.add_endpoint_estimation("endpoint1", 100)
+        |> BandwidthManager.add_track_estimation("track1", %{"h" => 1200, "m" => 800, "l" => 200})
+        |> BandwidthManager.add_track_estimation("track2", %{"h" => 1200, "m" => 800, "l" => 200})
+
+      layers = BandwidthManager.generate_allowed_layers(manager, @subscriptions)
+
+      layers
+      |> Map.values()
+      |> Enum.each(&assert &1 == [])
+    end
   end
 end
