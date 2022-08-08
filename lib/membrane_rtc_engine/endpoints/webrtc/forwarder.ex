@@ -11,23 +11,41 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
 
+  defmodule Status do
+    @moduledoc """
+    Struct representing Forwarder status.
+    """
+
+    @enforce_keys [:currently_playing]
+    defstruct @enforce_keys ++ [awaiting_keyframe: nil]
+
+    @typedoc """
+    * `currently_playing` - currently active encoding
+    * `awaiting_keyframe` - an encoding that's waiting for a keyframe and is queued to become an active encoding
+    """
+    @type t() :: %__MODULE__{
+            currently_playing: String.t(),
+            awaiting_keyframe: String.t() | nil
+          }
+  end
+
   @typedoc """
   * `selected_encoding` - encoding currently being forwarded.
   * `queued_encoding` - encoding forwarder will switch to once it receives a keyframe.
   * `old_encoding` - encoding that was used before becoming inactive. Once this encoding
   becomes active again, forwarder will switch back to it.
   """
-  @type t() :: %__MODULE__{
-          codec: :H264 | :VP8,
-          selected_encoding: String.t() | nil,
-          queued_encoding: String.t() | nil,
-          old_encoding: String.t() | nil,
-          rtp_munger: RTPMunger.t(),
-          vp8_munger: VP8Munger.t(),
-          encodings: [String.t()],
-          active_encodings: [String.t()],
-          started?: boolean()
-        }
+  @opaque t() :: %__MODULE__{
+            codec: :H264 | :VP8,
+            selected_encoding: String.t() | nil,
+            queued_encoding: String.t() | nil,
+            old_encoding: String.t() | nil,
+            rtp_munger: RTPMunger.t(),
+            vp8_munger: VP8Munger.t(),
+            encodings: [String.t()],
+            active_encodings: [String.t()],
+            started?: boolean()
+          }
 
   @enforce_keys [:codec, :selected_encoding, :encodings, :active_encodings, :rtp_munger]
   defstruct @enforce_keys ++
@@ -43,7 +61,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
   * `encodings` - a list of possible encodings.
   * `selected_encoding` - encoding to forward. If not provided,
-  the highest possible encoding will be choosen.
+  the highest possible encoding will be chosen.
   """
   @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t(), [String.t()], String.t() | nil) :: t()
   def new(codec, clock_rate, encodings, selected_encoding \\ nil)
@@ -90,12 +108,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       # if this is currently used and selected encoding
       forwarder.selected_encoding == encoding and forwarder.old_encoding == nil ->
         forwarder = %__MODULE__{forwarder | old_encoding: encoding}
-        do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+        select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
 
       # if this is currently used encoding but it wasn't explicitly selected
       # i.e. we switched to it automatically
       forwarder.selected_encoding == encoding ->
-        do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+        select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
 
       true ->
         forwarder
@@ -120,17 +138,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       # before it became inactive
       forwarder.old_encoding == encoding ->
         forwarder = %__MODULE__{forwarder | old_encoding: nil}
-        do_select_encoding(forwarder, encoding)
+        select_encoding(forwarder, encoding)
 
       # if we are waiting for selected encoding to become
       # active again, try to select a new encoding
       # it might be better than currently used
       forwarder.old_encoding != nil ->
-        do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+        select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
 
       # if we didn't have any active encoding
       forwarder.selected_encoding == nil ->
-        do_select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
+        select_encoding(forwarder, get_next_encoding(forwarder.active_encodings))
 
       true ->
         forwarder
@@ -140,25 +158,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   @doc """
   Selects encoding forwarder will forward.
   """
-  @spec select_encoding(t(), String.t()) :: t()
-  def select_encoding(forwarder, encoding) do
-    do_select_encoding(forwarder, encoding)
-  end
-
-  defp do_select_encoding(forwarder, nil) do
+  @spec select_encoding(forwarder :: t(), encoding :: String.t()) :: t()
+  def select_encoding(forwarder, nil) do
     Membrane.Logger.debug("No active encoding.")
     %__MODULE__{forwarder | selected_encoding: nil, queued_encoding: nil}
   end
 
-  defp do_select_encoding(
-         %__MODULE__{selected_encoding: encoding, queued_encoding: nil} = forwarder,
-         encoding
-       ) do
-    Membrane.Logger.debug("Requested currently used encoding. Ignoring.")
+  def select_encoding(
+        %__MODULE__{selected_encoding: encoding, queued_encoding: nil} = forwarder,
+        encoding
+      ) do
+    Membrane.Logger.debug("Requested currently used encoding #{encoding}. Ignoring.")
     forwarder
   end
 
-  defp do_select_encoding(%__MODULE__{selected_encoding: encoding} = forwarder, encoding) do
+  def select_encoding(%__MODULE__{selected_encoding: encoding} = forwarder, encoding) do
     Membrane.Logger.debug("""
     Requested encoding: #{inspect(encoding)} which is currently used but while waiting
     for keyframe for queued_encoding #{inspect(forwarder.queued_encoding)}.
@@ -168,27 +182,34 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     %__MODULE__{forwarder | queued_encoding: nil}
   end
 
-  defp do_select_encoding(forwarder, encoding) do
+  def select_encoding(forwarder, encoding) do
     # enqueue encoding, we will switch when
     # we receive key frame
     Membrane.Logger.debug("Enqueuing encoding #{inspect(encoding)}.")
     %__MODULE__{forwarder | queued_encoding: encoding}
   end
 
+  @spec get_status(t()) :: Status.t()
+  def get_status(forwarder),
+    do: %Status{
+      currently_playing: forwarder.selected_encoding,
+      awaiting_keyframe: forwarder.queued_encoding
+    }
+
   defp get_next_encoding(encodings) do
     encodings |> sort_encodings() |> List.first()
   end
 
   defp sort_encodings(encodings) do
-    get_value = fn encoding ->
-      case encoding do
+    Enum.sort_by(
+      encodings,
+      fn
         "h" -> 3
         "m" -> 2
         "l" -> 1
-      end
-    end
-
-    Enum.sort(encodings, fn e1, e2 -> get_value.(e1) > get_value.(e2) end)
+      end,
+      :desc
+    )
   end
 
   @spec process(t(), Membrane.Buffer.t(), Endpoint.WebRTC.encoding_t(), any()) ::

@@ -10,7 +10,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @room_url "http://localhost:4001"
 
   # in miliseconds
-  @join_interval 20_000
+  @join_interval 30_000
 
   @start_with_simulcast "start-simulcast"
   @change_own_low "simulcast-local-low-encoding"
@@ -187,6 +187,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     }
 
     sender_actions = [
+      {:wait, 1_000},
       {:click, @change_own_medium, 1_000},
       {:get_stats, @simulcast_outbound_stats, 10, 1_000, tag: :after_disabling_medium_en},
       {:click, @change_own_high, 1_000},
@@ -202,7 +203,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     ]
 
     receiver_actions = [
-      {:wait, 1_000},
+      {:wait, 2_000},
       {:get_stats, @simulcast_inbound_stats, 10, 1_000, tag: :after_disabling_medium_en},
       {:wait, 1_000},
       {:get_stats, @simulcast_inbound_stats, 10, 1_000, tag: :after_disabling_high_en},
@@ -298,8 +299,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
         assert_receiver_encoding(receiver_stats, receiver_encoding)
     end)
     |> assert("Failed on tag: #{tag} should be encoding: #{receiver_encoding},
-          receiver stats are: #{inspect(receiver_stats_samples)}
-          sender stats are: #{inspect(Enum.map(sender_stats_samples, & &1[receiver_encoding]))}
+          receiver stats are: #{inspect(receiver_stats_samples, limit: :infinity, pretty: true)}
+          sender stats are: #{inspect(Enum.map(sender_stats_samples, & &1[receiver_encoding]), limit: :infinity, pretty: true)}
           ")
   end
 end

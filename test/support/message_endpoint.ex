@@ -6,7 +6,6 @@ defmodule Membrane.RTC.Engine.Support.MessageEndpoint do
   use Membrane.Bin
 
   require Membrane.Logger
-  alias Membrane.RTC.Engine
 
   @type encoding_t() :: String.t()
 
