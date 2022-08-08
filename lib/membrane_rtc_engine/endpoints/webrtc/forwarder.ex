@@ -13,16 +13,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
   defmodule Status do
     @moduledoc """
-    Struct representing get_status of encodings returned by the Forwarder.
-
-    It contains information about:
-    - currently active encoding
-    - an encoding that's waiting for a keyframe and is queued to become an active encoding
+    Struct representing Forwarder status.
     """
 
     @enforce_keys [:currently_playing]
     defstruct @enforce_keys ++ [awaiting_keyframe: nil]
 
+    @typedoc """
+    * `currently_playing` - currently active encoding
+    * `awaiting_keyframe` - an encoding that's waiting for a keyframe and is queued to become an active encoding
+    """
     @type t() :: %__MODULE__{
             currently_playing: String.t(),
             awaiting_keyframe: String.t() | nil

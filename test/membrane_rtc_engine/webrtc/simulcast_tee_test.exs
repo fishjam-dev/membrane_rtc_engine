@@ -30,7 +30,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
     assert Membrane.RTP.H264.Utils.is_keyframe(payload)
   end
 
-  describe "Keyframe Requests are sent" do
+  describe "KeyframeRequestEvent" do
     test "is sent when switching layers" do
       pipeline = build_pipeline()
 
@@ -49,7 +49,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
       Pipeline.terminate(pipeline, blocking?: true)
     end
 
-    test "when layer is switched off and then turned back on" do
+    test "is sent when layer is switched off and then turned back on" do
       pipeline = build_pipeline()
       send_to_element(pipeline, {:source, "h"}, {:set_active, false})
       assert_sink_event(pipeline, {:source, "m"}, %Membrane.KeyframeRequestEvent{}, 10_000)
@@ -69,7 +69,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
         "generated",
         :H264,
         90_000,
-        :RAW,
+        :raw,
         nil,
         id: @track_id,
         simulcast_encodings: @layers
