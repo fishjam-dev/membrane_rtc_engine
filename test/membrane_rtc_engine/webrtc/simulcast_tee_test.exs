@@ -36,13 +36,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
       for layer <- Enum.reverse(@layers) do
         # request encoding
-        send_to_element(pipeline, :tee, {:select_encoding, {@endpoint_id, layer}})
+        Pipeline.execute_actions(pipeline,
+          forward: {:tee, {:select_encoding, {@endpoint_id, layer}}}
+        )
 
         # see if Keyframe request is sent
         assert_sink_event(pipeline, {:source, layer}, %Membrane.KeyframeRequestEvent{})
 
         # Check if a buffer for a given layer actually arrives
-        purge_all_buffer_reports(pipeline)
+        flush_buffers(pipeline)
         assert_sink_buffer(pipeline, :sink, %Buffer{payload: fake_keyframe(^layer)})
       end
 
@@ -51,10 +53,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
     test "is sent when layer is switched off and then turned back on" do
       pipeline = build_pipeline()
-      send_to_element(pipeline, {:source, "h"}, {:set_active, false})
+      Pipeline.execute_actions(pipeline, forward: {{:source, "h"}, {:set_active, false}})
       assert_sink_event(pipeline, {:source, "m"}, %Membrane.KeyframeRequestEvent{}, 10_000)
 
-      send_to_element(pipeline, {:source, "h"}, {:set_active, true})
+      Pipeline.execute_actions(pipeline, forward: {{:source, "h"}, {:set_active, true}})
       assert_sink_event(pipeline, {:source, "h"}, %Membrane.KeyframeRequestEvent{}, 15_000)
 
       Pipeline.terminate(pipeline, blocking?: true)
@@ -105,14 +107,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
     pipeline
   end
 
-  defp send_to_element(pipeline, element, msg) do
-    Pipeline.execute_actions(pipeline, forward: {element, msg})
-  end
-
-  defp purge_all_buffer_reports(pipeline) do
+  defp flush_buffers(pipeline) do
     receive do
       {Membrane.Testing.Pipeline, ^pipeline, {:handle_notification, {{:buffer, _buffer}, :sink}}} ->
-        purge_all_buffer_reports(pipeline)
+        flush_buffers(pipeline)
     after
       0 -> :ok
     end
