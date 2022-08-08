@@ -75,8 +75,9 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_opus_plugin, "~> 0.15.0", optional: true},
       {:membrane_h264_ffmpeg_plugin, "~> 0.21.5", optional: true},
 
-      # Test dependencies
-      {:membrane_realtimer_plugin, "~> 0.5.0", only: :test},
+      # Test deps
+      {:membrane_file_plugin, "~> 0.12.0"},
+      {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
@@ -107,7 +108,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       extras: extras(),
       formatters: ["html"],
       groups_for_extras: groups_for_extras(),
-      assets: "internal_docs/simulcast/assets",
+      assets: "internal_docs/assets",
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
       before_closing_body_tag: &before_closing_body_tag/1,
@@ -142,7 +143,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       # internal docs
       "internal_docs/media_events.md",
       "internal_docs/protocol.md",
-      "internal_docs/simulcast/simulcast.md": [filename: "internal_simulcast"]
+      "internal_docs/simulcast.md": [filename: "internal_simulcast"],
+      "internal_docs/engine_architecture.md": [filename: "internal_engine_architecture"]
     ]
   end
 

@@ -27,8 +27,10 @@ if Enum.all?(
     ```
     """
     use Membrane.Bin
-    alias Membrane.RTC.Engine
+
     require Membrane.Logger
+
+    alias Membrane.RTC.Engine
 
     @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
 
@@ -67,11 +69,28 @@ if Enum.all?(
                   """
                 ],
                 target_window_duration: [
+                  type: :time,
                   spec: Membrane.Time.t() | :infinity,
                   default: Membrane.Time.seconds(20),
                   description: """
                   Max duration of stream that will be stored. Segments that are older than window duration will be removed.
                   """
+                ],
+                target_segment_duration: [
+                  type: :time,
+                  spec: Membrane.Time.t(),
+                  default: Membrane.Time.seconds(5),
+                  description: """
+                  Expected length of each segment. Setting it is not necessary, but
+                  may help players achieve better UX.
+                  """
+                ],
+                framerate: [
+                  spec: {integer(), integer()} | nil,
+                  description: """
+                  Framerate of tracks
+                  """,
+                  default: nil
                 ]
 
     @impl true
@@ -83,7 +102,9 @@ if Enum.all?(
         output_directory: opts.output_directory,
         owner: opts.owner,
         hls_mode: opts.hls_mode,
-        target_window_duration: opts.target_window_duration
+        target_window_duration: opts.target_window_duration,
+        framerate: opts.framerate,
+        target_segment_duration: opts.target_segment_duration
       }
 
       {:ok, state}
@@ -94,23 +115,26 @@ if Enum.all?(
       {:endpoint, endpoint_id} = ctx.name
       tracks = Enum.filter(tracks, fn track -> :raw in track.format end)
 
-      Enum.reduce_while(tracks, {:ok, state}, fn track, {:ok, state} ->
-        case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :raw) do
-          :ok ->
-            {:cont, {:ok, put_in(state, [:tracks, track.id], track)}}
+      state =
+        Enum.reduce(tracks, state, fn track, state ->
+          case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :raw) do
+            :ok ->
+              put_in(state, [:tracks, track.id], track)
 
-          {:error, :invalid_track_id} ->
-            Membrane.Logger.debug("""
-            Couldn't subscribe to track: #{inspect(track.id)}. No such track.
-            It had to be removed just after publishing it. Ignoring.
-            """)
+            {:error, :invalid_track_id} ->
+              Membrane.Logger.debug("""
+              Couldn't subscribe to track: #{inspect(track.id)}. No such track.
+              It had to be removed just after publishing it. Ignoring.
+              """)
 
-            {:cont, {:ok, state}}
+              state
 
-          {:error, reason} ->
-            raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
-        end
-      end)
+            {:error, reason} ->
+              raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+          end
+        end)
+
+      {:ok, state}
     end
 
     @impl true
@@ -148,6 +172,34 @@ if Enum.all?(
     end
 
     @impl true
+    def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
+      children =
+        [
+          :opus_decoder,
+          :aac_encoder,
+          :aac_parser,
+          :keyframe_requester,
+          :video_parser
+        ]
+        |> Enum.map(&{&1, track_id})
+        |> Enum.filter(&Map.has_key?(ctx.children, &1))
+
+      {removed_track, tracks} = Map.pop!(state.tracks, track_id)
+
+      sink_bin_used? =
+        Enum.any?(tracks, fn {_id, track} ->
+          track.stream_id == removed_track.stream_id
+        end)
+
+      children =
+        if sink_bin_used?,
+          do: children,
+          else: [{:hls_sink_bin, removed_track.stream_id} | children]
+
+      {{:ok, remove_child: children}, state}
+    end
+
+    @impl true
     def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
@@ -162,8 +214,9 @@ if Enum.all?(
         hls_links_and_children(
           link_builder,
           track.encoding,
-          track_id,
-          track.stream_id
+          track,
+          state.target_segment_duration,
+          state.framerate
         )
 
       {spec, state} =
@@ -173,7 +226,7 @@ if Enum.all?(
           hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
             manifest_module: Membrane.HTTPAdaptiveStream.HLS,
             target_window_duration: state.target_window_duration,
-            target_segment_duration: 2 |> Membrane.Time.seconds(),
+            target_segment_duration: state.target_segment_duration,
             persist?: false,
             storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
               directory: directory
@@ -193,25 +246,25 @@ if Enum.all?(
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, :OPUS, track_id, stream_id) do
+      defp hls_links_and_children(link_builder, :OPUS, track, _segment_duration, _framerate) do
         %ParentSpec{
           children: %{
-            {:opus_decoder, track_id} => Membrane.Opus.Decoder,
-            {:aac_encoder, track_id} => Membrane.AAC.FDK.Encoder,
-            {:aac_parser, track_id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+            {:opus_decoder, track.id} => Membrane.Opus.Decoder,
+            {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
+            {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
           },
           links: [
             link_builder
-            |> to({:opus_decoder, track_id})
-            |> to({:aac_encoder, track_id})
-            |> to({:aac_parser, track_id})
-            |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
-            |> to({:hls_sink_bin, stream_id})
+            |> to({:opus_decoder, track.id})
+            |> to({:aac_encoder, track.id})
+            |> to({:aac_parser, track.id})
+            |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+            |> to({:hls_sink_bin, track.stream_id})
           ]
         }
       end
     else
-      defp hls_links_and_children(_link_builder, :OPUS, _track_id, _stream_id) do
+      defp hls_links_and_children(_link_builder, :OPUS, _track, _segment_duration, _framerate) do
         raise """
         Cannot find one of the modules required to support Opus audio input.
         Ensure `:membrane_opus_plugin`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
@@ -219,29 +272,34 @@ if Enum.all?(
       end
     end
 
-    defp hls_links_and_children(link_builder, :AAC, track_id, stream_id),
+    defp hls_links_and_children(link_builder, :AAC, track, _segment_duration, _framerate),
       do: %ParentSpec{
         children: %{},
         links: [
           link_builder
-          |> via_in(Pad.ref(:input, {:audio, track_id}), options: [encoding: :AAC])
-          |> to({:hls_sink_bin, stream_id})
+          |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+          |> to({:hls_sink_bin, track.stream_id})
         ]
       }
 
-    defp hls_links_and_children(link_builder, :H264, track_id, stream_id),
+    defp hls_links_and_children(link_builder, :H264, track, segment_duration, framerate),
       do: %ParentSpec{
         children: %{
-          {:video_parser, track_id} => %Membrane.H264.FFmpeg.Parser{
+          {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
+            interval: segment_duration
+          },
+          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
-            attach_nalus?: true
+            attach_nalus?: true,
+            framerate: framerate
           }
         },
         links: [
           link_builder
-          |> to({:video_parser, track_id})
-          |> via_in(Pad.ref(:input, {:video, track_id}), options: [encoding: :H264])
-          |> to({:hls_sink_bin, stream_id})
+          |> to({:keyframe_requester, track.id})
+          |> to({:video_parser, track.id})
+          |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+          |> to({:hls_sink_bin, track.stream_id})
         ]
       }
   end

@@ -2,13 +2,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @moduledoc false
   use Membrane.Filter
 
+  require Membrane.Logger
+  require Membrane.TelemetryMetrics
+
   alias Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker
   alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
   alias Membrane.RTC.Utils
   alias Membrane.Time
-
-  require Membrane.Logger
-  require Membrane.TelemetryMetrics
 
   @supported_codecs [:H264, :VP8]
 

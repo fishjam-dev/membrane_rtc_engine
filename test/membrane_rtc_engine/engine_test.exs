@@ -3,7 +3,7 @@ defmodule Membrane.RTC.EngineTest do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.{Message, Peer}
-  alias Membrane.RTC.Engine.Support.TrackEndpoint
+  alias Membrane.RTC.Engine.Support.{MessageEndpoint, TrackEndpoint}
 
   setup do
     options = [
@@ -289,6 +289,22 @@ defmodule Membrane.RTC.EngineTest do
         %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: _media_event},
         1000
       )
+    end
+  end
+
+  describe "Engine.message_endpoint/3" do
+    test "forwards message to endpoint", %{rtc_engine: rtc_engine} do
+      endpoint = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+      endpoint_id = :test_endpoint
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, :message)
+      assert_receive(:message, 1_000)
+    end
+
+    test "does nothing when endpoint doesn't exist", %{rtc_engine: rtc_engine} do
+      endpoint_id = :test_endpoint
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, :message)
+      refute_receive :message
     end
   end
 
