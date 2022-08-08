@@ -29,7 +29,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
           }
   end
 
-
   @typedoc """
   * `selected_encoding` - encoding currently being forwarded.
   * `queued_encoding` - encoding forwarder will switch to once it receives a keyframe.

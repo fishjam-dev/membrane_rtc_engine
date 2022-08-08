@@ -5,13 +5,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
   import Membrane.Testing.Assertions
   import Membrane.ParentSpec
 
+  require Membrane.Pad
+
   alias Membrane.{Buffer, Pad, Time}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee
-  alias Membrane.RTC.Engine.Track
   alias Membrane.RTC.Engine.Support.TestSource
+  alias Membrane.RTC.Engine.Track
   alias Membrane.Testing.{Pipeline, Sink}
-
-  require Membrane.Pad
 
   @endpoint_id "endpoint"
   @track_id "track1"
