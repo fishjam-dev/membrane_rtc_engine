@@ -1296,7 +1296,7 @@ defmodule Membrane.RTC.Engine do
     |> Stream.reject(
       &(Map.has_key?(ctx.children, {:raw_format_tee, &1.id}) or &1.format == [:raw])
     )
-    |> Enum.map(&build_raw_format_link(&1.id, state))
+    |> Enum.map(&build_raw_format_link(&1, state))
   end
 
   defp build_raw_format_link(track, state) do

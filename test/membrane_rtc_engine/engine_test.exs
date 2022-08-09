@@ -356,7 +356,7 @@ defmodule Membrane.RTC.EngineTest do
 
       file_endpoint_id = "file-endpoint-id"
 
-      file_name = "video_baseline.h264"
+      file_name = "one_second.h264"
       file_path = Path.join(@fixtures_dir, file_name)
 
       track_id = "multiple-formats-test-track-id"
@@ -404,7 +404,7 @@ defmodule Membrane.RTC.EngineTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      assert_receive({:end_of_stream, ^test_format_dump_endpoint_id}, 20_000)
+      assert_receive({:end_of_stream, ^test_format_dump_endpoint_id}, 2_000)
       assert_receive({:end_of_stream, ^raw_dump_endpoint_id})
 
       raw_output_path = Path.join([raw_path, track_id])
