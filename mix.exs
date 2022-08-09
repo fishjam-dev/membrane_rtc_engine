@@ -78,6 +78,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},
       {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
+      {:membrane_stream_plugin, "~> 0.1.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
