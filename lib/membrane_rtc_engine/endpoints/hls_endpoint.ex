@@ -54,7 +54,7 @@ if Enum.all?(
                   Pid of parent all notifications will be send to.
 
                   These notifications are:
-                    * `{:playlist_playable, content_type, stream_id}`
+                    * `{:playlist_playable, content_type, stream_id, origin}`
                     * `{:cleanup, clean_function, stream_id}`
                   """
                 ],
@@ -144,13 +144,14 @@ if Enum.all?(
     end
 
     def handle_notification(
-          {:track_playable, {content_type, _track_id}},
+          {:track_playable, {content_type, track_id}},
           {:hls_sink_bin, stream_id},
           _ctx,
           state
         ) do
+      %{origin: origin} = Map.fetch!(state.tracks, track_id)
       # notify about playable just when video becomes available
-      send(state.owner, {:playlist_playable, content_type, stream_id})
+      send(state.owner, {:playlist_playable, content_type, stream_id, origin})
       {:ok, state}
     end
 
