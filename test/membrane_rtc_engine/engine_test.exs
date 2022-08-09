@@ -3,8 +3,15 @@ defmodule Membrane.RTC.EngineTest do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.{Message, Peer}
-  alias Membrane.RTC.Engine.Support.{MessageEndpoint, TrackEndpoint}
-  alias Membrane.RTC.Engine.Support.{FileEndpoint, DumpEndpoint, NaiveFilter}
+
+  alias Membrane.RTC.Engine.Support.{
+    DumpEndpoint,
+    FileEndpoint,
+    MessageEndpoint,
+    NaiveFilter,
+    TrackEndpoint
+  }
+
   alias ExSDP.Attribute.FMTP
 
   @fixtures_dir "./test/fixtures/"

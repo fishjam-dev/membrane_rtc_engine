@@ -5,11 +5,11 @@ defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
 
   use Membrane.Bin
 
+  require Membrane.Logger
+
+  alias Membrane.File.Sink
   alias Membrane.RTC.Engine
   alias Membrane.Stream.Serializer
-  alias Membrane.File.Sink
-
-  require Membrane.Logger
 
   @type encoding_t() :: String.t()
 
