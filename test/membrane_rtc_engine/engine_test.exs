@@ -333,12 +333,18 @@ defmodule Membrane.RTC.EngineTest do
       File.mkdir_p!(test_format_path)
       File.mkdir_p!(raw_path)
 
-      raw_endpoint = %DumpEndpoint{directory_path: raw_path, format: :raw, rtc_engine: rtc_engine}
+      raw_endpoint = %DumpEndpoint{
+        directory_path: raw_path,
+        format: :raw,
+        rtc_engine: rtc_engine,
+        owner: self()
+      }
 
       test_format_endpoint = %DumpEndpoint{
         directory_path: test_format_path,
         format: :test_format,
-        rtc_engine: rtc_engine
+        rtc_engine: rtc_engine,
+        owner: self()
       }
 
       :ok = Engine.add_endpoint(rtc_engine, raw_endpoint, endpoint_id: raw_dump_endpoint_id)
@@ -398,7 +404,8 @@ defmodule Membrane.RTC.EngineTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      Process.sleep(15_000)
+      assert_receive({:end_of_stream, ^test_format_dump_endpoint_id}, 20_000)
+      assert_receive({:end_of_stream, ^raw_dump_endpoint_id})
 
       raw_output_path = Path.join([raw_path, track_id])
       test_output_path = Path.join([test_format_path, track_id])

@@ -90,11 +90,9 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   @impl true
   def handle_other(:start, _ctx, state) do
-    {{
-       :ok,
-       notify:
-         {:track_ready, state.track.id, nil, state.track.encoding, state.depayloading_filter}
-       #  notify: {:track_ready, state.track.id, nil, state.track.encoding, nil}
-     }, state}
+    track_ready =
+      {:track_ready, state.track.id, nil, state.track.encoding, state.depayloading_filter}
+
+    {{:ok, notify: track_ready}, state}
   end
 end

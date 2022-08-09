@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
   @moduledoc false
 
-  # Endpoint that subscribe on any track and dump it to file.
+  # Endpoint that subscribes on any track and dumps it to a file.
 
   use Membrane.Bin
 
@@ -28,8 +28,12 @@ defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
                 spec: atom(),
                 default: nil,
                 description: """
-                Endpoint will subscribe on tracks with this format if nil it will subscribe on all tracks.
+                Track format this endpoint will subscribe for. Pass `nil` to subscribe for each track.
                 """
+              ],
+              owner: [
+                spec: pid(),
+                description: "Pid of parent all notifications will be send to."
               ]
 
   def_input_pad :input,
@@ -42,9 +46,22 @@ defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
     state = %{
       directory_path: opts.directory_path,
       format: opts.format,
-      rtc_engine: opts.rtc_engine
+      rtc_engine: opts.rtc_engine,
+      owner: opts.owner
     }
 
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_element_end_of_stream({{:sink, _track_id}, :input}, ctx, state) do
+    {:endpoint, endpoint_id} = ctx.name
+    send(state.owner, {:end_of_stream, endpoint_id})
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_element_end_of_stream(_element, _ctx, state) do
     {:ok, state}
   end
 
@@ -81,7 +98,7 @@ defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
           {:cont, {:ok, state}}
 
         {:error, :invalid_track_id} ->
-          Membrane.Logger.debug("""
+          Membrane.Logger.warn("""
           Couldn't subscribe to track: #{inspect(track.id)}. No such track.
           It had to be removed just after publishing it. Ignoring.
           """)
