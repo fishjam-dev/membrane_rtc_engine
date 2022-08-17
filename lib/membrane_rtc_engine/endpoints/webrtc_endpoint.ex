@@ -321,12 +321,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       end
     end)
 
+    IO.inspect(new_outbound_tracks, label: :subscribe_tracks)
     send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
     {:ok, state}
   end
 
   @impl true
   def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
+    IO.inspect({:vad, val, ctx.name}, label: :vad_notification)
     send(state.owner, {:vad_notification, val, ctx.name})
 
     send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, val})

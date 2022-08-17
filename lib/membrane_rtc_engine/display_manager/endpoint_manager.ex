@@ -53,9 +53,9 @@ defmodule Membrane.RTC.Engine.EndpointManager do
           type :: :inbound_tracks | :outbound_tracks
         ) :: t()
   def add_tracks(endpoint, tracks, type) do
-    track_id_to_track = Map.fetch!(endpoint, type)
-    track_id_to_track = update_tracks(tracks, track_id_to_track)
-    Map.put(endpoint, type, track_id_to_track)
+    result = Map.update!(endpoint, type, &update_tracks(tracks, &1))
+
+    result
   end
 
   @spec remove_tracks(

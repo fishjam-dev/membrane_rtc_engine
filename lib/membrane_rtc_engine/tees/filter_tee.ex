@@ -53,16 +53,33 @@ defmodule Membrane.RTC.Engine.FilterTee do
   def handle_init(opts) do
     Membrane.RTC.Utils.telemetry_register(opts.telemetry_label)
 
-    {:ok,
-     %{
-       ets_name: :"#{opts.ets_name}",
-       track_id: opts.track_id,
-       counter: 0,
-       type: opts.type,
-       forward_to: MapSet.new(),
-       codec: opts.codec,
-       telemetry_label: opts.telemetry_label
-     }}
+    state = %{
+      ets_name: :"#{opts.ets_name}",
+      track_id: opts.track_id,
+      counter: 0,
+      type: opts.type,
+      forward_to: MapSet.new(),
+      codec: opts.codec,
+      telemetry_label: opts.telemetry_label,
+      caps: nil
+    }
+
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_caps(_pad, caps, _ctx, state) do
+    {{:ok, forward: caps}, %{state | caps: caps}}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:output, _ref), _ctx, %{caps: nil} = state) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:output, _ref) = pad, _ctx, %{caps: caps} = state) do
+    {{:ok, caps: {pad, caps}}, state}
   end
 
   @impl true

@@ -115,7 +115,11 @@ defmodule Membrane.RTC.Engine.DisplayManager do
         &EndpointManager.add_tracks(&1, tracks, :outbound_tracks)
       )
 
-    {:noreply, %{state | endpoint_managers: endpoints}}
+    state = %{state | endpoint_managers: endpoints}
+
+    state = maybe_calculate_priority(state, [{:subscribe_on_tracks, endpoint_name} | state.vads])
+
+    {:noreply, state}
   end
 
   @impl true
