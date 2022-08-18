@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackAdapter}
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
@@ -426,9 +426,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, _track_id) = pad, _ctx, state) do
+  def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
+    track = Map.fetch!(state.outbound_tracks, track_id)
+
     links = [
       link_bin_input(pad)
+      |> to({:track_adapter, track_id}, %TrackAdapter{track: track})
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
     ]
