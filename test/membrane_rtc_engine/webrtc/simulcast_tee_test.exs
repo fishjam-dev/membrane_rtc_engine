@@ -9,9 +9,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
   alias Membrane.{Buffer, Pad, Time}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee
+  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
   alias Membrane.RTC.Engine.Support.TestSource
   alias Membrane.RTC.Engine.Track
-  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
   alias Membrane.Testing.{Pipeline, Sink}
 
   @endpoint_id "endpoint"
