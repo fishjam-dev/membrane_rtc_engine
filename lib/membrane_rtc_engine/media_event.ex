@@ -87,7 +87,7 @@ defmodule Membrane.RTC.Engine.MediaEvent do
          %{} = event <- decode(event_type, event_data) do
       {:ok, event}
     else
-      :error -> {:error, :invalid_media_event}
+      _error -> {:error, :invalid_media_event}
     end
   end
 

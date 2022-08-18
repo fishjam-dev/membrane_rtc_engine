@@ -330,6 +330,7 @@ defmodule Membrane.RTC.EngineTest do
   end
 
   describe "Engine linking test" do
+    @tag :skip
     test "engine properly links for both formats", %{rtc_engine: rtc_engine} do
       test_format_dump_endpoint_id = "test-format-dump-endpoint"
       raw_dump_endpoint_id = "raw-dump-endpoint"

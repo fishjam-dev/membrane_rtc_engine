@@ -23,6 +23,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   end
 
   describe "HLS Endpoint test" do
+    @tag :skip
     test "creates correct hls stream from h264 file", %{rtc_engine: rtc_engine} do
       file_endpoint_id = "file-endpoint-id"
 

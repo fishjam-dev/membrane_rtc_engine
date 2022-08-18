@@ -1,9 +1,8 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
+defmodule Membrane.RTC.Engine.VideoTee do
   @moduledoc false
   use Membrane.Filter
 
   require Membrane.Logger
-  require Membrane.TelemetryMetrics
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
@@ -13,8 +12,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   }
 
   alias Membrane.RTC.Engine.Exception.{RequestTrackVariantError, TrackVariantStateError}
-
-  alias Membrane.RTC.Utils
 
   @supported_codecs [:H264, :VP8]
 
@@ -28,14 +25,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     availability: :on_request,
     mode: :pull,
     demand_mode: :auto,
-    caps: Membrane.RTP,
-    options: [
-      telemetry_label: [
-        spec: Membrane.TelemetryMetrics.label(),
-        default: [],
-        description: "Label passed to Membrane.TelemetryMetrics functions"
-      ]
-    ]
+    caps: Membrane.RTP
 
   def_output_pad :output,
     availability: :on_request,
@@ -55,14 +45,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
      %{
        track: opts.track,
        routes: %{},
-       inactive_encodings: MapSet.new(opts.track.simulcast_encodings)
+       inactive_variants: MapSet.new(opts.track.variants)
      }}
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, {_track_id, encoding}) = pad, ctx, state) do
-    Utils.telemetry_register(ctx.pads[pad].options.telemetry_label)
-    state = Map.update!(state, :inactive_encodings, &MapSet.delete(&1, encoding))
+  def handle_pad_added(Pad.ref(:input, {_track_id, _variant}), _ctx, state) do
     {:ok, state}
   end
 
@@ -82,7 +70,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       if playback_state == :playing do
         actions =
           state
-          |> active_encodings()
+          |> active_variants()
           |> Enum.flat_map(&[event: {pad, %TrackVariantResumed{variant: &1}}])
 
         [caps: {pad, %Membrane.RTP{}}] ++ actions
@@ -94,29 +82,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(pad, _context, _state) do
+  def handle_pad_added(pad, _ctx, _state) do
     raise("Pad #{inspect(pad)} not allowed for #{inspect(__MODULE__)}")
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:output, {:endpoint, _endpoint_id}) = pad, _context, state) do
+  def handle_pad_removed(Pad.ref(:output, {:endpoint, _endpoint_id}) = pad, _ctx, state) do
     {_route, state} = pop_in(state, [:routes, pad])
     {:ok, state}
   end
 
   @impl true
-  def handle_prepared_to_playing(context, state) do
-    track_events =
-      state
-      |> active_encodings()
-      |> Enum.map(&%TrackVariantResumed{variant: &1})
+  def handle_pad_removed(Pad.ref(:input, {_track_id, _rid}), _ctx, state) do
+    {:ok, state}
+  end
 
+  @impl true
+  def handle_prepared_to_playing(ctx, state) do
     actions =
-      context.pads
+      ctx.pads
       |> Enum.filter(fn {_pad, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} ->
-        actions = Enum.map(track_events, &{:event, {pad, &1}})
-        [caps: {pad, %Membrane.RTP{}}] ++ actions
+        [caps: {pad, %Membrane.RTP{}}]
       end)
 
     {{:ok, actions}, state}
@@ -124,16 +111,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do
-    {_track_id, encoding} = id
-    state = Map.update!(state, :inactive_encodings, &MapSet.put(&1, encoding))
+    {_track_id, variant} = id
+    state = Map.update!(state, :inactive_variants, &MapSet.put(&1, variant))
 
-    # reset all target encodings set to `encoding`
-    # when `encoding` becomes active again
+    # reset all target variants set to `variant`
+    # when `variant` becomes active again
     # endpoints are expected to request it once again
     state =
       Enum.reduce(state.routes, state, fn
-        {output_pad, %{target_encoding: ^encoding}}, state ->
-          put_in(state, [:routes, output_pad, :target_encoding], nil)
+        {output_pad, %{target_variant: ^variant}}, state ->
+          put_in(state, [:routes, output_pad], nil)
 
         _route, state ->
           state
@@ -144,8 +131,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantResumed{} = event, _ctx, state) do
-    {_track_id, encoding} = id
-    state = Map.update!(state, :inactive_encodings, &MapSet.delete(&1, encoding))
+    {_track_id, variant} = id
+    state = Map.update!(state, :inactive_variants, &MapSet.delete(&1, variant))
     {{:ok, forward: event}, state}
   end
 
@@ -157,13 +144,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         state
       ) do
     cond do
-      requested_variant not in state.track.simulcast_encodings ->
+      requested_variant not in state.track.variants ->
         raise RequestTrackVariantError,
           requester: endpoint_id,
           requested_variant: requested_variant,
           track: state.track
 
-      requested_variant in state.inactive_encodings ->
+      requested_variant in state.inactive_variants ->
         Membrane.Logger.debug("""
         Endpoint #{endpoint_id} requested track variant: #{requested_variant} but it is inactive. \
         Ignoring.\
@@ -187,29 +174,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, {_track_id, encoding}) = pad, buffer, ctx, state) do
-    Utils.emit_packet_arrival_event(
-      buffer.payload,
-      state.track.encoding,
-      ctx.pads[pad].options.telemetry_label
-    )
-
-    if encoding in state.inactive_encodings do
-      raise TrackVariantStateError, track: state.track, variant: encoding
+  def handle_process(Pad.ref(:input, {_track_id, variant}), buffer, ctx, state) do
+    if variant in state.inactive_variants do
+      raise TrackVariantStateError, track: state.track, variant: variant
     end
 
     {actions, state} =
       Enum.flat_map_reduce(state.routes, state, fn route, state ->
-        handle_route(buffer, encoding, route, ctx, state)
+        handle_route(buffer, variant, route, ctx, state)
       end)
 
     {{:ok, actions}, state}
   end
 
   @impl true
-  def handle_end_of_stream(_pad, context, state) do
+  def handle_end_of_stream(_pad, ctx, state) do
     all_end_of_streams? =
-      context.pads
+      ctx.pads
       |> Enum.filter(fn {_pad_name, pad_data} ->
         pad_data.direction == :input
       end)
@@ -232,7 +213,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     {{:ok, actions}, state}
   end
 
-  defp handle_route(buffer, encoding, {output_pad, %{current_variant: encoding}}, ctx, state) do
+  defp handle_route(buffer, variant, {output_pad, %{current_variant: variant}}, ctx, state) do
     started? = ctx.pads[output_pad].start_of_stream?
 
     actions =
@@ -241,7 +222,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
           [buffer: {output_pad, buffer}]
 
         buffer.metadata.is_keyframe ->
-          event = %TrackVariantSwitched{new_variant: encoding}
+          event = %TrackVariantSwitched{new_variant: variant}
           [event: {output_pad, event}, buffer: {output_pad, buffer}]
 
         true ->
@@ -251,14 +232,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     {actions, state}
   end
 
-  defp handle_route(buffer, encoding, {output_pad, %{target_variant: encoding}}, _ctx, state) do
+  defp handle_route(buffer, variant, {output_pad, %{target_variant: variant}}, _ctx, state) do
     if buffer.metadata.is_keyframe do
       state =
         state
-        |> put_in([:routes, output_pad, :current_variant], encoding)
+        |> put_in([:routes, output_pad, :current_variant], variant)
         |> put_in([:routes, output_pad, :target_variant], nil)
 
-      event = %TrackVariantSwitched{new_variant: encoding}
+      event = %TrackVariantSwitched{new_variant: variant}
       actions = [event: {output_pad, event}, buffer: {output_pad, buffer}]
       {actions, state}
     else
@@ -266,11 +247,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     end
   end
 
-  defp handle_route(_buffer, _encoding, _route, _ctx, state), do: {[], state}
+  defp handle_route(_buffer, _variant, _route, _ctx, state), do: {[], state}
 
-  defp active_encodings(state),
+  defp active_variants(state),
     do:
-      state.track.simulcast_encodings
+      state.track.variants
       |> MapSet.new()
-      |> MapSet.difference(state.inactive_encodings)
+      |> MapSet.difference(state.inactive_variants)
 end

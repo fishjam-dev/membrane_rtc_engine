@@ -226,7 +226,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       video_tracks_limit: opts.video_tracks_limit,
       simulcast_config: opts.simulcast_config,
       telemetry_label: opts.telemetry_label,
-      display_manager: nil
+      display_manager: nil,
+      simulcast_tracks: MapSet.new()
     }
 
     {{:ok, spec: spec}, state}
@@ -285,7 +286,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :track_ready, track_id: track_id)
 
-    {{:ok, notify: {:track_ready, track_id, rid, encoding, depayloading_filter}}, state}
+    state =
+      if rid != nil do
+        update_in(state, [:simulcast_tracks], &MapSet.put(&1, track_id))
+      else
+        state
+      end
+
+    variant = to_track_variant(rid)
+    {{:ok, notify: {:track_ready, track_id, variant, encoding, depayloading_filter}}, state}
   end
 
   @impl true
@@ -448,22 +457,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
     track = Map.fetch!(state.outbound_tracks, track_id)
-
-    default_encoding = state.simulcast_config.default_encoding.(track)
-
-    maybe_link_track_receiver =
-      if track.type == :video do
-        &to(&1, {:track_receiver, track_id}, %TrackReceiver{
-          track: track,
-          default_simulcast_encoding: default_encoding
-        })
-      else
-        & &1
-      end
+    default_variant = state.simulcast_config.default_encoding.(track)
 
     links = [
       link_bin_input(pad)
-      |> then(maybe_link_track_receiver)
+      |> to({:track_receiver, track_id}, %TrackReceiver{
+        track: track,
+        default_variant: default_variant
+      })
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
     ]
@@ -472,7 +473,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {track_id, rid}) = pad, ctx, state) do
+  def handle_pad_added(Pad.ref(:output, {track_id, variant}) = pad, ctx, state) do
     %Track{encoding: encoding} = track = Map.get(state.inbound_tracks, track_id)
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
     track_sender = {:track_sender, track_id}
@@ -484,11 +485,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         &to(&1, track_sender, %TrackSender{track: track})
       end
 
+    # EndpointBin expects `rid` to be nil for non simulcast tracks
+    rid = if MapSet.member?(state.simulcast_tracks, track_id), do: to_rid(variant), else: nil
+
     spec = %ParentSpec{
       links: [
         link(:endpoint_bin)
-        |> via_out(pad, options: [extensions: extensions, use_depayloader?: false])
-        |> via_in(Pad.ref(:input, {track_id, rid}))
+        |> via_out(Pad.ref(:output, {track_id, rid}),
+          options: [extensions: extensions, use_depayloader?: false]
+        )
+        |> via_in(Pad.ref(:input, {track_id, variant}))
         |> then(link_to_track_sender)
         |> via_out(pad)
         |> to_bin_output(pad)
@@ -515,7 +521,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_custom_media_event(%{type: :select_encoding, data: data}, ctx, state) do
-    msg = {:select_encoding, data.encoding}
+    msg = {:select_variant, to_track_variant(data.encoding)}
     {{:ok, forward({:track_receiver, data.track_id}, msg, ctx)}, state}
   end
 
@@ -739,6 +745,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_rtc_track(%WebRTC.Track{} = track, origin, metadata) do
     extension_key = WebRTC.Extension
 
+    variants = Enum.map(track.rids || [nil], &to_track_variant(&1))
+
     Engine.Track.new(
       track.type,
       track.stream_id,
@@ -748,7 +756,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       [:RTP, :raw],
       track.fmtp,
       id: track.id,
-      simulcast_encodings: track.rids || [],
+      variants: variants,
       active?: track.status != :disabled,
       metadata: metadata,
       ctx: %{extension_key => track.extmaps}
@@ -766,4 +774,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     do: Map.from_struct(struct) |> to_keyword_list()
 
   defp to_keyword_list(%{} = map), do: Enum.map(map, fn {key, value} -> {key, value} end)
+
+  defp to_track_variant(rid) when rid in ["h", nil], do: :high
+  defp to_track_variant("m"), do: :medium
+  defp to_track_variant("l"), do: :low
+
+  defp to_rid(:high), do: "h"
+  defp to_rid(:medium), do: "m"
+  defp to_rid(:low), do: "l"
 end
