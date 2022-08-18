@@ -7,6 +7,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker
   alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
+  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
+
   alias Membrane.RTC.Utils
   alias Membrane.Time
 
@@ -68,7 +70,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
        track: opts.track,
        forwarders: %{},
        trackers: trackers,
-       inactive_encodings: []
+       inactive_encodings: [],
+       started: %{}
      }}
   end
 
@@ -109,6 +112,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       end)
 
     state = put_in(state, [:forwarders, endpoint_id], forwarder)
+    state = put_in(state, [:started, endpoint_id], false)
 
     actions =
       if playback_state == :playing do
@@ -163,6 +167,31 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       Enum.flat_map_reduce(state.forwarders, state, fn
         {endpoint_id, forwarder}, state ->
           {forwarder, actions} = Forwarder.process(forwarder, buffer, encoding, endpoint_id)
+
+          # FIXME this is a temporar solution, it will be removed
+          # in subsequent PRs
+          #
+          # if that is a first buffer we are forwarding
+          # add TrackVariantSwitched event to actions
+          {actions, state} =
+            if state.started[endpoint_id] do
+              {actions, state}
+            else
+              case actions do
+                [{:buffer, {pad, buffer}}] ->
+                  actions =
+                    [
+                      event: {pad, %TrackVariantSwitched{new_variant: encoding, buffer: buffer}}
+                    ] ++ actions
+
+                  state = put_in(state, [:started, endpoint_id], true)
+                  {actions, state}
+
+                other ->
+                  {other, state}
+              end
+            end
+
           state = put_in(state, [:forwarders, endpoint_id], forwarder)
           {actions, state}
       end)

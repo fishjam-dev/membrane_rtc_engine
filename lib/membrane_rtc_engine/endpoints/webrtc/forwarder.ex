@@ -10,6 +10,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
+  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
 
   defmodule Status do
     @moduledoc """
@@ -284,9 +285,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
             queued_encoding: nil
         }
 
+        pad = Pad.ref(:output, {:endpoint, endpoint_id})
+
         actions = [
           notify: {:encoding_switched, endpoint_id, encoding},
-          buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}
+          event: {pad, %TrackVariantSwitched{new_variant: encoding, buffer: buffer}},
+          buffer: {pad, buffer}
         ]
 
         {forwarder, actions}
