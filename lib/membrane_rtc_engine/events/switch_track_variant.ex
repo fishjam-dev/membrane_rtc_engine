@@ -4,8 +4,6 @@ defmodule Membrane.RTC.Engine.Event.SwitchTrackVariant do
 
   Engine will start sending a new track variant as soon
   as it receives a keyframe for the new variant.
-  If the requested variant is incorrect, the event will
-  be ignored.
   """
 
   alias Membrane.RTC.Engine.Track
