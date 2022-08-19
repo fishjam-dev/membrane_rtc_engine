@@ -22,14 +22,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     availability: :always,
     mode: :pull,
     demand_mode: :auto,
-    caps: Membrane.RTP,
-    options: [
-      telemetry_label: [
-        spec: Membrane.TelemetryMetrics.label(),
-        default: [],
-        description: "Label passed to Membrane.TelemetryMetrics functions"
-      ]
-    ]
+    caps: Membrane.RTP
 
   def_output_pad :output,
     availability: :always,

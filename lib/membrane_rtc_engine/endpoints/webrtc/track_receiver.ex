@@ -24,14 +24,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def_input_pad :input,
     availability: :always,
     mode: :push,
-    caps: Membrane.RTP,
-    options: [
-      telemetry_label: [
-        spec: Membrane.TelemetryMetrics.label(),
-        default: [],
-        description: "Label passed to Membrane.TelemetryMetrics functions"
-      ]
-    ]
+    caps: Membrane.RTP
 
   def_output_pad :output,
     availability: :always,
