@@ -1,7 +1,7 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackAdapter do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @moduledoc false
 
-  # Adapter:
+  # TrackReceiver:
   # * generates probe packets on request from the
   # outside
   # * switches between simulcast layers on request from

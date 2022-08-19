@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackAdapter, TrackSender}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackReceiver, TrackSender}
   alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
@@ -432,7 +432,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     links = [
       link_bin_input(pad)
-      |> to({:track_adapter, track_id}, %TrackAdapter{track: track})
+      |> to({:track_adapter, track_id}, %TrackReceiver{track: track})
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
     ]
