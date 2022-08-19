@@ -173,23 +173,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
           #
           # if that is a first buffer we are forwarding
           # add TrackVariantSwitched event to actions
+          started = state.started[endpoint_id]
+
           {actions, state} =
-            if state.started[endpoint_id] do
-              {actions, state}
-            else
-              case actions do
-                [{:buffer, {pad, buffer}}] ->
-                  actions =
-                    [
-                      event: {pad, %TrackVariantSwitched{new_variant: encoding, buffer: buffer}}
-                    ] ++ actions
+            case actions do
+              [{:buffer, {pad, buffer}}] when started != false ->
+                actions =
+                  [
+                    event: {pad, %TrackVariantSwitched{new_variant: encoding, buffer: buffer}}
+                  ] ++ actions
 
-                  state = put_in(state, [:started, endpoint_id], true)
-                  {actions, state}
+                state = put_in(state, [:started, endpoint_id], true)
+                {actions, state}
 
-                other ->
-                  {other, state}
-              end
+              other ->
+                {other, state}
             end
 
           state = put_in(state, [:forwarders, endpoint_id], forwarder)
