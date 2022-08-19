@@ -2,6 +2,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8MungerTest do
   use ExUnit.Case
   use Bitwise
 
+  import Membrane.RTC.Engine.Support.Utils
+
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
   alias Membrane.RTP.VP8
 
@@ -285,9 +287,5 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8MungerTest do
              x: 1,
              y: 1
            } = payload_descriptor
-  end
-
-  defp generate_random_payload(size) do
-    for _i <- 1..size, into: <<>>, do: <<Enum.random(0..255)>>
   end
 end
