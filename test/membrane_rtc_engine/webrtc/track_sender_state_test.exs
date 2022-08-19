@@ -13,13 +13,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSenderStateTest do
     track = Track.new(:video, "stream1", "generated", :VP8, 90_000, :raw, nil)
     test_is_keyframe(track, false)
 
-    track = Track.new(:video, "stream1", "generated", :OPUS, 90_000, :raw, nil)
+    track = Track.new(:video, "stream1", "generated", :OPUS, 48_000, :raw, nil)
     test_is_keyframe(track, true)
   end
 
   defp test_is_keyframe(track, expected_is_keyframe) do
     state = TrackSenderState.new(track)
-    buffer = %Membrane.Buffer{payload: generate_random_payload(100)}
+    buffer = %Membrane.Buffer{payload: <<1, 2, 3, 4, 5>>}
     {_state, actions} = TrackSenderState.process(state, buffer)
 
     assert [buffer: {:output, buffer}] = actions
