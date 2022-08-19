@@ -13,14 +13,9 @@ defmodule Membrane.RTC.Engine.Event.TrackVariantSwitched do
   Type describing TrackVariantSwitched event.
 
   * `new_variant` - variant that engine will be sending from now
-  * `buffer` - first buffer of a new variant. It's always
-  keyframe (or its beginning).
   """
-  @type t :: %__MODULE__{
-          new_variant: Track.variant(),
-          buffer: Membrane.Buffer.t()
-        }
+  @type t :: %__MODULE__{new_variant: Track.variant()}
 
-  @enforce_keys [:new_variant, :buffer]
+  @enforce_keys [:new_variant]
   defstruct @enforce_keys
 end

@@ -44,10 +44,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
         # see if Keyframe request is sent
         assert_sink_event(pipeline, {:source, layer}, %Membrane.KeyframeRequestEvent{})
 
-        assert_sink_event(pipeline, :sink, %TrackVariantSwitched{
-          new_variant: ^layer,
-          buffer: %Buffer{payload: fake_keyframe(^layer)}
-        })
+        assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: ^layer})
 
         # Check if a buffer for a given layer actually arrives
         flush_buffers(pipeline)

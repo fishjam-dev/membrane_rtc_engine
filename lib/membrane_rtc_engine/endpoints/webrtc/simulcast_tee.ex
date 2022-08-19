@@ -176,8 +176,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
           {actions, state} =
             case actions do
-              [{:buffer, {^output_pad, buffer}}] when started == false ->
-                event = %TrackVariantSwitched{new_variant: encoding, buffer: buffer}
+              [{:buffer, {^output_pad, _buffer}}] when started == false ->
+                event = %TrackVariantSwitched{new_variant: encoding}
                 actions = [event: {output_pad, event}] ++ actions
                 {actions, state}
 

@@ -289,7 +289,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
         actions = [
           notify: {:encoding_switched, endpoint_id, encoding},
-          event: {pad, %TrackVariantSwitched{new_variant: encoding, buffer: buffer}},
+          event: {pad, %TrackVariantSwitched{new_variant: encoding}},
           buffer: {pad, buffer}
         ]
 
