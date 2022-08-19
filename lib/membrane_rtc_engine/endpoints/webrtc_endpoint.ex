@@ -441,7 +441,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {track_id, _rid}) = pad, _ctx, state) do
+  def handle_pad_added(Pad.ref(:output, {track_id, rid}) = pad, _ctx, state) do
     %Track{encoding: encoding} = track = Map.get(state.inbound_tracks, track_id)
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
 
@@ -454,7 +454,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
             use_depayloader?: false
           ]
         )
-        |> to({:track_sender, track_id}, %TrackSender{track: track})
+        |> to({:track_sender, {track_id, rid}}, %TrackSender{track: track})
         |> to_bin_output(pad)
       ]
     }
