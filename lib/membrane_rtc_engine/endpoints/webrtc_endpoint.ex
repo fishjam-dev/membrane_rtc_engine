@@ -441,9 +441,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {track_id, rid}) = pad, _ctx, state) do
+  def handle_pad_added(Pad.ref(:output, {track_id, rid}) = pad, ctx, state) do
     %Track{encoding: encoding} = track = Map.get(state.inbound_tracks, track_id)
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
+
+    link_to_track_sender =
+      if Map.has_key?(ctx.children, {:track_sender, track_id}) do
+        fn link_builder -> to(link_builder, {:track_sender, track_id}) end
+      else
+        fn link_builder ->
+          to(link_builder, {:track_sender, track_id}, %TrackSender{track: track})
+        end
+      end
 
     spec = %ParentSpec{
       links: [
@@ -454,7 +463,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
             use_depayloader?: false
           ]
         )
-        |> to({:track_sender, {track_id, rid}}, %TrackSender{track: track})
+        |> via_in(Pad.ref(:input, {track_id, rid}))
+        |> then(link_to_track_sender)
+        |> via_out(pad)
         |> to_bin_output(pad)
       ]
     }

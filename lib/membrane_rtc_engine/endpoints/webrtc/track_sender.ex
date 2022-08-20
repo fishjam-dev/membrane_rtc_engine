@@ -20,13 +20,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
               ]
 
   def_input_pad :input,
-    availability: :always,
+    availability: :on_request,
     mode: :pull,
     demand_mode: :auto,
     caps: Membrane.RTP
 
   def_output_pad :output,
-    availability: :always,
+    availability: :on_request,
     mode: :pull,
     demand_mode: :auto,
     caps: Membrane.RTP
@@ -37,9 +37,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_process(_pad, buffer, _ctx, %{track: track} = state) do
+  def handle_pad_added(Pad.ref(:input, {_track_id, _rid}), _ctx, state) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:output, {_track_id, _rid}), _ctx, state) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_process(input_pad, buffer, _ctx, %{track: track} = state) do
     buffer = add_is_keyframe_flag(buffer, track)
-    {{:ok, [buffer: {:output, buffer}]}, state}
+    output_pad = to_output_pad(input_pad)
+    {{:ok, [buffer: {output_pad, buffer}]}, state}
+  end
+
+  @impl true
+  def handle_end_of_stream(input_pad, _ctx, state) do
+    output_pad = to_output_pad(input_pad)
+    {{:ok, end_of_stream: output_pad}, state}
   end
 
   defp add_is_keyframe_flag(buffer, %Track{encoding: encoding}) do
@@ -52,5 +69,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
     new_metadata = Map.put(buffer.metadata, :is_keyframe, is_keyframe)
     %Buffer{buffer | metadata: new_metadata}
+  end
+
+  defp to_output_pad(Pad.ref(:input, {_track_id, _rid} = track_id)) do
+    Pad.ref(:output, track_id)
   end
 end
