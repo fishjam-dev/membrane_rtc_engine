@@ -4,8 +4,8 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   import Membrane.Testing.Assertions
 
   alias Membrane.{Buffer, ParentSpec}
-  alias Membrane.RTC.Engine.Track
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
+  alias Membrane.RTC.Engine.Track
   alias Membrane.Testing.{Pipeline, Sink, Source}
 
   @stream_id "stream1"
