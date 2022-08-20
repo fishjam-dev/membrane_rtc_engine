@@ -10,7 +10,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSenderState
+  alias Membrane.Buffer
+  alias Membrane.RTC.Engine.Track
 
   def_options track: [
                 type: :struct,
@@ -32,13 +33,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_init(%__MODULE__{track: track}) do
-    state = TrackSenderState.new(track)
-    {:ok, state}
+    {:ok, %{track: track}}
   end
 
   @impl true
-  def handle_process(_pad, buffer, _ctx, state) do
-    {state, actions} = TrackSenderState.process(state, buffer)
-    {{:ok, actions}, state}
+  def handle_process(_pad, buffer, _ctx, %{track: track} = state) do
+    buffer = add_is_keyframe_flag(buffer, track)
+    {{:ok, [buffer: {:output, buffer}]}, state}
+  end
+
+  defp add_is_keyframe_flag(buffer, %Track{encoding: encoding}) do
+    is_keyframe =
+      case encoding do
+        :OPUS -> true
+        :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
+        :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
+      end
+
+    new_metadata = Map.put(buffer.metadata, :is_keyframe, is_keyframe)
+    %Buffer{buffer | metadata: new_metadata}
   end
 end
