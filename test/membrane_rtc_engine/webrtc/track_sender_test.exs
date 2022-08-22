@@ -34,26 +34,36 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         test_is_keyframe(track, expected_is_keyframe_value)
       end)
     end
+
+    test "sends caps just once on given output pad" do
+      track =
+        Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+          id: @track_id,
+          simulcast_encodings: @simulcast_encodings
+        )
+
+      {:ok, pipeline} =
+        build_video_pipeline(track, [])
+        |> Pipeline.start_link()
+
+      assert_sink_caps(pipeline, :sink_h, %Membrane.RTP{})
+      assert_sink_caps(pipeline, :sink_m, %Membrane.RTP{})
+      assert_sink_caps(pipeline, :sink_l, %Membrane.RTP{})
+
+      refute_sink_caps(pipeline, :sink_h, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, :sink_m, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, :sink_l, %Membrane.RTP{}, 0)
+
+      Pipeline.terminate(pipeline, blocking?: true)
+    end
   end
 
   defp test_is_keyframe(%Track{type: :audio} = track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
-    children = [
-      source: %Source{caps: %Membrane.RTP{}, output: [test_payload]},
-      track_sender: %TrackSender{track: track},
-      sink: Sink
-    ]
-
-    links = [
-      link(:source)
-      |> via_in(Pad.ref(:input, {@track_id, nil}))
-      |> to(:track_sender)
-      |> via_out(Pad.ref(:output, {@track_id, nil}))
-      |> to(:sink)
-    ]
-
-    {:ok, pipeline} = Pipeline.start_link(children: children, links: links)
+    {:ok, pipeline} =
+      build_audio_pipeline(track, [test_payload])
+      |> Pipeline.start_link()
 
     assert_sink_buffer(pipeline, :sink, %Buffer{
       payload: ^test_payload,
@@ -66,10 +76,51 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   defp test_is_keyframe(track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
+    {:ok, pipeline} =
+      build_video_pipeline(track, [test_payload])
+      |> Pipeline.start_link()
+
+    assert_sink_buffer(pipeline, :sink_h, %Buffer{
+      payload: ^test_payload,
+      metadata: %{is_keyframe: ^expected_is_keyframe_value}
+    })
+
+    assert_sink_buffer(pipeline, :sink_m, %Buffer{
+      payload: ^test_payload,
+      metadata: %{is_keyframe: ^expected_is_keyframe_value}
+    })
+
+    assert_sink_buffer(pipeline, :sink_l, %Buffer{
+      payload: ^test_payload,
+      metadata: %{is_keyframe: ^expected_is_keyframe_value}
+    })
+
+    Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  defp build_audio_pipeline(track, source_buffers) do
     children = [
-      source_h: %Source{caps: %Membrane.RTP{}, output: [test_payload]},
-      source_m: %Source{caps: %Membrane.RTP{}, output: [test_payload]},
-      source_l: %Source{caps: %Membrane.RTP{}, output: [test_payload]},
+      source: %Source{caps: %Membrane.RTP{}, output: source_buffers},
+      track_sender: %TrackSender{track: track},
+      sink: Sink
+    ]
+
+    links = [
+      link(:source)
+      |> via_in(Pad.ref(:input, {@track_id, nil}))
+      |> to(:track_sender)
+      |> via_out(Pad.ref(:output, {@track_id, nil}))
+      |> to(:sink)
+    ]
+
+    [children: children, links: links]
+  end
+
+  defp build_video_pipeline(track, source_buffers) do
+    children = [
+      source_m: %Source{caps: %Membrane.RTP{}, output: source_buffers},
+      source_h: %Source{caps: %Membrane.RTP{}, output: source_buffers},
+      source_l: %Source{caps: %Membrane.RTP{}, output: source_buffers},
       track_sender: %TrackSender{track: track},
       sink_h: Sink,
       sink_m: Sink,
@@ -94,23 +145,6 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       |> to(:sink_l)
     ]
 
-    {:ok, pipeline} = Pipeline.start_link(children: children, links: links)
-
-    assert_sink_buffer(pipeline, :sink_h, %Buffer{
-      payload: ^test_payload,
-      metadata: %{is_keyframe: ^expected_is_keyframe_value}
-    })
-
-    assert_sink_buffer(pipeline, :sink_m, %Buffer{
-      payload: ^test_payload,
-      metadata: %{is_keyframe: ^expected_is_keyframe_value}
-    })
-
-    assert_sink_buffer(pipeline, :sink_l, %Buffer{
-      payload: ^test_payload,
-      metadata: %{is_keyframe: ^expected_is_keyframe_value}
-    })
-
-    Pipeline.terminate(pipeline, blocking?: true)
+    [children: children, links: links]
   end
 end

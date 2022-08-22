@@ -42,8 +42,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {_track_id, _rid}), _ctx, state) do
+  def handle_pad_added(
+        Pad.ref(:output, {_track_id, _rid}) = pad,
+        %{playback_state: :playing},
+        state
+      ) do
+    {{:ok, caps: {pad, %Membrane.RTP{}}}, state}
+  end
+
+  @impl true
+  def handle_pad_added(_pad, _ctx, state) do
     {:ok, state}
+  end
+
+  @impl true
+  def handle_caps(_pad, _caps, _ctx, state) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_prepared_to_playing(ctx, state) do
+    actions =
+      Enum.flat_map(ctx.pads, fn
+        {Pad.ref(:output, _ref) = pad, _pad_data} -> [caps: {pad, %Membrane.RTP{}}]
+        _other -> []
+      end)
+
+    {{:ok, actions}, state}
   end
 
   @impl true
