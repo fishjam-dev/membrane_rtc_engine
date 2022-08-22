@@ -2,7 +2,7 @@ defmodule Membrane.RTC.Engine.Event.TrackVariantSwitched do
   @moduledoc """
   Event sent whenever Engine starts sending a new track variant.
 
-  See also `Membrane.RTC.Engine.Event.SwitchTrackVariant`.
+  See also `Membrane.RTC.Engine.Event.RequestTrackVariant`.
   """
 
   alias Membrane.RTC.Engine.Track
