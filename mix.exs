@@ -120,7 +120,7 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Endpoint.HLS
         ],
         Events: [
-          Membrane.RTC.Engine.Event.SwitchTrackVariant,
+          Membrane.RTC.Engine.Event.RequestTrackVariant,
           Membrane.RTC.Engine.Event.TrackVariantSwitched
         ],
         Messages: [
