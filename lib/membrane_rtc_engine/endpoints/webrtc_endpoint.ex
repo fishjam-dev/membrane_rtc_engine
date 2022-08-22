@@ -447,11 +447,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     link_to_track_sender =
       if Map.has_key?(ctx.children, {:track_sender, track_id}) do
-        fn link_builder -> to(link_builder, {:track_sender, track_id}) end
+        &to(&1, {:track_sender, track_id})
       else
-        fn link_builder ->
-          to(link_builder, {:track_sender, track_id}, %TrackSender{track: track})
-        end
+        &to(&1, {:track_sender, track_id}, %TrackSender{track: track})
       end
 
     spec = %ParentSpec{

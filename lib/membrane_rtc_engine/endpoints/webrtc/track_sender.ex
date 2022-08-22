@@ -75,7 +75,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_process(input_pad, buffer, _ctx, %{track: track} = state) do
     buffer = add_is_keyframe_flag(buffer, track)
     output_pad = to_output_pad(input_pad)
-    {{:ok, [buffer: {output_pad, buffer}]}, state}
+    {{:ok, buffer: {output_pad, buffer}}, state}
   end
 
   @impl true
