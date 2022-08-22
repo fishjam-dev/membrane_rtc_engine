@@ -80,20 +80,13 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       build_video_pipeline(track, [test_payload])
       |> Pipeline.start_link()
 
-    assert_sink_buffer(pipeline, :sink_h, %Buffer{
-      payload: ^test_payload,
-      metadata: %{is_keyframe: ^expected_is_keyframe_value}
-    })
-
-    assert_sink_buffer(pipeline, :sink_m, %Buffer{
-      payload: ^test_payload,
-      metadata: %{is_keyframe: ^expected_is_keyframe_value}
-    })
-
-    assert_sink_buffer(pipeline, :sink_l, %Buffer{
-      payload: ^test_payload,
-      metadata: %{is_keyframe: ^expected_is_keyframe_value}
-    })
+    [:sink_h, :sink_m, :sink_l]
+    |> Enum.each(fn sink ->
+      assert_sink_buffer(pipeline, sink, %Buffer{
+        payload: ^test_payload,
+        metadata: %{is_keyframe: ^expected_is_keyframe_value}
+      })
+    end)
 
     Pipeline.terminate(pipeline, blocking?: true)
   end
@@ -127,23 +120,15 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       sink_l: Sink
     ]
 
-    links = [
-      link(:source_h)
-      |> via_in(Pad.ref(:input, {@track_id, "h"}))
-      |> to(:track_sender)
-      |> via_out(Pad.ref(:output, {@track_id, "h"}))
-      |> to(:sink_h),
-      link(:source_m)
-      |> via_in(Pad.ref(:input, {@track_id, "m"}))
-      |> to(:track_sender)
-      |> via_out(Pad.ref(:output, {@track_id, "m"}))
-      |> to(:sink_m),
-      link(:source_l)
-      |> via_in(Pad.ref(:input, {@track_id, "l"}))
-      |> to(:track_sender)
-      |> via_out(Pad.ref(:output, {@track_id, "l"}))
-      |> to(:sink_l)
-    ]
+    links =
+      ["h", "m", "l"]
+      |> Enum.map(encodings, fn encoding ->
+        link(:"source_#{encoding}")
+        |> via_in(Pad.ref(:input, {@track_id, encoding}))
+        |> to(:track_sender)
+        |> via_out(Pad.ref(:output, {@track_id, encoding}))
+        |> to(:"sink_#{encoding}")
+      end)
 
     [children: children, links: links]
   end
