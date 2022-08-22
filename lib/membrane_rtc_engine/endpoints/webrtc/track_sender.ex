@@ -51,7 +51,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_pad_added(_pad, _ctx, state) do
+  def handle_pad_added(Pad.ref(:output, {_track_id, _rid}), _ctx, state) do
     {:ok, state}
   end
 
