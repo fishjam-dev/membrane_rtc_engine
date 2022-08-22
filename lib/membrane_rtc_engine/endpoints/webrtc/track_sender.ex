@@ -96,7 +96,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     %Buffer{buffer | metadata: new_metadata}
   end
 
-  defp to_output_pad(Pad.ref(:input, {_track_id, _rid} = track_id)) do
-    Pad.ref(:output, track_id)
+  defp to_output_pad(Pad.ref(:input, {_track_id, _rid} = pad_id)) do
+    Pad.ref(:output, pad_id)
   end
 end
