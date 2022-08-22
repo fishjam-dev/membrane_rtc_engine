@@ -9,6 +9,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
   alias Membrane.{Buffer, Pad, Time}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee
+  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
   alias Membrane.RTC.Engine.Support.TestSource
   alias Membrane.RTC.Engine.Track
   alias Membrane.Testing.{Pipeline, Sink}
@@ -30,8 +31,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
     assert Membrane.RTP.H264.Utils.is_keyframe(payload)
   end
 
-  describe "KeyframeRequestEvent" do
-    test "is sent when switching layers" do
+  describe "switching between track variants" do
+    test "generates KeyframeRequestEvent and TrackVariantSwitched event" do
       pipeline = build_pipeline()
 
       for layer <- Enum.reverse(@layers) do
@@ -43,6 +44,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
         # see if Keyframe request is sent
         assert_sink_event(pipeline, {:source, layer}, %Membrane.KeyframeRequestEvent{})
 
+        assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: ^layer})
+
         # Check if a buffer for a given layer actually arrives
         flush_buffers(pipeline)
         assert_sink_buffer(pipeline, :sink, %Buffer{payload: fake_keyframe(^layer)})
@@ -51,7 +54,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
       Pipeline.terminate(pipeline, blocking?: true)
     end
 
-    test "is sent when layer is switched off and then turned back on" do
+    test "generates KeyframeRequestEvent when layer is switched off and then turned back on" do
       pipeline = build_pipeline()
       Pipeline.execute_actions(pipeline, forward: {{:source, "h"}, {:set_active, false}})
       assert_sink_event(pipeline, {:source, "m"}, %Membrane.KeyframeRequestEvent{}, 10_000)

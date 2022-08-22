@@ -7,6 +7,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.EncodingTracker
   alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
+  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
+
   alias Membrane.RTC.Utils
   alias Membrane.Time
 
@@ -163,6 +165,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       Enum.flat_map_reduce(state.forwarders, state, fn
         {endpoint_id, forwarder}, state ->
           {forwarder, actions} = Forwarder.process(forwarder, buffer, encoding, endpoint_id)
+
+          # FIXME this is a temporar solution, it will be removed
+          # in subsequent PRs
+          #
+          # if that is a first buffer we are forwarding
+          # add TrackVariantSwitched event to actions
+          output_pad = Pad.ref(:output, {:endpoint, endpoint_id})
+          started = ctx.pads[output_pad].start_of_stream?
+
+          {actions, state} =
+            case actions do
+              [{:buffer, {^output_pad, _buffer}}] when started == false ->
+                event = %TrackVariantSwitched{new_variant: encoding}
+                actions = [event: {output_pad, event}] ++ actions
+                {actions, state}
+
+              other ->
+                {other, state}
+            end
+
           state = put_in(state, [:forwarders, endpoint_id], forwarder)
           {actions, state}
       end)
