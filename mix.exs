@@ -122,6 +122,10 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Endpoint.HLS,
           Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
         ],
+        Events: [
+          Membrane.RTC.Engine.Event.RequestTrackVariant,
+          Membrane.RTC.Engine.Event.TrackVariantSwitched
+        ],
         Messages: [
           Membrane.RTC.Engine.Message,
           Membrane.RTC.Engine.Message.EndpointCrashed,

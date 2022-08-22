@@ -11,6 +11,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackAdapter do
 
   use Membrane.Filter
 
+  require Membrane.Logger
+
+  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
+
   def_options track: [
                 type: :struct,
                 spec: Membrane.RTC.Engine.Track.t(),
@@ -38,6 +42,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackAdapter do
   def handle_init(%__MODULE__{track: track}) do
     state = %{track: track}
     {:ok, state}
+  end
+
+  @impl true
+  def handle_event(_pad, %TrackVariantSwitched{} = event, _context, state) do
+    Membrane.Logger.info("Got event: #{inspect(event)}")
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_event(pad, event, context, state) do
+    super(pad, event, context, state)
   end
 
   @impl true

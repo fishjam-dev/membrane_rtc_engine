@@ -30,6 +30,7 @@ defmodule Membrane.RTC.Engine.Track do
   @type id :: String.t()
   @type encoding :: atom()
   @type format :: [atom()]
+  @type variant :: String.t()
 
   @typedoc """
   This module contains:
@@ -57,7 +58,7 @@ defmodule Membrane.RTC.Engine.Track do
           id: id,
           origin: String.t(),
           encoding: encoding,
-          simulcast_encodings: [String.t()],
+          simulcast_encodings: [variant()],
           clock_rate: Membrane.RTP.clock_rate_t(),
           format: format,
           fmtp: FMTP.t(),
