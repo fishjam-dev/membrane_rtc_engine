@@ -444,12 +444,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_pad_added(Pad.ref(:output, {track_id, rid}) = pad, ctx, state) do
     %Track{encoding: encoding} = track = Map.get(state.inbound_tracks, track_id)
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
+    track_sender = {:track_sender, track_id}
 
     link_to_track_sender =
-      if Map.has_key?(ctx.children, {:track_sender, track_id}) do
-        &to(&1, {:track_sender, track_id})
+      if Map.has_key?(ctx.children, track_sender) do
+        &to(&1, track_sender)
       else
-        &to(&1, {:track_sender, track_id}, %TrackSender{track: track})
+        &to(&1, track_sender, %TrackSender{track: track})
       end
 
     spec = %ParentSpec{
