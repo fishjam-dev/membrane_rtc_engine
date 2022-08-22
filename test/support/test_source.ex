@@ -68,8 +68,14 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
   def handle_other(:supply_demand, _ctx, state), do: {:ok, state}
 
   @impl true
-  def handle_other({:set_active, active?}, _ctx, state),
-    do: {{:ok, redemand: :output}, %{state | active?: active?}}
+  def handle_other({:set_active, active?}, _ctx, state) do
+    {{:ok, redemand: :output}, %{state | active?: active?}}
+  end
+
+  @impl true
+  def handle_other({:execute_actions, actions}, _ctx, state) do
+    {{:ok, actions}, state}
+  end
 
   @impl true
   def handle_event(:output, event, _ctx, state) do

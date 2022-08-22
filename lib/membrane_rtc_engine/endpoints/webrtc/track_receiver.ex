@@ -13,7 +13,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
+  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed, TrackVariantSwitched}
 
   def_options track: [
                 type: :struct,
@@ -39,6 +39,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_event(_pad, %TrackVariantSwitched{} = event, _context, state) do
+    Membrane.Logger.info("Got event: #{inspect(event)}")
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_event(_pad, %TrackVariantPaused{} = event, _cotnext, state) do
+    Membrane.Logger.info("Got event: #{inspect(event)}")
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_event(_pad, %TrackVariantResumed{} = event, _context, state) do
     Membrane.Logger.info("Got event: #{inspect(event)}")
     {:ok, state}
   end
