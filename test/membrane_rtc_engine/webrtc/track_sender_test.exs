@@ -43,16 +43,31 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         )
 
       {:ok, pipeline} =
-        build_video_pipeline(track, [])
+        build_video_pipeline(track, [], 2)
         |> Pipeline.start_link()
 
-      assert_sink_caps(pipeline, :sink_h, %Membrane.RTP{})
-      assert_sink_caps(pipeline, :sink_m, %Membrane.RTP{})
-      assert_sink_caps(pipeline, :sink_l, %Membrane.RTP{})
+      assert_sink_caps(pipeline, {:sink, "h"}, %Membrane.RTP{})
+      assert_sink_caps(pipeline, {:sink, "m"}, %Membrane.RTP{})
 
-      refute_sink_caps(pipeline, :sink_h, %Membrane.RTP{}, 0)
-      refute_sink_caps(pipeline, :sink_m, %Membrane.RTP{}, 0)
-      refute_sink_caps(pipeline, :sink_l, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, "h"}, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, "m"}, %Membrane.RTP{}, 0)
+
+      links = [
+        link({:source, "l"}, %Source{caps: %Membrane.RTP{}, output: []})
+        |> via_in(Pad.ref(:input, {@track_id, "l"}))
+        |> to(:track_sender)
+        |> via_out(Pad.ref(:output, {@track_id, "l"}))
+        |> to({:sink, "l"}, Sink)
+      ]
+
+      actions = [{:spec, %Membrane.ParentSpec{links: links}}]
+      Pipeline.execute_actions(pipeline, actions)
+
+      assert_sink_caps(pipeline, {:sink, "l"}, %Membrane.RTP{})
+
+      refute_sink_caps(pipeline, {:sink, "h"}, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, "m"}, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, "l"}, %Membrane.RTP{}, 0)
 
       Pipeline.terminate(pipeline, blocking?: true)
     end
@@ -80,7 +95,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       build_video_pipeline(track, [test_payload])
       |> Pipeline.start_link()
 
-    [:sink_h, :sink_m, :sink_l]
+    [{:sink, "h"}, {:sink, "m"}, {:sink, "l"}]
     |> Enum.each(fn sink ->
       assert_sink_buffer(pipeline, sink, %Buffer{
         payload: ^test_payload,
@@ -109,27 +124,27 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     [children: children, links: links]
   end
 
-  defp build_video_pipeline(track, source_buffers) do
-    children = [
-      source_m: %Source{caps: %Membrane.RTP{}, output: source_buffers},
-      source_h: %Source{caps: %Membrane.RTP{}, output: source_buffers},
-      source_l: %Source{caps: %Membrane.RTP{}, output: source_buffers},
-      track_sender: %TrackSender{track: track},
-      sink_h: Sink,
-      sink_m: Sink,
-      sink_l: Sink
-    ]
+  defp build_video_pipeline(track, source_buffers, num_of_encodings \\ 3) do
+    encodings = Enum.take(["h", "m", "l"], num_of_encodings)
 
-    links =
-      ["h", "m", "l"]
-      |> Enum.map(encodings, fn encoding ->
-        link(:"source_#{encoding}")
+    children = [track_sender: %TrackSender{track: track}]
+
+    encoding_links =
+      for encoding <- encodings do
+        source = %Source{caps: %Membrane.RTP{}, output: source_buffers}
+
+        link({:source, encoding}, source)
         |> via_in(Pad.ref(:input, {@track_id, encoding}))
         |> to(:track_sender)
-        |> via_out(Pad.ref(:output, {@track_id, encoding}))
-        |> to(:"sink_#{encoding}")
-      end)
+      end
 
-    [children: children, links: links]
+    track_sender_links =
+      for encoding <- encodings do
+        link(:track_sender)
+        |> via_out(Pad.ref(:output, {@track_id, encoding}))
+        |> to({:sink, encoding}, Sink)
+      end
+
+    [children: children, links: encoding_links ++ track_sender_links]
   end
 end
