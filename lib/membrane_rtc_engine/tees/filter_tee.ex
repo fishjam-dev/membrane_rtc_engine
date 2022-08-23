@@ -146,6 +146,13 @@ defmodule Membrane.RTC.Engine.FilterTee do
           MapSet.new()
       end
 
-    {:ok, %{state | forward_to: forward_to}}
+    new_forwards = MapSet.difference(forward_to, state.forward_to)
+
+    action =
+      if MapSet.size(new_forwards) != 0,
+        do: [event: {:input, %Membrane.KeyframeRequestEvent{}}],
+        else: []
+
+    {{:ok, action}, %{state | forward_to: forward_to}}
   end
 end

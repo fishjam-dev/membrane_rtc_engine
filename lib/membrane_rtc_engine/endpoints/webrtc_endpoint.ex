@@ -321,7 +321,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       end
     end)
 
-    IO.inspect(new_outbound_tracks, label: :subscribe_tracks)
     send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
     {:ok, state}
   end
