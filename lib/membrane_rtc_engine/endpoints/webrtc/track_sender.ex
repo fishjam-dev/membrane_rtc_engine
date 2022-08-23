@@ -90,6 +90,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
+  def handle_tick(:check_encoding_statuses, _ctx, state) do
+    {actions, state} =
+      Enum.flat_map_reduce(state.trackers, state, fn {rid, tracker}, state ->
+        check_encoding_status(rid, tracker, state)
+      end)
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   def handle_process(
         Pad.ref(:input, {_track_id, rid}) = input_pad,
         buffer,
@@ -113,16 +123,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_end_of_stream(input_pad, _ctx, state) do
     output_pad = to_output_pad(input_pad)
     {{:ok, end_of_stream: output_pad}, state}
-  end
-
-  @impl true
-  def handle_tick(:check_encoding_statuses, _ctx, state) do
-    {actions, state} =
-      Enum.flat_map_reduce(state.trackers, state, fn {rid, tracker}, state ->
-        check_encoding_status(rid, tracker, state)
-      end)
-
-    {{:ok, actions}, state}
   end
 
   defp check_encoding_status(rid, tracker, state) do
