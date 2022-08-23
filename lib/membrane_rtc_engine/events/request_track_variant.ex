@@ -15,12 +15,10 @@ defmodule Membrane.RTC.Engine.Event.RequestTrackVariant do
   @typedoc """
   Type describing RequestTrackVariant event.
 
-  * `new_variant` - track variant to receive
+  * `variant` - track variant to receive
   """
-  @type t() :: %__MODULE__{
-          new_variant: Track.variant()
-        }
+  @type t() :: %__MODULE__{variant: Track.variant()}
 
-  @enforce_keys [:new_variant]
+  @enforce_keys [:variant]
   defstruct @enforce_keys
 end

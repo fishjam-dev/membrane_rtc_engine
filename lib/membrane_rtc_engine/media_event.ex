@@ -102,8 +102,5 @@ defmodule Membrane.RTC.Engine.MediaEvent do
   defp decode("updateTrackMetadata", %{"trackId" => track_id, "trackMetadata" => metadata}),
     do: %{type: :update_track_metadata, data: %{track_id: track_id, track_metadata: metadata}}
 
-  defp decode("selectEncoding", %{"peerId" => pid, "trackId" => tid, "encoding" => encoding}),
-    do: %{type: :select_encoding, data: %{peer_id: pid, track_id: tid, encoding: encoding}}
-
   defp decode(_event_type, _event_data), do: :error
 end

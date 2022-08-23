@@ -6,10 +6,10 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
   require Membrane.Pad
 
-  alias Membrane.{Buffer, Pad, Time}
+  alias Membrane.{Buffer, Pad}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
   alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed}
-  alias Membrane.RTC.Engine.Support.TestSource
+  alias Membrane.RTC.Engine.Support.{TestSource, Utils}
   alias Membrane.RTC.Engine.Track
   alias Membrane.Testing.{Pipeline, Sink, Source}
 
@@ -45,7 +45,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         )
 
       {:ok, pipeline} =
-        build_video_pipeline(track, <<1, 2, 3, 4, 5>>, 2)
+        build_video_pipeline(track, &Utils.generator/2, 2)
         |> Pipeline.start_link()
 
       assert_sink_caps(pipeline, {:sink, "h"}, %Membrane.RTP{})
@@ -82,7 +82,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         )
 
       {:ok, pipeline} =
-        build_video_pipeline(track, <<1, 2, 3, 4, 5>>, 3)
+        build_video_pipeline(track, &Utils.generator/2, 3)
         |> Pipeline.start_link()
 
       Enum.each(@simulcast_encodings, fn encoding ->
@@ -90,7 +90,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       end)
 
       Enum.each(@simulcast_encodings, fn encoding ->
-        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{})
+        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{}, 2000)
       end)
 
       Pipeline.terminate(pipeline, blocking?: true)
@@ -104,7 +104,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         )
 
       {:ok, pipeline} =
-        build_video_pipeline(track, <<1, 2, 3, 4, 5>>, 3)
+        build_video_pipeline(track, &Utils.generator/2, 3)
         |> Pipeline.start_link()
 
       Enum.each(@simulcast_encodings, fn encoding ->
@@ -146,7 +146,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     test_payload = <<1, 2, 3, 4, 5>>
 
     {:ok, pipeline} =
-      build_video_pipeline(track, test_payload)
+      build_video_pipeline(track, &Utils.generator/2)
       |> Pipeline.start_link()
 
     [{:sink, "h"}, {:sink, "m"}, {:sink, "l"}]
@@ -178,14 +178,14 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     [children: children, links: links]
   end
 
-  defp build_video_pipeline(track, test_payload, num_of_encodings \\ 3) do
+  defp build_video_pipeline(track, generator, num_of_encodings \\ 3) do
     encodings = Enum.take(["h", "m", "l"], num_of_encodings)
 
     children = [track_sender: %TrackSender{track: track}]
 
     encoding_links =
       for encoding <- encodings do
-        source = %TestSource{interval: Time.milliseconds(50), payload: test_payload}
+        source = %TestSource{caps: %Membrane.RTP{}, output: {nil, generator}}
 
         link({:source, encoding}, source)
         |> via_in(Pad.ref(:input, {@track_id, encoding}))

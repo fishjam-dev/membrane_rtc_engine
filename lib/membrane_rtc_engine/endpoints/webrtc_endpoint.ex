@@ -369,6 +369,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_notification(
+        {:encoding_switched, encoding},
+        {:track_receiver, track_id},
+        _ctx,
+        state
+      ) do
+    track = Map.fetch!(state.outbound_tracks, track_id)
+
+    media_event = %{
+      type: "encodingSwitched",
+      data: %{
+        peerId: track.origin,
+        trackId: track_id,
+        encoding: encoding
+      }
+    }
+
+    {{:ok, notify: {:custom_media_event, media_event}}, state}
+  end
+
+  @impl true
   def handle_notification(notification, _element, _ctx, state),
     do: {{:ok, notify: notification}, state}
 
@@ -435,12 +456,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
-    links = [
-      link_bin_input(pad)
-      |> to({:track_adapter, track_id}, %TrackReceiver{track: track})
-      |> via_in(pad, options: [use_payloader?: false])
-      |> to(:endpoint_bin)
-    ]
+    links =
+      if track.type == :video do
+        [
+          link_bin_input(pad)
+          |> to({:track_receiver, track_id}, %TrackReceiver{track: track})
+          |> via_in(pad, options: [use_payloader?: false])
+          |> to(:endpoint_bin)
+        ]
+      else
+        [
+          link_bin_input(pad)
+          |> via_in(pad, options: [use_payloader?: false])
+          |> to(:endpoint_bin)
+        ]
+      end
 
     {{:ok, spec: %ParentSpec{links: links}}, state}
   end
@@ -451,11 +481,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
     track_sender = {:track_sender, track_id}
 
-    track_sender_link =
+    link_to_track_sender =
       if Map.has_key?(ctx.children, track_sender) do
-        link(track_sender)
+        &to(&1, track_sender)
       else
-        link(track_sender, %TrackSender{track: track})
+        &to(&1, track_sender, %TrackSender{track: track})
       end
 
     # FIXME remove that after fixing linking order
@@ -470,26 +500,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     # This way we avoid scenario when track_sender
     # receives data on some input pad but there is
     # no output pad yet where data can be forwarded.
-    track_sender_to_bin_output_spec = %ParentSpec{
+    spec = %ParentSpec{
       links: [
-        track_sender_link
+        link(:endpoint_bin)
+        |> via_out(pad, options: [extensions: extensions, use_depayloader?: false])
+        |> via_in(Pad.ref(:input, {track_id, rid}))
+        |> then(link_to_track_sender)
         |> via_out(pad)
         |> to_bin_output(pad)
       ]
     }
 
-    bin_input_to_track_sender_spec = %ParentSpec{
-      links: [
-        link(:endpoint_bin)
-        |> via_out(pad, options: [extensions: extensions, use_depayloader?: false])
-        |> via_in(Pad.ref(:input, {track_id, rid}))
-        |> to(track_sender)
-      ]
-    }
-
-    send(self(), {:spawn, bin_input_to_track_sender_spec})
-
-    {{:ok, spec: track_sender_to_bin_output_spec}, state}
+    {{:ok, spec: spec}, state}
   end
 
   defp handle_custom_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
@@ -506,6 +528,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp handle_custom_media_event(%{type: :renegotiate_tracks}, ctx, state) do
     msg = {:signal, :renegotiate_tracks}
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+  end
+
+  defp handle_custom_media_event(%{type: :select_encoding, data: data}, ctx, state) do
+    msg = {:select_encoding, data.encoding}
+    {{:ok, forward({:track_receiver, data.track_id}, msg, ctx)}, state}
   end
 
   defp handle_custom_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
@@ -675,7 +702,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp deserialize(%{"type" => "sdpOffer"} = event) do
-    case(event) do
+    case event do
       %{
         "type" => "sdpOffer",
         "data" => %{
@@ -699,6 +726,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
              mid_to_track_id: mid_to_track_id
            }
          }}
+
+      _other ->
+        {:error, :invalid_media_event}
+    end
+  end
+
+  defp deserialize(%{"type" => "selectEncoding"} = event) do
+    case event do
+      %{
+        "type" => "selectEncoding",
+        "data" => %{
+          "peerId" => pid,
+          "trackId" => tid,
+          "encoding" => encoding
+        }
+      } ->
+        {:ok, %{type: :select_encoding, data: %{peer_id: pid, track_id: tid, encoding: encoding}}}
 
       _other ->
         {:error, :invalid_media_event}

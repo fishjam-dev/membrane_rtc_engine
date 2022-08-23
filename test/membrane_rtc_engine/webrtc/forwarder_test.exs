@@ -13,20 +13,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ForwarderTest do
              active_encodings: ["l", "m", "h"]
            } = forwarder
 
-    forwarder = Forwarder.encoding_inactive(forwarder, "h")
+    {forwarder, "m"} = Forwarder.encoding_inactive(forwarder, "h")
 
     assert %Forwarder{
-             selected_encoding: "h",
+             selected_encoding: nil,
              queued_encoding: "m",
              old_encoding: "h",
              active_encodings: ["l", "m"]
            } = forwarder
 
-    forwarder = Forwarder.encoding_active(forwarder, "h")
+    {forwarder, "h"} = Forwarder.encoding_active(forwarder, "h")
 
     assert %Forwarder{
-             selected_encoding: "h",
-             queued_encoding: nil,
+             selected_encoding: nil,
+             queued_encoding: "h",
              old_encoding: nil,
              active_encodings: ["l", "m", "h"]
            } = forwarder
@@ -42,7 +42,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ForwarderTest do
              active_encodings: ["l", "m", "h"]
            } = forwarder
 
-    forwarder = Forwarder.encoding_inactive(forwarder, "m")
+    {forwarder, nil} = Forwarder.encoding_inactive(forwarder, "m")
 
     assert %Forwarder{
              selected_encoding: "h",
@@ -62,7 +62,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ForwarderTest do
              active_encodings: ["l", "m", "h"]
            } = forwarder
 
-    forwarder = Forwarder.encoding_inactive(forwarder, "m")
+    {forwarder, nil} = Forwarder.encoding_inactive(forwarder, "m")
 
     assert %Forwarder{
              selected_encoding: "h",
@@ -71,19 +71,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ForwarderTest do
              active_encodings: ["l", "h"]
            } = forwarder
 
-    forwarder = Forwarder.encoding_inactive(forwarder, "h")
+    {forwarder, "l"} = Forwarder.encoding_inactive(forwarder, "h")
 
     assert %Forwarder{
-             selected_encoding: "h",
+             selected_encoding: nil,
              queued_encoding: "l",
              old_encoding: "h",
              active_encodings: ["l"]
            } = forwarder
 
-    forwarder = Forwarder.encoding_active(forwarder, "m")
+    {forwarder, "m"} = Forwarder.encoding_active(forwarder, "m")
 
     assert %Forwarder{
-             selected_encoding: "h",
+             selected_encoding: nil,
              queued_encoding: "m",
              old_encoding: "h",
              active_encodings: ["l", "m"]
