@@ -35,9 +35,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_init(%__MODULE__{track: track}) do
-    trackers = Map.new(track.simulcast_encodings, &{&1, EncodingTracker.new(&1)})
-
-    {:ok, %{track: track, trackers: trackers}}
+    {:ok, %{track: track, trackers: %{}}}
   end
 
   @impl true
@@ -47,16 +45,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_pad_added(
-        Pad.ref(:output, {_track_id, _rid}) = pad,
-        %{playback_state: :playing},
+        Pad.ref(:output, {_track_id, rid}) = pad,
+        %{playback_state: playback_state},
         state
       ) do
-    {{:ok, caps: {pad, %Membrane.RTP{}}}, state}
-  end
+    state = put_in(state, [:trackers, rid], EncodingTracker.new(rid))
 
-  @impl true
-  def handle_pad_added(Pad.ref(:output, {_track_id, _rid}), _ctx, state) do
-    {:ok, state}
+    actions =
+      if playback_state == :playing do
+        [caps: {pad, %Membrane.RTP{}}]
+      else
+        []
+      end
+
+    {{:ok, actions}, state}
   end
 
   @impl true
