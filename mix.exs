@@ -61,6 +61,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_rtp_h264_plugin, "~> 0.13.0"},
       {:membrane_tee_plugin, "~> 0.9.0"},
       {:uuid, "~> 1.1"},
+      {:qex, "~> 0.5"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 1.0"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
