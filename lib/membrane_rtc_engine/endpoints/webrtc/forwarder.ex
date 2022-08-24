@@ -247,91 +247,101 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     end
   end
 
-  def process(forwarder, buffer, encoding, endpoint_id) do
-    %__MODULE__{
-      selected_encoding: selected_encoding,
-      queued_encoding: queued_encoding,
-      rtp_munger: rtp_munger,
-      vp8_munger: vp8_munger
-    } = forwarder
-
-    cond do
+  def process(
+        %__MODULE__{
+          queued_encoding: queued_encoding,
+          rtp_munger: rtp_munger,
+          vp8_munger: vp8_munger
+        } = forwarder,
+        buffer,
+        encoding,
+        endpoint_id
+      )
+      when queued_encoding == encoding do
+    if buffer.payload != <<>> and is_keyframe(buffer.payload, forwarder.codec) do
       # we received packet for encoding we are going to switch to
       # and this packet represents a keyframe
       # update mungers and start forwarding new encoding
-      queued_encoding == encoding and buffer.payload != <<>> and
-          is_keyframe(buffer.payload, forwarder.codec) ->
-        Membrane.Logger.debug("""
-        Received keyframe on requested encoding: #{inspect(queued_encoding)}. Switching.
-        """)
+      Membrane.Logger.debug("""
+      Received keyframe on requested encoding: #{inspect(queued_encoding)}. Switching.
+      """)
 
-        rtp_munger = RTPMunger.update(rtp_munger, buffer)
-        {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
+      rtp_munger = RTPMunger.update(rtp_munger, buffer)
+      {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
 
-        unless buffer,
-          do:
-            raise(RuntimeError,
-              message:
-                "Received nil buffer from munger despite it being the first buffer after switching layers (this indicates an error in the code)"
-            )
+      unless buffer,
+        do:
+          raise(RuntimeError,
+            message:
+              "Received nil buffer from munger despite it being the first buffer after switching layers (this indicates an error in the code)"
+          )
 
-        {vp8_munger, buffer} =
-          if vp8_munger do
-            vp8_munger = VP8Munger.update(vp8_munger, buffer)
-            VP8Munger.munge(vp8_munger, buffer)
-          else
-            {vp8_munger, buffer}
-          end
+      {vp8_munger, buffer} =
+        if vp8_munger do
+          vp8_munger = VP8Munger.update(vp8_munger, buffer)
+          VP8Munger.munge(vp8_munger, buffer)
+        else
+          {vp8_munger, buffer}
+        end
 
-        forwarder = %{
-          forwarder
-          | rtp_munger: rtp_munger,
-            vp8_munger: vp8_munger,
-            selected_encoding: queued_encoding,
-            queued_encoding: nil
-        }
+      forwarder = %{
+        forwarder
+        | rtp_munger: rtp_munger,
+          vp8_munger: vp8_munger,
+          selected_encoding: queued_encoding,
+          queued_encoding: nil
+      }
 
-        actions = [
-          notify: {:encoding_switched, endpoint_id, encoding},
-          buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}
-        ]
+      actions = [
+        notify: {:encoding_switched, endpoint_id, encoding},
+        buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}
+      ]
 
-        {forwarder, actions}
+      {forwarder, actions}
+    else
+      Membrane.Logger.debug("""
+      Waiting for keyframe on encoding #{inspect(queued_encoding)}
+      """)
 
-      queued_encoding == encoding ->
-        Membrane.Logger.debug("""
-        Waiting for keyframe on encoding #{inspect(queued_encoding)}
-        """)
-
-        {forwarder, []}
-
-      # we received packet for encoding we are currently forwarding
-      # munge and forward it
-      selected_encoding == encoding ->
-        {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
-
-        {vp8_munger, buffer} =
-          if vp8_munger && buffer do
-            VP8Munger.munge(vp8_munger, buffer)
-          else
-            {vp8_munger, buffer}
-          end
-
-        forwarder = %{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
-
-        actions =
-          if buffer do
-            [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
-          else
-            Membrane.Logger.info("Ignoring buffer due to missing entry in the cache")
-            []
-          end
-
-        {forwarder, actions}
-
-      true ->
-        {forwarder, []}
+      {forwarder, []}
     end
+  end
+
+  def process(
+        %__MODULE__{
+          selected_encoding: selected_encoding,
+          rtp_munger: rtp_munger,
+          vp8_munger: vp8_munger
+        } = forwarder,
+        buffer,
+        encoding,
+        endpoint_id
+      )
+      when encoding == selected_encoding do
+    {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
+
+    {vp8_munger, buffer} =
+      if vp8_munger && buffer do
+        VP8Munger.munge(vp8_munger, buffer)
+      else
+        {vp8_munger, buffer}
+      end
+
+    forwarder = %{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
+
+    actions =
+      if buffer do
+        [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
+      else
+        Membrane.Logger.info("Ignoring buffer due to missing entry in the cache")
+        []
+      end
+
+    {forwarder, actions}
+  end
+
+  def process(forwarder, _buffer, _encoding, _endpoint_id) do
+    {forwarder, []}
   end
 
   defp is_keyframe(payload, codec) do
