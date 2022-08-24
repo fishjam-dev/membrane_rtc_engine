@@ -83,7 +83,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       rtp_munger
       | highest_incoming_seq_num: buffer.metadata.rtp.sequence_number - 1,
         seq_num_offset: seq_num_offset,
-        timestamp_offset: timestamp_offset
+        timestamp_offset: timestamp_offset,
+        cache: Cache.new()
     }
   end
 
