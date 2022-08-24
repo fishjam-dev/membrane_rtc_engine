@@ -268,6 +268,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
         rtp_munger = RTPMunger.update(rtp_munger, buffer)
         {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
 
+        unless buffer,
+          do:
+            raise(RuntimeError,
+              message:
+                "Received nil buffer from munger despite it being the first buffer after switching layers (this indicates an error in the code)"
+            )
+
         {vp8_munger, buffer} =
           if vp8_munger do
             vp8_munger = VP8Munger.update(vp8_munger, buffer)
@@ -304,14 +311,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
         {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
 
         {vp8_munger, buffer} =
-          if vp8_munger do
+          if vp8_munger && buffer do
             VP8Munger.munge(vp8_munger, buffer)
           else
             {vp8_munger, buffer}
           end
 
         forwarder = %{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
-        actions = [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
+
+        actions =
+          if buffer do
+            [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
+          else
+            Membrane.Logger.info("Ignoring buffer due to missing entry in the cache")
+            []
+          end
+
         {forwarder, actions}
 
       true ->

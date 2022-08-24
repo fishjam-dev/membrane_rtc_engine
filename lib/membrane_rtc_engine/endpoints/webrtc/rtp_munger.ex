@@ -13,6 +13,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   # we simply pass them to the other side.
   use Bitwise
 
+  alias __MODULE__.Cache
+
   @typedoc """
   * `highest_incoming_seq_num` - the highest incoming sequence number for current encoding.
     It does not include `seq_num_offset` so unlike `last_seq_num`,
@@ -22,6 +24,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   """
   @type t() :: %__MODULE__{
           clock_rate: Membrane.RTP.clock_rate_t(),
+          cache: Cache.t(),
           highest_incoming_seq_num: integer(),
           last_seq_num: integer(),
           seq_num_offset: integer(),
@@ -30,7 +33,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           last_packet_arrival: integer()
         }
 
-  @enforce_keys [:clock_rate]
+  @enforce_keys [:clock_rate, :cache]
   defstruct @enforce_keys ++
               [
                 highest_incoming_seq_num: 0,
@@ -46,7 +49,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   """
   @spec new(Membrane.RTP.clock_rate_t()) :: t()
   def new(clock_rate) do
-    %__MODULE__{clock_rate: clock_rate}
+    %__MODULE__{clock_rate: clock_rate, cache: Cache.new()}
   end
 
   @spec init(t(), Membrane.Buffer.t()) :: t()
@@ -84,22 +87,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     }
   end
 
-  @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t()}
+  @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t() | nil}
   def munge(rtp_munger, buffer) do
     # TODO we should use Sender Reports instead
     packet_arrival = System.monotonic_time(:millisecond)
 
+    calculate_seq_num = fn seq_num ->
+      # add 1 <<< 16 (max sequence number) to handle sequence number rollovers
+      # properly - we will avoid negative sequence numbers in this way
+      rem(seq_num + (1 <<< 16) - rtp_munger.seq_num_offset, 1 <<< 16)
+    end
+
+    update_ts = fn metadata ->
+      update_in(metadata, [:rtp, :timestamp], fn timestamp ->
+        rem(timestamp + (1 <<< 32) - rtp_munger.timestamp_offset, 1 <<< 32)
+      end)
+    end
+
     update_sn_ts = fn buffer ->
       metadata =
         buffer.metadata
-        |> update_in([:rtp, :sequence_number], fn seq_num ->
-          # add 1 <<< 16 (max sequence number) to handle sequence number rollovers
-          # properly - we will avoid negative sequence numbers in this way
-          rem(seq_num + (1 <<< 16) - rtp_munger.seq_num_offset, 1 <<< 16)
-        end)
-        |> update_in([:rtp, :timestamp], fn timestamp ->
-          rem(timestamp + (1 <<< 32) - rtp_munger.timestamp_offset, 1 <<< 32)
-        end)
+        |> update_in([:rtp, :sequence_number], calculate_seq_num)
+        |> then(update_ts)
 
       %Membrane.Buffer{buffer | metadata: metadata}
     end
@@ -119,8 +128,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       # is equal to 0 - 65 536 = -65 536 - such packet cannot be
       # considered as out-of-order
       seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 ->
-        buffer = update_sn_ts.(buffer)
-        {rtp_munger, buffer}
+        case Cache.get(rtp_munger.cache, buffer.metadata.rtp.sequence_number) do
+          {:ok, seq_num} ->
+            metadata =
+              buffer.metadata
+              |> then(update_ts)
+              |> put_in([:rtp, :sequence_number], seq_num)
+
+            {rtp_munger, %{buffer | metadata: metadata}}
+
+          {:error, :not_found} ->
+            {rtp_munger, nil}
+        end
 
       # duplicate packet
       # at the moment, perform the same actions we are performing
@@ -135,12 +154,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
         highest_incoming_seq_num = buffer.metadata.rtp.sequence_number
         buffer = update_sn_ts.(buffer)
 
+        cache =
+          (rtp_munger.highest_incoming_seq_num + 1)..(highest_incoming_seq_num - 1)
+          |> Enum.reduce(rtp_munger.cache, fn seq_num, cache ->
+            Cache.push(cache, seq_num, calculate_seq_num.(seq_num))
+          end)
+
         rtp_munger = %__MODULE__{
           rtp_munger
           | highest_incoming_seq_num: highest_incoming_seq_num,
             last_seq_num: buffer.metadata.rtp.sequence_number,
             last_timestamp: buffer.metadata.rtp.timestamp,
-            last_packet_arrival: packet_arrival
+            last_packet_arrival: packet_arrival,
+            cache: cache
         }
 
         {rtp_munger, buffer}
