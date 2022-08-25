@@ -215,14 +215,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   @spec process(t(), Membrane.Buffer.t(), Endpoint.WebRTC.encoding_t(), any()) ::
           {t(), [Membrane.Element.Action.t()]}
   def process(%__MODULE__{started?: false} = forwarder, buffer, encoding, endpoint_id) do
-    # init mungers with the first non-empty RTP packet
     %__MODULE__{
       selected_encoding: selected_encoding,
       rtp_munger: rtp_munger,
       vp8_munger: vp8_munger
     } = forwarder
 
-    if buffer.payload != <<>> do
+    if buffer.payload != <<>> and encoding == selected_encoding do
       Membrane.Logger.debug("Initializing RTP and VP8 mungers")
       rtp_munger = RTPMunger.init(rtp_munger, buffer)
       vp8_munger = if vp8_munger, do: VP8Munger.init(vp8_munger, buffer)
@@ -234,12 +233,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
           started?: true
       }
 
-      actions =
-        if encoding == selected_encoding do
-          [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
-        else
-          []
-        end
+      actions = [buffer: {Pad.ref(:output, {:endpoint, endpoint_id}), buffer}]
 
       {forwarder, actions}
     else
