@@ -156,10 +156,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
         buffer = update_sn_ts.(buffer)
 
         cache =
-          (rtp_munger.highest_incoming_seq_num + 1)..(highest_incoming_seq_num - 1)
-          |> Enum.reduce(rtp_munger.cache, fn seq_num, cache ->
-            Cache.push(cache, seq_num, calculate_seq_num.(seq_num))
-          end)
+          if seq_num_diff > 1 do
+            (rtp_munger.highest_incoming_seq_num + 1)..(highest_incoming_seq_num - 1)
+            |> Enum.reduce(rtp_munger.cache, fn seq_num, cache ->
+              Cache.push(cache, seq_num, calculate_seq_num.(seq_num))
+            end)
+          else
+            rtp_munger.cache
+          end
 
         rtp_munger = %__MODULE__{
           rtp_munger
