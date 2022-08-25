@@ -207,10 +207,6 @@ if Enum.all?(
 
       directory = Path.join(state.output_directory, track.stream_id)
 
-      # remove directory if it already exists
-      File.rm_rf(directory)
-      File.mkdir_p!(directory)
-
       spec =
         hls_links_and_children(
           link_builder,
@@ -224,6 +220,10 @@ if Enum.all?(
         if MapSet.member?(state.stream_ids, track.stream_id) do
           {spec, state}
         else
+          # remove directory if it already exists
+          File.rm_rf(directory)
+          File.mkdir_p!(directory)
+
           hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
             manifest_module: Membrane.HTTPAdaptiveStream.HLS,
             target_window_duration: state.target_window_duration,
