@@ -26,6 +26,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 type: :struct,
                 spec: Membrane.RTC.Engine.Track.t(),
                 description: "Track this adapter will maintain"
+              ],
+              default_simulcast_encoding: [
+                spec: Membrane.RTC.Engine.Track.variant(),
+                description: "Simulcast encoding that will be forwarded by default."
               ]
 
   def_input_pad :input,
@@ -39,16 +43,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     caps: Membrane.RTP
 
   @impl true
-  def handle_init(%__MODULE__{track: track}) do
-    # TODO provide nil
-    forwarder = Forwarder.new(track.encoding, track.clock_rate, track.simulcast_encodings, nil)
-    # TODO remove this Enum.reduce
-    forwarder =
-      Enum.reduce(track.simulcast_encodings, forwarder, fn encoding, forwarder ->
-        {forwarder, _next_encoding} = Forwarder.encoding_inactive(forwarder, encoding)
-        forwarder
-      end)
-
+  def handle_init(%__MODULE__{track: track, default_simulcast_encoding: default_simulcast_encoding}) do
+    forwarder = Forwarder.new(track.encoding, track.clock_rate, track.simulcast_encodings, default_simulcast_encoding)
     state = %{track: track, current_encoding: nil, forwarder: forwarder}
     {:ok, state}
   end

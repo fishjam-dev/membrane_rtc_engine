@@ -296,9 +296,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:endpoint, endpoint_id} = ctx.name
 
     Enum.each(new_outbound_tracks, fn track ->
-      opts = [default_simulcast_encoding: state.simulcast_config.default_encoding.(track)]
-
-      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP, opts) do
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP) do
         :ok ->
           Membrane.OpenTelemetry.add_event(@life_span_id, :subscribing_on_track,
             track_id: track.id
@@ -456,11 +454,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
+    default_encoding = state.simulcast_config.default_encoding.(track)
+
     links =
       if track.type == :video do
         [
           link_bin_input(pad)
-          |> to({:track_receiver, track_id}, %TrackReceiver{track: track})
+          |> to({:track_receiver, track_id}, %TrackReceiver{track: track, default_simulcast_encoding: default_encoding})
           |> via_in(pad, options: [use_payloader?: false])
           |> to(:endpoint_bin)
         ]

@@ -248,14 +248,8 @@ defmodule Membrane.RTC.Engine do
 
   @typedoc """
   Subscription options.
-
-  * `default_simulcast_encoding` - initial encoding that
-  endpoint making subscription wants to receive.
-  This option has no effect for audio tracks and video tracks
-  that are not simulcast.
-
   """
-  @type subscription_opts_t() :: [default_simulcast_encoding: String.t()]
+  @type subscription_opts_t() :: Keyword.t()
 
   @typedoc """
   Membrane action that will cause RTC Engine to publish some message to all other endpoints.

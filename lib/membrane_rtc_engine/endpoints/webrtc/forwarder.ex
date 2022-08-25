@@ -28,12 +28,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
             started?: boolean()
           }
 
-  @enforce_keys [:codec, :selected_encoding, :encodings, :active_encodings, :rtp_munger]
+  @enforce_keys [:codec, :old_encoding, :encodings, :rtp_munger]
   defstruct @enforce_keys ++
               [
+                :selected_encoding,
                 :queued_encoding,
-                :old_encoding,
                 :vp8_munger,
+                active_encodings: [],
                 started?: false
               ]
 
@@ -45,29 +46,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   the highest possible encoding will be chosen.
   """
   @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t(), [String.t()], String.t() | nil) :: t()
-  def new(codec, clock_rate, encodings, selected_encoding \\ nil)
+  def new(codec, clock_rate, encodings, initial_target_encoding \\ nil)
 
-  def new(:VP8, clock_rate, encodings, selected_encoding) do
+  def new(:VP8, clock_rate, encodings, initial_target_encoding) do
     %__MODULE__{
       codec: :VP8,
       rtp_munger: RTPMunger.new(clock_rate),
       vp8_munger: VP8Munger.new(),
       encodings: encodings,
-      # assume that, at the beginning, all encodings are active
-      # if some encoding is inactive, we will be notified
-      # about this in `encoding_inactive` function
-      active_encodings: encodings,
-      selected_encoding: selected_encoding || get_next_encoding(encodings)
+      old_encoding: initial_target_encoding
     }
   end
 
-  def new(:H264, clock_rate, encodings, selected_encoding) do
+  def new(:H264, clock_rate, encodings, initial_target_encoding) do
     %__MODULE__{
       codec: :H264,
       rtp_munger: RTPMunger.new(clock_rate),
       encodings: encodings,
-      active_encodings: encodings,
-      selected_encoding: selected_encoding || get_next_encoding(encodings)
+      old_encoding: initial_target_encoding
     }
   end
 
@@ -145,7 +141,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       # if we didn't have selected encoding either because
       # there aren't any active encodings or we are
       # waiting for a keyframe for queued encoding
-      forwarder.selected_encoding == nil ->
+      forwarder.queued_encoding == nil ->
         select_encoding(forwarder, next_encoding)
         {forwarder, next_encoding}
 
