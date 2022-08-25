@@ -238,8 +238,6 @@ defmodule Membrane.RTC.Engine.DisplayManager do
       |> Enum.sort_by(fn {_endpoint_name, time} -> time end, &sorting_vads/2)
       |> Enum.map(fn {endpoint_name, _time} -> endpoint_name end)
 
-    IO.inspect(ordered_endpoint_names, label: :ordered_endpoint_names)
-
     ordered_tracks =
       Enum.flat_map(ordered_endpoint_names, fn endpoint_name ->
         endpoint_managers |> Map.get(endpoint_name) |> EndpointManager.get_inbound_video_tracks()

@@ -327,7 +327,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
-    IO.inspect({:vad, val, ctx.name}, label: :vad_notification)
     send(state.owner, {:vad_notification, val, ctx.name})
 
     send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, val})
