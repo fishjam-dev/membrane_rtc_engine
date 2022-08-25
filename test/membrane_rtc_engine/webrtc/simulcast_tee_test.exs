@@ -63,6 +63,30 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
     end
   end
 
+  describe "SimulcastTee" do
+    test "correctly munges sequence numbers between layers" do
+      pipeline = build_pipeline()
+
+      Process.sleep(1_000)
+      Pipeline.execute_actions(pipeline, forward: {:tee, {:select_encoding, {@endpoint_id, "h"}}})
+      Process.sleep(1_000)
+      Pipeline.execute_actions(pipeline, forward: {:tee, {:select_encoding, {@endpoint_id, "l"}}})
+      Process.sleep(1_000)
+
+      Pipeline.terminate(pipeline, blocking?: true)
+      assert_pipeline_playback_changed(pipeline, :playing, :prepared)
+
+      buffers =
+        pipeline
+        |> flush_buffers()
+        |> Enum.map(& &1.metadata.rtp.sequence_number)
+
+      assert buffers
+             |> Enum.zip(tl(buffers))
+             |> Enum.all?(fn {prev, next} -> next - prev == 1 end)
+    end
+  end
+
   defp build_pipeline() do
     track =
       Track.new(
@@ -78,10 +102,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
       )
 
     layers_links =
-      for layer <- @layers do
+      for {layer, i} <- Enum.with_index(@layers) do
         source = %TestSource{
           interval: Time.milliseconds(50),
-          payload: fake_keyframe(layer)
+          payload: fake_keyframe(layer),
+          seq_num: 20_000 * i
         }
 
         link({:source, layer}, source)
@@ -107,12 +132,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
     pipeline
   end
 
-  defp flush_buffers(pipeline) do
+  defp flush_buffers(pipeline, acc \\ []) do
     receive do
-      {Membrane.Testing.Pipeline, ^pipeline, {:handle_notification, {{:buffer, _buffer}, :sink}}} ->
-        flush_buffers(pipeline)
+      {Membrane.Testing.Pipeline, ^pipeline, {:handle_notification, {{:buffer, buffer}, :sink}}} ->
+        flush_buffers(pipeline, [buffer | acc])
     after
-      0 -> :ok
+      0 -> Enum.reverse(acc)
     end
   end
 end
