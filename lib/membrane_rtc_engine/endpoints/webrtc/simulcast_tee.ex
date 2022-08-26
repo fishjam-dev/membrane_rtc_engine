@@ -204,9 +204,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   defp handle_input_event(%TrackVariantPaused{} = event, encoding, _ctx, state) do
-    new_state = update_in(state, [:inactive_encodings], &[encoding | &1])
+    state = update_in(state, [:inactive_encodings], &[encoding | &1])
+
+    # reset all target encodings set to `encoding`
+    # when `encoding` becomes active again
+    # endpoints are expected to request it once again
+    state =
+      Enum.reduce(state.routes, state, fn
+        {output_pad, %{target_encoding: ^encoding}}, state ->
+          update_in(state, [:routes, output_pad], &Map.put(&1, :target_encoding, nil))
+
+        _route, state ->
+          state
+      end)
+
     actions = [forward: event]
-    {actions, new_state}
+    {actions, state}
   end
 
   defp handle_input_event(%TrackVariantResumed{} = event, encoding, _ctx, state) do

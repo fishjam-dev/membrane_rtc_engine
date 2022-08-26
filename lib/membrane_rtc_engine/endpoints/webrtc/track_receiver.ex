@@ -13,7 +13,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{EncodingSelector, Forwarder}
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
@@ -43,35 +43,47 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     caps: Membrane.RTP
 
   @impl true
-  def handle_init(%__MODULE__{track: track, default_simulcast_encoding: default_simulcast_encoding}) do
-    forwarder = Forwarder.new(track.encoding, track.clock_rate, track.simulcast_encodings, default_simulcast_encoding)
-    state = %{track: track, current_encoding: nil, forwarder: forwarder}
+  def handle_init(%__MODULE__{
+        track: track,
+        default_simulcast_encoding: default_simulcast_encoding
+      }) do
+    forwarder = Forwarder.new(track.encoding, track.clock_rate)
+    selector = EncodingSelector.new(default_simulcast_encoding)
+
+    state = %{
+      track: track,
+      forwarder: forwarder,
+      selector: selector,
+      needs_reconfiguration: false
+    }
+
     {:ok, state}
   end
 
   @impl true
   def handle_event(_pad, %TrackVariantSwitched{new_variant: new_variant} = event, _context, state) do
     Membrane.Logger.error("Got event: #{inspect(event)}")
+    selector = EncodingSelector.set_current_encoding(state.selector, new_variant)
     actions = [notify: {:encoding_switched, new_variant}]
-    state = %{state | current_encoding: new_variant}
+    state = %{state | selector: selector, needs_reconfiguration: true}
     {{:ok, actions}, state}
   end
 
   @impl true
   def handle_event(_pad, %TrackVariantPaused{variant: encoding} = event, _cotnext, state) do
     Membrane.Logger.info("Got event: #{inspect(event)}")
-    {forwarder, next_encoding} = Forwarder.encoding_inactive(state.forwarder, encoding)
+    {selector, next_encoding} = EncodingSelector.encoding_inactive(state.selector, encoding)
     actions = maybe_request_track_encoding(next_encoding)
-    state = %{state | forwarder: forwarder}
+    state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
 
   @impl true
   def handle_event(_pad, %TrackVariantResumed{variant: encoding} = event, _context, state) do
     Membrane.Logger.warn("Got event: #{inspect(event)}")
-    {forwarder, next_encoding} = Forwarder.encoding_active(state.forwarder, encoding)
+    {selector, next_encoding} = EncodingSelector.encoding_active(state.selector, encoding)
     actions = maybe_request_track_encoding(next_encoding)
-    state = %{state | forwarder: forwarder}
+    state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
 
@@ -81,17 +93,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
+  def handle_process(_pad, buffer, _ctx, %{needs_reconfiguration: true} = state) do
+    forwarder = Forwarder.reconfigure(state.forwarder, buffer)
+    {forwarder, actions} = Forwarder.process(forwarder, buffer)
+    state = %{state | forwarder: forwarder, needs_reconfiguration: false}
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   def handle_process(_pad, buffer, _ctx, state) do
-    {forwarder, actions} = Forwarder.process(state.forwarder, buffer, state.current_encoding)
+    {forwarder, actions} = Forwarder.process(state.forwarder, buffer)
     state = %{state | forwarder: forwarder}
     {{:ok, actions}, state}
   end
 
   @impl true
   def handle_other({:select_encoding, encoding}, _ctx, state) do
-    forwarder = Forwarder.select_encoding(state.forwarder, encoding)
-    actions = maybe_request_track_encoding(encoding)
-    {{:ok, actions}, %{state | forwarder: forwarder}}
+    {selector, next_encoding} = EncodingSelector.select_encoding(state.selector, encoding)
+    actions = maybe_request_track_encoding(next_encoding)
+    {{:ok, actions}, %{state | selector: selector}}
   end
 
   @impl true
