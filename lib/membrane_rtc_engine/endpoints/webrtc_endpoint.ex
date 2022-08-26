@@ -422,11 +422,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_other({:spawn, spec}, _ctx, state) do
-    {{:ok, spec: spec}, state}
-  end
-
-  @impl true
   def handle_other(msg, ctx, state) do
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
@@ -451,45 +446,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
     track_sender = {:track_sender, track_id}
 
-    track_sender_link =
+    link_to_track_sender =
       if Map.has_key?(ctx.children, track_sender) do
-        link(track_sender)
+        &to(&1, track_sender)
       else
-        link(track_sender, %TrackSender{track: track})
+        &to(&1, track_sender, %TrackSender{track: track})
       end
 
-    # FIXME remove that after fixing linking order
-    # in membrane_core (MC-68).
-    #
-    # There is no way to force membrane_core
-    # to link track_sender to bin output at first
-    # and then bin input to track_sender.
-    #
-    # Therefore, link track_sender to bin output
-    # and enqueue linking bin input to track_sender.
-    # This way we avoid scenario when track_sender
-    # receives data on some input pad but there is
-    # no output pad yet where data can be forwarded.
-    track_sender_to_bin_output_spec = %ParentSpec{
+    spec = %ParentSpec{
       links: [
-        track_sender_link
+        link(:endpoint_bin)
+        |> via_out(pad, options: [extensions: extensions, use_depayloader?: false])
+        |> via_in(Pad.ref(:input, {track_id, rid}))
+        |> then(link_to_track_sender)
         |> via_out(pad)
         |> to_bin_output(pad)
       ]
     }
 
-    bin_input_to_track_sender_spec = %ParentSpec{
-      links: [
-        link(:endpoint_bin)
-        |> via_out(pad, options: [extensions: extensions, use_depayloader?: false])
-        |> via_in(Pad.ref(:input, {track_id, rid}))
-        |> to(track_sender)
-      ]
-    }
-
-    send(self(), {:spawn, bin_input_to_track_sender_spec})
-
-    {{:ok, spec: track_sender_to_bin_output_spec}, state}
+    {{:ok, spec: spec}, state}
   end
 
   defp handle_custom_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
