@@ -1,7 +1,7 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackAdapter do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @moduledoc false
 
-  # Adapter:
+  # TrackReceiver:
   # * generates probe packets on request from the
   # outside
   # * switches between simulcast layers on request from
@@ -24,14 +24,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackAdapter do
   def_input_pad :input,
     availability: :always,
     mode: :push,
-    caps: Membrane.RTP,
-    options: [
-      telemetry_label: [
-        spec: Membrane.TelemetryMetrics.label(),
-        default: [],
-        description: "Label passed to Membrane.TelemetryMetrics functions"
-      ]
-    ]
+    caps: Membrane.RTP
 
   def_output_pad :output,
     availability: :always,

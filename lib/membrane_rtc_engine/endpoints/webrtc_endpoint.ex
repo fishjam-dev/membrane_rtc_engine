@@ -15,7 +15,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackAdapter}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackReceiver, TrackSender}
+  alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
@@ -431,7 +432,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     links = [
       link_bin_input(pad)
-      |> to({:track_adapter, track_id}, %TrackAdapter{track: track})
+      |> to({:track_adapter, track_id}, %TrackReceiver{track: track})
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
     ]
@@ -440,19 +441,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {track_id, _rid}) = pad, _ctx, state) do
-    %{encoding: encoding} = Map.get(state.inbound_tracks, track_id)
+  def handle_pad_added(Pad.ref(:output, {track_id, rid}) = pad, ctx, state) do
+    %Track{encoding: encoding} = track = Map.get(state.inbound_tracks, track_id)
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
+    track_sender = {:track_sender, track_id}
+
+    link_to_track_sender =
+      if Map.has_key?(ctx.children, track_sender) do
+        &to(&1, track_sender)
+      else
+        &to(&1, track_sender, %TrackSender{track: track})
+      end
 
     spec = %ParentSpec{
       links: [
         link(:endpoint_bin)
-        |> via_out(pad,
-          options: [
-            extensions: extensions,
-            use_depayloader?: false
-          ]
-        )
+        |> via_out(pad, options: [extensions: extensions, use_depayloader?: false])
+        |> via_in(Pad.ref(:input, {track_id, rid}))
+        |> then(link_to_track_sender)
+        |> via_out(pad)
         |> to_bin_output(pad)
       ]
     }
