@@ -153,17 +153,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_event(Pad.ref(:input, {_track_id, encoding}), event, ctx, state) do
-    {actions, state} = handle_input_event(event, encoding, ctx, state)
-    {{:ok, actions}, state}
-  end
-
-  @impl true
-  def handle_event(pad, event, ctx, state) do
-    super(pad, event, ctx, state)
-  end
-
-  defp handle_input_event(%TrackVariantPaused{}, encoding, ctx, state) do
+  def handle_event(%TrackVariantPaused{}, encoding, ctx, state) do
     new_state = update_in(state, [:inactive_encodings], &MapSet.put(&1, encoding))
 
     new_state =
@@ -180,7 +170,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     {actions, new_state}
   end
 
-  defp handle_input_event(%TrackVariantResumed{}, encoding, ctx, state) do
+  @impl true
+  def handle_event(%TrackVariantResumed{}, encoding, ctx, state) do
     new_state = update_in(state, [:inactive_encodings], &MapSet.delete(&1, encoding))
 
     new_state =
@@ -195,6 +186,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     actions = generate_keyframe_requests(new_state, state, ctx)
 
     {actions, new_state}
+  end
+
+  @impl true
+  def handle_event(pad, event, ctx, state) do
+    super(pad, event, ctx, state)
   end
 
   @impl true
