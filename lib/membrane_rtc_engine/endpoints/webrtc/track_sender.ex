@@ -126,18 +126,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   defp check_encoding_status(rid, tracker, state) do
+    pad = Pad.ref(:output, {state.track.id, rid})
+
     {actions, tracker} =
       case EncodingTracker.check_encoding_status(tracker) do
         {:ok, tracker} ->
           {[], tracker}
 
         {:status_changed, tracker, :active} ->
-          pad = Pad.ref(:output, {state.track.id, rid})
           event = %TrackVariantResumed{}
           {[event: {pad, event}], tracker}
 
         {:status_changed, tracker, :inactive} ->
-          pad = Pad.ref(:output, {state.track.id, rid})
           event = %TrackVariantPaused{}
           {[event: {pad, event}], tracker}
       end
