@@ -2,6 +2,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
   use ExUnit.Case
   use Bitwise
 
+  import Membrane.RTC.Engine.Support.Utils
+
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
 
   test "RTP Munger handles encoding switch properly" do
@@ -260,10 +262,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
         }
       }
     end
-  end
-
-  defp generate_random_payload(size) do
-    for _i <- 1..size, into: <<>>, do: <<Enum.random(0..255)>>
   end
 
   defp swap(list, index1, index2) do
