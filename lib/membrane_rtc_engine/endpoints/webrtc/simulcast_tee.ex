@@ -153,39 +153,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_event(%TrackVariantPaused{}, encoding, ctx, state) do
+  def handle_event(Pad.ref(:input, {_track_id, encoding}), %TrackVariantPaused{}, ctx, state) do
     new_state = update_in(state, [:inactive_encodings], &MapSet.put(&1, encoding))
 
     new_state =
       Enum.reduce(state.forwarders, new_state, fn {endpoint_id, forwarder}, new_state ->
-        put_in(
-          new_state,
-          [:forwarders, endpoint_id],
-          Forwarder.encoding_inactive(forwarder, encoding)
-        )
+        forwarder = Forwarder.encoding_inactive(forwarder, encoding)
+        put_in(new_state, [:forwarders, endpoint_id], forwarder)
       end)
 
     actions = generate_keyframe_requests(new_state, state, ctx)
 
-    {actions, new_state}
+    {{:ok, actions}, new_state}
   end
 
   @impl true
-  def handle_event(%TrackVariantResumed{}, encoding, ctx, state) do
+  def handle_event(Pad.ref(:input, {_track_id, encoding}), %TrackVariantResumed{}, ctx, state) do
     new_state = update_in(state, [:inactive_encodings], &MapSet.delete(&1, encoding))
 
     new_state =
       Enum.reduce(state.forwarders, new_state, fn {endpoint_id, forwarder}, new_state ->
-        put_in(
-          new_state,
-          [:forwarders, endpoint_id],
-          Forwarder.encoding_active(forwarder, encoding)
-        )
+        forwarder = Forwarder.encoding_active(forwarder, encoding)
+        put_in(new_state, [:forwarders, endpoint_id], forwarder)
       end)
 
     actions = generate_keyframe_requests(new_state, state, ctx)
 
-    {actions, new_state}
+    {{:ok, actions}, new_state}
   end
 
   @impl true
