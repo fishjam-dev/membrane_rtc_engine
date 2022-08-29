@@ -110,7 +110,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_process(
         Pad.ref(:input, {_track_id, encoding}) = input_pad,
         buffer,
-        _ctx,
+        ctx,
         %{track: track} = state
       ) do
     # update encoding tracker only for simulcast tracks
@@ -123,7 +123,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
     buffer = add_is_keyframe_flag(buffer, track)
     output_pad = to_output_pad(input_pad)
-    {{:ok, buffer: {output_pad, buffer}}, state}
+
+    # FIXME
+    # it's possible that we will have
+    # input pad but we won't have
+    # corresponding output pad yet
+    # (refer to MC-68)
+    if Map.has_key?(ctx.pads, output_pad) do
+      {{:ok, buffer: {output_pad, buffer}}, state}
+    else
+      {:ok, state}
+    end
   end
 
   @impl true
