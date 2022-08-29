@@ -142,8 +142,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   end
 
   def do_select_encoding(selector, encoding) do
-    # enqueue encoding, we will switch when
-    # we receive key frame
     Membrane.Logger.debug("Enqueuing encoding #{inspect(encoding)}.")
     selector = %__MODULE__{selector | queued_encoding: encoding}
     {selector, encoding}
