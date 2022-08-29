@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
   alias Membrane.{Buffer, Pad, Time}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee
-  alias Membrane.RTC.Engine.Event.TrackVariantSwitched
+  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed, TrackVariantSwitched}
   alias Membrane.RTC.Engine.Support.TestSource
   alias Membrane.RTC.Engine.Track
   alias Membrane.Testing.{Pipeline, Sink}
@@ -56,9 +56,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
     test "generates KeyframeRequestEvent when layer is switched off and then turned back on" do
       pipeline = build_pipeline()
+      actions = [event: {:output, %TrackVariantPaused{}}]
       Pipeline.execute_actions(pipeline, forward: {{:source, "h"}, {:set_active, false}})
+      Pipeline.execute_actions(pipeline, forward: {{:source, "h"}, {:execute_actions, actions}})
       assert_sink_event(pipeline, {:source, "m"}, %Membrane.KeyframeRequestEvent{}, 10_000)
 
+      # FIXME
+      # This shouldn't be needed. There is a bug in forwarder.
+      # Consider scenario:
+      # h -> inactive h -> enque m -> active h
+      # We won't send keyframe when h becomes active again
+      # until we receive keyframe for m
+      flush_buffers(pipeline)
+      assert_sink_buffer(pipeline, :sink, _buffer)
+
+      actions = [event: {:output, %TrackVariantResumed{}}]
+      Pipeline.execute_actions(pipeline, forward: {{:source, "h"}, {:execute_actions, actions}})
       Pipeline.execute_actions(pipeline, forward: {{:source, "h"}, {:set_active, true}})
       assert_sink_event(pipeline, {:source, "h"}, %Membrane.KeyframeRequestEvent{}, 15_000)
 
