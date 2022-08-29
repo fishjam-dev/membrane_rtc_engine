@@ -86,12 +86,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
     # start timer only for simulcast tracks
     actions =
-      actions ++
-        if state.track.simulcast_encodings != [] do
-          [start_timer: {:check_encoding_statuses, Time.seconds(1)}]
-        else
-          []
-        end
+      if state.track.simulcast_encodings != [] do
+        actions ++ [start_timer: {:check_encoding_statuses, Time.seconds(1)}]
+      else
+        actions
+      end
 
     {{:ok, actions}, state}
   end
