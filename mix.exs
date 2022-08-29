@@ -113,7 +113,11 @@ defmodule Membrane.RTC.Engine.MixProject do
       groups_for_extras: groups_for_extras(),
       assets: "internal_docs/assets",
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
+      nest_modules_by_prefix: [
+        Membrane.RTC.Engine.Endpoint,
+        Membrane.RTC.Engine.Event,
+        Membrane.RTC.Engine.Message
+      ],
       before_closing_body_tag: &before_closing_body_tag/1,
       groups_for_modules: [
         Endpoints: [
@@ -124,7 +128,9 @@ defmodule Membrane.RTC.Engine.MixProject do
         ],
         Events: [
           Membrane.RTC.Engine.Event.RequestTrackVariant,
-          Membrane.RTC.Engine.Event.TrackVariantSwitched
+          Membrane.RTC.Engine.Event.TrackVariantSwitched,
+          Membrane.RTC.Engine.Event.TrackVariantPaused,
+          Membrane.RTC.Engine.Event.TrackVariantResumed
         ],
         Messages: [
           Membrane.RTC.Engine.Message,

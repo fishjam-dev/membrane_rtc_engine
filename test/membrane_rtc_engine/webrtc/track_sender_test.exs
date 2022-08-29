@@ -6,8 +6,10 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
   require Membrane.Pad
 
-  alias Membrane.{Buffer, Pad}
+  alias Membrane.{Buffer, Pad, Time}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
+  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed}
+  alias Membrane.RTC.Engine.Support.TestSource
   alias Membrane.RTC.Engine.Track
   alias Membrane.Testing.{Pipeline, Sink, Source}
 
@@ -42,7 +44,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
           simulcast_encodings: @simulcast_encodings
         )
 
-      pipeline = build_video_pipeline(track, [], 2)
+      pipeline = build_video_pipeline(track, <<1, 2, 3, 4, 5>>, 2)
 
       assert_sink_caps(pipeline, {:sink, "h"}, %Membrane.RTP{})
       assert_sink_caps(pipeline, {:sink, "m"}, %Membrane.RTP{})
@@ -69,6 +71,54 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
       Pipeline.terminate(pipeline, blocking?: true)
     end
+
+    test "sends TrackVariantPaused event when encoding becomes inactive" do
+      track =
+        Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+          id: @track_id,
+          simulcast_encodings: @simulcast_encodings
+        )
+
+      pipeline = build_video_pipeline(track, <<1, 2, 3, 4, 5>>, 3)
+
+      Enum.each(@simulcast_encodings, fn encoding ->
+        Pipeline.execute_actions(pipeline, forward: {{:source, encoding}, {:set_active, false}})
+      end)
+
+      Enum.each(@simulcast_encodings, fn encoding ->
+        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{}, 3_000)
+      end)
+
+      Pipeline.terminate(pipeline, blocking?: true)
+    end
+
+    test "sends TrackVariantResumed event when encoding becomes active" do
+      track =
+        Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+          id: @track_id,
+          simulcast_encodings: @simulcast_encodings
+        )
+
+      pipeline = build_video_pipeline(track, <<1, 2, 3, 4, 5>>, 3)
+
+      Enum.each(@simulcast_encodings, fn encoding ->
+        Pipeline.execute_actions(pipeline, forward: {{:source, encoding}, {:set_active, false}})
+      end)
+
+      Enum.each(@simulcast_encodings, fn encoding ->
+        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{}, 3_000)
+      end)
+
+      Enum.each(@simulcast_encodings, fn encoding ->
+        Pipeline.execute_actions(pipeline, forward: {{:source, encoding}, {:set_active, true}})
+      end)
+
+      Enum.each(@simulcast_encodings, fn encoding ->
+        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantResumed{}, 15_000)
+      end)
+
+      Pipeline.terminate(pipeline, blocking?: true)
+    end
   end
 
   defp test_is_keyframe(%Track{type: :audio} = track, expected_is_keyframe_value) do
@@ -87,7 +137,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   defp test_is_keyframe(track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
-    pipeline = build_video_pipeline(track, [test_payload])
+    pipeline = build_video_pipeline(track, test_payload)
 
     [{:sink, "h"}, {:sink, "m"}, {:sink, "l"}]
     |> Enum.each(fn sink ->
@@ -124,7 +174,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     pipeline
   end
 
-  defp build_video_pipeline(track, source_buffers, num_of_encodings \\ 3) do
+  defp build_video_pipeline(track, test_payload, num_of_encodings \\ 3) do
     encodings = Enum.take(track.simulcast_encodings, num_of_encodings)
 
     {:ok, pipeline} = Pipeline.start_link(links: [])
@@ -132,7 +182,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
     encoding_links =
       for encoding <- encodings do
-        source = %Source{caps: %Membrane.RTP{}, output: source_buffers}
+        source = %TestSource{interval: Time.milliseconds(50), payload: test_payload}
 
         link({:source, encoding}, source)
         |> via_in(Pad.ref(:input, {@track_id, encoding}))
