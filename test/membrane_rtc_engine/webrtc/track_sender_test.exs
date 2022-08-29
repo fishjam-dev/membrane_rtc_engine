@@ -86,7 +86,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       end)
 
       Enum.each(@simulcast_encodings, fn encoding ->
-        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{})
+        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{}, 3_000)
       end)
 
       Pipeline.terminate(pipeline, blocking?: true)
@@ -106,7 +106,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       end)
 
       Enum.each(@simulcast_encodings, fn encoding ->
-        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{})
+        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{}, 3_000)
       end)
 
       Enum.each(@simulcast_encodings, fn encoding ->
