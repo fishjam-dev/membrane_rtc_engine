@@ -39,19 +39,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_event(_pad, %TrackVariantSwitched{} = event, _ctx, state) do
-    Membrane.Logger.info("Got event: #{inspect(event)}")
+    Membrane.Logger.debug("Got event: #{inspect(event)}")
     {:ok, state}
   end
 
   @impl true
   def handle_event(_pad, %TrackVariantPaused{} = event, _ctx, state) do
-    Membrane.Logger.info("Got event: #{inspect(event)}")
+    Membrane.Logger.debug("Got event: #{inspect(event)}")
     {:ok, state}
   end
 
   @impl true
   def handle_event(_pad, %TrackVariantResumed{} = event, _ctx, state) do
-    Membrane.Logger.info("Got event: #{inspect(event)}")
+    Membrane.Logger.debug("Got event: #{inspect(event)}")
     {:ok, state}
   end
 
