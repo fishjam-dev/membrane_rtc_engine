@@ -68,6 +68,39 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
   end
 
   @impl true
+  def handle_other(:supply_demand, %{playback_state: :playing} = _ctx, %{active?: true} = state) do
+    timestamp = state.seq_num * state.interval
+
+    buffer = %Buffer{
+      payload: state.payload,
+      metadata: %{
+        rtp: %{
+          sequence_number: rem(state.seq_num, 1 <<< 16),
+          timestamp: Time.as_milliseconds(timestamp)
+        }
+      },
+      pts: timestamp,
+      dts: timestamp
+    }
+
+    state = Map.update!(state, :seq_num, &(&1 + 1))
+    {{:ok, buffer: {:output, buffer}, redemand: :output}, state}
+  end
+
+  @impl true
+  def handle_other(:supply_demand, _ctx, state), do: {:ok, state}
+
+  @impl true
+  def handle_other({:set_active, active?}, _ctx, state) do
+    {{:ok, redemand: :output}, %{state | active?: active?}}
+  end
+
+  @impl true
+  def handle_other({:execute_actions, actions}, _ctx, state) do
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   def handle_event(:output, event, _ctx, state) do
     {{:ok, notify: %Membrane.Testing.Notification{payload: {:event, event}}}, state}
   end

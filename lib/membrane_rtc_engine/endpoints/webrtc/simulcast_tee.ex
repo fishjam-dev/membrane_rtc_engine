@@ -161,9 +161,38 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_event(Pad.ref(:input, {_track_id, encoding}), event, ctx, state) do
-    {actions, state} = handle_input_event(event, encoding, ctx, state)
-    {{:ok, actions}, state}
+  def handle_event(
+        Pad.ref(:input, {_track_id, encoding}),
+        %TrackVariantPaused{} = event,
+        ctx,
+        state
+      ) do
+    state = update_in(state, [:inactive_encodings], &[encoding | &1])
+
+    # reset all target encodings set to `encoding`
+    # when `encoding` becomes active again
+    # endpoints are expected to request it once again
+    state =
+      Enum.reduce(state.routes, state, fn
+        {output_pad, %{target_encoding: ^encoding}}, state ->
+          update_in(state, [:routes, output_pad], &Map.put(&1, :target_encoding, nil))
+
+        _route, state ->
+          state
+      end)
+
+    {{:ok, forward: event}, state}
+  end
+
+  @impl true
+  def handle_event(
+        Pad.ref(:input, {_track_id, encoding}),
+        %TrackVariantResumed{} = event,
+        ctx,
+        state
+      ) do
+    state = update_in(state, [:inactive_encodings], &List.delete(&1, encoding))
+    {{:ok, forward: event}, state}
   end
 
   @impl true
@@ -201,31 +230,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @impl true
   def handle_event(pad, event, ctx, state) do
     super(pad, event, ctx, state)
-  end
-
-  defp handle_input_event(%TrackVariantPaused{} = event, encoding, _ctx, state) do
-    state = update_in(state, [:inactive_encodings], &[encoding | &1])
-
-    # reset all target encodings set to `encoding`
-    # when `encoding` becomes active again
-    # endpoints are expected to request it once again
-    state =
-      Enum.reduce(state.routes, state, fn
-        {output_pad, %{target_encoding: ^encoding}}, state ->
-          update_in(state, [:routes, output_pad], &Map.put(&1, :target_encoding, nil))
-
-        _route, state ->
-          state
-      end)
-
-    actions = [forward: event]
-    {actions, state}
-  end
-
-  defp handle_input_event(%TrackVariantResumed{} = event, encoding, _ctx, state) do
-    new_state = update_in(state, [:inactive_encodings], &List.delete(&1, encoding))
-    actions = [forward: event]
-    {actions, new_state}
   end
 
   @impl true

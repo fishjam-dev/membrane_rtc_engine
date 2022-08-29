@@ -44,9 +44,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
           simulcast_encodings: @simulcast_encodings
         )
 
-      {:ok, pipeline} =
-        build_video_pipeline(track, &Utils.generator/2, 2)
-        |> Pipeline.start_link()
+      pipeline = build_video_pipeline(track, &Utils.generator/2, 2)
 
       assert_sink_caps(pipeline, {:sink, "h"}, %Membrane.RTP{})
       assert_sink_caps(pipeline, {:sink, "m"}, %Membrane.RTP{})
@@ -81,16 +79,14 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
           simulcast_encodings: @simulcast_encodings
         )
 
-      {:ok, pipeline} =
-        build_video_pipeline(track, &Utils.generator/2, 3)
-        |> Pipeline.start_link()
+      pipeline = build_video_pipeline(track, &Utils.generator/2, 3)
 
       Enum.each(@simulcast_encodings, fn encoding ->
         Pipeline.execute_actions(pipeline, forward: {{:source, encoding}, {:set_active, false}})
       end)
 
       Enum.each(@simulcast_encodings, fn encoding ->
-        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{}, 2000)
+        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{}, 3_000)
       end)
 
       Pipeline.terminate(pipeline, blocking?: true)
@@ -103,16 +99,14 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
           simulcast_encodings: @simulcast_encodings
         )
 
-      {:ok, pipeline} =
-        build_video_pipeline(track, &Utils.generator/2, 3)
-        |> Pipeline.start_link()
+      pipeline = build_video_pipeline(track, &Utils.generator/2, 3)
 
       Enum.each(@simulcast_encodings, fn encoding ->
         Pipeline.execute_actions(pipeline, forward: {{:source, encoding}, {:set_active, false}})
       end)
 
       Enum.each(@simulcast_encodings, fn encoding ->
-        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{})
+        assert_sink_event(pipeline, {:sink, encoding}, %TrackVariantPaused{}, 3_000)
       end)
 
       Enum.each(@simulcast_encodings, fn encoding ->
@@ -130,9 +124,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   defp test_is_keyframe(%Track{type: :audio} = track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
-    {:ok, pipeline} =
-      build_audio_pipeline(track, [test_payload])
-      |> Pipeline.start_link()
+    pipeline = build_audio_pipeline(track, [test_payload])
 
     assert_sink_buffer(pipeline, :sink, %Buffer{
       payload: ^test_payload,
@@ -145,9 +137,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   defp test_is_keyframe(track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
-    {:ok, pipeline} =
-      build_video_pipeline(track, &Utils.generator/2)
-      |> Pipeline.start_link()
+    pipeline = build_video_pipeline(track, &Utils.generator/2)
 
     [{:sink, "h"}, {:sink, "m"}, {:sink, "l"}]
     |> Enum.each(fn sink ->
@@ -161,6 +151,9 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   end
 
   defp build_audio_pipeline(track, source_buffers) do
+    {:ok, pipeline} = Pipeline.start_link(links: [])
+    assert_pipeline_playback_changed(pipeline, :prepared, :playing)
+
     children = [
       source: %Source{caps: %Membrane.RTP{}, output: source_buffers},
       track_sender: %TrackSender{track: track},
@@ -175,13 +168,17 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       |> to(:sink)
     ]
 
-    [children: children, links: links]
+    actions = [spec: %Membrane.ParentSpec{children: children, links: links}]
+    Pipeline.execute_actions(pipeline, actions)
+
+    pipeline
   end
 
   defp build_video_pipeline(track, generator, num_of_encodings \\ 3) do
-    encodings = Enum.take(["h", "m", "l"], num_of_encodings)
+    encodings = Enum.take(track.simulcast_encodings, num_of_encodings)
 
-    children = [track_sender: %TrackSender{track: track}]
+    {:ok, pipeline} = Pipeline.start_link(links: [])
+    assert_pipeline_playback_changed(pipeline, :prepared, :playing)
 
     encoding_links =
       for encoding <- encodings do
@@ -199,6 +196,15 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         |> to({:sink, encoding}, Sink)
       end
 
-    [children: children, links: encoding_links ++ track_sender_links]
+    actions = [
+      spec: %Membrane.ParentSpec{
+        children: [track_sender: %TrackSender{track: track}],
+        links: encoding_links ++ track_sender_links
+      }
+    ]
+
+    Pipeline.execute_actions(pipeline, actions)
+
+    pipeline
   end
 end
