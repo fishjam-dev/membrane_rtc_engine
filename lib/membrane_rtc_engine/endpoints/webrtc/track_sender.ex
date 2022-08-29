@@ -148,12 +148,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     buffer = add_is_keyframe_flag(buffer, track)
 
     state =
-      if MapSet.member?(state.awaiting_keyframes, rid) and buffer.metadata.is_keyframe do
+      if MapSet.member?(state.awaiting_keyframes, encoding) and buffer.metadata.is_keyframe do
         Membrane.Logger.info(
-          "Received keyframe for #{rid}. Removing it from keyframe request queue."
+          "Received keyframe for #{encoding}. Removing it from keyframe request queue."
         )
 
-        awaiting_keyframes = MapSet.delete(state.awaiting_keyframes, rid)
+        awaiting_keyframes = MapSet.delete(state.awaiting_keyframes, encoding)
         %{state | awaiting_keyframes: awaiting_keyframes}
       else
         state
@@ -187,11 +187,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
           {[], tracker}
 
         {:status_changed, tracker, :active} ->
-          event = %TrackVariantResumed{}
+          event = %TrackVariantResumed{variant: encoding}
           {[event: {pad, event}], tracker}
 
         {:status_changed, tracker, :inactive} ->
-          event = %TrackVariantPaused{}
+          event = %TrackVariantPaused{variant: encoding}
           {[event: {pad, event}], tracker}
       end
 

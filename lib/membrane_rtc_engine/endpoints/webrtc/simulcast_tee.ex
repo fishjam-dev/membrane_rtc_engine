@@ -164,7 +164,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   def handle_event(
         Pad.ref(:input, {_track_id, encoding}),
         %TrackVariantPaused{} = event,
-        ctx,
+        _ctx,
         state
       ) do
     state = update_in(state, [:inactive_encodings], &[encoding | &1])
@@ -188,7 +188,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   def handle_event(
         Pad.ref(:input, {_track_id, encoding}),
         %TrackVariantResumed{} = event,
-        ctx,
+        _ctx,
         state
       ) do
     state = update_in(state, [:inactive_encodings], &List.delete(&1, encoding))
