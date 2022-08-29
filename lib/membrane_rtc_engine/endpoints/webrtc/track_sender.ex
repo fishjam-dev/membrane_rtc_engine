@@ -39,18 +39,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, {_track_id, _rid}), _ctx, state) do
+  def handle_pad_added(Pad.ref(:input, {_track_id, encoding}), _ctx, state) do
+    state = put_in(state, [:trackers, encoding], EncodingTracker.new(encoding))
     {:ok, state}
   end
 
   @impl true
   def handle_pad_added(
-        Pad.ref(:output, {_track_id, rid}) = pad,
+        Pad.ref(:output, {_track_id, _encoding}) = pad,
         %{playback_state: playback_state},
         state
       ) do
-    state = put_in(state, [:trackers, rid], EncodingTracker.new(rid))
-
     actions =
       if playback_state == :playing do
         [caps: {pad, %Membrane.RTP{}}]
@@ -62,8 +61,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:output, {_track_id, rid}), _ctx, state) do
-    {_tracker, state} = pop_in(state, [:trackers, rid])
+  def handle_pad_removed(Pad.ref(:output, {_track_id, encoding}), _ctx, state) do
+    {_tracker, state} = pop_in(state, [:trackers, encoding])
     {:ok, state}
   end
 
@@ -85,15 +84,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         _other -> []
       end)
 
-    actions = actions ++ [start_timer: {:check_encoding_statuses, Time.seconds(1)}]
+    # start timer only for simulcast tracks
+    actions =
+      actions ++
+        if state.track.simulcast_encodings != [] do
+          [start_timer: {:check_encoding_statuses, Time.seconds(1)}]
+        else
+          []
+        end
+
     {{:ok, actions}, state}
   end
 
   @impl true
   def handle_tick(:check_encoding_statuses, _ctx, state) do
     {actions, state} =
-      Enum.flat_map_reduce(state.trackers, state, fn {rid, tracker}, state ->
-        check_encoding_status(rid, tracker, state)
+      Enum.flat_map_reduce(state.trackers, state, fn {encoding, tracker}, state ->
+        check_encoding_status(encoding, tracker, state)
       end)
 
     {{:ok, actions}, state}
@@ -101,17 +108,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_process(
-        Pad.ref(:input, {_track_id, rid}) = input_pad,
+        Pad.ref(:input, {_track_id, encoding}) = input_pad,
         buffer,
         _ctx,
         %{track: track} = state
       ) do
     # update encoding tracker only for simulcast tracks
     state =
-      if rid == nil do
+      if encoding == nil do
         state
       else
-        update_in(state, [:trackers, rid], &EncodingTracker.increment_samples(&1))
+        update_in(state, [:trackers, encoding], &EncodingTracker.increment_samples(&1))
       end
 
     buffer = add_is_keyframe_flag(buffer, track)
@@ -125,8 +132,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     {{:ok, end_of_stream: output_pad}, state}
   end
 
-  defp check_encoding_status(rid, tracker, state) do
-    pad = Pad.ref(:output, {state.track.id, rid})
+  defp check_encoding_status(encoding, tracker, state) do
+    pad = Pad.ref(:output, {state.track.id, encoding})
 
     {actions, tracker} =
       case EncodingTracker.check_encoding_status(tracker) do
@@ -142,7 +149,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
           {[event: {pad, event}], tracker}
       end
 
-    state = put_in(state, [:trackers, rid], tracker)
+    state = put_in(state, [:trackers, encoding], tracker)
     {actions, state}
   end
 
@@ -158,7 +165,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     %Buffer{buffer | metadata: new_metadata}
   end
 
-  defp to_output_pad(Pad.ref(:input, {_track_id, _rid} = pad_id)) do
+  defp to_output_pad(Pad.ref(:input, {_track_id, _encoding} = pad_id)) do
     Pad.ref(:output, pad_id)
   end
 end
