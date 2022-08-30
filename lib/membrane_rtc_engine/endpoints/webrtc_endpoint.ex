@@ -441,11 +441,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_other({:spawn, spec}, _ctx, state) do
-    {{:ok, spec: spec}, state}
-  end
-
-  @impl true
   def handle_other(msg, ctx, state) do
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
