@@ -165,7 +165,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     # input pad but we won't have
     # corresponding output pad yet
     # (refer to MC-68)
-    if Map.has_key?(ctx.pads, output_pad) do
+    if Map.has_key?(ctx.pads, output_pad) and state.trackers[encoding].status == :active do
       {{:ok, buffer: {output_pad, buffer}}, state}
     else
       {:ok, state}

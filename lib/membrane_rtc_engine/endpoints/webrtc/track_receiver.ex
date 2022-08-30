@@ -3,9 +3,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   # TrackReceiver:
   # * generates probe packets on request from the
-  # outside
-  # * switches between simulcast layers on request from
-  # the outside
+  # outside (todo)
+  # * handles simulcast encoding selection
   # * adjusts RTP packets (sequence numbers, timestamps,
   # VP8 payload headers, etc.)
 
@@ -61,8 +60,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(_pad, %TrackVariantSwitched{new_variant: new_variant} = event, _context, state) do
-    Membrane.Logger.error("Got event: #{inspect(event)}")
+  def handle_event(_pad, %TrackVariantSwitched{new_variant: new_variant} = event, _ctx, state) do
+    Membrane.Logger.debug("Received event: #{inspect(event)}")
     selector = EncodingSelector.set_current_encoding(state.selector, new_variant)
     actions = [notify: {:encoding_switched, new_variant}]
     state = %{state | selector: selector, needs_reconfiguration: true}
@@ -70,8 +69,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(_pad, %TrackVariantPaused{variant: encoding} = event, _cotnext, state) do
-    Membrane.Logger.info("Got event: #{inspect(event)}")
+  def handle_event(_pad, %TrackVariantPaused{variant: encoding} = event, _ctx, state) do
+    Membrane.Logger.debug("Received event: #{inspect(event)}")
     {selector, next_encoding} = EncodingSelector.encoding_inactive(state.selector, encoding)
     actions = maybe_request_track_encoding(next_encoding)
     state = %{state | selector: selector}
@@ -79,8 +78,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(_pad, %TrackVariantResumed{variant: encoding} = event, _context, state) do
-    Membrane.Logger.warn("Got event: #{inspect(event)}")
+  def handle_event(_pad, %TrackVariantResumed{variant: encoding} = event, _ctx, state) do
+    Membrane.Logger.debug("Received event: #{inspect(event)}")
     {selector, next_encoding} = EncodingSelector.encoding_active(state.selector, encoding)
     actions = maybe_request_track_encoding(next_encoding)
     state = %{state | selector: selector}
@@ -88,8 +87,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(pad, event, context, state) do
-    super(pad, event, context, state)
+  def handle_event(pad, event, ctx, state) do
+    super(pad, event, ctx, state)
   end
 
   @impl true
