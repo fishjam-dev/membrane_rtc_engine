@@ -116,21 +116,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
     end
   end
 
-  def do_select_encoding(selector, nil) do
+  defp do_select_encoding(selector, nil) do
     Membrane.Logger.debug("No active encoding.")
     selector = %__MODULE__{selector | current_encoding: nil, queued_encoding: nil}
     {selector, nil}
   end
 
-  def do_select_encoding(
-        %__MODULE__{current_encoding: encoding, queued_encoding: nil} = selector,
-        encoding
-      ) do
+  defp do_select_encoding(
+         %__MODULE__{current_encoding: encoding, queued_encoding: nil} = selector,
+         encoding
+       ) do
     Membrane.Logger.debug("Requested currently used encoding #{encoding}. Ignoring.")
     {selector, nil}
   end
 
-  def do_select_encoding(%__MODULE__{current_encoding: encoding} = selector, encoding) do
+  defp do_select_encoding(%__MODULE__{current_encoding: encoding} = selector, encoding) do
     Membrane.Logger.debug("""
     Requested encoding: #{inspect(encoding)} which is currently used but while waiting
     for keyframe for queued_encoding #{inspect(selector.queued_encoding)}.
@@ -141,7 +141,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
     {selector, nil}
   end
 
-  def do_select_encoding(selector, encoding) do
+  defp do_select_encoding(selector, encoding) do
     Membrane.Logger.debug("Enqueuing encoding #{inspect(encoding)}.")
     selector = %__MODULE__{selector | queued_encoding: encoding}
     {selector, encoding}

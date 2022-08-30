@@ -95,16 +95,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_process(_pad, buffer, _ctx, %{needs_reconfiguration: true} = state) do
     forwarder = Forwarder.reconfigure(state.forwarder, buffer)
-    {forwarder, actions} = Forwarder.process(forwarder, buffer)
+    {forwarder, buffer} = Forwarder.align(forwarder, buffer)
     state = %{state | forwarder: forwarder, needs_reconfiguration: false}
-    {{:ok, actions}, state}
+    {{:ok, buffer: {:output, buffer}}, state}
   end
 
   @impl true
   def handle_process(_pad, buffer, _ctx, state) do
-    {forwarder, actions} = Forwarder.process(state.forwarder, buffer)
+    {forwarder, buffer} = Forwarder.align(state.forwarder, buffer)
     state = %{state | forwarder: forwarder}
-    {{:ok, actions}, state}
+    {{:ok, buffer: {:output, buffer}}, state}
   end
 
   @impl true

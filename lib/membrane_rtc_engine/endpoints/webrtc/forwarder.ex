@@ -6,6 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   require Membrane.Pad
   require Membrane.Logger
 
+  alias Membrane.Buffer
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
 
@@ -44,6 +45,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     }
   end
 
+  @doc """
+  Reconfigures forwarder after encoding switch.
+  """
   @spec reconfigure(t(), Membrane.Buffer.t()) :: t()
   def reconfigure(%__MODULE__{started?: false} = forwarder, buffer) do
     Membrane.Logger.debug("Initializing RTP and VP8 mungers")
@@ -83,16 +87,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     %__MODULE__{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
   end
 
-  def process(
+  @doc """
+  Adjusts RTP packet header and payload.
+  """
+  @spec align(t(), Buffer.t()) :: {t(), Buffer.t()}
+  def align(
         %__MODULE__{started?: false} = forwarder,
         %{metadata: %{is_keyframe: true}} = buffer
       ) do
     forwarder = %{forwarder | started?: true}
-    actions = [buffer: {:output, buffer}]
-    {forwarder, actions}
+    {forwarder, buffer}
   end
 
-  def process(%__MODULE__{} = forwarder, buffer) do
+  def align(%__MODULE__{} = forwarder, buffer) do
     %__MODULE__{
       rtp_munger: rtp_munger,
       vp8_munger: vp8_munger
@@ -108,7 +115,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       end
 
     forwarder = %{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
-    actions = [buffer: {:output, buffer}]
-    {forwarder, actions}
+    {forwarder, buffer}
   end
 end
