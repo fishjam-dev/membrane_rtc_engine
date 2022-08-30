@@ -35,7 +35,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_init(%__MODULE__{track: track}) do
-    {:ok, %{track: track, trackers: %{}, awaiting_keyframes: MapSet.new()}}
+    {:ok, %{track: track, trackers: %{}, keyframe_req_queue: MapSet.new()}}
   end
 
   @impl true
@@ -113,16 +113,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         state
       ) do
     {actions, state} =
-      if MapSet.member?(state.awaiting_keyframes, encoding) do
-        Membrane.Logger.info(
-          "Requested keyframe but we are already awaiting it. Ignoring keyframe."
-        )
-
+      if MapSet.member?(state.keyframe_req_queue, encoding) do
+        Membrane.Logger.info("Requested keyframe but we are already awaiting it. Ignoring.")
         {[], state}
       else
         Membrane.Logger.info("Requesting keyframe for #{inspect(encoding)}")
-        awaiting_keyframes = MapSet.put(state.awaiting_keyframes, encoding)
-        state = %{state | awaiting_keyframes: awaiting_keyframes}
+        keyframe_req_queue = MapSet.put(state.keyframe_req_queue, encoding)
+        state = %{state | keyframe_req_queue: keyframe_req_queue}
         actions = [event: {Pad.ref(:input, {track_id, encoding}), event}]
         {actions, state}
       end
@@ -148,13 +145,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     buffer = add_is_keyframe_flag(buffer, track)
 
     state =
-      if MapSet.member?(state.awaiting_keyframes, encoding) and buffer.metadata.is_keyframe do
+      if MapSet.member?(state.keyframe_req_queue, encoding) and buffer.metadata.is_keyframe do
         Membrane.Logger.info(
           "Received keyframe for #{encoding}. Removing it from keyframe request queue."
         )
 
-        awaiting_keyframes = MapSet.delete(state.awaiting_keyframes, encoding)
-        %{state | awaiting_keyframes: awaiting_keyframes}
+        keyframe_req_queue = MapSet.delete(state.keyframe_req_queue, encoding)
+        %{state | keyframe_req_queue: keyframe_req_queue}
       else
         state
       end
