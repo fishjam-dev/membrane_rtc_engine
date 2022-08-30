@@ -486,18 +486,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         &to(&1, track_sender, %TrackSender{track: track})
       end
 
-    # FIXME remove that after fixing linking order
-    # in membrane_core (MC-68).
-    #
-    # There is no way to force membrane_core
-    # to link track_sender to bin output at first
-    # and then bin input to track_sender.
-    #
-    # Therefore, link track_sender to bin output
-    # and enqueue linking bin input to track_sender.
-    # This way we avoid scenario when track_sender
-    # receives data on some input pad but there is
-    # no output pad yet where data can be forwarded.
     spec = %ParentSpec{
       links: [
         link(:endpoint_bin)
