@@ -1,6 +1,6 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   @moduledoc false
-  # module responsible for choosing track variant
+  # module responsible for choosing track encoding
 
   require Membrane.Logger
 
@@ -10,15 +10,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
           target_encoding: Track.variant() | nil,
           current_encoding: Track.variant() | nil,
           queued_encoding: Track.variant() | nil,
-          active_encodings: [Track.variant()]
+          active_encodings: [Track.variant()],
+          all_encodings: [Track.variant()]
         }
 
-  @enforce_keys [:target_encoding]
+  @enforce_keys [:all_encodings, :target_encoding]
   defstruct @enforce_keys ++ [:current_encoding, :queued_encoding, active_encodings: []]
 
-  @spec new(Track.variant() | nil) :: t()
-  def new(initial_target_encoding \\ nil) do
-    %__MODULE__{target_encoding: initial_target_encoding}
+  @doc """
+  Creates new encoding selector.
+
+  * `encodings` - a list of all track encodings. Encoding selector
+  assumes that initialy all encodings are inactive. To mark encoding
+  as active use `encoding_active/2`.
+  * `initial_target_encoding` - encoding to prioritize. It will be
+  chosen whenever it is active. Can be changed with `target_encoding/2`.
+  """
+  @spec new([Track.variant()], Track.variant() | nil) :: t()
+  def new(encodings, initial_target_encoding \\ nil) do
+    %__MODULE__{all_encodings: encodings, target_encoding: initial_target_encoding}
   end
 
   @doc """
@@ -39,11 +49,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
     cond do
       selector.current_encoding == encoding ->
         selector = %__MODULE__{selector | current_encoding: nil}
-        do_select_encoding(selector, next_encoding)
+        select_encoding(selector, next_encoding)
 
       selector.queued_encoding == encoding and selector.current_encoding == nil ->
         selector = %__MODULE__{selector | queued_encoding: nil}
-        do_select_encoding(selector, next_encoding)
+        select_encoding(selector, next_encoding)
 
       selector.queued_encoding == encoding ->
         selector = %__MODULE__{selector | queued_encoding: nil}
@@ -77,10 +87,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
         {selector, nil}
 
       selector.target_encoding == encoding ->
-        do_select_encoding(selector, encoding)
+        select_encoding(selector, encoding)
 
       true ->
-        do_select_encoding(selector, next_encoding)
+        select_encoding(selector, next_encoding)
     end
   end
 
@@ -90,39 +100,57 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   Should be called when encoding change happens
   i.e. after receiving `TrackVariantSwitched` event.
   """
-  @spec set_current_encoding(t(), Track.variant()) :: t()
-  def set_current_encoding(%__MODULE__{queued_encoding: encoding} = selector, encoding) do
+  @spec current_encoding(t(), Track.variant()) :: t()
+  def current_encoding(%__MODULE__{queued_encoding: encoding} = selector, encoding) do
     %__MODULE__{selector | current_encoding: encoding, queued_encoding: nil}
   end
 
-  def set_current_encoding(%__MODULE__{} = selector, encoding) do
+  def current_encoding(%__MODULE__{} = selector, encoding) do
     %__MODULE__{selector | current_encoding: encoding}
   end
 
   @doc """
-  Selects encoding forwarder will forward.
+  Prioritizes encoding.
 
-  See `encoding_inactive/2` for the meaning
-  of return values.
+  Prioritized encoding will be chosen whenever it
+  is active. See `encoding_inactive/2` for the
+  meaning of return values.
   """
-  @spec select_encoding(t(), Track.variant()) :: {t(), Track.variant() | nil}
-  def select_encoding(selector, encoding) do
-    selector = %__MODULE__{selector | target_encoding: encoding}
+  @spec target_encoding(t(), Track.variant()) :: {t(), Track.variant() | nil}
+  def target_encoding(selector, encoding) do
+    cond do
+      encoding not in selector.all_encodings ->
+        Membrane.Logger.warn("""
+        Requested non existing encoding #{inspect(encoding)}. \
+        Available track encodings: #{inspect(selector.all_encodings)}. \
+        Ignoring.\
+        """)
 
-    if encoding in selector.active_encodings do
-      do_select_encoding(selector, encoding)
-    else
-      {selector, nil}
+        {selector, nil}
+
+      encoding in selector.active_encodings ->
+        selector = %__MODULE__{selector | target_encoding: encoding}
+        select_encoding(selector, encoding)
+
+      true ->
+        Membrane.Logger.debug("""
+        Requested inactive encoding #{inspect(encoding)}. Saving it as target.
+        We will request it once it becomes active.
+        """)
+
+        selector = %__MODULE__{selector | target_encoding: encoding}
+
+        {selector, nil}
     end
   end
 
-  defp do_select_encoding(selector, nil) do
+  defp select_encoding(selector, nil) do
     Membrane.Logger.debug("No active encoding.")
     selector = %__MODULE__{selector | current_encoding: nil, queued_encoding: nil}
     {selector, nil}
   end
 
-  defp do_select_encoding(
+  defp select_encoding(
          %__MODULE__{current_encoding: encoding, queued_encoding: nil} = selector,
          encoding
        ) do
@@ -130,18 +158,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
     {selector, nil}
   end
 
-  defp do_select_encoding(%__MODULE__{current_encoding: encoding} = selector, encoding) do
+  defp select_encoding(%__MODULE__{current_encoding: encoding} = selector, encoding) do
     Membrane.Logger.debug("""
     Requested encoding: #{inspect(encoding)} which is currently used but while waiting
     for keyframe for queued_encoding #{inspect(selector.queued_encoding)}.
-    Clearing queued encoding #{inspect(selector.queued_encoding)}
+    Clearing queued_encoding #{inspect(selector.queued_encoding)}
     """)
 
     selector = %__MODULE__{selector | queued_encoding: nil}
     {selector, nil}
   end
 
-  defp do_select_encoding(selector, encoding) do
+  defp select_encoding(selector, encoding) do
     Membrane.Logger.debug("Enqueuing encoding #{inspect(encoding)}.")
     selector = %__MODULE__{selector | queued_encoding: encoding}
     {selector, encoding}

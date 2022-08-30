@@ -62,7 +62,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %TrackVariantSwitched{new_variant: new_variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    selector = EncodingSelector.set_current_encoding(state.selector, new_variant)
+    selector = EncodingSelector.current_encoding(state.selector, new_variant)
     actions = [notify: {:encoding_switched, new_variant}]
     state = %{state | selector: selector, needs_reconfiguration: true}
     {{:ok, actions}, state}
@@ -108,7 +108,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_other({:select_encoding, encoding}, _ctx, state) do
-    {selector, next_encoding} = EncodingSelector.select_encoding(state.selector, encoding)
+    {selector, next_encoding} = EncodingSelector.target_encoding(state.selector, encoding)
     actions = maybe_request_track_encoding(next_encoding)
     {{:ok, actions}, %{state | selector: selector}}
   end
