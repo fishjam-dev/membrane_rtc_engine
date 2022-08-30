@@ -40,6 +40,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelectorTest do
     assert {_selector, "l"} = EncodingSelector.encoding_active(selector, "l")
   end
 
+  test "target_encoding/2 ignores non-existing encoding" do
+    selector = create_selector()
+
+    non_existing_encoding = "non-existing-encoding"
+
+    assert {selector, nil} = EncodingSelector.target_encoding(selector, non_existing_encoding)
+    assert selector.target_encoding != non_existing_encoding
+  end
+
   test "EncodingSelector doesn't select a new encoding when not currently used encoding is marked as inactive" do
     selector = create_selector()
 
