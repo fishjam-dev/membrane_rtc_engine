@@ -191,7 +191,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
   end
 
   @tag timeout: 1000
-  @tag :debug
   test "SimulcastTee raises on receiving data from inactive track variant" do
     track =
       Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
