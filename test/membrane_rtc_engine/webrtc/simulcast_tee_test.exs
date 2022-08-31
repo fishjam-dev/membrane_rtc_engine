@@ -27,12 +27,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
   @track_origin "generated"
 
   test "SimulcastTee sends TrackVariantResumed after linking output pad" do
-    track =
-      Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-        id: @track_id,
-        simulcast_encodings: @simulcast_encodings
-      )
-
+    track = build_h264_track()
     pipeline = build_video_pipeline(track, {nil, &Utils.generator/2})
 
     Enum.each(track.simulcast_encodings, fn encoding ->
@@ -49,12 +44,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
   end
 
   test "SimulcastTee forwards TrackVariantPaused" do
-    track =
-      Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-        id: @track_id,
-        simulcast_encodings: @simulcast_encodings
-      )
-
+    track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
     actions = [event: {:output, %TrackVariantPaused{variant: "h"}}]
@@ -75,12 +65,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
   end
 
   test "SimulcastTee generates KeyframeRequestEvent on receiving RequestTrackVariant event" do
-    track =
-      Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-        id: @track_id,
-        simulcast_encodings: @simulcast_encodings
-      )
-
+    track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
     actions = [event: {:input, %RequestTrackVariant{variant: "h"}}]
@@ -97,12 +82,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
   @tag timeout: 1000
   test "SimulcastTee raises on receiving invalid RequestTrackVariant event" do
-    track =
-      Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-        id: @track_id,
-        simulcast_encodings: @simulcast_encodings
-      )
-
+    track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
     Process.monitor(pipeline)
@@ -116,12 +96,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
   end
 
   test "SimulcastTee doesn't send data until receiving RequestTrackVariant event and a keyframe for requested track variant" do
-    track =
-      Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-        id: @track_id,
-        simulcast_encodings: @simulcast_encodings
-      )
-
+    track = build_h264_track()
     pipeline = build_video_pipeline(track, {nil, &Utils.generator/2})
 
     Enum.each(track.simulcast_encodings, fn encoding ->
@@ -159,12 +134,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
   @tag timeout: 1000
   test "SimulcastTee raises on receiving data from inactive track variant" do
-    track =
-      Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-        id: @track_id,
-        simulcast_encodings: @simulcast_encodings
-      )
-
+    track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
     actions = [event: {:output, %TrackVariantPaused{variant: "h"}}]
@@ -183,6 +153,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
     receive do
       {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}} -> :ok
     end
+  end
+
+  defp build_h264_track() do
+    Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+      id: @track_id,
+      simulcast_encodings: @simulcast_encodings
+    )
   end
 
   defp build_video_pipeline(track, output, num_of_encodings \\ 3) do

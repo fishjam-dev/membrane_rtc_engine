@@ -38,12 +38,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     end
 
     test "sends caps just once on given output pad" do
-      track =
-        Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-          id: @track_id,
-          simulcast_encodings: @simulcast_encodings
-        )
-
+      track = build_h264_track()
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 2)
 
       assert_sink_caps(pipeline, {:sink, "h"}, %Membrane.RTP{})
@@ -73,12 +68,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     end
 
     test "sends TrackVariantResumed event when adding output pad" do
-      track =
-        Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-          id: @track_id,
-          simulcast_encodings: @simulcast_encodings
-        )
-
+      track = build_h264_track()
       pipeline = build_video_pipeline(track, [], 2)
 
       assert_sink_event(pipeline, {:sink, "h"}, %TrackVariantResumed{variant: "h"})
@@ -106,12 +96,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     end
 
     test "sends TrackVariantPaused event when encoding becomes inactive" do
-      track =
-        Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-          id: @track_id,
-          simulcast_encodings: @simulcast_encodings
-        )
-
+      track = build_h264_track()
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
 
       Enum.each(@simulcast_encodings, fn encoding ->
@@ -126,12 +111,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     end
 
     test "sends TrackVariantResumed event when encoding becomes active" do
-      track =
-        Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-          id: @track_id,
-          simulcast_encodings: @simulcast_encodings
-        )
-
+      track = build_h264_track()
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
 
       Enum.each(@simulcast_encodings, fn encoding ->
@@ -172,15 +152,21 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
     pipeline = build_video_pipeline(track, {nil, &Utils.generator/2})
 
-    [{:sink, "h"}, {:sink, "m"}, {:sink, "l"}]
-    |> Enum.each(fn sink ->
-      assert_sink_buffer(pipeline, sink, %Buffer{
+    Enum.each(@simulcast_encodings, fn encoding ->
+      assert_sink_buffer(pipeline, {:sink, encoding}, %Buffer{
         payload: ^test_payload,
         metadata: %{is_keyframe: ^expected_is_keyframe_value}
       })
     end)
 
     Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  defp build_h264_track() do
+    Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+      id: @track_id,
+      simulcast_encodings: @simulcast_encodings
+    )
   end
 
   defp build_audio_pipeline(track, source_buffers) do
