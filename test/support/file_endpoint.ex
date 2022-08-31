@@ -12,33 +12,39 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   @type encoding_t() :: String.t()
 
-  def_options rtc_engine: [
-                spec: pid(),
-                description: "Pid of parent Engine"
-              ],
-              file_path: [
-                spec: Path.t(),
-                description: "Path to track file"
-              ],
-              track: [
-                spec: Engine.Track.t(),
-                description: "Track to publish"
-              ],
-              interceptor: [
-                spec:
-                  (Membrane.ParentSpec.link_builder_t() -> Membrane.ParentSpec.link_builder_t()),
-                description: "Function which link source with processing children"
-              ],
-              depayloading_filter: [
-                spec: Membrane.ParentSpec.child_spec_t() | nil,
-                default: nil,
-                description: "Element which depayloads stream to raw format"
-              ]
+  def_options(
+    rtc_engine: [
+      spec: pid(),
+      description: "Pid of parent Engine"
+    ],
+    file_path: [
+      spec: Path.t(),
+      description: "Path to track file"
+    ],
+    track: [
+      spec: Engine.Track.t(),
+      description: "Track to publish"
+    ],
+    interceptor: [
+      spec: (Membrane.ParentSpec.link_builder_t() -> Membrane.ParentSpec.link_builder_t()),
+      description: "Function which link source with processing children"
+    ],
+    depayloading_filter: [
+      spec: Membrane.ParentSpec.child_spec_t() | nil,
+      default: nil,
+      description: "Element which depayloads stream to raw format"
+    ],
+    owner: [
+      spec: pid(),
+      description: "Pid of parent all notifications will be send to."
+    ]
+  )
 
-  def_output_pad :output,
+  def_output_pad(:output,
     demand_unit: :buffers,
     caps: :any,
     availability: :on_request
+  )
 
   @impl true
   def handle_init(opts) do
@@ -47,9 +53,17 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       file_path: opts.file_path,
       track: opts.track,
       interceptor: opts.interceptor,
-      depayloading_filter: opts.depayloading_filter
+      depayloading_filter: opts.depayloading_filter,
+      owner: opts.owner
     }
 
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_element_end_of_stream(pad, _ctx, state) do
+    IO.inspect(pad, :end_of_stream)
+    # send(state.owner, {:end_processing, state.track.id})
     {:ok, state}
   end
 
@@ -79,12 +93,11 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   end
 
   @impl true
-  def handle_other({:new_tracks, _list}, _ctx, state) do
+  def handle_other({:new_tracks, _tracks}, _ctx, state) do
     {:ok, state}
   end
 
-  @impl true
-  def handle_other({:remove_tracks, _list}, _ctx, state) do
+  def handle_other({:remove_tracks, _tracks}, _ctx, state) do
     {:ok, state}
   end
 

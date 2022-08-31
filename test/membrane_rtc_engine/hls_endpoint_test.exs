@@ -57,7 +57,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       assert_receive({:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 5_000)
 
-      Process.sleep(15_000)
+      assert_receive({:end_processing, ^track_id}, 30_000)
 
       Engine.remove_endpoint(rtc_engine, file_endpoint_id)
 
