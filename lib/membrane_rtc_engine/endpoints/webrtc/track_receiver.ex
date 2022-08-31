@@ -47,7 +47,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         default_simulcast_encoding: default_simulcast_encoding
       }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
-    selector = EncodingSelector.new(default_simulcast_encoding)
+    selector = EncodingSelector.new(track.simulcast_encodings, default_simulcast_encoding)
 
     state = %{
       track: track,
