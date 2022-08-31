@@ -203,6 +203,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         state
       ) do
     cond do
+      requested_variant not in state.track.simulcast_encodings ->
+        raise RequestTrackVariantError,
+          requester: endpoint_id,
+          requested_variant: requested_variant,
+          track: state.track
+
       requested_variant in state.inactive_encodings ->
         Membrane.Logger.debug("""
         Endpoint #{endpoint_id} requested track variant: #{requested_variant} but it is inactive. \
@@ -210,12 +216,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         """)
 
         {:ok, state}
-
-      requested_variant not in state.track.simulcast_encodings ->
-        raise RequestTrackVariantError,
-          requester: endpoint_id,
-          requested_variant: requested_variant,
-          track: state.track
 
       true ->
         Membrane.Logger.info("""
@@ -244,44 +244,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
       raise TrackVariantStateError, track: state.track, variant: encoding
     end
 
-    is_keyframe = buffer.metadata.is_keyframe
-
     {actions, state} =
-      Enum.flat_map_reduce(state.routes, state, fn
-        {output_pad, %{current_variant: ^encoding}}, state ->
-          started = ctx.pads[output_pad].start_of_stream?
-
-          actions =
-            case started do
-              true ->
-                [buffer: {output_pad, buffer}]
-
-              false when is_keyframe == true ->
-                event = %TrackVariantSwitched{new_variant: encoding}
-                [event: {output_pad, event}, buffer: {output_pad, buffer}]
-
-              false ->
-                []
-            end
-
-          {actions, state}
-
-        {output_pad, %{target_variant: ^encoding}}, state ->
-          if is_keyframe do
-            state =
-              state
-              |> put_in([:routes, output_pad, :current_variant], encoding)
-              |> put_in([:routes, output_pad, :target_variant], nil)
-
-            event = %TrackVariantSwitched{new_variant: encoding}
-            actions = [event: {output_pad, event}, buffer: {output_pad, buffer}]
-            {actions, state}
-          else
-            {[], state}
-          end
-
-        {_output_pad, _route}, state ->
-          {[], state}
+      Enum.flat_map_reduce(state.routes, state, fn route, state ->
+        handle_route(buffer, encoding, route, ctx, state)
       end)
 
     {{:ok, actions}, state}
@@ -312,4 +277,40 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     state = put_in(state, [:routes, output_pad, :target_variant], requested_variant)
     {{:ok, actions}, state}
   end
+
+  defp handle_route(buffer, encoding, {output_pad, %{current_variant: encoding}}, ctx, state) do
+    started = ctx.pads[output_pad].start_of_stream?
+
+    actions =
+      case started do
+        true ->
+          [buffer: {output_pad, buffer}]
+
+        false when buffer.metadata.is_keyframe == true ->
+          event = %TrackVariantSwitched{new_variant: encoding}
+          [event: {output_pad, event}, buffer: {output_pad, buffer}]
+
+        false ->
+          []
+      end
+
+    {actions, state}
+  end
+
+  defp handle_route(buffer, encoding, {output_pad, %{target_variant: encoding}}, _ctx, state) do
+    if buffer.metadata.is_keyframe do
+      state =
+        state
+        |> put_in([:routes, output_pad, :current_variant], encoding)
+        |> put_in([:routes, output_pad, :target_variant], nil)
+
+      event = %TrackVariantSwitched{new_variant: encoding}
+      actions = [event: {output_pad, event}, buffer: {output_pad, buffer}]
+      {actions, state}
+    else
+      {[], state}
+    end
+  end
+
+  defp handle_route(_buffer, _encoding, _route, _ctx, state), do: {[], state}
 end
