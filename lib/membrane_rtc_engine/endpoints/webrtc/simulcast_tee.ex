@@ -76,26 +76,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_added(
-        Pad.ref(:input, {_track_id, encoding}) = pad,
-        %{playback_state: playback_state} = ctx,
-        state
-      ) do
+  def handle_pad_added(Pad.ref(:input, {_track_id, encoding}) = pad, ctx, state) do
     Utils.telemetry_register(ctx.pads[pad].options.telemetry_label)
-
     state = update_in(state, [:inactive_encodings], &List.delete(&1, encoding))
-
-    actions =
-      if playback_state == :playing do
-        for {Pad.ref(:output, _id) = pad, _pad_data} <- ctx.pads, into: [] do
-          event = %TrackVariantResumed{variant: encoding}
-          {:event, {pad, event}}
-        end
-      else
-        []
-      end
-
-    {{:ok, actions}, state}
+    {:ok, state}
   end
 
   @impl true

@@ -18,46 +18,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
   alias Membrane.RTC.Engine.Support.{TestSink, TestSource, Utils}
   alias Membrane.RTC.Engine.Track
-  alias Membrane.Testing.{Pipeline, Source}
+  alias Membrane.Testing.Pipeline
 
   @endpoint_id "endpoint"
   @track_id "track1"
   @simulcast_encodings ["h", "m", "l"]
   @stream_id "stream1"
   @track_origin "generated"
-
-  test "SimulcastTee sends TrackVariantResumed after linking input pad" do
-    track =
-      Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
-        id: @track_id,
-        simulcast_encodings: @simulcast_encodings
-      )
-
-    pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 2)
-
-    Enum.each(["h", "m"], fn encoding ->
-      assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^encoding})
-    end)
-
-    refute_sink_event(pipeline, :sink, _event, 0)
-    refute_sink_buffer(pipeline, :sink, _buffer, 0)
-
-    links = [
-      link({:source, "l"}, %Source{caps: %Membrane.RTP{}, output: []})
-      |> via_in(Pad.ref(:input, {@track_id, "l"}))
-      |> to(:tee)
-    ]
-
-    actions = [{:spec, %Membrane.ParentSpec{links: links}}]
-    Pipeline.execute_actions(pipeline, actions)
-
-    assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: "l"})
-    refute_sink_event(pipeline, :sink, %TrackVariantResumed{variant: "m"}, 0)
-    refute_sink_event(pipeline, :sink, %TrackVariantResumed{variant: "h"}, 0)
-    refute_sink_buffer(pipeline, :sink, _buffer, 0)
-
-    Pipeline.terminate(pipeline, blocking?: true)
-  end
 
   test "SimulcastTee sends TrackVariantResumed after linking output pad" do
     track =

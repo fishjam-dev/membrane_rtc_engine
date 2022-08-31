@@ -44,7 +44,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
           simulcast_encodings: @simulcast_encodings
         )
 
-      pipeline = build_video_pipeline(track, &Utils.generator/2, 2)
+      pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 2)
 
       assert_sink_caps(pipeline, {:sink, "h"}, %Membrane.RTP{})
       assert_sink_caps(pipeline, {:sink, "m"}, %Membrane.RTP{})
@@ -72,6 +72,39 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       Pipeline.terminate(pipeline, blocking?: true)
     end
 
+    test "sends TrackVariantResumed event when adding output pad" do
+      track =
+        Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+          id: @track_id,
+          simulcast_encodings: @simulcast_encodings
+        )
+
+      pipeline = build_video_pipeline(track, [], 2)
+
+      assert_sink_event(pipeline, {:sink, "h"}, %TrackVariantResumed{variant: "h"})
+      assert_sink_event(pipeline, {:sink, "m"}, %TrackVariantResumed{variant: "m"})
+
+      # assert we receive just one TrackVariantResumed event
+      refute_sink_event(pipeline, {:sink, "h"}, %TrackVariantResumed{variant: "h"})
+      refute_sink_event(pipeline, {:sink, "m"}, %TrackVariantResumed{variant: "m"}, 0)
+
+      links = [
+        link({:source, "l"}, %Source{caps: %Membrane.RTP{}, output: []})
+        |> via_in(Pad.ref(:input, {@track_id, "l"}))
+        |> to(:track_sender)
+        |> via_out(Pad.ref(:output, {@track_id, "l"}))
+        |> to({:sink, "l"}, Sink)
+      ]
+
+      actions = [{:spec, %Membrane.ParentSpec{links: links}}]
+      Pipeline.execute_actions(pipeline, actions)
+
+      assert_sink_event(pipeline, {:sink, "l"}, %TrackVariantResumed{variant: "l"})
+      refute_sink_event(pipeline, {:sink, "l"}, %TrackVariantResumed{variant: "l"})
+
+      Pipeline.terminate(pipeline, blocking?: true)
+    end
+
     test "sends TrackVariantPaused event when encoding becomes inactive" do
       track =
         Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
@@ -79,7 +112,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
           simulcast_encodings: @simulcast_encodings
         )
 
-      pipeline = build_video_pipeline(track, &Utils.generator/2, 3)
+      pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
 
       Enum.each(@simulcast_encodings, fn encoding ->
         Pipeline.execute_actions(pipeline, forward: {{:source, encoding}, {:set_active, false}})
@@ -99,7 +132,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
           simulcast_encodings: @simulcast_encodings
         )
 
-      pipeline = build_video_pipeline(track, &Utils.generator/2, 3)
+      pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
 
       Enum.each(@simulcast_encodings, fn encoding ->
         Pipeline.execute_actions(pipeline, forward: {{:source, encoding}, {:set_active, false}})
@@ -137,7 +170,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   defp test_is_keyframe(track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
-    pipeline = build_video_pipeline(track, &Utils.generator/2)
+    pipeline = build_video_pipeline(track, {nil, &Utils.generator/2})
 
     [{:sink, "h"}, {:sink, "m"}, {:sink, "l"}]
     |> Enum.each(fn sink ->
@@ -174,7 +207,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     pipeline
   end
 
-  defp build_video_pipeline(track, generator, num_of_encodings \\ 3) do
+  defp build_video_pipeline(track, output, num_of_encodings \\ 3) do
     encodings = Enum.take(track.simulcast_encodings, num_of_encodings)
 
     {:ok, pipeline} = Pipeline.start_link(links: [])
@@ -182,7 +215,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
     encoding_links =
       for encoding <- encodings do
-        source = %TestSource{caps: %Membrane.RTP{}, output: {nil, generator}}
+        source = %TestSource{caps: %Membrane.RTP{}, output: output}
 
         link({:source, encoding}, source)
         |> via_in(Pad.ref(:input, {@track_id, encoding}))

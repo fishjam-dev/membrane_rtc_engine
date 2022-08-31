@@ -46,13 +46,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_pad_added(
-        Pad.ref(:output, {_track_id, _encoding}) = pad,
+        Pad.ref(:output, {_track_id, encoding}) = pad,
         %{playback_state: playback_state},
         state
       ) do
     actions =
       if playback_state == :playing do
-        [caps: {pad, %Membrane.RTP{}}]
+        [caps: {pad, %Membrane.RTP{}}, event: {pad, %TrackVariantResumed{variant: encoding}}]
       else
         []
       end
@@ -80,8 +80,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_prepared_to_playing(ctx, state) do
     actions =
       Enum.flat_map(ctx.pads, fn
-        {Pad.ref(:output, _ref) = pad, _pad_data} -> [caps: {pad, %Membrane.RTP{}}]
-        _other -> []
+        {Pad.ref(:output, {_track_id, encoding}) = pad, _pad_data} ->
+          [caps: {pad, %Membrane.RTP{}}, event: {pad, %TrackVariantResumed{variant: encoding}}]
+
+        _other ->
+          []
       end)
 
     # start timer only for simulcast tracks
