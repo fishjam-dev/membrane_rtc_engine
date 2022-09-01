@@ -186,6 +186,7 @@ if Enum.all?(
         |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
       {removed_track, tracks} = Map.pop!(state.tracks, track_id)
+      state = %{state | tracks: tracks}
 
       sink_bin_used? =
         Enum.any?(tracks, fn {_id, track} ->

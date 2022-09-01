@@ -79,12 +79,12 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   end
 
   @impl true
-  def handle_other({:new_tracks, []}, _ctx, state) do
+  def handle_other({:new_tracks, _list}, _ctx, state) do
     {:ok, state}
   end
 
   @impl true
-  def handle_other({:remove_tracks, []}, _ctx, state) do
+  def handle_other({:remove_tracks, _list}, _ctx, state) do
     {:ok, state}
   end
 
