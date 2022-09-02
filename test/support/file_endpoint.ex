@@ -61,13 +61,6 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   end
 
   @impl true
-  def handle_element_end_of_stream(pad, _ctx, state) do
-    IO.inspect(pad, :end_of_stream)
-    # send(state.owner, {:end_processing, state.track.id})
-    {:ok, state}
-  end
-
-  @impl true
   def handle_prepared_to_playing(_ctx, state) do
     {{:ok, notify: {:publish, {:new_tracks, [state.track]}}}, state}
   end
@@ -90,6 +83,12 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
     }
 
     {{:ok, spec: spec}, state}
+  end
+
+  @impl true
+  def handle_other(%Membrane.RTC.Engine.Event.EndProcessing{}, _ctx, state) do
+    send(state.owner, {:end_processing, state.track.id})
+    {:ok, state}
   end
 
   @impl true

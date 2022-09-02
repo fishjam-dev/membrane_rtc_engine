@@ -45,7 +45,7 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
 
   @impl true
   def handle_end_of_stream(_pad, ctx, state) do
-    depayloading_filter_exists =
+    depayloading_filter_exists? =
       ctx.pads
       |> Map.keys()
       |> Enum.find(fn
@@ -54,25 +54,22 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
       end) != nil
 
     event =
-      if depayloading_filter_exists do
-        [event: {:input, %Membrane.RTC.Engine.Event.EndProcessing{}}]
+      if depayloading_filter_exists? do
+        [notify: %Membrane.RTC.Engine.Event.EndProcessing{}]
       else
         []
       end
-
-    IO.inspect(event, label: :end_of_stream)
 
     {{:ok, [{:forward, :end_of_stream}] ++ event}, state}
   end
 
   @impl true
-  def handle_event(Pad.ref(:input, _ref), event, _ctx, state) do
+  def handle_event(Pad.ref(:input, _ref), _event, _ctx, state) do
     {:ok, state}
   end
 
   @impl true
   def handle_event(Pad.ref(:output, _ref), event, _ctx, state) do
-    IO.inspect(event, label: :handle_event)
     {{:ok, event: {:input, event}}, state}
   end
 

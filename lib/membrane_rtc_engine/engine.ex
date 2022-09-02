@@ -665,8 +665,9 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification(notification, {:tee, track_id}, _ctx, state) do
-    handle_tee_notification(notification, track_id, state)
+  def handle_notification(notification, {tee_type, track_id}, ctx, state)
+      when tee_type in [:tee, :raw_format_tee] do
+    handle_tee_notification(notification, track_id, ctx, state)
   end
 
   @impl true
@@ -813,7 +814,7 @@ defmodule Membrane.RTC.Engine do
   #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
   #   removed tracks. Also forwards custom media events.
   #
-  # - handle_tee_notification/3: Handles incoming notifications from the tee, mainly this is
+  # - handle_tee_notification/4: Handles incoming notifications from the tee, mainly this is
   #   used by the Simulcast tee to signal change of encoding.
   #
 
@@ -926,7 +927,25 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
+  defp handle_tee_notification(%Membrane.RTC.Engine.Event.EndProcessing{}, track_id, ctx, state) do
+    endpoint =
+      track_id
+      |> get_track(state.endpoints)
+      |> then(fn
+        %Track{origin: origin} -> {:endpoint, origin}
+        nil -> nil
+      end)
+
+    actions =
+      if find_child(ctx, pattern: ^endpoint) != nil,
+        do: [forward: {endpoint, %Membrane.RTC.Engine.Event.EndProcessing{}}],
+        else: []
+
+    {{:ok, actions}, state}
+  end
+
+  # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
+  defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, _ctx, state) do
     # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
     # `track_id` now
 
