@@ -927,23 +927,6 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp handle_tee_notification(%Membrane.RTC.Engine.Event.EndProcessing{}, track_id, ctx, state) do
-    endpoint =
-      track_id
-      |> get_track(state.endpoints)
-      |> then(fn
-        %Track{origin: origin} -> {:endpoint, origin}
-        nil -> nil
-      end)
-
-    actions =
-      if find_child(ctx, pattern: ^endpoint) != nil,
-        do: [forward: {endpoint, %Membrane.RTC.Engine.Event.EndProcessing{}}],
-        else: []
-
-    {{:ok, actions}, state}
-  end
-
   # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
   defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, _ctx, state) do
     # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
@@ -956,6 +939,28 @@ defmodule Membrane.RTC.Engine do
 
     dispatch(endpoint_id, MediaEvent.encoding_switched(from_endpoint_id, track_id, encoding))
     {:ok, state}
+  end
+
+  defp handle_tee_notification(
+         %Membrane.RTC.Engine.Event.EndProcessing{track_id: track_id} = event,
+         track_id,
+         ctx,
+         state
+       ) do
+    endpoint =
+      track_id
+      |> get_track(state.endpoints)
+      |> then(fn
+        %Track{origin: origin} -> {:endpoint, origin}
+        nil -> nil
+      end)
+
+    actions =
+      if find_child(ctx, pattern: ^endpoint) != nil,
+        do: [forward: {endpoint, event}],
+        else: []
+
+    {{:ok, actions}, state}
   end
 
   #
@@ -1302,6 +1307,7 @@ defmodule Membrane.RTC.Engine do
       endpoint_id = subscription.endpoint_id
       track_id = subscription.track_id
       subscription = %{subscription | status: :active}
+
       state = put_in(state, [:subscriptions, endpoint_id, track_id], subscription)
       {links, state}
     end)

@@ -86,8 +86,8 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   end
 
   @impl true
-  def handle_other(%Membrane.RTC.Engine.Event.EndProcessing{}, _ctx, state) do
-    send(state.owner, {:end_processing, state.track.id})
+  def handle_other(%Membrane.RTC.Engine.Event.EndProcessing{track_id: track_id}, _ctx, state) do
+    send(state.owner, {:end_processing, track_id})
     {:ok, state}
   end
 

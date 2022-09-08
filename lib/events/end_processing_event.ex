@@ -10,8 +10,8 @@ defmodule Membrane.RTC.Engine.Event.EndProcessing do
   @typedoc """
   Type describing EndProcessing event.
   """
-  @type t() :: %__MODULE__{}
+  @type t() :: %__MODULE__{track_id: Track.id()}
 
-  @enforce_keys []
+  @enforce_keys [:track_id]
   defstruct @enforce_keys
 end

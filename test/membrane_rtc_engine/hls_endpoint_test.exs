@@ -23,6 +23,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   end
 
   describe "HLS Endpoint test" do
+    @tag timeout: 120_000
     test "creates correct hls stream from single (h264) input", %{rtc_engine: rtc_engine} do
       file_endpoint_id = "file-endpoint-id"
 
@@ -57,11 +58,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       assert_receive({:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 5_000)
 
-      assert_receive({:end_processing, ^track_id}, 30_000)
-
-      assert_receive {:cleanup, _cleanup_function, ^stream_id}, 30_000
+      assert_receive({:end_processing, ^track_id}, 60_000)
 
       Engine.remove_endpoint(rtc_engine, file_endpoint_id)
+
+      assert_receive {:cleanup, _cleanup_function, ^stream_id}, 30_000
 
       output_dir = Path.join([@output_dir, stream_id])
       reference_dir = Path.join([@reference_dir, reference_id])
@@ -209,7 +210,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       track: video_track,
       interceptor: fn link_builder ->
         Membrane.ParentSpec.to(link_builder, :parser, parser)
-      end
+      end,
+      owner: self()
     }
   end
 
@@ -234,7 +236,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
         Membrane.ParentSpec.to(link_builder, :parser, %Membrane.AAC.Parser{
           out_encapsulation: :none
         })
-      end
+      end,
+      owner: self()
     }
   end
 end

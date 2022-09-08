@@ -34,7 +34,8 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
      %{
        codec: opts.codec,
        caps: nil,
-       telemetry_label: opts.telemetry_label
+       telemetry_label: opts.telemetry_label,
+       stream_ended?: false
      }}
   end
 
@@ -45,42 +46,40 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
 
   @impl true
   def handle_end_of_stream(_pad, ctx, state) do
-    depayloading_filter_exists? =
+    exist_next_tee? =
       ctx.pads
       |> Map.keys()
-      |> Enum.find(fn
-        {Membrane.Pad, :output, _ref} -> true
+      |> Enum.any?(fn
+        Pad.ref(:output, {:endpoint, :raw_format_filter}) -> true
         _other -> false
-      end) != nil
+      end)
 
-    event =
-      if depayloading_filter_exists? do
-        [notify: %Membrane.RTC.Engine.Event.EndProcessing{}]
-      else
-        []
+    unless exist_next_tee? do
+      Process.send_after(self(), :end_processing, 5_000)
+    end
+
+    {{:ok, forward: :end_of_stream}, %{state | stream_ended?: true}}
+  end
+
+  @impl true
+  def handle_pad_added(
+        Pad.ref(:output, _ref) = pad,
+        _ctx,
+        %{caps: caps, stream_ended?: stream_ended?} = state
+      ) do
+    actions =
+      case {caps, stream_ended?} do
+        {nil, _eos} ->
+          []
+
+        {caps, true} ->
+          [caps: {pad, caps}, end_of_stream: pad]
+
+        {caps, false} ->
+          [caps: {pad, caps}]
       end
 
-    {{:ok, [{:forward, :end_of_stream}] ++ event}, state}
-  end
-
-  @impl true
-  def handle_event(Pad.ref(:input, _ref), _event, _ctx, state) do
-    {:ok, state}
-  end
-
-  @impl true
-  def handle_event(Pad.ref(:output, _ref), event, _ctx, state) do
-    {{:ok, event: {:input, event}}, state}
-  end
-
-  @impl true
-  def handle_pad_added(Pad.ref(:output, _ref), _ctx, %{caps: nil} = state) do
-    {:ok, state}
-  end
-
-  @impl true
-  def handle_pad_added(Pad.ref(:output, _ref) = pad, _ctx, %{caps: caps} = state) do
-    {{:ok, caps: {pad, caps}}, state}
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -92,5 +91,16 @@ defmodule Membrane.RTC.Engine.PushOutputTee do
     )
 
     {{:ok, forward: buffer}, state}
+  end
+
+  @impl true
+  def handle_other(:end_processing, ctx, state) do
+    track_id =
+      case ctx.name do
+        {:raw_format_tee, track_id} -> track_id
+        {:tee, track_id} -> track_id
+      end
+
+    {{:ok, notify: %Membrane.RTC.Engine.Event.EndProcessing{track_id: track_id}}, state}
   end
 end

@@ -394,7 +394,8 @@ defmodule Membrane.RTC.EngineTest do
           link_builder
           |> Membrane.ParentSpec.to(:parser, parser)
         end,
-        depayloading_filter: NaiveFilter
+        depayloading_filter: NaiveFilter,
+        owner: self()
       }
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)

@@ -421,6 +421,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_other(%Membrane.RTC.Engine.Event.EndProcessing{track_id: track_id}, _ctx, state) do
+    send(state.owner, {:end_processing, track_id})
+    {:ok, state}
+  end
+
+  @impl true
   def handle_other(msg, ctx, state) do
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
