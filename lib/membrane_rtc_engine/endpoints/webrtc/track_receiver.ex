@@ -92,22 +92,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_process(_pad, buffer, _ctx, %{needs_reconfiguration: true} = state) do
-    forwarder = Forwarder.reconfigure(state.forwarder, buffer)
+  def handle_process(_pad, buffer, _ctx, state) do
+    forwarder =
+      if state.needs_reconfiguration,
+        do: Forwarder.reconfigure(state.forwarder, buffer),
+        else: state.forwarder
+
     {forwarder, buffer} = Forwarder.align(forwarder, buffer)
     state = %{state | forwarder: forwarder, needs_reconfiguration: false}
     {{:ok, buffer: {:output, buffer}}, state}
   end
 
   @impl true
-  def handle_process(_pad, buffer, _ctx, state) do
-    {forwarder, buffer} = Forwarder.align(state.forwarder, buffer)
-    state = %{state | forwarder: forwarder}
-    {{:ok, buffer: {:output, buffer}}, state}
-  end
-
-  @impl true
   def handle_other({:select_encoding, encoding}, _ctx, state) do
+    if encoding not in state.selector.all_encodings,
+      do: raise("Requested encoding #{encoding} isn't valid")
+
     {selector, next_encoding} = EncodingSelector.target_encoding(state.selector, encoding)
     actions = maybe_request_track_encoding(next_encoding)
     {{:ok, actions}, %{state | selector: selector}}

@@ -6,7 +6,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelectorTest do
   test "EncodingSelector selects another encoding when currently used encoding becomes inactive" do
     selector = create_selector()
     assert {selector, "m"} = EncodingSelector.encoding_inactive(selector, "h")
-    assert {_selector, "l"} = EncodingSelector.encoding_inactive(selector, "m")
+    assert {selector, "l"} = EncodingSelector.encoding_inactive(selector, "m")
+    assert {_selector, nil} = EncodingSelector.encoding_inactive(selector, "l")
   end
 
   test "EncodingSelector selects encoding being used before it became inactive" do

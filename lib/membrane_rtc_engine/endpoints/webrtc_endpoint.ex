@@ -451,24 +451,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     default_encoding = state.simulcast_config.default_encoding.(track)
 
-    links =
+    maybe_link_track_receiver =
       if track.type == :video do
-        [
-          link_bin_input(pad)
-          |> to({:track_receiver, track_id}, %TrackReceiver{
-            track: track,
-            default_simulcast_encoding: default_encoding
-          })
-          |> via_in(pad, options: [use_payloader?: false])
-          |> to(:endpoint_bin)
-        ]
+        &to(&1, {:track_receiver, track_id}, %TrackReceiver{
+          track: track,
+          default_simulcast_encoding: default_encoding
+        })
       else
-        [
-          link_bin_input(pad)
-          |> via_in(pad, options: [use_payloader?: false])
-          |> to(:endpoint_bin)
-        ]
+        & &1
       end
+
+    links =
+      link_bin_input(pad)
+      |> then(maybe_link_track_receiver)
+      |> via_in(pad, options: [use_payloader?: false])
+      |> to(:endpoint_bin)
 
     {{:ok, spec: %ParentSpec{links: links}}, state}
   end

@@ -78,7 +78,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @impl true
   def handle_pad_added(Pad.ref(:input, {_track_id, encoding}) = pad, ctx, state) do
     Utils.telemetry_register(ctx.pads[pad].options.telemetry_label)
-    state = update_in(state, [:inactive_encodings], &List.delete(&1, encoding))
+    state = Map.update!(state, :inactive_encodings, &List.delete(&1, encoding))
     {:ok, state}
   end
 
@@ -120,37 +120,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:input, {_track_id, _rid}), _context, state) do
-    # TODO should we do something here?
-    {:ok, state}
-  end
-
-  @impl true
   def handle_prepared_to_playing(context, state) do
     track_events =
-      (state.track.simulcast_encodings -- state.inactive_encodings)
+      state
+      |> active_encodings()
       |> Enum.map(&%TrackVariantResumed{variant: &1})
 
     actions =
-      Enum.flat_map(context.pads, fn
-        {Pad.ref(:output, _ref) = pad, _pad_data} ->
-          actions = Enum.flat_map(track_events, fn event -> [event: {pad, event}] end)
-          [caps: {pad, %Membrane.RTP{}}] ++ actions
-
-        _other ->
-          []
+      context.pads
+      |> Enum.filter(fn {_pad, %{name: name}} -> name == :output end)
+      |> Enum.flat_map(fn {pad, _pad_data} ->
+        actions = Enum.map(track_events, &{:event, {pad, &1}})
+        [caps: {pad, %Membrane.RTP{}}] ++ actions
       end)
 
     {{:ok, actions}, state}
   end
 
   @impl true
-  def handle_event(
-        Pad.ref(:input, {_track_id, encoding}),
-        %TrackVariantPaused{} = event,
-        _ctx,
-        state
-      ) do
+  def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do
+    {_track_id, encoding} = id
     state = update_in(state, [:inactive_encodings], &[encoding | &1])
 
     # reset all target encodings set to `encoding`
@@ -159,7 +148,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     state =
       Enum.reduce(state.routes, state, fn
         {output_pad, %{target_encoding: ^encoding}}, state ->
-          update_in(state, [:routes, output_pad], &Map.put(&1, :target_encoding, nil))
+          put_in(state, [:routes, output_pad, :target_encoding], nil)
 
         _route, state ->
           state
@@ -169,12 +158,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   @impl true
-  def handle_event(
-        Pad.ref(:input, {_track_id, encoding}),
-        %TrackVariantResumed{} = event,
-        _ctx,
-        state
-      ) do
+  def handle_event(Pad.ref(:input, id), %TrackVariantResumed{} = event, _ctx, state) do
+    {_track_id, encoding} = id
     state = update_in(state, [:inactive_encodings], &List.delete(&1, encoding))
     {{:ok, forward: event}, state}
   end
@@ -202,7 +187,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         {:ok, state}
 
       true ->
-        Membrane.Logger.info("""
+        Membrane.Logger.debug("""
         Endpoint #{endpoint_id} requested track variant #{requested_variant}. \
         Requesting keyframe.
         """)
@@ -263,18 +248,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   defp handle_route(buffer, encoding, {output_pad, %{current_variant: encoding}}, ctx, state) do
-    started = ctx.pads[output_pad].start_of_stream?
+    started? = ctx.pads[output_pad].start_of_stream?
 
     actions =
-      case started do
-        true ->
+      cond do
+        started? ->
           [buffer: {output_pad, buffer}]
 
-        false when buffer.metadata.is_keyframe == true ->
+        buffer.metadata.is_keyframe == true ->
           event = %TrackVariantSwitched{new_variant: encoding}
           [event: {output_pad, event}, buffer: {output_pad, buffer}]
 
-        false ->
+        true ->
           []
       end
 
@@ -297,4 +282,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   end
 
   defp handle_route(_buffer, _encoding, _route, _ctx, state), do: {[], state}
+
+  defp active_encodings(state), do: state.track.simulcast_encodings -- state.inactive_encodings
 end

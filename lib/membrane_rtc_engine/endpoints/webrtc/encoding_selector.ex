@@ -10,12 +10,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
           target_encoding: Track.variant() | nil,
           current_encoding: Track.variant() | nil,
           queued_encoding: Track.variant() | nil,
-          active_encodings: [Track.variant()],
-          all_encodings: [Track.variant()]
+          active_encodings: MapSet.t(Track.variant()),
+          all_encodings: MapSet.t(Track.variant())
         }
 
-  @enforce_keys [:all_encodings, :target_encoding]
-  defstruct @enforce_keys ++ [:current_encoding, :queued_encoding, active_encodings: []]
+  @enforce_keys [:all_encodings]
+  defstruct @enforce_keys ++
+              [
+                :target_encoding,
+                :current_encoding,
+                :queued_encoding,
+                active_encodings: MapSet.new()
+              ]
 
   @doc """
   Creates new encoding selector.
@@ -28,7 +34,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   """
   @spec new([Track.variant()], Track.variant() | nil) :: t()
   def new(encodings, initial_target_encoding \\ nil) do
-    %__MODULE__{all_encodings: encodings, target_encoding: initial_target_encoding}
+    %__MODULE__{all_encodings: MapSet.new(encodings), target_encoding: initial_target_encoding}
   end
 
   @doc """
@@ -41,25 +47,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   def encoding_inactive(selector, encoding) do
     selector = %__MODULE__{
       selector
-      | active_encodings: List.delete(selector.active_encodings, encoding)
+      | active_encodings: MapSet.delete(selector.active_encodings, encoding)
     }
 
-    next_encoding = get_next_encoding(selector.active_encodings)
-
-    cond do
-      selector.current_encoding == encoding ->
+    case selector do
+      %{current_encoding: ^encoding} ->
         selector = %__MODULE__{selector | current_encoding: nil}
-        select_encoding(selector, next_encoding)
+        select_encoding(selector)
 
-      selector.queued_encoding == encoding and selector.current_encoding == nil ->
+      %{queued_encoding: ^encoding, current_encoding: nil} ->
         selector = %__MODULE__{selector | queued_encoding: nil}
-        select_encoding(selector, next_encoding)
+        select_encoding(selector)
 
-      selector.queued_encoding == encoding ->
+      %{queued_encoding: ^encoding} ->
         selector = %__MODULE__{selector | queued_encoding: nil}
         {selector, nil}
 
-      true ->
+      _else ->
         {selector, nil}
     end
   end
@@ -67,17 +71,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   @doc """
   Marks given `encoding` as active.
 
-  See `encoding_inactive/2` for the meaning
-  of return values.
+  Returns new selector and encoding to request
+  or `nil` if there are no changes needed.
   """
   @spec encoding_active(t(), Track.variant()) :: {t(), Track.variant() | nil}
   def encoding_active(selector, encoding) do
     selector = %__MODULE__{
       selector
-      | active_encodings: selector.active_encodings ++ [encoding]
+      | active_encodings: MapSet.put(selector.active_encodings, encoding)
     }
 
-    next_encoding = get_next_encoding(selector.active_encodings)
+    next_encoding = best_active_encoding(selector.active_encodings)
 
     cond do
       selector.current_encoding == selector.target_encoding ->
@@ -98,7 +102,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   Sets currently used encoding.
 
   Should be called when encoding change happens
-  i.e. after receiving `TrackVariantSwitched` event.
+  i.e. after receiving `Membrane.RTC.Engine.Event.TrackVariantSwitched` event.
   """
   @spec current_encoding(t(), Track.variant()) :: t()
   def current_encoding(%__MODULE__{queued_encoding: encoding} = selector, encoding) do
@@ -110,11 +114,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   end
 
   @doc """
-  Prioritizes encoding.
+  Sets the target encoding that should be selected whenever it is active.
 
-  Prioritized encoding will be chosen whenever it
-  is active. See `encoding_inactive/2` for the
-  meaning of return values.
+  If the target encoding is not active, we will switch to it when it becomes active again
   """
   @spec target_encoding(t(), Track.variant()) :: {t(), Track.variant() | nil}
   def target_encoding(selector, encoding) do
@@ -135,13 +137,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
       true ->
         Membrane.Logger.debug("""
         Requested inactive encoding #{inspect(encoding)}. Saving it as target.
-        We will request it once it becomes active.
+        It will be requested once it becomes active
         """)
 
         selector = %__MODULE__{selector | target_encoding: encoding}
 
         {selector, nil}
     end
+  end
+
+  defp select_encoding(%__MODULE__{active_encodings: encodings} = selector) do
+    encoding = best_active_encoding(encodings)
+    select_encoding(selector, encoding)
   end
 
   defp select_encoding(selector, nil) do
@@ -175,7 +182,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
     {selector, encoding}
   end
 
-  defp get_next_encoding(encodings) do
+  defp best_active_encoding(encodings) do
     encodings |> sort_encodings() |> List.first()
   end
 

@@ -46,13 +46,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_pad_added(
-        Pad.ref(:output, {_track_id, encoding}) = pad,
+        Pad.ref(:output, _id) = pad,
         %{playback_state: playback_state},
         state
       ) do
     actions =
       if playback_state == :playing do
-        [caps: {pad, %Membrane.RTP{}}, event: {pad, %TrackVariantResumed{variant: encoding}}]
+        activate_pad_actions(pad)
       else
         []
       end
@@ -79,13 +79,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   @impl true
   def handle_prepared_to_playing(ctx, state) do
     actions =
-      Enum.flat_map(ctx.pads, fn
-        {Pad.ref(:output, {_track_id, encoding}) = pad, _pad_data} ->
-          [caps: {pad, %Membrane.RTP{}}, event: {pad, %TrackVariantResumed{variant: encoding}}]
-
-        _other ->
-          []
-      end)
+      ctx.pads
+      |> Stream.filter(fn {_pad_id, %{name: name}} -> name == :output end)
+      |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad) end)
 
     # start timer only for simulcast tracks
     actions =
@@ -120,7 +116,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         Membrane.Logger.info("Requested keyframe but we are already awaiting it. Ignoring.")
         {[], state}
       else
-        Membrane.Logger.info("Requesting keyframe for #{inspect(encoding)}")
+        Membrane.Logger.debug("Requesting keyframe for #{inspect(encoding)}")
         keyframe_req_queue = MapSet.put(state.keyframe_req_queue, encoding)
         state = %{state | keyframe_req_queue: keyframe_req_queue}
         actions = [event: {Pad.ref(:input, {track_id, encoding}), event}]
@@ -149,7 +145,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
     state =
       if MapSet.member?(state.keyframe_req_queue, encoding) and buffer.metadata.is_keyframe do
-        Membrane.Logger.info(
+        Membrane.Logger.debug(
           "Received keyframe for #{encoding}. Removing it from keyframe request queue."
         )
 
@@ -209,6 +205,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
     new_metadata = Map.put(buffer.metadata, :is_keyframe, is_keyframe)
     %Buffer{buffer | metadata: new_metadata}
+  end
+
+  defp activate_pad_actions(Pad.ref(:output, {_track_id, encoding}) = pad) do
+    [caps: {pad, %Membrane.RTP{}}, event: {pad, %TrackVariantResumed{variant: encoding}}]
   end
 
   defp to_output_pad(Pad.ref(:input, {_track_id, _encoding} = pad_id)) do

@@ -28,7 +28,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
   test "SimulcastTee sends TrackVariantResumed after linking output pad" do
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, {nil, &Utils.generator/2})
+    pipeline = build_video_pipeline(track, [])
 
     Enum.each(track.simulcast_encodings, fn encoding ->
       assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^encoding})
@@ -90,9 +90,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
     actions = [event: {:input, %RequestTrackVariant{variant: "invalid_track_variant"}}]
     Pipeline.execute_actions(pipeline, forward: {:sink, {:execute_actions, actions}})
 
-    receive do
-      {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}} -> :ok
-    end
+    assert_receive {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}}
   end
 
   test "SimulcastTee doesn't send data until receiving RequestTrackVariant event and a keyframe for requested track variant" do
@@ -132,7 +130,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
     Pipeline.terminate(pipeline, blocking?: true)
   end
 
-  @tag timeout: 1000
   test "SimulcastTee raises on receiving data from inactive track variant" do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
@@ -150,9 +147,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTeeTest do
 
     Pipeline.execute_actions(pipeline, forward: {{:source, "h"}, {:execute_actions, actions}})
 
-    receive do
-      {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}} -> :ok
-    end
+    assert_receive {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}}
   end
 
   defp build_h264_track() do
