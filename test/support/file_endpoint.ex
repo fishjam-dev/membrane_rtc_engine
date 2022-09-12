@@ -12,33 +12,32 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   @type encoding_t() :: String.t()
 
-  def_options(
-    rtc_engine: [
-      spec: pid(),
-      description: "Pid of parent Engine"
-    ],
-    file_path: [
-      spec: Path.t(),
-      description: "Path to track file"
-    ],
-    track: [
-      spec: Engine.Track.t(),
-      description: "Track to publish"
-    ],
-    interceptor: [
-      spec: (Membrane.ParentSpec.link_builder_t() -> Membrane.ParentSpec.link_builder_t()),
-      description: "Function which link source with processing children"
-    ],
-    depayloading_filter: [
-      spec: Membrane.ParentSpec.child_spec_t() | nil,
-      default: nil,
-      description: "Element which depayloads stream to raw format"
-    ],
-    owner: [
-      spec: pid(),
-      description: "Pid of parent all notifications will be send to."
-    ]
-  )
+  def_options rtc_engine: [
+                spec: pid(),
+                description: "Pid of parent Engine"
+              ],
+              file_path: [
+                spec: Path.t(),
+                description: "Path to track file"
+              ],
+              track: [
+                spec: Engine.Track.t(),
+                description: "Track to publish"
+              ],
+              interceptor: [
+                spec:
+                  (Membrane.ParentSpec.link_builder_t() -> Membrane.ParentSpec.link_builder_t()),
+                description: "Function which link source with processing children"
+              ],
+              depayloading_filter: [
+                spec: Membrane.ParentSpec.child_spec_t() | nil,
+                default: nil,
+                description: "Element which depayloads stream to raw format"
+              ],
+              owner: [
+                spec: pid(),
+                description: "Pid of parent all notifications will be send to."
+              ]
 
   def_output_pad(:output,
     demand_unit: :buffers,

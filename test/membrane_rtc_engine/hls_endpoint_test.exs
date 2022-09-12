@@ -23,7 +23,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
   end
 
   describe "HLS Endpoint test" do
-    @tag timeout: 120_000
     test "creates correct hls stream from single (h264) input", %{rtc_engine: rtc_engine} do
       file_endpoint_id = "file-endpoint-id"
 
@@ -56,13 +55,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 5_000)
+      assert_receive {:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 5_000
 
-      assert_receive({:end_processing, ^track_id}, 60_000)
+      assert_receive {:end_processing, ^track_id}, 20_000
 
       Engine.remove_endpoint(rtc_engine, file_endpoint_id)
 
-      assert_receive {:cleanup, _cleanup_function, ^stream_id}, 30_000
+      assert_receive {:cleanup, _cleanup_function, ^stream_id}, 5_000
 
       output_dir = Path.join([@output_dir, stream_id])
       reference_dir = Path.join([@reference_dir, reference_id])
@@ -97,9 +96,17 @@ defmodule Membrane.RTC.HLSEndpointTest do
       reference_id = "multiple-tracks-h264-aac"
 
       hls_endpoint = create_hls_endpoint(rtc_engine)
+      audio_file_name = "one_second.aac"
+      audi_file_path = Path.join(@fixtures_dir, audio_file_name)
 
       audio_file_endpoint =
-        create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
+        create_audio_file_endnpoint(
+          rtc_engine,
+          audi_file_path,
+          stream_id,
+          audio_file_endpoint_id,
+          audio_track_id
+        )
 
       video_file_endpoint =
         create_video_file_endpoint(
@@ -144,7 +151,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert_receive({:playlist_playable, :video, ^stream_id, ^video_file_endpoint_id}, 5_000)
       assert_receive({:playlist_playable, :audio, ^stream_id, ^audio_file_endpoint_id}, 5_000)
 
-      Process.sleep(2_000)
+      assert_receive {:end_processing, ^audio_track_id}, 10_000
+      assert_receive {:end_processing, ^video_track_id}, 10_000
+      Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
+      Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
 
       output_dir = Path.join([@output_dir, stream_id])
       reference_dir = Path.join([@reference_dir, reference_id])
@@ -160,9 +170,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
         assert File.read!(output_path) == File.read!(reference_path)
       end
-
-      Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
-      Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
 
       assert_receive({:cleanup, _cleanup_function, ^stream_id})
       refute_received({:cleanup, _cleanup_function, ^stream_id})
@@ -215,7 +222,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
     }
   end
 
-  defp create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id) do
+  defp create_audio_file_endnpoint(
+         rtc_engine,
+         audio_file_path,
+         stream_id,
+         audio_file_endpoint_id,
+         audio_track_id
+       ) do
     audio_track =
       Engine.Track.new(
         :audio,
@@ -230,7 +243,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
     %FileEndpoint{
       rtc_engine: rtc_engine,
-      file_path: Path.join(@fixtures_dir, "audio.aac"),
+      file_path: audio_file_path,
       track: audio_track,
       interceptor: fn link_builder ->
         Membrane.ParentSpec.to(link_builder, :parser, %Membrane.AAC.Parser{
