@@ -40,17 +40,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   def_output_pad :output,
     availability: :on_request,
     mode: :push,
-    caps: Membrane.RTP,
-    options: [
-      default_simulcast_encoding: [
-        spec: String.t() | nil,
-        default: nil,
-        description: """
-        Initial encoding that should be sent via this pad.
-        `nil` means that the best possible encoding should be used.
-        """
-      ]
-    ]
+    caps: Membrane.RTP
 
   @typedoc """
   Notifies that encoding for endpoint with id `endpoint_id` was switched to encoding `encoding`.
@@ -97,7 +87,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     actions =
       if playback_state == :playing do
         actions =
-          (state.track.simulcast_encodings -- state.inactive_encodings)
+          state
+          |> active_encodings()
           |> Enum.flat_map(&[event: {pad, %TrackVariantResumed{variant: &1}}])
 
         [caps: {pad, %Membrane.RTP{}}] ++ actions
@@ -140,7 +131,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do
     {_track_id, encoding} = id
-    state = update_in(state, [:inactive_encodings], &[encoding | &1])
+    state = Map.update!(state, :inactive_encodings, &[encoding | &1])
 
     # reset all target encodings set to `encoding`
     # when `encoding` becomes active again
@@ -160,7 +151,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantResumed{} = event, _ctx, state) do
     {_track_id, encoding} = id
-    state = update_in(state, [:inactive_encodings], &List.delete(&1, encoding))
+    state = Map.update!(state, :inactive_encodings, &List.delete(&1, encoding))
     {{:ok, forward: event}, state}
   end
 
@@ -255,7 +246,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
         started? ->
           [buffer: {output_pad, buffer}]
 
-        buffer.metadata.is_keyframe == true ->
+        buffer.metadata.is_keyframe ->
           event = %TrackVariantSwitched{new_variant: encoding}
           [event: {output_pad, event}, buffer: {output_pad, buffer}]
 

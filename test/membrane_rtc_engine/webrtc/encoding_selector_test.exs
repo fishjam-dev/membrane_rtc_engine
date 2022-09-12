@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelectorTest do
 
     assert {selector, "m"} = EncodingSelector.encoding_inactive(selector, "h")
 
-    selector = EncodingSelector.current_encoding(selector, "m")
+    selector = EncodingSelector.set_current_encoding(selector, "m")
 
     assert {_selector, "h"} = EncodingSelector.encoding_active(selector, "h")
   end
@@ -24,9 +24,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelectorTest do
     selector = create_selector()
 
     assert {selector, "m"} = EncodingSelector.encoding_inactive(selector, "h")
-    assert {selector, "m"} = EncodingSelector.target_encoding(selector, "m")
+    assert {selector, "m"} = EncodingSelector.set_target_encoding(selector, "m")
 
-    selector = EncodingSelector.current_encoding(selector, "m")
+    selector = EncodingSelector.set_current_encoding(selector, "m")
 
     # assert that encoding selector doesn't request the new encoding
     # even though it is better
@@ -37,7 +37,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelectorTest do
     selector = create_selector()
 
     assert {selector, nil} = EncodingSelector.encoding_inactive(selector, "l")
-    assert {selector, nil} = EncodingSelector.target_encoding(selector, "l")
+    assert {selector, nil} = EncodingSelector.set_target_encoding(selector, "l")
     assert {_selector, "l"} = EncodingSelector.encoding_active(selector, "l")
   end
 
@@ -46,7 +46,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelectorTest do
 
     non_existing_encoding = "non-existing-encoding"
 
-    assert {selector, nil} = EncodingSelector.target_encoding(selector, non_existing_encoding)
+    assert {selector, nil} = EncodingSelector.set_target_encoding(selector, non_existing_encoding)
     assert selector.target_encoding != non_existing_encoding
   end
 
@@ -70,7 +70,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelectorTest do
 
     assert {selector, "h"} = EncodingSelector.encoding_active(selector, "h")
 
-    selector = EncodingSelector.current_encoding(selector, "h")
+    selector = EncodingSelector.set_current_encoding(selector, "h")
 
     assert {selector, nil} = EncodingSelector.encoding_active(selector, "m")
     assert {selector, nil} = EncodingSelector.encoding_active(selector, "l")

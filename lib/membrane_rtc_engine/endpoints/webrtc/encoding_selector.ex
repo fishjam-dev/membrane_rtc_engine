@@ -81,8 +81,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
       | active_encodings: MapSet.put(selector.active_encodings, encoding)
     }
 
-    next_encoding = best_active_encoding(selector.active_encodings)
-
     cond do
       selector.current_encoding == selector.target_encoding ->
         {selector, nil}
@@ -94,7 +92,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
         select_encoding(selector, encoding)
 
       true ->
-        select_encoding(selector, next_encoding)
+        select_encoding(selector)
     end
   end
 
@@ -104,12 +102,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   Should be called when encoding change happens
   i.e. after receiving `Membrane.RTC.Engine.Event.TrackVariantSwitched` event.
   """
-  @spec current_encoding(t(), Track.variant()) :: t()
-  def current_encoding(%__MODULE__{queued_encoding: encoding} = selector, encoding) do
+  @spec set_current_encoding(t(), Track.variant()) :: t()
+  def set_current_encoding(%__MODULE__{queued_encoding: encoding} = selector, encoding) do
     %__MODULE__{selector | current_encoding: encoding, queued_encoding: nil}
   end
 
-  def current_encoding(%__MODULE__{} = selector, encoding) do
+  def set_current_encoding(%__MODULE__{} = selector, encoding) do
     %__MODULE__{selector | current_encoding: encoding}
   end
 
@@ -118,8 +116,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
 
   If the target encoding is not active, we will switch to it when it becomes active again
   """
-  @spec target_encoding(t(), Track.variant()) :: {t(), Track.variant() | nil}
-  def target_encoding(selector, encoding) do
+  @spec set_target_encoding(t(), Track.variant()) :: {t(), Track.variant() | nil}
+  def set_target_encoding(selector, encoding) do
     cond do
       encoding not in selector.all_encodings ->
         Membrane.Logger.warn("""
@@ -187,6 +185,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   end
 
   defp sort_encodings(encodings) do
+    if nil in encodings, do: raise("KURWA")
+
     Enum.sort_by(
       encodings,
       fn

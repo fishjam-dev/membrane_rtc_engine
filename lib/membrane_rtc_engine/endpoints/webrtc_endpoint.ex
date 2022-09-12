@@ -461,11 +461,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         & &1
       end
 
-    links =
+    a =
+      if track.type == :video do
+        [
+          link_bin_input(pad)
+          |> to({:track_receiver, track_id}, %TrackReceiver{
+            track: track,
+            default_simulcast_encoding: default_encoding
+          })
+          |> via_in(pad, options: [use_payloader?: false])
+          |> to(:endpoint_bin)
+        ]
+      else
+        [
+          link_bin_input(pad)
+          |> via_in(pad, options: [use_payloader?: false])
+          |> to(:endpoint_bin)
+        ]
+      end
+
+    links = [
       link_bin_input(pad)
       |> then(maybe_link_track_receiver)
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
+    ]
+
+    if a != links, do: raise("No i chuj")
 
     {{:ok, spec: %ParentSpec{links: links}}, state}
   end

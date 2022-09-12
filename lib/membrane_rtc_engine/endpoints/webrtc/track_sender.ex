@@ -35,7 +35,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_init(%__MODULE__{track: track}) do
-    {:ok, %{track: track, trackers: %{}, keyframe_req_queue: MapSet.new()}}
+    {:ok, %{track: track, trackers: %{}, requested_keyframes: MapSet.new()}}
   end
 
   @impl true
@@ -80,7 +80,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_prepared_to_playing(ctx, state) do
     actions =
       ctx.pads
-      |> Stream.filter(fn {_pad_id, %{name: name}} -> name == :output end)
+      |> Enum.filter(fn {_pad_id, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad) end)
 
     # start timer only for simulcast tracks
@@ -112,13 +112,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         state
       ) do
     {actions, state} =
-      if MapSet.member?(state.keyframe_req_queue, encoding) do
+      if MapSet.member?(state.requested_keyframes, encoding) do
         Membrane.Logger.info("Requested keyframe but we are already awaiting it. Ignoring.")
         {[], state}
       else
         Membrane.Logger.debug("Requesting keyframe for #{inspect(encoding)}")
-        keyframe_req_queue = MapSet.put(state.keyframe_req_queue, encoding)
-        state = %{state | keyframe_req_queue: keyframe_req_queue}
+        requested_keyframes = MapSet.put(state.requested_keyframes, encoding)
+        state = %{state | requested_keyframes: requested_keyframes}
         actions = [event: {Pad.ref(:input, {track_id, encoding}), event}]
         {actions, state}
       end
@@ -144,13 +144,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     buffer = add_is_keyframe_flag(buffer, track)
 
     state =
-      if MapSet.member?(state.keyframe_req_queue, encoding) and buffer.metadata.is_keyframe do
+      if MapSet.member?(state.requested_keyframes, encoding) and buffer.metadata.is_keyframe do
         Membrane.Logger.debug(
           "Received keyframe for #{encoding}. Removing it from keyframe request queue."
         )
 
-        keyframe_req_queue = MapSet.delete(state.keyframe_req_queue, encoding)
-        %{state | keyframe_req_queue: keyframe_req_queue}
+        requested_keyframes = MapSet.delete(state.requested_keyframes, encoding)
+        %{state | requested_keyframes: requested_keyframes}
       else
         state
       end
@@ -177,18 +177,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   defp check_encoding_status(encoding, tracker, state) do
     pad = Pad.ref(:output, {state.track.id, encoding})
 
-    {actions, tracker} =
+    {actions, tracker, state} =
       case EncodingTracker.check_encoding_status(tracker) do
         {:ok, tracker} ->
-          {[], tracker}
+          {[], tracker, state}
 
         {:status_changed, tracker, :active} ->
           event = %TrackVariantResumed{variant: encoding}
-          {[event: {pad, event}], tracker}
+          {[event: {pad, event}], tracker, state}
 
         {:status_changed, tracker, :inactive} ->
           event = %TrackVariantPaused{variant: encoding}
-          {[event: {pad, event}], tracker}
+          state = Map.update!(state, :requested_keyframes, &MapSet.delete(&1, encoding))
+          {[event: {pad, event}], tracker, state}
       end
 
     state = put_in(state, [:trackers, encoding], tracker)

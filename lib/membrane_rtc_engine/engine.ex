@@ -1103,8 +1103,7 @@ defmodule Membrane.RTC.Engine do
     |> via_out(Pad.ref(:output, {track.id, rid}))
     |> then(fn link ->
       if is_simulcast? do
-        options = [telemetry_label: telemetry_label]
-        via_in(link, Pad.ref(:input, {track.id, rid}), options: options)
+        via_in(link, Pad.ref(:input, {track.id, rid}))
       else
         link
       end
@@ -1182,7 +1181,6 @@ defmodule Membrane.RTC.Engine do
   defp validate_subscription(subscription, state) do
     # checks whether subscription is correct
     track = get_track(subscription.track_id, state.endpoints)
-    default_simulcast_encoding = subscription.opts[:default_simulcast_encoding]
 
     cond do
       track == nil ->
@@ -1190,11 +1188,6 @@ defmodule Membrane.RTC.Engine do
 
       subscription.format not in track.format ->
         {:error, :invalid_format}
-
-      # check if subscribed for existing simulcast encoding if simulcast is used
-      track.simulcast_encodings != [] and default_simulcast_encoding != nil and
-          default_simulcast_encoding not in track.simulcast_encodings ->
-        {:error, :invalid_default_simulcast_encoding}
 
       true ->
         :ok
