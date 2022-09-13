@@ -185,8 +185,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   end
 
   defp sort_encodings(encodings) do
-    if nil in encodings, do: raise("KURWA")
-
     Enum.sort_by(
       encodings,
       fn
