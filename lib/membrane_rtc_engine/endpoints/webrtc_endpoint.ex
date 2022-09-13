@@ -742,12 +742,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       %{
         "type" => "selectEncoding",
         "data" => %{
-          "peerId" => pid,
           "trackId" => tid,
           "encoding" => encoding
         }
       } ->
-        {:ok, %{type: :select_encoding, data: %{peer_id: pid, track_id: tid, encoding: encoding}}}
+        {:ok, %{type: :select_encoding, data: %{track_id: tid, encoding: encoding}}}
 
       _other ->
         {:error, :invalid_media_event}
