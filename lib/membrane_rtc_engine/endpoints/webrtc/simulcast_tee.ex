@@ -42,12 +42,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
     mode: :push,
     caps: Membrane.RTP
 
-  @typedoc """
-  Notifies that encoding for endpoint with id `endpoint_id` was switched to encoding `encoding`.
-  """
-  @type encoding_switched_notification_t() ::
-          {:encoding_switched, endpoint_id :: any(), encoding :: String.t()}
-
   @impl true
   def handle_init(opts) do
     if opts.track.encoding not in @supported_codecs do
@@ -61,14 +55,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
      %{
        track: opts.track,
        routes: %{},
-       inactive_encodings: opts.track.simulcast_encodings
+       inactive_encodings: MapSet.new(opts.track.simulcast_encodings)
      }}
   end
 
   @impl true
   def handle_pad_added(Pad.ref(:input, {_track_id, encoding}) = pad, ctx, state) do
     Utils.telemetry_register(ctx.pads[pad].options.telemetry_label)
-    state = Map.update!(state, :inactive_encodings, &List.delete(&1, encoding))
+    state = Map.update!(state, :inactive_encodings, &MapSet.delete(&1, encoding))
     {:ok, state}
   end
 
@@ -131,7 +125,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do
     {_track_id, encoding} = id
-    state = Map.update!(state, :inactive_encodings, &[encoding | &1])
+    state = Map.update!(state, :inactive_encodings, &MapSet.put(&1, encoding))
 
     # reset all target encodings set to `encoding`
     # when `encoding` becomes active again
@@ -151,7 +145,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantResumed{} = event, _ctx, state) do
     {_track_id, encoding} = id
-    state = Map.update!(state, :inactive_encodings, &List.delete(&1, encoding))
+    state = Map.update!(state, :inactive_encodings, &MapSet.delete(&1, encoding))
     {{:ok, forward: event}, state}
   end
 
@@ -274,5 +268,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastTee do
 
   defp handle_route(_buffer, _encoding, _route, _ctx, state), do: {[], state}
 
-  defp active_encodings(state), do: state.track.simulcast_encodings -- state.inactive_encodings
+  defp active_encodings(state),
+    do:
+      state.track.simulcast_encodings
+      |> MapSet.new()
+      |> MapSet.difference(state.inactive_encodings)
 end
