@@ -439,8 +439,7 @@ defmodule Membrane.RTC.Engine do
           | {:error,
              :timeout
              | :invalid_track_id
-             | :invalid_track_format
-             | :invalid_default_simulcast_encoding}
+             | :invalid_track_format}
   def subscribe(rtc_engine, endpoint_id, track_id, format, opts \\ []) do
     ref = make_ref()
     send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, format, opts})
@@ -1259,14 +1258,7 @@ defmodule Membrane.RTC.Engine do
     else
       link({:tee, subscription.track_id})
     end
-    |> then(fn link ->
-      if track.type == :video and track.simulcast_encodings != [] do
-        options = Keyword.take(subscription.opts, [:default_simulcast_encoding])
-        via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}), options: options)
-      else
-        via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
-      end
-    end)
+    |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
     |> via_in(Pad.ref(:input, subscription.track_id))
     |> to({:endpoint, subscription.endpoint_id})
   end
