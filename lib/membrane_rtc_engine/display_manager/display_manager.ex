@@ -117,7 +117,7 @@ defmodule Membrane.RTC.Engine.DisplayManager do
 
     state = %{state | endpoint_managers: endpoints}
 
-    state = maybe_calculate_priority(state, [{:subscribe_on_tracks, endpoint_name} | state.vads])
+    state = maybe_calculate_priority(state, nil, true)
 
     {:noreply, state}
   end
@@ -184,12 +184,12 @@ defmodule Membrane.RTC.Engine.DisplayManager do
     {:noreply, %{state | endpoint_managers: endpoints}}
   end
 
-  defp maybe_calculate_priority(state, vads \\ nil) do
+  defp maybe_calculate_priority(state, vads \\ nil, force? \\ false) do
     vads = vads || state.vads
 
     vads = Enum.reverse(vads)
 
-    if not state.calculating_priority? and Enum.count(vads) > 0 do
+    if force? or (not state.calculating_priority? and Enum.count(vads) > 0) do
       send(
         state.track_priorities_calc,
         {:calculate_tracks_priority, vads, state.endpoint_managers}
@@ -235,7 +235,7 @@ defmodule Membrane.RTC.Engine.DisplayManager do
 
     ordered_endpoint_names =
       ends_of_speech
-      |> Enum.sort_by(fn {_endpoint_name, time} -> time end, &sorting_vads/2)
+      |> Enum.sort_by(fn {_endpoint_name, time} -> time end, &sort_vads/2)
       |> Enum.map(fn {endpoint_name, _time} -> endpoint_name end)
 
     ordered_tracks =
@@ -269,12 +269,12 @@ defmodule Membrane.RTC.Engine.DisplayManager do
     track_priorities
   end
 
-  defp sorting_vads(_vad, nil), do: true
-  defp sorting_vads(nil, _vad), do: false
-  defp sorting_vads({:silence, timestamp1}, {:silence, timestamp2}), do: timestamp1 > timestamp2
-  defp sorting_vads({:silence, _timestamp1}, {:speech, _timestamp2}), do: false
-  defp sorting_vads({:speech, _timestamp1}, {:silence, _timestamp2}), do: true
-  defp sorting_vads({:speech, timestamp1}, {:speech, timestamp2}), do: timestamp1 < timestamp2
+  defp sort_vads(_vad, nil), do: true
+  defp sort_vads(nil, _vad), do: false
+  defp sort_vads({:silence, timestamp1}, {:silence, timestamp2}), do: timestamp1 > timestamp2
+  defp sort_vads({:silence, _timestamp1}, {:speech, _timestamp2}), do: false
+  defp sort_vads({:speech, _timestamp1}, {:silence, _timestamp2}), do: true
+  defp sort_vads({:speech, timestamp1}, {:speech, timestamp2}), do: timestamp1 < timestamp2
 
   defp update_ets(endpoint_name_to_tracks, all_video_tracks, ets_name) do
     empty_track_id_to_endpoints = Map.new(all_video_tracks, &{&1.id, []})
