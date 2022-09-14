@@ -1169,7 +1169,7 @@ defmodule Membrane.RTC.Engine do
   #   functions would build, for each track, links through the root tee, via the depayloader,
   #   to a PushOutputTee, which exposes outpad pads for each subscription to pull from
   #
-  # - build_subscription_links/2, build_subscription_link/2: Called by fulfill_subscriptions/3,
+  # - build_subscription_links/1, build_subscription_link/1: Called by fulfill_subscriptions/3,
   #   these functions build the actual links between 1) either the root tee or the raw tee, and
   #   2) the endpoint subscribing to the given track.
   #
@@ -1212,7 +1212,7 @@ defmodule Membrane.RTC.Engine do
     # After all links were built, the subscriptions are added to the state.
 
     raw_format_links = build_raw_format_links(subscriptions, ctx, state)
-    subscription_links = build_subscription_links(subscriptions, state)
+    subscription_links = build_subscription_links(subscriptions)
     links = raw_format_links ++ subscription_links
 
     Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
@@ -1246,13 +1246,11 @@ defmodule Membrane.RTC.Engine do
     |> to({:raw_format_tee, track.id}, %PushOutputTee{codec: track.encoding})
   end
 
-  defp build_subscription_links(subscriptions, state) do
-    Enum.map(subscriptions, &build_subscription_link(&1, state))
+  defp build_subscription_links(subscriptions) do
+    Enum.map(subscriptions, &build_subscription_link(&1))
   end
 
-  defp build_subscription_link(subscription, state) do
-    track = get_track(subscription.track_id, state.endpoints)
-
+  defp build_subscription_link(subscription) do
     if subscription.format == :raw do
       link({:raw_format_tee, subscription.track_id})
     else
