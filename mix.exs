@@ -114,6 +114,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       nest_modules_by_prefix: [
         Membrane.RTC.Engine.Endpoint,
         Membrane.RTC.Engine.Event,
+        Membrane.RTC.Engine.Exception,
         Membrane.RTC.Engine.Message
       ],
       before_closing_body_tag: &before_closing_body_tag/1,
@@ -135,6 +136,10 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Message.MediaEvent,
           Membrane.RTC.Engine.Message.NewPeer,
           Membrane.RTC.Engine.Message.PeerLeft
+        ],
+        Exceptions: [
+          Membrane.RTC.Engine.Exception.RequestTrackVariantError,
+          Membrane.RTC.Engine.Exception.TrackVariantStateError
         ]
       ]
     ]

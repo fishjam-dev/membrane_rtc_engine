@@ -420,6 +420,8 @@ defmodule Membrane.RTC.EngineTest do
 
       assert File.read!(raw_output_path) == File.read!(reference_path)
       assert File.read!(test_output_path) == File.read!(reference_path)
+
+      Engine.terminate(rtc_engine, blocking?: true)
     end
   end
 

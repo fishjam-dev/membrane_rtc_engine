@@ -159,7 +159,7 @@ class Room {
     const peer = this.peers[0]
     const tracksId = Array.from(peer.trackIdToMetadata.keys())
     tracksId.forEach(trackId => {
-      this.webrtc.selectTrackEncoding(peer.id, trackId, encoding)
+      this.webrtc.selectTrackEncoding(trackId, encoding)
     })
   }
 
