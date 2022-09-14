@@ -25,7 +25,11 @@ defmodule Membrane.RTC.Engine.DisplayManager do
     engine_pid = opts[:engine]
     ets_name = opts[:ets_name]
     ets_name = :"#{ets_name}"
-    :ets.new(ets_name, [:set, :public, :named_table])
+
+    if :ets.whereis(ets_name) == :undefined do
+      :ets.new(ets_name, [:set, :public, :named_table])
+    end
+
     display_manager = self()
 
     track_priorities_calc =
@@ -46,14 +50,10 @@ defmodule Membrane.RTC.Engine.DisplayManager do
   end
 
   @impl true
-  def handle_info({:vad_notification, endpoint_name, :speech}, state) do
-    state = maybe_calculate_priority(state, [{:speech, endpoint_name} | state.vads])
-    {:noreply, state}
-  end
+  def handle_info({:vad_notification, endpoint_name, vad_value}, state) do
+    new_vad = {vad_value, endpoint_name, System.monotonic_time()}
 
-  @impl true
-  def handle_info({:vad_notification, endpoint_name, :silence}, state) do
-    state = %{state | vads: [{:silence, endpoint_name, System.monotonic_time()} | state.vads]}
+    state = maybe_calculate_priority(state, [new_vad | state.vads])
     {:noreply, state}
   end
 
@@ -115,7 +115,11 @@ defmodule Membrane.RTC.Engine.DisplayManager do
         &EndpointManager.add_tracks(&1, tracks, :outbound_tracks)
       )
 
-    {:noreply, %{state | endpoint_managers: endpoints}}
+    state = %{state | endpoint_managers: endpoints}
+
+    state = maybe_calculate_priority(state, nil, true)
+
+    {:noreply, state}
   end
 
   @impl true
@@ -180,12 +184,12 @@ defmodule Membrane.RTC.Engine.DisplayManager do
     {:noreply, %{state | endpoint_managers: endpoints}}
   end
 
-  defp maybe_calculate_priority(state, vads \\ nil) do
+  defp maybe_calculate_priority(state, vads \\ nil, force? \\ false) do
     vads = vads || state.vads
 
     vads = Enum.reverse(vads)
 
-    if not state.calculating_priority? and Enum.count(vads) > 0 do
+    if force? or (not state.calculating_priority? and Enum.count(vads) > 0) do
       send(
         state.track_priorities_calc,
         {:calculate_tracks_priority, vads, state.endpoint_managers}
@@ -216,11 +220,8 @@ defmodule Membrane.RTC.Engine.DisplayManager do
 
     ends_of_speech =
       Enum.reduce(notifications, ends_of_speech, fn
-        {:speech, endpoint_name}, acc ->
-          Map.put(acc, endpoint_name, :speaking)
-
-        {:silence, endpoint_name, timestamp}, acc ->
-          Map.put(acc, endpoint_name, timestamp)
+        {vad_value, endpoint_name, timestamp}, acc ->
+          Map.put(acc, endpoint_name, {vad_value, timestamp})
 
         {:new_track, endpoint_name}, acc ->
           Map.put_new(acc, endpoint_name, nil)
@@ -232,16 +233,9 @@ defmodule Membrane.RTC.Engine.DisplayManager do
           acc
       end)
 
-    current_time = System.monotonic_time()
-
     ordered_endpoint_names =
       ends_of_speech
-      |> Enum.map(fn
-        {endpoint_name, :speaking} -> {endpoint_name, 1}
-        {endpoint_name, nil} -> {endpoint_name, 0}
-        {endpoint_name, timestamp} -> {endpoint_name, timestamp / current_time}
-      end)
-      |> Enum.sort_by(fn {_endpoint_name, time} -> time end)
+      |> Enum.sort_by(fn {_endpoint_name, time} -> time end, &sort_vads/2)
       |> Enum.map(fn {endpoint_name, _time} -> endpoint_name end)
 
     ordered_tracks =
@@ -274,6 +268,13 @@ defmodule Membrane.RTC.Engine.DisplayManager do
 
     track_priorities
   end
+
+  defp sort_vads(_vad, nil), do: true
+  defp sort_vads(nil, _vad), do: false
+  defp sort_vads({:silence, timestamp1}, {:silence, timestamp2}), do: timestamp1 > timestamp2
+  defp sort_vads({:silence, _timestamp1}, {:speech, _timestamp2}), do: false
+  defp sort_vads({:speech, _timestamp1}, {:silence, _timestamp2}), do: true
+  defp sort_vads({:speech, timestamp1}, {:speech, timestamp2}), do: timestamp1 < timestamp2
 
   defp update_ets(endpoint_name_to_tracks, all_video_tracks, ets_name) do
     empty_track_id_to_endpoints = Map.new(all_video_tracks, &{&1.id, []})
