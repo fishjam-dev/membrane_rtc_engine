@@ -248,14 +248,8 @@ defmodule Membrane.RTC.Engine do
 
   @typedoc """
   Subscription options.
-
-  * `default_simulcast_encoding` - initial encoding that
-  endpoint making subscription wants to receive.
-  This option has no effect for audio tracks and video tracks
-  that are not simulcast.
-
   """
-  @type subscription_opts_t() :: [default_simulcast_encoding: String.t()]
+  @type subscription_opts_t() :: Keyword.t()
 
   @typedoc """
   Membrane action that will cause RTC Engine to publish some message to all other endpoints.
@@ -445,8 +439,7 @@ defmodule Membrane.RTC.Engine do
           | {:error,
              :timeout
              | :invalid_track_id
-             | :invalid_track_format
-             | :invalid_default_simulcast_encoding}
+             | :invalid_track_format}
   def subscribe(rtc_engine, endpoint_id, track_id, format, opts \\ []) do
     ref = make_ref()
     send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, format, opts})
@@ -753,56 +746,6 @@ defmodule Membrane.RTC.Engine do
       end
     else
       {[], state}
-    end
-  end
-
-  defp handle_media_event(
-         :select_encoding,
-         %{peer_id: peer_id, track_id: track_id, encoding: encoding},
-         requester,
-         _ctx,
-         state
-       ) do
-    endpoint = Map.fetch!(state.endpoints, peer_id)
-    subscription = get_in(state, [:subscriptions, requester, track_id])
-    video_track = Endpoint.get_track_by_id(endpoint, track_id)
-
-    cond do
-      subscription == nil ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given endpoint is not subscribed for this track. Ignoring.
-        """)
-
-        {[], state}
-
-      video_track == nil ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given peer does not have this track.
-        Peer tracks: #{inspect(Endpoint.get_tracks(endpoint) |> Enum.map(& &1.id))}
-        Ignoring.
-        """)
-
-        {[], state}
-
-      encoding not in video_track.simulcast_encodings ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given track does not have this encoding.
-        Track encodings: #{inspect(video_track.simulcast_encodings)}
-        Ignoring.
-        """)
-
-        {[], state}
-
-      true ->
-        tee = {:tee, track_id}
-        actions = [forward: {tee, {:select_encoding, {requester, encoding}}}]
-        {actions, state}
     end
   end
 
@@ -1159,8 +1102,7 @@ defmodule Membrane.RTC.Engine do
     |> via_out(Pad.ref(:output, {track.id, rid}))
     |> then(fn link ->
       if is_simulcast? do
-        options = [telemetry_label: telemetry_label]
-        via_in(link, Pad.ref(:input, {track.id, rid}), options: options)
+        via_in(link, Pad.ref(:input, {track.id, rid}))
       else
         link
       end
@@ -1227,7 +1169,7 @@ defmodule Membrane.RTC.Engine do
   #   functions would build, for each track, links through the root tee, via the depayloader,
   #   to a PushOutputTee, which exposes outpad pads for each subscription to pull from
   #
-  # - build_subscription_links/2, build_subscription_link/2: Called by fulfill_subscriptions/3,
+  # - build_subscription_links/1, build_subscription_link/1: Called by fulfill_subscriptions/3,
   #   these functions build the actual links between 1) either the root tee or the raw tee, and
   #   2) the endpoint subscribing to the given track.
   #
@@ -1238,7 +1180,6 @@ defmodule Membrane.RTC.Engine do
   defp validate_subscription(subscription, state) do
     # checks whether subscription is correct
     track = get_track(subscription.track_id, state.endpoints)
-    default_simulcast_encoding = subscription.opts[:default_simulcast_encoding]
 
     cond do
       track == nil ->
@@ -1246,11 +1187,6 @@ defmodule Membrane.RTC.Engine do
 
       subscription.format not in track.format ->
         {:error, :invalid_format}
-
-      # check if subscribed for existing simulcast encoding if simulcast is used
-      track.simulcast_encodings != [] and default_simulcast_encoding != nil and
-          default_simulcast_encoding not in track.simulcast_encodings ->
-        {:error, :invalid_default_simulcast_encoding}
 
       true ->
         :ok
@@ -1276,7 +1212,7 @@ defmodule Membrane.RTC.Engine do
     # After all links were built, the subscriptions are added to the state.
 
     raw_format_links = build_raw_format_links(subscriptions, ctx, state)
-    subscription_links = build_subscription_links(subscriptions, state)
+    subscription_links = build_subscription_links(subscriptions)
     links = raw_format_links ++ subscription_links
 
     Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
@@ -1310,26 +1246,17 @@ defmodule Membrane.RTC.Engine do
     |> to({:raw_format_tee, track.id}, %PushOutputTee{codec: track.encoding})
   end
 
-  defp build_subscription_links(subscriptions, state) do
-    Enum.map(subscriptions, &build_subscription_link(&1, state))
+  defp build_subscription_links(subscriptions) do
+    Enum.map(subscriptions, &build_subscription_link(&1))
   end
 
-  defp build_subscription_link(subscription, state) do
-    track = get_track(subscription.track_id, state.endpoints)
-
+  defp build_subscription_link(subscription) do
     if subscription.format == :raw do
       link({:raw_format_tee, subscription.track_id})
     else
       link({:tee, subscription.track_id})
     end
-    |> then(fn link ->
-      if track.type == :video and track.simulcast_encodings != [] do
-        options = Keyword.take(subscription.opts, [:default_simulcast_encoding])
-        via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}), options: options)
-      else
-        via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
-      end
-    end)
+    |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
     |> via_in(Pad.ref(:input, subscription.track_id))
     |> to({:endpoint, subscription.endpoint_id})
   end

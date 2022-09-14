@@ -335,7 +335,6 @@ Messages used by any RTC Engine plugin
 
   ```json
   {
-    peerId => peer_id,
     trackId => track_id,
     encoding => encoding
   }
