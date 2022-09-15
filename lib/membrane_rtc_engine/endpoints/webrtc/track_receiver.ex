@@ -21,14 +21,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     TrackVariantSwitched
   }
 
+  @typedoc """
+  Message that can be sent to change target variant.
+
+  Target variant is variant that will be forwarded
+  whenever it is active.
+  """
+  @type set_target_variant_msg :: {:set_target_variant, Track.variant()}
+
   def_options track: [
                 type: :struct,
                 spec: Membrane.RTC.Engine.Track.t(),
                 description: "Track this adapter will maintain"
               ],
-              default_variant: [
+              initial_target_variant: [
                 spec: Membrane.RTC.Engine.Track.variant(),
-                description: "Track variant that will be forwarded by default."
+                description: """
+                Track variant that will be forwarded whenever it is active.
+                Can be changed with `t:set_target_variant_msg/0`.
+                """
               ]
 
   def_input_pad :input,
@@ -42,9 +53,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     caps: Membrane.RTP
 
   @impl true
-  def handle_init(%__MODULE__{track: track, default_variant: default_variant}) do
+  def handle_init(%__MODULE__{track: track, initial_target_variant: initial_target_variant}) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
-    selector = VariantSelector.new(track.variants, default_variant)
+    selector = VariantSelector.new(track.variants, initial_target_variant)
 
     state = %{
       track: track,
@@ -101,7 +112,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_other({:select_variant, variant}, _ctx, state) do
+  def handle_other({:set_target_variant, variant}, _ctx, state) do
     if variant not in state.selector.all_variants,
       do: raise("Requested variant #{variant} isn't valid")
 

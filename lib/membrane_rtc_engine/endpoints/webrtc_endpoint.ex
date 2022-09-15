@@ -457,13 +457,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
     track = Map.fetch!(state.outbound_tracks, track_id)
-    default_variant = state.simulcast_config.default_encoding.(track)
+    initial_target_variant = state.simulcast_config.initial_target_variant.(track)
 
     links = [
       link_bin_input(pad)
       |> to({:track_receiver, track_id}, %TrackReceiver{
         track: track,
-        default_variant: default_variant
+        initial_target_variant: initial_target_variant
       })
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
@@ -521,7 +521,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_custom_media_event(%{type: :select_encoding, data: data}, ctx, state) do
-    msg = {:select_variant, to_track_variant(data.encoding)}
+    msg = {:set_target_variant, to_track_variant(data.encoding)}
     {{:ok, forward({:track_receiver, data.track_id}, msg, ctx)}, state}
   end
 
