@@ -160,22 +160,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         state
       ) do
     {actions, state} =
-      if MapSet.member?(state.requested_keyframes, variant) do
-        Membrane.Logger.debug("Requested keyframe but we are already awaiting it. Ignoring.")
-        {[], state}
-      else
-        Membrane.Logger.debug("Requesting keyframe for #{inspect(variant)}")
-        requested_keyframes = MapSet.put(state.requested_keyframes, variant)
-        state = %{state | requested_keyframes: requested_keyframes}
+      cond do
+        MapSet.member?(state.requested_keyframes, variant) ->
+          Membrane.Logger.debug("Requested keyframe but we are already awaiting it. Ignoring.")
+          {[], state}
 
-        interval = Time.milliseconds(@keyframe_request_interval_ms)
+        state.trackers[variant].status == :active ->
+          Membrane.Logger.debug("Requesting keyframe for #{inspect(variant)}")
+          requested_keyframes = MapSet.put(state.requested_keyframes, variant)
+          state = %{state | requested_keyframes: requested_keyframes}
 
-        actions = [
-          event: {Pad.ref(:input, {track_id, variant}), event},
-          start_timer: {{:request_keyframe, variant}, interval}
-        ]
+          interval = Time.milliseconds(@keyframe_request_interval_ms)
 
-        {actions, state}
+          actions = [
+            event: {Pad.ref(:input, {track_id, variant}), event},
+            start_timer: {{:request_keyframe, variant}, interval}
+          ]
+
+          {actions, state}
+
+        true ->
+          {[], state}
       end
 
     {{:ok, actions}, state}
@@ -246,8 +251,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
         {:status_changed, tracker, :inactive} ->
           event = %TrackVariantPaused{variant: variant}
+
+          actions =
+            if MapSet.member?(state.requested_keyframes, variant) do
+              [stop_timer: {:request_keyframe, variant}]
+            else
+              []
+            end
+
           state = Map.update!(state, :requested_keyframes, &MapSet.delete(&1, variant))
-          {[event: {pad, event}], tracker, state}
+          {actions ++ [event: {pad, event}], tracker, state}
       end
 
     state = put_in(state, [:trackers, variant], tracker)
