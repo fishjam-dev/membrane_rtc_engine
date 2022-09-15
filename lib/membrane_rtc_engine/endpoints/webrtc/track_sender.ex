@@ -15,6 +15,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed}
   alias Membrane.RTC.Engine.Track
 
+  @keyframe_request_interval_ms 500
+
   def_options track: [
                 type: :struct,
                 spec: Membrane.RTC.Engine.Track.t(),
@@ -111,6 +113,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
+  def handle_tick({:request_keyframe, variant}, _ctx, state) do
+    Membrane.Logger.debug("""
+    Didn't receive keyframe for variant: #{variant} in #{@keyframe_request_interval_ms}. Retrying.
+    """)
+
+    pad = Pad.ref(:input, {state.track.id, variant})
+    actions = [event: {pad, %Membrane.KeyframeRequestEvent{}}]
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   def handle_event(
         Pad.ref(:output, {track_id, variant}),
         %Membrane.KeyframeRequestEvent{} = event,
@@ -125,7 +139,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         Membrane.Logger.debug("Requesting keyframe for #{inspect(variant)}")
         requested_keyframes = MapSet.put(state.requested_keyframes, variant)
         state = %{state | requested_keyframes: requested_keyframes}
-        actions = [event: {Pad.ref(:input, {track_id, variant}), event}]
+
+        interval = Time.milliseconds(@keyframe_request_interval_ms)
+        actions = [
+          event: {Pad.ref(:input, {track_id, variant}), event},
+          start_timer: {{:request_keyframe, variant}, interval}
+        ]
+
         {actions, state}
       end
 
@@ -148,16 +168,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     state = update_in(state, [:trackers, variant], &VariantTracker.increment_samples(&1))
     buffer = add_is_keyframe_flag(buffer, track)
 
-    state =
+    {actions, state} =
       if MapSet.member?(state.requested_keyframes, variant) and buffer.metadata.is_keyframe do
         Membrane.Logger.debug(
           "Received keyframe for #{variant}. Removing it from keyframe request queue."
         )
 
         requested_keyframes = MapSet.delete(state.requested_keyframes, variant)
-        %{state | requested_keyframes: requested_keyframes}
+        actions = [stop_timer: {:request_keyframe, variant}]
+        {actions, %{state | requested_keyframes: requested_keyframes}}
       else
-        state
+        {[], state}
       end
 
     output_pad = to_output_pad(input_pad)
@@ -166,11 +187,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     # input pad but we won't have
     # corresponding output pad yet
     # (refer to MC-68)
-    if Map.has_key?(ctx.pads, output_pad) and state.trackers[variant].status == :active do
-      {{:ok, buffer: {output_pad, buffer}}, state}
-    else
-      {:ok, state}
-    end
+    actions =
+      if Map.has_key?(ctx.pads, output_pad) and state.trackers[variant].status == :active do
+        actions ++ [buffer: {output_pad, buffer}]
+      else
+        actions
+      end
+
+    {{:ok, actions}, state}
   end
 
   @impl true
