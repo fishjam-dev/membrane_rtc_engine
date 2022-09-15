@@ -661,11 +661,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification(notification, {:tee, track_id}, _ctx, state) do
-    handle_tee_notification(notification, track_id, state)
-  end
-
-  @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
     if Map.has_key?(state.peers, endpoint_id) do
       dispatch(endpoint_id, MediaEvent.peer_removed(endpoint_id, "Internal server error."))
@@ -758,9 +753,6 @@ defmodule Membrane.RTC.Engine do
   # - handle_endpoint_notification/4: Handles incoming notifications from an Endpoint, usually
   #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
   #   removed tracks. Also forwards custom media events.
-  #
-  # - handle_tee_notification/3: Handles incoming notifications from the tee, mainly this is
-  #   used by the Simulcast tee to signal change of encoding.
   #
 
   defp handle_endpoint_notification(
@@ -875,19 +867,6 @@ defmodule Membrane.RTC.Engine do
 
   defp handle_endpoint_notification({:custom_media_event, data}, peer_id, _ctx, state) do
     dispatch(peer_id, MediaEvent.custom(data))
-    {:ok, state}
-  end
-
-  defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
-    # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
-    # `track_id` now
-
-    {from_endpoint_id, _endpoint} =
-      Enum.find(state.endpoints, fn {_, endpoint} ->
-        Endpoint.get_track_by_id(endpoint, track_id) != nil
-      end)
-
-    dispatch(endpoint_id, MediaEvent.encoding_switched(from_endpoint_id, track_id, encoding))
     {:ok, state}
   end
 

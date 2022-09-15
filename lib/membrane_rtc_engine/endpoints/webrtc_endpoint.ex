@@ -377,7 +377,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification(
-        {:encoding_switched, encoding},
+        {:variant_switched, new_variant},
         {:track_receiver, track_id},
         _ctx,
         state
@@ -389,7 +389,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       data: %{
         peerId: track.origin,
         trackId: track_id,
-        encoding: encoding
+        encoding: to_rid(new_variant)
       }
     }
 
