@@ -120,7 +120,7 @@ defmodule Membrane.RTC.Engine.VideoTee do
     state =
       Enum.reduce(state.routes, state, fn
         {output_pad, %{target_variant: ^variant}}, state ->
-          put_in(state, [:routes, output_pad], nil)
+          put_in(state, [:routes, output_pad, :target_variant], nil)
 
         _route, state ->
           state
