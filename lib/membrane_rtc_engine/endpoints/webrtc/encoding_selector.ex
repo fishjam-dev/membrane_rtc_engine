@@ -10,31 +10,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           target_variant: Track.variant(),
           current_variant: Track.variant() | nil,
           queued_variant: Track.variant() | nil,
-          active_variants: MapSet.t(Track.variant()),
-          all_variants: MapSet.t(Track.variant())
+          active_variants: MapSet.t(Track.variant())
         }
 
-  @enforce_keys [:all_variants]
-  defstruct @enforce_keys ++
-              [
-                :target_variant,
-                :current_variant,
-                :queued_variant,
-                active_variants: MapSet.new()
-              ]
+  defstruct [
+    :target_variant,
+    :current_variant,
+    :queued_variant,
+    active_variants: MapSet.new()
+  ]
 
   @doc """
   Creates new variant selector.
 
-  * `variants` - a list of all track variants. Variant selector
-  assumes that initialy all variants are inactive. To mark variant
-  as active use `variant_active/2`.
   * `initial_target_variant` - variant to prioritize. It will be
   chosen whenever it is active. Can be changed with `set_target_variant/2`.
   """
-  @spec new([Track.variant()], Track.variant()) :: t()
-  def new(variants, initial_target_variant \\ :high) do
-    %__MODULE__{all_variants: MapSet.new(variants), target_variant: initial_target_variant}
+  @spec new(Track.variant()) :: t()
+  def new(initial_target_variant \\ :high) do
+    %__MODULE__{target_variant: initial_target_variant}
   end
 
   @doc """
@@ -118,29 +112,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   """
   @spec set_target_variant(t(), Track.variant()) :: {t(), Track.variant() | nil}
   def set_target_variant(selector, variant) do
-    cond do
-      variant not in selector.all_variants ->
-        Membrane.Logger.warn("""
-        Requested non existing variant #{inspect(variant)}. \
-        Available track variants: #{inspect(selector.all_variants)}. \
-        Ignoring.\
-        """)
+    if variant in selector.active_variants do
+      selector = %__MODULE__{selector | target_variant: variant}
+      select_variant(selector, variant)
+    else
+      Membrane.Logger.debug("""
+      Requested inactive variant #{inspect(variant)}. Saving it as target.
+      It will be requested once it becomes active
+      """)
 
-        {selector, nil}
+      selector = %__MODULE__{selector | target_variant: variant}
 
-      variant in selector.active_variants ->
-        selector = %__MODULE__{selector | target_variant: variant}
-        select_variant(selector, variant)
-
-      true ->
-        Membrane.Logger.debug("""
-        Requested inactive variant #{inspect(variant)}. Saving it as target.
-        It will be requested once it becomes active
-        """)
-
-        selector = %__MODULE__{selector | target_variant: variant}
-
-        {selector, nil}
+      {selector, nil}
     end
   end
 

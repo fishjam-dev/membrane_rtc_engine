@@ -55,7 +55,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_init(%__MODULE__{track: track, initial_target_variant: initial_target_variant}) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
-    selector = VariantSelector.new(track.variants, initial_target_variant)
+    selector = VariantSelector.new(initial_target_variant)
 
     state = %{
       track: track,
@@ -113,8 +113,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_other({:set_target_variant, variant}, _ctx, state) do
-    if variant not in state.selector.all_variants,
-      do: raise("Requested variant #{variant} isn't valid")
+    if variant not in state.track.variants do
+      raise("""
+      Tried to set invalid target variant: #{inspect(variant)} for track: #{inspect(state.track)}.
+      """)
+    end
 
     {selector, next_variant} = VariantSelector.set_target_variant(state.selector, variant)
     actions = maybe_request_track_variant(next_variant)

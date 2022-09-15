@@ -40,15 +40,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
     assert {_selector, :low} = VariantSelector.variant_active(selector, :low)
   end
 
-  test "target_variant/2 ignores non-existing variant" do
-    selector = create_selector()
-
-    non_existing_variant = "non-existing-variant"
-
-    assert {selector, nil} = VariantSelector.set_target_variant(selector, non_existing_variant)
-    assert selector.target_variant != non_existing_variant
-  end
-
   test "VariantSelector doesn't select a new variant when not currently used variant is marked as inactive" do
     selector = create_selector()
 
@@ -57,7 +48,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   end
 
   test "VariantSelector selects a new variant when it is better than currently used variant and while waiting for the target variant" do
-    selector = VariantSelector.new([:high, :medium, :low], :high)
+    selector = VariantSelector.new(:high)
 
     assert {selector, :low} = VariantSelector.variant_active(selector, :low)
     assert {selector, :medium} = VariantSelector.variant_active(selector, :medium)
@@ -65,7 +56,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   end
 
   defp create_selector() do
-    selector = VariantSelector.new([:high, :medium, :low], :high)
+    selector = VariantSelector.new(:high)
 
     assert {selector, :high} = VariantSelector.variant_active(selector, :high)
 
