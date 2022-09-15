@@ -7,7 +7,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   alias Membrane.RTC.Engine.Track
 
   @type t() :: %__MODULE__{
-          target_variant: Track.variant() | nil,
+          target_variant: Track.variant(),
           current_variant: Track.variant() | nil,
           queued_variant: Track.variant() | nil,
           active_variants: MapSet.t(Track.variant()),
@@ -30,10 +30,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   assumes that initialy all variants are inactive. To mark variant
   as active use `variant_active/2`.
   * `initial_target_variant` - variant to prioritize. It will be
-  chosen whenever it is active. Can be changed with `target_variant/2`.
+  chosen whenever it is active. Can be changed with `set_target_variant/2`.
   """
-  @spec new([Track.variant()], Track.variant() | nil) :: t()
-  def new(variants, initial_target_variant \\ nil) do
+  @spec new([Track.variant()], Track.variant()) :: t()
+  def new(variants, initial_target_variant \\ :high) do
     %__MODULE__{all_variants: MapSet.new(variants), target_variant: initial_target_variant}
   end
 

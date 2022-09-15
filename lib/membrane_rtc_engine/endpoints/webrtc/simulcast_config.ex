@@ -18,7 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig do
   """
   @type t() :: %__MODULE__{
           enabled: boolean(),
-          initial_target_variant: (Track.t() -> Track.variant() | nil)
+          initial_target_variant: (Track.t() -> Track.variant())
         }
   defstruct enabled: false,
             initial_target_variant: &__MODULE__.initial_target_variant/1
@@ -26,8 +26,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig do
   @doc """
   Default implementation of `initial_target_variant` function in `t:t/0`.
 
-  Returns nil, which will result in choosing the highest possible encoding.
+  Returns :high, which will result in choosing the highest possible encoding.
   """
-  @spec initial_target_variant(Track.t()) :: nil
-  def initial_target_variant(_track), do: nil
+  @spec initial_target_variant(Track.t()) :: :high
+  def initial_target_variant(_track), do: :high
 end
