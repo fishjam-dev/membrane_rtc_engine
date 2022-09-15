@@ -16,6 +16,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   alias Membrane.RTC.Engine.Track
 
   @keyframe_request_interval_ms 500
+  @variant_statuses_check_interval_s 1
+
+  @start_variant_check_timer {:start_timer,
+                              {:check_variant_statuses,
+                               Time.seconds(@variant_statuses_check_interval_s)}}
+  @stop_variant_check_timer {:stop_timer, :check_variant_statuses}
 
   def_options track: [
                 type: :struct,
@@ -55,22 +61,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_pad_added(Pad.ref(:input, {_track_id, variant}), _ctx, state) do
     telemetry_label = state.telemetry_label ++ [track_id: "#{state.track.id}:#{variant}"]
     Membrane.RTC.Utils.telemetry_register(telemetry_label)
-
-    state = put_in(state, [:trackers, variant], VariantTracker.new(variant))
     {:ok, state}
   end
 
   @impl true
   def handle_pad_added(Pad.ref(:output, id) = pad, %{playback_state: playback_state}, state) do
     {_track_id, variant} = id
-    state = put_in(state, [:trackers, variant], VariantTracker.new(variant))
 
-    actions =
+    {actions, state} =
       if playback_state == :playing do
-        activate_pad_actions(pad)
+        # we need to reset timer and all existing variant
+        # trackers to esnure that new tracker's state won't
+        # be checked too fast
+
+        state =
+          Enum.reduce(state.trackers, state, fn {variant, tracker}, state ->
+            put_in(state, [:trackers, variant], VariantTracker.reset(tracker))
+          end)
+
+        actions =
+          activate_pad_actions(pad) ++ [@stop_variant_check_timer, @start_variant_check_timer]
+
+        {actions, state}
       else
-        []
+        {[], state}
       end
+
+    state = put_in(state, [:trackers, variant], VariantTracker.new(variant))
 
     {{:ok, actions}, state}
   end
@@ -98,7 +115,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       |> Enum.filter(fn {_pad_id, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad) end)
 
-    actions = actions ++ [start_timer: {:check_variant_statuses, Time.seconds(1)}]
+    actions = actions ++ [@start_variant_check_timer]
+
     {{:ok, actions}, state}
   end
 
@@ -141,6 +159,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         state = %{state | requested_keyframes: requested_keyframes}
 
         interval = Time.milliseconds(@keyframe_request_interval_ms)
+
         actions = [
           event: {Pad.ref(:input, {track_id, variant}), event},
           start_timer: {{:request_keyframe, variant}, interval}
