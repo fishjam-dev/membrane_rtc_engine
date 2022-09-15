@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.VideoTeeTest do
+defmodule Membrane.RTC.Engine.TeeTest do
   use ExUnit.Case, async: true
   use Bitwise
 
@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.VideoTeeTest do
   require Membrane.Pad
 
   alias Membrane.{Buffer, Pad}
-  alias Membrane.RTC.Engine.VideoTee
+  alias Membrane.RTC.Engine.Tee
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
@@ -26,7 +26,7 @@ defmodule Membrane.RTC.Engine.VideoTeeTest do
   @stream_id "stream1"
   @track_origin "generated"
 
-  test "VideoTee sends TrackVariantResumed after linking output pad" do
+  test "Tee sends TrackVariantResumed after linking output pad" do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
@@ -70,7 +70,7 @@ defmodule Membrane.RTC.Engine.VideoTeeTest do
     Pipeline.terminate(pipeline, blocking?: true)
   end
 
-  test "VideoTee forwards TrackVariantPaused" do
+  test "Tee forwards TrackVariantPaused" do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
@@ -91,7 +91,7 @@ defmodule Membrane.RTC.Engine.VideoTeeTest do
     Pipeline.terminate(pipeline, blocking?: true)
   end
 
-  test "VideoTee generates KeyframeRequestEvent on receiving RequestTrackVariant event" do
+  test "Tee generates KeyframeRequestEvent on receiving RequestTrackVariant event" do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
@@ -121,7 +121,7 @@ defmodule Membrane.RTC.Engine.VideoTeeTest do
     Pipeline.terminate(pipeline, blocking?: true)
   end
 
-  test "VideoTee raises on receiving invalid RequestTrackVariant event" do
+  test "Tee raises on receiving invalid RequestTrackVariant event" do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
@@ -133,7 +133,7 @@ defmodule Membrane.RTC.Engine.VideoTeeTest do
     assert_receive {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}}
   end
 
-  test "VideoTee doesn't send data until receiving RequestTrackVariant event and a keyframe for requested track variant" do
+  test "Tee doesn't send data until receiving RequestTrackVariant event and a keyframe for requested track variant" do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3, false)
 
@@ -182,7 +182,7 @@ defmodule Membrane.RTC.Engine.VideoTeeTest do
     Pipeline.terminate(pipeline, blocking?: true)
   end
 
-  test "VideoTee raises on receiving data from inactive track variant" do
+  test "Tee raises on receiving data from inactive track variant" do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
@@ -233,7 +233,7 @@ defmodule Membrane.RTC.Engine.VideoTeeTest do
 
     actions = [
       spec: %Membrane.ParentSpec{
-        children: [tee: %VideoTee{track: track}],
+        children: [tee: %Tee{track: track}],
         links: variant_links ++ [tee_link]
       }
     ]

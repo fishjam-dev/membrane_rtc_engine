@@ -200,7 +200,6 @@ defmodule Membrane.RTC.Engine do
   require Membrane.TelemetryMetrics
 
   alias Membrane.RTC.Engine.{
-    AudioTee,
     DisplayManager,
     Endpoint,
     FilterTee,
@@ -210,7 +209,7 @@ defmodule Membrane.RTC.Engine do
     PushOutputTee,
     Subscription,
     Track,
-    VideoTee
+    Tee
   }
 
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
@@ -1085,8 +1084,8 @@ defmodule Membrane.RTC.Engine do
   #   endpoint. Creates the link from the endpoint which published the track, and starts the
   #   underlying tee which is required to bring the content of the track to all subscribers.
   #
-  # - build_track_tee/5 - Called by build_track_link/5; builds the correct tee depending on the
-  #   type of the track (display manager / audio / video).
+  # - build_track_tee/5 - Called by build_track_link/5; builds the correct tee depending on
+  #   display manager is turned on or off
   #
 
   defp build_track_link(variant, track, endpoint_id, ctx, state) do
@@ -1117,12 +1116,8 @@ defmodule Membrane.RTC.Engine do
     }
   end
 
-  defp build_track_tee(_track_id, _variant, %Track{type: :audio} = track, _state) do
-    %AudioTee{track: track}
-  end
-
-  defp build_track_tee(_track_id, _variant, %Track{type: :video} = track, _state) do
-    %VideoTee{track: track}
+  defp build_track_tee(_track_id, _variant, track, _state) do
+    %Tee{track: track}
   end
 
   #

@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.VideoTee do
+defmodule Membrane.RTC.Engine.Tee do
   @moduledoc false
   use Membrane.Filter
 
@@ -13,7 +13,7 @@ defmodule Membrane.RTC.Engine.VideoTee do
 
   alias Membrane.RTC.Engine.Exception.{RequestTrackVariantError, TrackVariantStateError}
 
-  @supported_codecs [:H264, :VP8]
+  @supported_codecs [:H264, :VP8, :OPUS]
 
   def_options track: [
                 type: :struct,

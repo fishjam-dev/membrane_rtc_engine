@@ -144,6 +144,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_event(
+        Pad.ref(:output, _id),
+        %Membrane.KeyframeRequestEvent{},
+        _ctx,
+        %{track: %Track{type: :audio}} = state
+      ) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_event(
         Pad.ref(:output, {track_id, variant}),
         %Membrane.KeyframeRequestEvent{} = event,
         _ctx,
