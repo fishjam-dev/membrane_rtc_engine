@@ -226,8 +226,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       video_tracks_limit: opts.video_tracks_limit,
       simulcast_config: opts.simulcast_config,
       telemetry_label: opts.telemetry_label,
-      display_manager: nil,
-      simulcast_tracks: MapSet.new()
+      display_manager: nil
     }
 
     {{:ok, spec: spec}, state}
@@ -286,14 +285,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :track_ready, track_id: track_id)
 
-    state =
-      if rid != nil do
-        update_in(state, [:simulcast_tracks], &MapSet.put(&1, track_id))
-      else
-        state
-      end
-
     variant = to_track_variant(rid)
+
     {{:ok, notify: {:track_ready, track_id, variant, encoding, depayloading_filter}}, state}
   end
 
@@ -487,7 +480,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       end
 
     # EndpointBin expects `rid` to be nil for non simulcast tracks
-    rid = if MapSet.member?(state.simulcast_tracks, track_id), do: to_rid(variant), else: nil
+    # assume that tracks with [:high] variants are non-simulcast
+    rid = if state.inbound_tracks[track_id].variants == [:high], do: nil, else: to_rid(variant)
 
     spec = %ParentSpec{
       links: [

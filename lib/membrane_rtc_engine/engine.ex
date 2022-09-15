@@ -208,8 +208,8 @@ defmodule Membrane.RTC.Engine do
     Peer,
     PushOutputTee,
     Subscription,
-    Track,
-    Tee
+    Tee,
+    Track
   }
 
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
