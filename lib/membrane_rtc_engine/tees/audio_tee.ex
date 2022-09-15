@@ -141,7 +141,7 @@ defmodule Membrane.RTC.Engine.AudioTee do
         {:ok, state}
 
       true ->
-        Membrane.Logger.info(
+        Membrane.Logger.debug(
           "Endpoint #{endpoint_id} requested track variant #{requested_variant}."
         )
 
