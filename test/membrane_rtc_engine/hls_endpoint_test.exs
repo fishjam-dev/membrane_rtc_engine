@@ -3,9 +3,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.HLS
-  alias Membrane.RTC.Engine.{Message}
-  alias Membrane.RTC.Engine.Support.FileEndpoint
   alias Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
+  alias Membrane.RTC.Engine.Message
+  alias Membrane.RTC.Engine.Support.FileEndpoint
 
   @fixtures_dir "./test/fixtures/"
   @reference_dir "./test/hls_reference/"
@@ -221,7 +221,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
   end
 
   defp create_hls_endpoint(rtc_engine, transcoding?) do
-    transcoding_config = if transcoding?, do: %TranscodingConfig{enabled?: true}, else: %TranscodingConfig{}
+    transcoding_config =
+      if transcoding?, do: %TranscodingConfig{enabled?: true}, else: %TranscodingConfig{}
 
     %HLS{
       rtc_engine: rtc_engine,

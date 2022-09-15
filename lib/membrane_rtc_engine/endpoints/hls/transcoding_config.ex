@@ -14,7 +14,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig do
           output_framerate: {integer(), integer()},
           output_width: integer(),
           output_height: integer()
-  }
+        }
   defstruct enabled?: false,
             output_framerate: {24, 1},
             output_width: 1280,
