@@ -58,20 +58,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, {_track_id, variant}), _ctx, state) do
+  def handle_pad_added(Pad.ref(:input, id), %{playback_state: playback_state}, state) do
+    {_track_id, variant} = id
     telemetry_label = state.telemetry_label ++ [track_id: "#{state.track.id}:#{variant}"]
     Membrane.RTC.Utils.telemetry_register(telemetry_label)
-    {:ok, state}
-  end
-
-  @impl true
-  def handle_pad_added(Pad.ref(:output, id) = pad, %{playback_state: playback_state}, state) do
-    {_track_id, variant} = id
 
     {actions, state} =
       if playback_state == :playing do
         # we need to reset timer and all existing variant
-        # trackers to esnure that new tracker's state won't
+        # trackers to ensure that new tracker's state won't
         # be checked too fast
 
         state =
@@ -79,8 +74,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
             put_in(state, [:trackers, variant], VariantTracker.reset(tracker))
           end)
 
-        actions =
-          activate_pad_actions(pad) ++ [@stop_variant_check_timer, @start_variant_check_timer]
+        actions = [@stop_variant_check_timer, @start_variant_check_timer]
 
         {actions, state}
       else
@@ -88,6 +82,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       end
 
     state = put_in(state, [:trackers, variant], VariantTracker.new(variant))
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:output, _id) = pad, %{playback_state: playback_state}, state) do
+    actions =
+      if playback_state == :playing do
+        activate_pad_actions(pad)
+      else
+        []
+      end
 
     {{:ok, actions}, state}
   end
