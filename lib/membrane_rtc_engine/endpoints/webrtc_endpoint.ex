@@ -371,7 +371,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:variant_switched, new_variant}, {:track_receiver, track_id}, _ctx, state) do
+  def handle_notification(
+        {:variant_switched, new_variant},
+        {:track_receiver, track_id},
+        _ctx,
+        state
+      ) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
     media_event = %{
