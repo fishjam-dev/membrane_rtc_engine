@@ -16,6 +16,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackReceiver, TrackSender}
+  alias Membrane.RTC.Engine.Notifications.TrackNotification
   alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
@@ -24,6 +25,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
 
   @life_span_id "webrtc_endpoint.life_span"
+
+  defmacrop bitrate_notification(estimation) do
+    {:bitrate_estimation, estimation}
+  end
 
   @type encoding_t() :: String.t()
 
@@ -235,6 +240,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_notification({:estimation, estimations}, {:track_sender, track_id}, _ctx, state) do
+    notification = %TrackNotification{
+      track_id: track_id,
+      notification: bitrate_notification(estimations)
+    }
+
+    {{:ok, notify: {:publish, notification}}, state}
+  end
+
+  @impl true
   def handle_notification({:new_tracks, tracks}, :endpoint_bin, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
@@ -394,6 +409,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_notification(notification, _element, _ctx, state),
     do: {{:ok, notify: notification}, state}
+
+  @impl true
+  def handle_other(
+        %TrackNotification{
+          track_id: track_id,
+          notification: bitrate_notification(_estimation) = notification
+        },
+        _ctx,
+        state
+      ) do
+    # Forward the data to the Track Receiver
+    {{:ok, forward: {{:track_receiver, track_id}, notification}}, state}
+  end
 
   @impl true
   def handle_other({:new_tracks, tracks}, ctx, state) do

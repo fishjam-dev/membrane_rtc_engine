@@ -11,7 +11,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   # by browser to probe the connection (estimate bandwidth) or to satisfy minimal bandwidth requirement.
   # It is unclear what we should do so we chose the easiest solution i.e.
   # we simply pass them to the other side.
-  use Bitwise
+  import Bitwise
 
   @typedoc """
   * `highest_incoming_seq_num` - the highest incoming sequence number for current encoding.
