@@ -35,6 +35,15 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
                 description: """
                 Caps to be sent before the `output`.
                 """
+              ],
+              fast_start: [
+                spec: boolean(),
+                default: true,
+                description: """
+                Whether to start sending buffers immediately after going into
+                playing state. If set to false, source has to be started
+                manually by sending message `{:set_active, true}`.
+                """
               ]
 
   @impl true
@@ -44,7 +53,12 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
     case opts.output do
       {initial_state, generator} when is_function(generator) ->
         {:ok,
-         opts |> Map.merge(%{generator_state: initial_state, output: generator, active?: true})}
+         opts
+         |> Map.merge(%{
+           generator_state: initial_state,
+           output: generator,
+           active?: opts.fast_start
+         })}
 
       _enumerable_output ->
         {:ok, opts}

@@ -11,15 +11,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
 
   @opaque t() :: %__MODULE__{
-            codec: :H264 | :VP8,
+            codec: :H264 | :VP8 | :OPUS,
             rtp_munger: RTPMunger.t(),
             vp8_munger: VP8Munger.t(),
             started?: boolean()
           }
 
-  @enforce_keys [:codec, :rtp_munger]
+  @enforce_keys [:codec]
   defstruct @enforce_keys ++
               [
+                :rtp_munger,
                 :vp8_munger,
                 started?: false
               ]
@@ -27,7 +28,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   @doc """
   Creates a new forwarder.
   """
-  @spec new(:H264 | :VP8, Membrane.RTP.clock_rate_t()) :: t()
+  @spec new(:H264 | :VP8 | :OPUS, Membrane.RTP.clock_rate_t()) :: t()
   def new(codec, clock_rate)
 
   def new(:VP8, clock_rate) do
@@ -45,6 +46,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     }
   end
 
+  def new(:OPUS, _clock_rate) do
+    %__MODULE__{codec: :OPUS}
+  end
+
   @doc """
   Reconfigures forwarder after encoding switch.
   """
@@ -57,7 +62,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       vp8_munger: vp8_munger
     } = forwarder
 
-    rtp_munger = RTPMunger.init(rtp_munger, buffer)
+    rtp_munger = if rtp_munger, do: RTPMunger.init(rtp_munger, buffer)
     vp8_munger = if vp8_munger, do: VP8Munger.init(vp8_munger, buffer)
 
     %{
@@ -75,14 +80,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       vp8_munger: vp8_munger
     } = forwarder
 
-    rtp_munger = RTPMunger.update(rtp_munger, buffer)
-
-    vp8_munger =
-      if vp8_munger do
-        VP8Munger.update(vp8_munger, buffer)
-      else
-        vp8_munger
-      end
+    rtp_munger = if rtp_munger, do: RTPMunger.update(rtp_munger, buffer)
+    vp8_munger = if vp8_munger, do: VP8Munger.update(vp8_munger, buffer)
 
     %__MODULE__{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
   end
@@ -105,7 +104,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       vp8_munger: vp8_munger
     } = forwarder
 
-    {rtp_munger, buffer} = RTPMunger.munge(rtp_munger, buffer)
+    {rtp_munger, buffer} =
+      if rtp_munger do
+        RTPMunger.munge(rtp_munger, buffer)
+      else
+        {rtp_munger, buffer}
+      end
 
     {vp8_munger, buffer} =
       if vp8_munger do
