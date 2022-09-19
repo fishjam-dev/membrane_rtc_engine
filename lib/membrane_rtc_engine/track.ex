@@ -1,4 +1,3 @@
-# credo:disable-for-this-file Credo.Check.Design.TagTODO
 defmodule Membrane.RTC.Engine.Track do
   @moduledoc """
   Module representing media track.
@@ -18,7 +17,7 @@ defmodule Membrane.RTC.Engine.Track do
     :origin,
     :fmtp,
     :encoding,
-    :simulcast_encodings,
+    :variants,
     :clock_rate,
     :format,
     :active?,
@@ -27,10 +26,23 @@ defmodule Membrane.RTC.Engine.Track do
   ]
   defstruct @enforce_keys
 
+  @supported_variants [:high, :medium, :low]
+
   @type id :: String.t()
   @type encoding :: atom()
   @type format :: [atom()]
-  @type variant :: String.t()
+
+  @typedoc """
+  Possible track variants.
+
+  The usage should be as follows:
+  * `:high` - main track variant
+  * `:medium` -  lower (in terms of quality) track variant
+  * `:low` - the lowest track variant
+
+  Audio tracks can have only one variant - `:high`.
+  """
+  @type variant :: :high | :medium | :low
 
   @typedoc """
   This module contains:
@@ -41,8 +53,7 @@ defmodule Membrane.RTC.Engine.Track do
   * `id` - track id
   * `origin` - id of Endpoint this track belongs to
   * `encoding` - track encoding
-  * `simulcast_encodings` - for simulcast tracks this is a list of simulcast encoding identifiers.
-  In other case, this is an empty list.
+  * `variants` - list of possible track variants. Refer to `t:variant/0`.
   * `clock_rate` - track clock rate
   * `format` - list of available track formats. At this moment max two formats can be specified.
   One of them has to be `:raw` which indicates that other Endpoints will receive this track in format
@@ -58,7 +69,7 @@ defmodule Membrane.RTC.Engine.Track do
           id: id,
           origin: String.t(),
           encoding: encoding,
-          simulcast_encodings: [variant()],
+          variants: [variant()],
           clock_rate: Membrane.RTP.clock_rate_t(),
           format: format,
           fmtp: FMTP.t(),
@@ -72,7 +83,8 @@ defmodule Membrane.RTC.Engine.Track do
 
   If not provided:
   * `id` - will be generated
-  * `simulcast_encodings` - `[]`
+  * `active?` - true
+  * `variants` - `[:high]`
   * `metadata` - `nil`
   * `ctx` - `%{}`
 
@@ -80,7 +92,8 @@ defmodule Membrane.RTC.Engine.Track do
   """
   @type opts_t :: [
           id: String.t(),
-          simulcast_encodings: [String.t()],
+          active?: boolean(),
+          variants: [variant()],
           metadata: any(),
           ctx: map()
         ]
@@ -113,8 +126,8 @@ defmodule Membrane.RTC.Engine.Track do
       format: format,
       fmtp: fmtp,
       id: id,
-      active?: true,
-      simulcast_encodings: Keyword.get(opts, :simulcast_encodings, []),
+      active?: Keyword.get(opts, :active?, true),
+      variants: Keyword.get(opts, :variants, [:high]),
       metadata: Keyword.get(opts, :metadata),
       ctx: Keyword.get(opts, :ctx, %{})
     }
@@ -125,4 +138,10 @@ defmodule Membrane.RTC.Engine.Track do
   """
   @spec stream_id() :: String.t()
   def stream_id(), do: UUID.uuid4()
+
+  @doc """
+  Returns list of supported track variants.
+  """
+  @spec supported_variants() :: [variant()]
+  def supported_variants(), do: @supported_variants
 end

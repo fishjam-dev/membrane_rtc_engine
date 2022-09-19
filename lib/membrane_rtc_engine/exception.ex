@@ -1,6 +1,43 @@
 defmodule Membrane.RTC.Engine.Exception do
   @moduledoc false
 
+  defmodule PublishTrackError do
+    defexception [:message]
+
+    @impl true
+    def exception(opts) do
+      track = Keyword.fetch!(opts, :track)
+
+      msg = """
+      Tried to publish track with invalid variants. For video tracks variants
+      has to be a list with at least one variant of type Track.variant().
+      Audio tracks can have just one variant (:high), therefore for audio tracks
+      variants has to be a list in form of [:high].
+      Track: #{inspect(track)}.
+      """
+
+      %__MODULE__{message: msg}
+    end
+  end
+
+  defmodule TrackReadyError do
+    defexception [:message]
+
+    @impl true
+    def exception(opts) do
+      track = Keyword.fetch!(opts, :track)
+      variant = Keyword.fetch!(opts, :variant)
+
+      msg = """
+      Tried to mark track variant: #{inspect(variant)} as ready but given
+      track hasn't been published with such variant.
+      Track: #{inspect(track)}.
+      """
+
+      %__MODULE__{message: msg}
+    end
+  end
+
   defmodule RequestTrackVariantError do
     defexception [:message]
 

@@ -202,15 +202,17 @@ defmodule Membrane.RTC.Engine do
   alias Membrane.RTC.Engine.{
     DisplayManager,
     Endpoint,
-    Endpoint.WebRTC.SimulcastTee,
     FilterTee,
     MediaEvent,
     Message,
     Peer,
     PushOutputTee,
     Subscription,
+    Tee,
     Track
   }
+
+  alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -262,7 +264,7 @@ defmodule Membrane.RTC.Engine do
   """
   @type track_ready_action_t() ::
           {:notify,
-           {:track_ready, Track.id(), Track.encoding(),
+           {:track_ready, Track.id(), Track.encoding(), Track.variant(),
             depayloading_filter :: Membrane.ParentSpec.child_spec_t() | nil}}
 
   @typedoc """
@@ -454,7 +456,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_init(options) do
-    Logger.metadata(rtc_engine_id: options[:id])
+    Logger.metadata(rtc_engine: options[:id])
 
     if Keyword.has_key?(options, :trace_ctx),
       do: Membrane.OpenTelemetry.attach(options[:trace_ctx])
@@ -658,11 +660,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_notification(notification, {:tee, track_id}, _ctx, state) do
-    handle_tee_notification(notification, track_id, state)
-  end
-
-  @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
     if Map.has_key?(state.peers, endpoint_id) do
       dispatch(endpoint_id, MediaEvent.peer_removed(endpoint_id, "Internal server error."))
@@ -756,12 +753,9 @@ defmodule Membrane.RTC.Engine do
   #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
   #   removed tracks. Also forwards custom media events.
   #
-  # - handle_tee_notification/3: Handles incoming notifications from the tee, mainly this is
-  #   used by the Simulcast tee to signal change of encoding.
-  #
 
   defp handle_endpoint_notification(
-         {:track_ready, track_id, rid, encoding, depayloading_filter},
+         {:track_ready, track_id, variant, encoding, depayloading_filter},
          endpoint_id,
          ctx,
          state
@@ -775,10 +769,14 @@ defmodule Membrane.RTC.Engine do
     # filter's the notification arrived.
 
     Membrane.Logger.info(
-      "New incoming #{encoding} track #{track_id} from endpoint #{inspect(endpoint_id)}"
+      "New incoming #{encoding} track #{track_id} (variant: #{variant}) from endpoint #{inspect(endpoint_id)}"
     )
 
     track = get_in(state, [:endpoints, endpoint_id]) |> Endpoint.get_track_by_id(track_id)
+
+    if variant not in track.variants do
+      raise TrackReadyError, track: track, variant: variant
+    end
 
     depayloading_filter =
       if track.format == [:raw] and depayloading_filter != nil do
@@ -793,7 +791,7 @@ defmodule Membrane.RTC.Engine do
 
     state = put_in(state, [:filters, track_id], depayloading_filter)
 
-    track_link = build_track_link(rid, track, endpoint_id, ctx, state)
+    track_link = build_track_link(variant, track, endpoint_id, ctx, state)
 
     # check if there are subscriptions for this track and fulfill them
     {subscriptions, pending_subscriptions} =
@@ -814,7 +812,7 @@ defmodule Membrane.RTC.Engine do
     spec = %ParentSpec{
       links: links,
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc_engine_id: state.id]
+      log_metadata: [rtc_engine: state.id]
     }
 
     {{:ok, spec: spec}, state}
@@ -826,6 +824,8 @@ defmodule Membrane.RTC.Engine do
          _ctx,
          state
        ) do
+    Enum.each(tracks, &validate_track(&1))
+
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
     state =
@@ -869,17 +869,23 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
-    # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
-    # `track_id` now
+  defp validate_track(track) do
+    variants = MapSet.new(track.variants)
+    supported_variants = Track.supported_variants() |> MapSet.new()
 
-    {from_endpoint_id, _endpoint} =
-      Enum.find(state.endpoints, fn {_, endpoint} ->
-        Endpoint.get_track_by_id(endpoint, track_id) != nil
-      end)
+    cond do
+      variants == MapSet.new([]) ->
+        raise PublishTrackError, track: track
 
-    dispatch(endpoint_id, MediaEvent.encoding_switched(from_endpoint_id, track_id, encoding))
-    {:ok, state}
+      track.type == :audio and not MapSet.equal?(variants, MapSet.new([:high])) ->
+        raise PublishTrackError, track: track
+
+      MapSet.subset?(variants, supported_variants) == false ->
+        raise PublishTrackError, track: track
+
+      true ->
+        :ok
+    end
   end
 
   #
@@ -968,7 +974,7 @@ defmodule Membrane.RTC.Engine do
       node: opts[:node],
       children: %{endpoint_name => endpoint_entry},
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc_engine_id: state.id]
+      log_metadata: [rtc_engine: state.id]
     }
 
     display_manager_message =
@@ -1074,80 +1080,44 @@ defmodule Membrane.RTC.Engine do
   #
   # Track Links
   #
-  # - build_track_link/6 - called when the track is ready, via notification from the WebRTC
-  #   endpoint. Create the link from the endpoint which published the track, and starts the
+  # - build_track_link/5 - called when the track is ready, via notification from the WebRTC
+  #   endpoint. Creates the link from the endpoint which published the track, and starts the
   #   underlying tee which is required to bring the content of the track to all subscribers.
   #
-  # - build_track_tee/5 - Called by build_track_link/5; builds the correct tee depending on the
-  #   type of the track (simulcast / filtered / normal).
-  #
-  # - build_track_tee_simulcast/1 - Convenience function, builds a Simulcast tee
-  #
-  # - build_track_tee_filter/4 - Convenience function, builds a Filter tee
-  #
-  # - build_track_tee_push_output/2 - Convenience function, builds a Push Output tee
+  # - build_track_tee/5 - Called by build_track_link/5; builds the correct tee depending on
+  #   display manager is turned on or off
   #
 
-  defp build_track_link(rid, track, endpoint_id, ctx, state) do
+  defp build_track_link(variant, track, endpoint_id, ctx, state) do
     tee_name =
       if track.format == [:raw],
         do: {:raw_format_tee, track.id},
         else: {:tee, track.id}
 
-    is_simulcast? = rid != nil
-    telemetry_label = [peer_id: endpoint_id, track_id: "#{track.id}:#{rid}"]
-    telemetry_label = Keyword.merge(state.telemetry_label, telemetry_label)
-
     link({:endpoint, endpoint_id})
-    |> via_out(Pad.ref(:output, {track.id, rid}))
-    |> then(fn link ->
-      if is_simulcast? do
-        via_in(link, Pad.ref(:input, {track.id, rid}))
-      else
-        link
-      end
-    end)
+    |> via_out(Pad.ref(:output, {track.id, variant}))
+    |> via_in(Pad.ref(:input, {track.id, variant}))
     |> then(fn link ->
       if Map.has_key?(ctx.children, tee_name) do
         to(link, tee_name)
       else
-        to(link, tee_name, build_track_tee(track.id, rid, track, telemetry_label, state))
+        to(link, tee_name, build_track_tee(track.id, variant, track, state))
       end
     end)
   end
 
-  defp build_track_tee(track_id, rid, track, telemetry_label, state) do
-    is_simulcast? = rid != nil
-    is_filter? = state.display_manager != nil
-
-    cond do
-      is_simulcast? -> build_track_tee_simulcast(track)
-      is_filter? -> build_track_tee_filter(state.id, track_id, track, telemetry_label)
-      true -> build_track_tee_push_output(track, telemetry_label)
-    end
-  end
-
-  defp build_track_tee_simulcast(track) do
-    %SimulcastTee{
-      track: track
-    }
-  end
-
-  defp build_track_tee_filter(ets_name, track_id, track, telemetry_label) do
+  defp build_track_tee(track_id, _variant, track, %{display_manager: dm} = state)
+       when dm != nil do
     %FilterTee{
-      ets_name: ets_name,
+      ets_name: state.id,
       track_id: track_id,
       type: track.type,
-      codec: track.encoding,
-      telemetry_label: telemetry_label
+      codec: track.encoding
     }
   end
 
-  defp build_track_tee_push_output(track, telemetry_label) do
-    %PushOutputTee{
-      codec: track.encoding,
-      telemetry_label: telemetry_label
-    }
+  defp build_track_tee(_track_id, _variant, track, _state) do
+    %Tee{track: track}
   end
 
   #

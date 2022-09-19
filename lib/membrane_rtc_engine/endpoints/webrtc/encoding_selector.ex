@@ -1,66 +1,60 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   @moduledoc false
-  # module responsible for choosing track encoding
+  # module responsible for choosing track variant
 
   require Membrane.Logger
 
   alias Membrane.RTC.Engine.Track
 
   @type t() :: %__MODULE__{
-          target_encoding: Track.variant() | nil,
-          current_encoding: Track.variant() | nil,
-          queued_encoding: Track.variant() | nil,
-          active_encodings: MapSet.t(Track.variant()),
-          all_encodings: MapSet.t(Track.variant())
+          target_variant: Track.variant(),
+          current_variant: Track.variant() | nil,
+          queued_variant: Track.variant() | nil,
+          active_variants: MapSet.t(Track.variant())
         }
 
-  @enforce_keys [:all_encodings]
-  defstruct @enforce_keys ++
-              [
-                :target_encoding,
-                :current_encoding,
-                :queued_encoding,
-                active_encodings: MapSet.new()
-              ]
+  defstruct [
+    :target_variant,
+    :current_variant,
+    :queued_variant,
+    active_variants: MapSet.new()
+  ]
 
   @doc """
-  Creates new encoding selector.
+  Creates new variant selector.
 
-  * `encodings` - a list of all track encodings. Encoding selector
-  assumes that initialy all encodings are inactive. To mark encoding
-  as active use `encoding_active/2`.
-  * `initial_target_encoding` - encoding to prioritize. It will be
-  chosen whenever it is active. Can be changed with `target_encoding/2`.
+  * `initial_target_variant` - variant to prioritize. It will be
+  chosen whenever it is active. Can be changed with `set_target_variant/2`.
   """
-  @spec new([Track.variant()], Track.variant() | nil) :: t()
-  def new(encodings, initial_target_encoding \\ nil) do
-    %__MODULE__{all_encodings: MapSet.new(encodings), target_encoding: initial_target_encoding}
+  @spec new(Track.variant()) :: t()
+  def new(initial_target_variant \\ :high) do
+    %__MODULE__{target_variant: initial_target_variant}
   end
 
   @doc """
-  Marks given `encoding` as inactive.
+  Marks given `variant` as inactive.
 
-  Returns new selector and encoding to request
+  Returns new selector and variant to request
   or `nil` if there are no changes needed.
   """
-  @spec encoding_inactive(t(), Track.variant()) :: {t(), Track.variant() | nil}
-  def encoding_inactive(selector, encoding) do
+  @spec variant_inactive(t(), Track.variant()) :: {t(), Track.variant() | nil}
+  def variant_inactive(selector, variant) do
     selector = %__MODULE__{
       selector
-      | active_encodings: MapSet.delete(selector.active_encodings, encoding)
+      | active_variants: MapSet.delete(selector.active_variants, variant)
     }
 
     case selector do
-      %{current_encoding: ^encoding} ->
-        selector = %__MODULE__{selector | current_encoding: nil}
-        select_encoding(selector)
+      %{current_variant: ^variant} ->
+        selector = %__MODULE__{selector | current_variant: nil}
+        select_variant(selector)
 
-      %{queued_encoding: ^encoding, current_encoding: nil} ->
-        selector = %__MODULE__{selector | queued_encoding: nil}
-        select_encoding(selector)
+      %{queued_variant: ^variant, current_variant: nil} ->
+        selector = %__MODULE__{selector | queued_variant: nil}
+        select_variant(selector)
 
-      %{queued_encoding: ^encoding} ->
-        selector = %__MODULE__{selector | queued_encoding: nil}
+      %{queued_variant: ^variant} ->
+        selector = %__MODULE__{selector | queued_variant: nil}
         {selector, nil}
 
       _else ->
@@ -69,128 +63,117 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.EncodingSelector do
   end
 
   @doc """
-  Marks given `encoding` as active.
+  Marks given `variant` as active.
 
-  Returns new selector and encoding to request
+  Returns new selector and variant to request
   or `nil` if there are no changes needed.
   """
-  @spec encoding_active(t(), Track.variant()) :: {t(), Track.variant() | nil}
-  def encoding_active(selector, encoding) do
+  @spec variant_active(t(), Track.variant()) :: {t(), Track.variant() | nil}
+  def variant_active(selector, variant) do
     selector = %__MODULE__{
       selector
-      | active_encodings: MapSet.put(selector.active_encodings, encoding)
+      | active_variants: MapSet.put(selector.active_variants, variant)
     }
 
     cond do
-      selector.current_encoding == selector.target_encoding ->
+      selector.current_variant == selector.target_variant ->
         {selector, nil}
 
-      selector.queued_encoding == selector.target_encoding ->
+      selector.queued_variant == selector.target_variant ->
         {selector, nil}
 
-      selector.target_encoding == encoding ->
-        select_encoding(selector, encoding)
+      selector.target_variant == variant ->
+        select_variant(selector, variant)
 
       true ->
-        select_encoding(selector)
+        select_variant(selector)
     end
   end
 
   @doc """
-  Sets currently used encoding.
+  Sets currently used variant.
 
-  Should be called when encoding change happens
+  Should be called when variant change happens
   i.e. after receiving `Membrane.RTC.Engine.Event.TrackVariantSwitched` event.
   """
-  @spec set_current_encoding(t(), Track.variant()) :: t()
-  def set_current_encoding(%__MODULE__{queued_encoding: encoding} = selector, encoding) do
-    %__MODULE__{selector | current_encoding: encoding, queued_encoding: nil}
+  @spec set_current_variant(t(), Track.variant()) :: t()
+  def set_current_variant(%__MODULE__{queued_variant: variant} = selector, variant) do
+    %__MODULE__{selector | current_variant: variant, queued_variant: nil}
   end
 
-  def set_current_encoding(%__MODULE__{} = selector, encoding) do
-    %__MODULE__{selector | current_encoding: encoding}
+  def set_current_variant(%__MODULE__{} = selector, variant) do
+    %__MODULE__{selector | current_variant: variant}
   end
 
   @doc """
-  Sets the target encoding that should be selected whenever it is active.
+  Sets the target variant that should be selected whenever it is active.
 
-  If the target encoding is not active, we will switch to it when it becomes active again
+  If the target variant is not active, we will switch to it when it becomes active again
   """
-  @spec set_target_encoding(t(), Track.variant()) :: {t(), Track.variant() | nil}
-  def set_target_encoding(selector, encoding) do
-    cond do
-      encoding not in selector.all_encodings ->
-        Membrane.Logger.warn("""
-        Requested non existing encoding #{inspect(encoding)}. \
-        Available track encodings: #{inspect(selector.all_encodings)}. \
-        Ignoring.\
-        """)
+  @spec set_target_variant(t(), Track.variant()) :: {t(), Track.variant() | nil}
+  def set_target_variant(selector, variant) do
+    if variant in selector.active_variants do
+      selector = %__MODULE__{selector | target_variant: variant}
+      select_variant(selector, variant)
+    else
+      Membrane.Logger.debug("""
+      Requested inactive variant #{inspect(variant)}. Saving it as target.
+      It will be requested once it becomes active
+      """)
 
-        {selector, nil}
+      selector = %__MODULE__{selector | target_variant: variant}
 
-      encoding in selector.active_encodings ->
-        selector = %__MODULE__{selector | target_encoding: encoding}
-        select_encoding(selector, encoding)
-
-      true ->
-        Membrane.Logger.debug("""
-        Requested inactive encoding #{inspect(encoding)}. Saving it as target.
-        It will be requested once it becomes active
-        """)
-
-        selector = %__MODULE__{selector | target_encoding: encoding}
-
-        {selector, nil}
+      {selector, nil}
     end
   end
 
-  defp select_encoding(%__MODULE__{active_encodings: encodings} = selector) do
-    encoding = best_active_encoding(encodings)
-    select_encoding(selector, encoding)
+  defp select_variant(%__MODULE__{active_variants: variants} = selector) do
+    variant = best_active_variant(variants)
+    select_variant(selector, variant)
   end
 
-  defp select_encoding(selector, nil) do
-    Membrane.Logger.debug("No active encoding.")
-    selector = %__MODULE__{selector | current_encoding: nil, queued_encoding: nil}
+  defp select_variant(selector, nil) do
+    Membrane.Logger.debug("No active variant.")
+    selector = %__MODULE__{selector | current_variant: nil, queued_variant: nil}
     {selector, nil}
   end
 
-  defp select_encoding(
-         %__MODULE__{current_encoding: encoding, queued_encoding: nil} = selector,
-         encoding
+  defp select_variant(
+         %__MODULE__{current_variant: variant, queued_variant: nil} = selector,
+         variant
        ) do
-    Membrane.Logger.debug("Requested currently used encoding #{encoding}. Ignoring.")
+    Membrane.Logger.debug("Requested currently used variant #{variant}. Ignoring.")
     {selector, nil}
   end
 
-  defp select_encoding(%__MODULE__{current_encoding: encoding} = selector, encoding) do
+  defp select_variant(%__MODULE__{current_variant: variant} = selector, variant) do
     Membrane.Logger.debug("""
-    Requested encoding: #{inspect(encoding)} which is currently used but while waiting
-    for keyframe for queued_encoding #{inspect(selector.queued_encoding)}.
-    Clearing queued_encoding #{inspect(selector.queued_encoding)}
+    Requested variant: #{inspect(variant)} which is currently used but while waiting
+    for keyframe for queued_variant #{inspect(selector.queued_variant)}.
+    Clearing queued_variant #{inspect(selector.queued_variant)}
     """)
 
-    selector = %__MODULE__{selector | queued_encoding: nil}
+    selector = %__MODULE__{selector | queued_variant: nil}
     {selector, nil}
   end
 
-  defp select_encoding(selector, encoding) do
-    Membrane.Logger.debug("Enqueuing encoding #{inspect(encoding)}.")
-    selector = %__MODULE__{selector | queued_encoding: encoding}
-    {selector, encoding}
+  defp select_variant(selector, variant) do
+    Membrane.Logger.debug("Enqueuing variant #{inspect(variant)}.")
+    selector = %__MODULE__{selector | queued_variant: variant}
+    {selector, variant}
   end
 
-  defp best_active_encoding(encodings) do
-    encodings |> sort_encodings() |> List.first()
+  defp best_active_variant(variants) do
+    variants |> sort_variants() |> List.first()
   end
 
-  defp sort_encodings(encodings) do
+  defp sort_variants(variants) do
     Enum.sort_by(
-      encodings,
+      variants,
       fn
-        "h" -> 3
-        "m" -> 2
-        "l" -> 1
+        :high -> 3
+        :medium -> 2
+        :low -> 1
       end,
       :desc
     )
