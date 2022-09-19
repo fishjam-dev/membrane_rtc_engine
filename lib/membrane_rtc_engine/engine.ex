@@ -456,7 +456,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_init(options) do
-    Logger.metadata(rtc_engine_id: options[:id])
+    Logger.metadata(rtc_engine: options[:id])
 
     if Keyword.has_key?(options, :trace_ctx),
       do: Membrane.OpenTelemetry.attach(options[:trace_ctx])
@@ -812,7 +812,7 @@ defmodule Membrane.RTC.Engine do
     spec = %ParentSpec{
       links: links,
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc_engine_id: state.id]
+      log_metadata: [rtc_engine: state.id]
     }
 
     {{:ok, spec: spec}, state}
@@ -974,7 +974,7 @@ defmodule Membrane.RTC.Engine do
       node: opts[:node],
       children: %{endpoint_name => endpoint_entry},
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc_engine_id: state.id]
+      log_metadata: [rtc_engine: state.id]
     }
 
     display_manager_message =

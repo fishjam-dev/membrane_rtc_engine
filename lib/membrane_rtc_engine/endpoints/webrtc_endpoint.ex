@@ -190,46 +190,48 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       inspect(opts.peer_metadata)
     )
 
+    state =
+      opts
+      |> Map.from_struct()
+      |> Map.merge(%{
+        outbound_tracks: %{},
+        inbound_tracks: %{},
+        display_manager: nil
+      })
+
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_prepared_to_playing(ctx, state) do
+    {:endpoint, endpoint_id} = ctx.name
+
+    log_metadata = state.log_metadata ++ [webrtc_endpoint: endpoint_id]
+
     endpoint_bin = %EndpointBin{
-      handshake_opts: opts.handshake_opts,
-      log_metadata: opts.log_metadata,
-      filter_codecs: opts.filter_codecs,
+      handshake_opts: state.handshake_opts,
+      log_metadata: log_metadata,
+      filter_codecs: state.filter_codecs,
       inbound_tracks: [],
       outbound_tracks: [],
-      direction: opts.direction,
-      extensions: opts.webrtc_extensions || [],
-      integrated_turn_options: opts.integrated_turn_options,
-      trace_context: opts.trace_context,
-      trace_metadata: [ice_name: opts.ice_name],
+      direction: state.direction,
+      extensions: state.webrtc_extensions || [],
+      integrated_turn_options: state.integrated_turn_options,
+      trace_context: state.trace_context,
+      trace_metadata: [ice_name: state.ice_name],
       parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
-      rtcp_receiver_report_interval: opts.rtcp_receiver_report_interval,
-      rtcp_sender_report_interval: opts.rtcp_sender_report_interval,
-      simulcast?: opts.simulcast_config.enabled,
-      telemetry_label: opts.telemetry_label
+      rtcp_receiver_report_interval: state.rtcp_receiver_report_interval,
+      rtcp_sender_report_interval: state.rtcp_sender_report_interval,
+      simulcast?: state.simulcast_config.enabled,
+      telemetry_label: state.telemetry_label
     }
 
     spec = %ParentSpec{
       children: %{endpoint_bin: endpoint_bin},
-      log_metadata: opts.log_metadata
+      log_metadata: log_metadata
     }
 
-    state = %{
-      rtc_engine: opts.rtc_engine,
-      ice_name: opts.ice_name,
-      direction: opts.direction,
-      outbound_tracks: %{},
-      inbound_tracks: %{},
-      extensions: opts.extensions || %{},
-      integrated_turn_options: opts.integrated_turn_options,
-      integrated_turn_domain: opts.integrated_turn_domain,
-      owner: opts.owner,
-      video_tracks_limit: opts.video_tracks_limit,
-      simulcast_config: opts.simulcast_config,
-      telemetry_label: opts.telemetry_label,
-      display_manager: nil
-    }
-
-    {{:ok, spec: spec}, state}
+    {{:ok, spec: spec}, %{state | log_metadata: log_metadata}}
   end
 
   @impl true
@@ -463,7 +465,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> to(:endpoint_bin)
     ]
 
-    {{:ok, spec: %ParentSpec{links: links}}, state}
+    {{:ok, spec: %ParentSpec{log_metadata: state.log_metadata, links: links}}, state}
   end
 
   @impl true
@@ -493,7 +495,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         |> then(link_to_track_sender)
         |> via_out(pad)
         |> to_bin_output(pad)
-      ]
+      ],
+      log_metadata: state.log_metadata
     }
 
     {{:ok, spec: spec}, state}
