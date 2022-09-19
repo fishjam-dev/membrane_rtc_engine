@@ -7,12 +7,17 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   use Membrane.Filter
 
+  alias Membrane.RemoteStream
   alias Membrane.RTC.Engine.Endpoint.HLS.Utils
 
   def_input_pad :input,
                 demand_mode: :auto,
                 availability: :on_request,
-                caps: [Membrane.H264, Membrane.AAC, Membrane.Opus],
+                caps: {RemoteStream, type: :packetized, content_format: one_of([
+                    Membrane.H264,
+                    Membrane.AAC,
+                    Membrane.Opus
+                  ])},
                 options: [
                   track: [
                     spec: Membrane.RTC.Engine.Track.t(),
@@ -22,13 +27,14 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
                   ]
                 ]
 
-  def_output_pad :video,
+  def_output_pad :output,
                  demand_mode: :auto,
-                 caps: [Membrane.H264]
-
-  def_output_pad :audio,
-                 demand_mode: :auto,
-                 caps: [Membrane.AAC, Membrane.Opus]
+                 availability: :on_request,
+                 caps: {RemoteStream, type: :packetized, content_format: one_of([
+                   Membrane.H264,
+                   Membrane.AAC,
+                   Membrane.Opus
+                 ])}
 
   @impl true
   def handle_init(_opts) do
@@ -55,7 +61,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
     track_type = Utils.get_track_type(track)
 
     if current? do
-      {{:ok, buffer: {track_type, buffer}}, state}
+      {{:ok, buffer: {Pad.ref(:output, track_type), buffer}}, state}
     else
       {:ok, state}
     end
@@ -68,7 +74,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
     if not state.caps_sent[track_type] do
       state = put_in(state, [:caps_sent, track_type], true)
-      {{:ok, caps: {track_type, caps}}, state}
+      {{:ok, caps: {Pad.ref(:output, track_type), caps}}, state}
     else
       {:ok, state}
     end
@@ -78,6 +84,18 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
   def handle_pad_added(Pad.ref(:input, track_id), ctx, state) do
     state = put_in(state, [:tracks, track_id], ctx.options.track)
 
+    state = if state.cur_origin == nil do
+      track = Map.fetch!(state.tracks, track_id)
+      Map.put(state, :cur_origin, track.origin)
+    else
+      state
+    end
+
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_pad_added(_pad, _ctx, state) do
     {:ok, state}
   end
 
@@ -86,6 +104,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
     track = Map.fetch!(state.tracks, track_id)
     track_type = Utils.get_track_type(track)
     # TODO co kiedy input_pad nie jest current origin padem?
-    {{:ok, end_of_stream: track_type}, state}
+    {{:ok, end_of_stream: Pad.ref(:output, track_type)}, state}
   end
 end

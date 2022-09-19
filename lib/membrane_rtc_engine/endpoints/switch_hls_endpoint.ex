@@ -49,6 +49,11 @@ if Enum.all?(
                   description: "Path to directory under which HLS output will be saved",
                   default: "hls_output"
                 ],
+                room_id: [
+                  spec: String.t()
+                  description: "Identificator of the rtc_engine instance used in output directory name",
+                  default: ""
+                ],
                 owner: [
                   spec: pid(),
                   description: """
@@ -100,14 +105,17 @@ if Enum.all?(
         rtc_engine: opts.rtc_engine,
         tracks: %{},
         stream_ids: MapSet.new(),
-        output_directory: opts.output_directory,
+        output_directory: Path.join(opts.output_directory, opts.room_id),
         owner: opts.owner,
         hls_mode: opts.hls_mode,
         target_window_duration: opts.target_window_duration,
         framerate: opts.framerate,
         target_segment_duration: opts.target_segment_duration,
         bin_linked: %{video: false, audio: false},
+        room_id: opts.room_id
       }
+
+      File.mkdir_p!(state.output_directory)
 
       children =
         [
@@ -162,13 +170,13 @@ if Enum.all?(
 
     def handle_notification(
           {:track_playable, {content_type, track_id}},
-          {:hls_sink_bin, stream_id},
+          :hls_sink_bin,
           _ctx,
           state
         ) do
       %{origin: origin} = Map.fetch!(state.tracks, track_id)
       # notify about playable just when video becomes available
-      send(state.owner, {:playlist_playable, content_type, stream_id, origin})
+      send(state.owner, {:playlist_playable, content_type, state.room_id, origin})
       {:ok, state}
     end
 
@@ -200,10 +208,10 @@ if Enum.all?(
       track = Map.get(state.tracks, track_id)
       track_type = Utils.get_track_type(track)
 
-      {spec, state} = if state.bin_linked[track_type] do
+      {spec, state} = if not state.bin_linked[track_type] do
         link_builder =
           link(:switch)
-          |> via_out(Pad.ref(track_type))
+          |> via_out(Pad.ref(:output, track_type))
 
         spec = hls_links_and_children(
           link_builder,
@@ -218,14 +226,14 @@ if Enum.all?(
         {%ParentSpec{}, state}
       end
 
-      switch_links =
+      switch_link =
         link_bin_input(pad)
         |> via_in(Pad.ref(:input, track.id), options: [track: track])
         |> to(:switch)
 
       spec = %ParentSpec{
         children: spec.children,
-        links: spec.links ++ switch_links
+        links: [ switch_link | spec.links]
       }
 
       {{:ok, spec: spec}, state}
@@ -245,7 +253,7 @@ if Enum.all?(
             |> to({:aac_encoder, track.id})
             |> to({:aac_parser, track.id})
             |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-            |> to({:hls_sink_bin, track.stream_id})
+            |> to(:hls_sink_bin)
           ]
         }
       end
@@ -264,7 +272,7 @@ if Enum.all?(
         links: [
           link_builder
           |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-          |> to({:hls_sink_bin, track.stream_id})
+          |> to(:hls_sink_bin)
         ]
       }
 
@@ -285,7 +293,7 @@ if Enum.all?(
           |> to({:keyframe_requester, track.id})
           |> to({:video_parser, track.id})
           |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
-          |> to({:hls_sink_bin, track.stream_id})
+          |> to(:hls_sink_bin)
         ]
       }
 
