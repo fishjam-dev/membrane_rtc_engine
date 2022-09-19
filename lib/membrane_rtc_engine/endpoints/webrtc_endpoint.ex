@@ -371,12 +371,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification(
-        {:variant_switched, new_variant},
-        {:track_receiver, _endpoint_id, track_id},
-        _ctx,
-        state
-      ) do
+  def handle_notification({:variant_switched, new_variant}, {:track_receiver, track_id}, _ctx, state) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
     media_event = %{
@@ -450,14 +445,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
-    {:endpoint, endpoint_id} = ctx.name
+  def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
     track = Map.fetch!(state.outbound_tracks, track_id)
     initial_target_variant = state.simulcast_config.initial_target_variant.(track)
 
     links = [
       link_bin_input(pad)
-      |> to({:track_receiver, endpoint_id, track_id}, %TrackReceiver{
+      |> to({:track_receiver, track_id}, %TrackReceiver{
         track: track,
         initial_target_variant: initial_target_variant
       })
@@ -519,9 +513,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_custom_media_event(%{type: :select_encoding, data: data}, ctx, state) do
-    {:endpoint, endpoint_id} = ctx.name
     msg = {:set_target_variant, to_track_variant(data.encoding)}
-    {{:ok, forward({:track_receiver, endpoint_id, data.track_id}, msg, ctx)}, state}
+    {{:ok, forward({:track_receiver, data.track_id}, msg, ctx)}, state}
   end
 
   defp handle_custom_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
