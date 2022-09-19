@@ -69,6 +69,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.28.3", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
+      {:statistics, "~> 0.6"},
 
       # Optional deps for HLS endpoint
       {:membrane_http_adaptive_stream_plugin, "~> 0.8.1", optional: true},

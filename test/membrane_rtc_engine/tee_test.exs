@@ -1,6 +1,5 @@
 defmodule Membrane.RTC.Engine.TeeTest do
   use ExUnit.Case, async: true
-  use Bitwise
 
   import Membrane.Testing.Assertions
   import Membrane.ParentSpec
