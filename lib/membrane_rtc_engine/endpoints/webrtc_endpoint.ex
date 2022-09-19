@@ -15,7 +15,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackReceiver, TrackSender}
+
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{
+    ConnectionProber,
+    SimulcastConfig,
+    TrackReceiver,
+    TrackSender
+  }
+
   alias Membrane.RTC.Engine.Notifications.TrackNotification
   alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC

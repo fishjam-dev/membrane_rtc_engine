@@ -118,7 +118,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         connection_allocator_module: connection_allocator_module
       }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
-    selector = VariantSelector.new(initial_target_variant)
+    selector = VariantSelector.new(connection_prober, track, initial_target_variant)
 
     state = %{
       track: track,
@@ -247,6 +247,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def handle_other(:send_padding_packet, _ctx, state) do
     Process.send_after(self(), :send_padding_packet, 10)
     {:ok, state}
+  end
+
+  @impl true
+  def handle_other({:bitrate_estimation, _estimation}, _ctx, state) do
+    # Handle bitrate estimations of incoming variants
+    # They're currently ignoring this information
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_other(
+        %ConnectionProber.AllocationGrantedNotification{allocation: allocation},
+        _ctx,
+        state
+      ) do
+    Membrane.Logger.info("""
+    I received allocation of #{allocation / 1042} kbps
+    """)
+
+    {selector, variant} = VariantSelector.set_bandwidth_allocation(state.selector, allocation)
+    actions = maybe_request_track_variant(variant)
+    {{:ok, actions}, %{state | selector: selector}}
   end
 
   @impl true

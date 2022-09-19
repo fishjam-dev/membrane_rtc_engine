@@ -49,6 +49,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
   test "VariantSelector selects a new variant when it is better than currently used variant and while waiting for the target variant" do
     selector = VariantSelector.new(:high)
+    selector = %{selector | bitrate_allocation: 9_999_999_999_999}
 
     assert {selector, :low} = VariantSelector.variant_active(selector, :low)
     assert {selector, :medium} = VariantSelector.variant_active(selector, :medium)
@@ -57,6 +58,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
   defp create_selector() do
     selector = VariantSelector.new(:high)
+    selector = %{selector | bitrate_allocation: 9_999_999_999_999}
 
     assert {selector, :high} = VariantSelector.variant_active(selector, :high)
 
