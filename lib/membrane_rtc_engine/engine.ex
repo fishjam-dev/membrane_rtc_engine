@@ -1306,6 +1306,7 @@ defmodule Membrane.RTC.Engine do
 
     link({:tee, track.id})
     |> via_out(Pad.ref(:output, {:endpoint, :raw_format_filter}))
+    |> to({:keyframe_metadata_adder, track.id}, %Membrane.KeyframeMetadataAdder{track: track})
     |> to({:raw_format_filter, track.id}, get_in(state, [:filters, track.id]))
     |> to({:raw_format_tee, track.id}, %PushOutputTee{codec: track.encoding})
   end
