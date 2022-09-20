@@ -50,7 +50,7 @@ if Enum.all?(
                   default: "hls_output"
                 ],
                 room_id: [
-                  spec: String.t()
+                  spec: String.t(),
                   description: "Identificator of the rtc_engine instance used in output directory name",
                   default: ""
                 ],
@@ -236,7 +236,9 @@ if Enum.all?(
         links: [ switch_link | spec.links]
       }
 
-      {{:ok, spec: spec}, state}
+      switch_message = {:switch, {:change_origin, track.origin}}
+
+      {{:ok, spec: spec, forward: switch_message}, state}
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do

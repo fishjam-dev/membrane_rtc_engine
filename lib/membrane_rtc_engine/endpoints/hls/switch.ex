@@ -1,6 +1,6 @@
 defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
   @moduledoc false
-  # Module responsible for switching between multiple tracks between rtc_engine and hls_endpoint
+  # Module responsible for switching between multiple tracks
   # useful when only one hls output is needed (for instance, when resource-heavy transcoding is used)
   # creates single pipelines for the audio and video
   # endpoint, from which tracks are used, can be changed via message to the element
@@ -49,6 +49,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   @impl true
   def handle_other({:change_origin, origin}, _ctx, state) do
+    IO.inspect(origin, label: :HANDLED_MESSAGE_FROM_BIN)
     # TODO check if track with origin are in the state.tracks
     state = Map.put(state, :cur_origin, origin)
     {:ok, state}
@@ -84,12 +85,12 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
   def handle_pad_added(Pad.ref(:input, track_id), ctx, state) do
     state = put_in(state, [:tracks, track_id], ctx.options.track)
 
-    state = if state.cur_origin == nil do
-      track = Map.fetch!(state.tracks, track_id)
-      Map.put(state, :cur_origin, track.origin)
-    else
-      state
-    end
+    # state = if state.cur_origin == nil do
+    #   track = Map.fetch!(state.tracks, track_id)
+    #   Map.put(state, :cur_origin, track.origin)
+    # else
+    #   state
+    # end
 
     {:ok, state}
   end
