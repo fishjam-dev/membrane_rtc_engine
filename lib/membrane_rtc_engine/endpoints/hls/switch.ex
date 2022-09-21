@@ -7,6 +7,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   use Membrane.Filter
 
+  require Membrane.Logger
+
   alias Membrane.RemoteStream
   alias Membrane.RTC.Engine.Endpoint.HLS.Utils
 
@@ -29,7 +31,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   def_output_pad :output,
                  demand_mode: :auto,
-                 availability: :on_request,
                  caps: {RemoteStream, type: :packetized, content_format: one_of([
                    Membrane.H264,
                    Membrane.AAC,
@@ -40,8 +41,10 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
   def handle_init(_opts) do
     state = %{
       tracks: %{},
-      cur_origin: nil,
-      caps_sent: %{video: false, audio: false},
+      tracks_caps: %{},
+      awaiting_id: nil,
+      cur_id: nil,
+      awaiting_origin: nil,
     }
 
     {:ok, state}
@@ -49,62 +52,81 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   @impl true
   def handle_other({:change_origin, origin}, _ctx, state) do
-    IO.inspect(origin, label: :HANDLED_MESSAGE_FROM_BIN)
-    # TODO check if track with origin are in the state.tracks
-    state = Map.put(state, :cur_origin, origin)
+    {awaiting_id, awaiting_origin} = case Enum.find(state.tracks, fn {_k, track} -> track.origin == origin end) do
+      nil -> {nil, origin}
+      {_k, track} -> {track.id, nil}
+    end
+
+
+
+    state = %{state | awaiting_origin: awaiting_origin}
+    state = %{state | awaiting_id: awaiting_id}
     {:ok, state}
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, track_id), buffer, _ctx, state) do
-    track = Map.fetch!(state.tracks, track_id)
-    current? = track.origin == state.cur_origin
-    track_type = Utils.get_track_type(track)
-
-    if current? do
-      {{:ok, buffer: {Pad.ref(:output, track_type), buffer}}, state}
-    else
-      {:ok, state}
-    end
+  def handle_other(msg, _ctx, state) do
+    Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
+    {:ok, state}
   end
 
   @impl true
-  def handle_caps(Pad.ref(:input, track_id), caps, _ctx, state) do
-    track = Map.fetch!(state.tracks, track_id)
-    track_type = Utils.get_track_type(track)
+  def handle_process(Pad.ref(:input, track_id), buffer, _ctx, %{cur_id: track_id} = state) do
+    {{:ok, buffer: {Pad.ref(:output), buffer}}, state}
+  end
 
-    if not state.caps_sent[track_type] do
-      state = put_in(state, [:caps_sent, track_type], true)
-      {{:ok, caps: {Pad.ref(:output, track_type), caps}}, state}
+  @impl true
+  def handle_process(Pad.ref(:input, track_id), buffer, _ctx, %{awaiting_id: track_id} = state)
+  when buffer.metadata.is_keyframe do
+    state = %{state | cur_id: state.awaiting_id}
+    caps_action = [caps: {Pad.ref(:output), state.tracks_caps[track_id]}]
+    buffer_action = [buffer: {Pad.ref(:output), buffer}]
+
+    {{:ok, caps_action ++ buffer_action}, state}
+  end
+
+  @impl true
+  def handle_process(Pad.ref(:input, _track_id), buffer, _ctx, state), do: {:ok, state}
+
+  @impl true
+  def handle_caps(Pad.ref(:input, track_id), caps, _ctx, state) do
+    state = put_in(state, [:tracks_caps, track_id], caps)
+
+    actions = if track_id == state.cur_id do
+      [caps: {Pad.ref(:output), caps}]
     else
-      {:ok, state}
+      []
     end
+
+    {{:ok, actions}, state}
   end
 
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id), ctx, state) do
-    state = put_in(state, [:tracks, track_id], ctx.options.track)
-
-    # state = if state.cur_origin == nil do
-    #   track = Map.fetch!(state.tracks, track_id)
-    #   Map.put(state, :cur_origin, track.origin)
-    # else
-    #   state
-    # end
+    track = ctx.options.track
+    state = put_in(state, [:tracks, track_id], track)
+    state = if state.awaiting_origin == track.origin do
+      %{state | awaiting_id: track_id}
+    else
+      state
+    end
 
     {:ok, state}
   end
 
   @impl true
-  def handle_pad_added(_pad, _ctx, state) do
+  def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
+    {_value, state} = pop_in(state, [:tracks, track_id])
+    {_value, state} = pop_in(state, [:tracks_caps, track_id])
+
     {:ok, state}
   end
 
   @impl true
-  def handle_end_of_stream(Pad.ref(:input, track_id), _ctx, state) do
-    track = Map.fetch!(state.tracks, track_id)
-    track_type = Utils.get_track_type(track)
-    # TODO co kiedy input_pad nie jest current origin padem?
-    {{:ok, end_of_stream: Pad.ref(:output, track_type)}, state}
+  def handle_end_of_stream(Pad.ref(:input, track_id), _ctx, %{cur_id: track_id} = state) do
+    {{:ok, end_of_stream: Pad.ref(:output)}, state}
   end
+
+  @impl true
+  def handle_end_of_stream(Pad.ref(:input, _track_id), _ctx, state), do: {:ok, state}
 end

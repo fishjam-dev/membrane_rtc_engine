@@ -111,15 +111,19 @@ if Enum.all?(
         target_window_duration: opts.target_window_duration,
         framerate: opts.framerate,
         target_segment_duration: opts.target_segment_duration,
-        bin_linked: %{video: false, audio: false},
+        linked: %{video: false, audio: false},
         room_id: opts.room_id
       }
 
       File.mkdir_p!(state.output_directory)
 
+      {:ok, state}
+    end
+
+    @impl true
+    def handle_prepared_to_playing(_ctx, state) do
       children =
         [
-          switch: Membrane.RTC.Engine.Endpoint.HLS.Switch,
           hls_sink_bin: %Membrane.HTTPAdaptiveStream.SinkBin{
             manifest_module: Membrane.HTTPAdaptiveStream.HLS,
             target_window_duration: state.target_window_duration,
@@ -208,19 +212,22 @@ if Enum.all?(
       track = Map.get(state.tracks, track_id)
       track_type = Utils.get_track_type(track)
 
-      {spec, state} = if not state.bin_linked[track_type] do
-        link_builder =
-          link(:switch)
-          |> via_out(Pad.ref(:output, track_type))
+      {spec, state} = if not state.linked[track_type] do
+        children = %{
+          {:switch, track_type} => Membrane.RTC.Engine.Endpoint.HLS.Switch
+        }
 
         spec = hls_links_and_children(
-          link_builder,
+          link({:switch, track_type}),
           track.encoding,
           track,
           state.target_segment_duration,
           state.framerate
         )
-        state = put_in(state, [:bin_linked, track_type], true)
+
+        spec = %ParentSpec{spec | children: Map.merge(spec.children, children)}
+        state = put_in(state, [:linked, track_type], true)
+
         {spec, state}
       else
         {%ParentSpec{}, state}
@@ -229,14 +236,16 @@ if Enum.all?(
       switch_link =
         link_bin_input(pad)
         |> via_in(Pad.ref(:input, track.id), options: [track: track])
-        |> to(:switch)
+        |> to({:switch, track_type})
 
       spec = %ParentSpec{
         children: spec.children,
         links: [ switch_link | spec.links]
       }
 
-      switch_message = {:switch, {:change_origin, track.origin}}
+      # naive implementation - the last pad linked is selected by the switch
+      create_message = fn track_type -> if state.linked[track_type], do: [{{:switch, track_type}, {:change_origin, track.origin}}], else: [] end
+      switch_message = create_message.(:audio) ++ create_message.(:video)
 
       {{:ok, spec: spec, forward: switch_message}, state}
     end
