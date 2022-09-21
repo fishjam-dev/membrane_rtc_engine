@@ -210,6 +210,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_prepared_to_playing(ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
+    connection_prober = __MODULE__.ConnectionProber.start_link()
 
     log_metadata = state.log_metadata ++ [webrtc_endpoint: endpoint_id]
 

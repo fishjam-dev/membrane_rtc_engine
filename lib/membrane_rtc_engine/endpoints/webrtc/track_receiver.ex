@@ -12,6 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
+  alias Membrane.Buffer
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{Forwarder, VariantSelector}
 
   alias Membrane.RTC.Engine.Event.{
@@ -122,6 +123,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {selector, next_variant} = VariantSelector.set_target_variant(state.selector, variant)
     actions = maybe_request_track_variant(next_variant)
     {{:ok, actions}, %{state | selector: selector}}
+  end
+
+  @impl true
+  def handle_other(:send_padding_packet, _ctx, state) do
+    packet = %Buffer{
+      payload: <<>>,
+      metadata: %{
+        rtp: %{
+          # TODO: ssrc
+          # TODO: sequence_number
+          # TODO: extensions
+          # TODO: cssrc
+          is_padding?: true
+        }
+      }
+    }
+
+    # TOOD: uncomment the line below
+    # {{:ok, buffer: {:output, packet}}, state}
   end
 
   @impl true
