@@ -214,6 +214,7 @@ defmodule Membrane.RTC.Engine do
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
+  @pub_sub_name Membrane.RTC.Engine.PubSub
 
   @life_span_id "rtc_engine.life_span"
 
@@ -296,6 +297,9 @@ defmodule Membrane.RTC.Engine do
 
   @spec get_registry_name() :: atom()
   def get_registry_name(), do: @registry_name
+
+  @spec get_pub_sub_name() :: atom()
+  def get_pub_sub_name(), do: @pub_sub_name
 
   @doc """
   Adds endpoint to the RTC Engine

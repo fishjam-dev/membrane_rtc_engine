@@ -19,6 +19,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
+  alias Phoenix.PubSub
 
   @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
   @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
@@ -199,6 +200,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         display_manager: nil
       })
 
+    :ok =
+      PubSub.subscribe(Engine.get_pub_sub_name(), to_string(Membrane.RTC.Engine.DisplayManager))
+
     {:ok, state}
   end
 
@@ -330,10 +334,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
-    send(state.owner, {:vad_notification, val, ctx.name})
-
-    send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, val})
-
+    publish_on_webrtc_topic({:vad_notification, ctx.name, val})
     {:ok, state}
   end
 
@@ -798,4 +799,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_rid(:high), do: "h"
   defp to_rid(:medium), do: "m"
   defp to_rid(:low), do: "l"
+
+  defp publish_on_webrtc_topic(msg) do
+    PubSub.broadcast(
+      Engine.get_pub_sub_name(),
+      to_string(Membrane.RTC.Engine.Endpoint.WebRTC),
+      msg
+    )
+  end
 end

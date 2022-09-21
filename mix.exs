@@ -82,7 +82,10 @@ defmodule Membrane.RTC.Engine.MixProject do
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
-      {:opentelemetry, "~> 1.0.0"}
+      {:opentelemetry, "~> 1.0.0"},
+
+      # Phoenix PubSub
+      {:phoenix_pubsub, "~> 2.1.1"}
     ]
   end
 
