@@ -91,9 +91,7 @@ defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
         else: tracks
 
     Enum.reduce_while(tracks, {:ok, state}, fn track, {:ok, state} ->
-      format = state.format || List.first(track.format)
-
-      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, format) do
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
         :ok ->
           {:cont, {:ok, state}}
 

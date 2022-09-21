@@ -31,6 +31,8 @@ if Enum.all?(
     require Membrane.Logger
 
     alias Membrane.RTC.Engine
+    alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
+    alias Membrane.RTC.Engine.Track
 
     @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
 
@@ -117,7 +119,7 @@ if Enum.all?(
 
       state =
         Enum.reduce(tracks, state, fn track, state ->
-          case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :raw) do
+          case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
             :ok ->
               put_in(state, [:tracks, track.id], track)
 
@@ -197,7 +199,12 @@ if Enum.all?(
           do: children,
           else: [{:hls_sink_bin, removed_track.stream_id} | children]
 
-      {{:ok, remove_child: children}, state}
+      stop_timer_action =
+        if removed_track.type == :video,
+          do: [stop_timer: {:request_keyframe, removed_track.id}],
+          else: []
+
+      {{:ok, [remove_child: children] ++ stop_timer_action}, state}
     end
 
     @impl true
@@ -211,14 +218,7 @@ if Enum.all?(
       File.rm_rf(directory)
       File.mkdir_p!(directory)
 
-      spec =
-        hls_links_and_children(
-          link_builder,
-          track.encoding,
-          track,
-          state.target_segment_duration,
-          state.framerate
-        )
+      spec = hls_links_and_children(link_builder, track.encoding, track, state.framerate)
 
       {spec, state} =
         if MapSet.member?(state.stream_ids, track.stream_id) do
@@ -243,19 +243,39 @@ if Enum.all?(
           {new_spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
         end
 
-      {{:ok, spec: spec}, state}
+      timer_action =
+        if track.type == :video do
+          [{:start_timer, {{:request_keyframe, track.id}, state.target_segment_duration}}]
+        else
+          []
+        end
+
+      {{:ok, [spec: spec] ++ timer_action}, state}
+    end
+
+    @impl true
+    def handle_tick({:request_keyframe, track_id}, _ctx, state) do
+      actions = [forward: {{:track_receiver, track_id}, :request_keyframe}]
+      {{:ok, actions}, state}
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, :OPUS, track, _segment_duration, _framerate) do
+      defp hls_links_and_children(link_builder, :OPUS, track, _framerate) do
         %ParentSpec{
           children: %{
+            {:track_receiver, track.id} => %TrackReceiver{
+              track: track,
+              initial_target_variant: :high
+            },
+            {:depayloader, track.id} => Track.get_depayloader(track),
             {:opus_decoder, track.id} => Membrane.Opus.Decoder,
             {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
             {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
           },
           links: [
             link_builder
+            |> to({:track_receiver, track.id})
+            |> to({:depayloader, track.id})
             |> to({:opus_decoder, track.id})
             |> to({:aac_encoder, track.id})
             |> to({:aac_parser, track.id})
@@ -265,7 +285,7 @@ if Enum.all?(
         }
       end
     else
-      defp hls_links_and_children(_link_builder, :OPUS, _track, _segment_duration, _framerate) do
+      defp hls_links_and_children(_link_builder, :OPUS, _track, _framerate) do
         raise """
         Cannot find one of the modules required to support Opus audio input.
         Ensure `:membrane_opus_plugin`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
@@ -273,7 +293,7 @@ if Enum.all?(
       end
     end
 
-    defp hls_links_and_children(link_builder, :AAC, track, _segment_duration, _framerate),
+    defp hls_links_and_children(link_builder, :AAC, track, _framerate),
       do: %ParentSpec{
         children: %{},
         links: [
@@ -283,12 +303,14 @@ if Enum.all?(
         ]
       }
 
-    defp hls_links_and_children(link_builder, :H264, track, segment_duration, framerate),
+    defp hls_links_and_children(link_builder, :H264, track, framerate),
       do: %ParentSpec{
         children: %{
-          {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
-            interval: segment_duration
+          {:track_receiver, track.id} => %TrackReceiver{
+            track: track,
+            initial_target_variant: :high
           },
+          {:depayloader, track.id} => Track.get_depayloader(track),
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
             attach_nalus?: true,
@@ -297,7 +319,8 @@ if Enum.all?(
         },
         links: [
           link_builder
-          |> to({:keyframe_requester, track.id})
+          |> to({:track_receiver, track.id})
+          |> to({:depayloader, track.id})
           |> to({:video_parser, track.id})
           |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
           |> to({:hls_sink_bin, track.stream_id})

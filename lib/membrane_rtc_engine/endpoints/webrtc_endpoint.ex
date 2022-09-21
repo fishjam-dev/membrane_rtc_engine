@@ -266,7 +266,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification(
-        {:new_track, track_id, rid, encoding, depayloading_filter},
+        {:new_track, track_id, rid, encoding, _depayloading_filter},
         _from,
         _ctx,
         state
@@ -289,7 +289,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     variant = to_track_variant(rid)
 
-    {{:ok, notify: {:track_ready, track_id, variant, encoding, depayloading_filter}}, state}
+    {{:ok, notify: {:track_ready, track_id, variant, encoding}}, state}
   end
 
   @impl true
@@ -300,7 +300,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:endpoint, endpoint_id} = ctx.name
 
     Enum.each(new_outbound_tracks, fn track ->
-      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP) do
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
         :ok ->
           Membrane.OpenTelemetry.add_event(@life_span_id, :subscribing_on_track,
             track_id: track.id

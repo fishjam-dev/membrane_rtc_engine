@@ -144,4 +144,27 @@ defmodule Membrane.RTC.Engine.Track do
   """
   @spec supported_variants() :: [variant()]
   def supported_variants(), do: @supported_variants
+
+  @doc """
+  Returns depayloader for given track.
+
+  Depayloader can be used to unpack RTP stream i.e. get
+  data out of RTP packets.
+
+  Returns Membrane child specification or `nil` if depayloader
+  couldn't be determined.
+  """
+  @spec get_depayloader(t()) :: Membrane.ParentSpec.child_spec_t() | nil
+  def get_depayloader(track) do
+    case Membrane.RTP.PayloadFormat.get(track.encoding).depayloader do
+      nil ->
+        nil
+
+      depayloader ->
+        %Membrane.RTP.DepayloaderBin{
+          depayloader: depayloader,
+          clock_rate: track.clock_rate
+        }
+    end
+  end
 end

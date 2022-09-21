@@ -125,6 +125,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
+  def handle_other(:request_keyframe, _ctx, state) do
+    {{:ok, event: {:input, %Membrane.KeyframeRequestEvent{}}}, state}
+  end
+
+  @impl true
   def handle_other(msg, ctx, state) do
     super(msg, ctx, state)
   end
