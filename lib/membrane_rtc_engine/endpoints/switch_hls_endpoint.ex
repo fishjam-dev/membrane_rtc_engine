@@ -17,6 +17,14 @@ if Enum.all?(
     ]
     ```
 
+    It can perform transcoding, in such case these plugins are also needed:
+    ```
+    [
+      :membrane_ffmpeg_swscale_plugin,
+      :membrane_framerate_converter_plugin
+    ]
+    ```
+
     Plus, optionally it supports OPUS audio input - for that, additional dependencies are needed:
     ```
     [
@@ -32,8 +40,15 @@ if Enum.all?(
 
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.Utils
+    alias Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
 
     @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
+    @transcoding_deps [
+      Membrane.H264.FFmpeg.Decoder,
+      Membrane.H264.FFmpeg.Encoder,
+      Membrane.FFmpeg.SWScale.Scaler,
+      Membrane.FramerateConverter
+    ]
 
     def_input_pad :input,
       demand_unit: :buffers,
@@ -94,9 +109,16 @@ if Enum.all?(
                 framerate: [
                   spec: {integer(), integer()} | nil,
                   description: """
-                  Framerate of tracks
+                  Framerate of input tracks
                   """,
                   default: nil
+                ],
+                transcoding_config: [
+                  spec: TranscodingConfig.t(),
+                  default: %TranscodingConfig{},
+                  description: """
+                  Transcoding configuration
+                  """
                 ]
 
     @impl true
@@ -112,7 +134,8 @@ if Enum.all?(
         framerate: opts.framerate,
         target_segment_duration: opts.target_segment_duration,
         linked: %{video: false, audio: false},
-        room_id: opts.room_id
+        room_id: opts.room_id,
+        transcoding_config: opts.transcoding_config
       }
 
       File.mkdir_p!(state.output_directory)
@@ -222,7 +245,8 @@ if Enum.all?(
           track.encoding,
           track,
           state.target_segment_duration,
-          state.framerate
+          state.framerate,
+          state.transcoding_config
         )
 
         spec = %ParentSpec{spec | children: Map.merge(spec.children, children)}
@@ -251,7 +275,7 @@ if Enum.all?(
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, :OPUS, track, _segment_duration, _framerate) do
+      defp hls_links_and_children(link_builder, :OPUS, track, _segment_duration, _framerate, _transcoding_config) do
         %ParentSpec{
           children: %{
             {:opus_decoder, track.id} => Membrane.Opus.Decoder,
@@ -269,7 +293,7 @@ if Enum.all?(
         }
       end
     else
-      defp hls_links_and_children(_link_builder, :OPUS, _track, _segment_duration, _framerate) do
+      defp hls_links_and_children(_link_builder, :OPUS, _track, _segment_duration, _framerate, _transcoding_config) do
         raise """
         Cannot find one of the modules required to support Opus audio input.
         Ensure `:membrane_opus_plugin`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
@@ -277,7 +301,7 @@ if Enum.all?(
       end
     end
 
-    defp hls_links_and_children(link_builder, :AAC, track, _segment_duration, _framerate),
+    defp hls_links_and_children(link_builder, :AAC, track, _segment_duration, _framerate, _transcoding_config),
       do: %ParentSpec{
         children: %{},
         links: [
@@ -287,8 +311,10 @@ if Enum.all?(
         ]
       }
 
-    defp hls_links_and_children(link_builder, :H264, track, segment_duration, framerate),
-      do: %ParentSpec{
+    defp hls_links_and_children(link_builder, :H264, track, segment_duration, framerate, transcoding_config) do
+      transcoding_interceptor = create_transcoding_interceptor(transcoding_config, track.id)
+
+      %ParentSpec{
         children: %{
           {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
             interval: segment_duration
@@ -303,10 +329,48 @@ if Enum.all?(
           link_builder
           |> to({:keyframe_requester, track.id})
           |> to({:video_parser, track.id})
+          |> then(transcoding_interceptor)
           |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
           |> to(:hls_sink_bin)
         ]
       }
+    end
 
+    defp create_transcoding_interceptor(%TranscodingConfig{enabled?: false}, _track_id), do: & &1
+
+    if Enum.all?(@transcoding_deps, &Code.ensure_loaded?/1) do
+      defp create_transcoding_interceptor(transcoding_config, track_id) do
+        resolution_scaler = %Membrane.FFmpeg.SWScale.Scaler{
+          output_width: transcoding_config.output_width,
+          output_height: transcoding_config.output_height
+        }
+
+        framerate_converter = %Membrane.FramerateConverter{
+          framerate: transcoding_config.output_framerate
+        }
+
+        video_parser_out = %Membrane.H264.FFmpeg.Parser{
+          alignment: :au,
+          attach_nalus?: true,
+          framerate: transcoding_config.output_framerate
+        }
+
+        fn link_builder ->
+          link_builder
+          |> to({:decoder, track_id}, Membrane.H264.FFmpeg.Decoder)
+          |> to({:resolution_scaler, track_id}, resolution_scaler)
+          |> to({:framerate_converter, track_id}, framerate_converter)
+          |> to({:encoder, track_id}, Membrane.H264.FFmpeg.Encoder)
+          |> to({:video_parser_out, track_id}, video_parser_out)
+        end
+      end
+    else
+      defp create_transcoding_interceptor(_transcoding_config, _track_id) do
+        raise """
+        Cannot find some of the modules required to perform transcoding.
+        Ensure `:membrane_ffmpeg_swscale_plugin` and `membrane_framerate_converter_plugin` are added to the deps.
+        """
+      end
+    end
   end
 end
