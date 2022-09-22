@@ -219,21 +219,6 @@ if Enum.all?(
 
       {spec, state} =
         if MapSet.member?(state.stream_ids, track.stream_id) do
-            new_spec = Map.put(spec, :links, spec.links ++ [
-              link(({:aac_parser, track.id}))
-              |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-              |> to({:hls_sink_bin, track.stream_id}),
-
-              link({:video_parser, track.id})
-              |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
-              |> to({:hls_sink_bin, track.stream_id})
-            ])
-          {new_spec, state}
-        else
-          # remove directory if it already exists
-          File.rm_rf(directory)
-          File.mkdir_p!(directory)
-
           hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
             manifest_module: Membrane.HTTPAdaptiveStream.HLS,
             target_window_duration: state.target_window_duration,
@@ -245,9 +230,42 @@ if Enum.all?(
             hls_mode: state.hls_mode
           }
 
-          new_spec = %{
+          spec = %{
             spec
             | children: Map.put(spec.children, {:hls_sink_bin, track.stream_id}, hls_sink_bin)
+          }
+
+          new_spec =
+            Map.put(
+              spec,
+              :links,
+              spec.links ++
+                [
+                  link({:track_sync, track.stream_id})
+                  |> via_out(Pad.ref(:output, :audio))
+                  |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+                  |> to({:hls_sink_bin, track.stream_id}),
+                  link({:track_sync, track.stream_id})
+                  |> via_out(Pad.ref(:output, :video))
+                  |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+                  |> to({:hls_sink_bin, track.stream_id})
+                ]
+            )
+
+          {new_spec, state}
+        else
+          # remove directory if it already exists
+          File.rm_rf(directory)
+          File.mkdir_p!(directory)
+
+          new_spec = %{
+            spec
+            | children:
+                Map.put(
+                  spec.children,
+                  {:track_sync, track.stream_id},
+                  Membrane.RTC.Engine.TrackSynchronizer
+                )
           }
 
           {new_spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
@@ -269,9 +287,8 @@ if Enum.all?(
             |> to({:opus_decoder, track.id})
             |> to({:aac_encoder, track.id})
             |> to({:aac_parser, track.id})
-            
-            # |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-            # |> to({:hls_sink_bin, track.stream_id})
+            |> via_in(Pad.ref(:input, :audio))
+            |> to({:track_sync, track.stream_id})
           ]
         }
       end
@@ -289,8 +306,8 @@ if Enum.all?(
         children: %{},
         links: [
           link_builder
-          |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-          |> to({:hls_sink_bin, track.stream_id})
+          |> via_in(Pad.ref(:input, :audio))
+          |> to({:track_sync, track.stream_id})
         ]
       }
 
@@ -310,8 +327,8 @@ if Enum.all?(
           link_builder
           |> to({:keyframe_requester, track.id})
           |> to({:video_parser, track.id})
-          # |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
-          # |> to({:hls_sink_bin, track.stream_id})
+          |> via_in(Pad.ref(:input, :video))
+          |> to({:track_sync, track.stream_id})
         ]
       }
   end
