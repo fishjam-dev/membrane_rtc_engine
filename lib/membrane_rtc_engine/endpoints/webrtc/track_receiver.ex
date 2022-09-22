@@ -108,8 +108,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         else: state.forwarder
 
     {forwarder, buffer} = Forwarder.align(forwarder, buffer)
+    actions = if buffer, do: [buffer: {:output, buffer}], else: []
     state = %{state | forwarder: forwarder, needs_reconfiguration: false}
-    {{:ok, buffer: {:output, buffer}}, state}
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -127,7 +128,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_other(:send_padding_packet, _ctx, state) do
-    packet = %Buffer{
+    _packet = %Buffer{
       payload: <<>>,
       metadata: %{
         rtp: %{
@@ -142,6 +143,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     # TOOD: uncomment the line below
     # {{:ok, buffer: {:output, packet}}, state}
+    {:ok, state}
   end
 
   @impl true

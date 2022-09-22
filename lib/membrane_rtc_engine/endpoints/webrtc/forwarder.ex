@@ -112,7 +112,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       end
 
     {vp8_munger, buffer} =
-      if vp8_munger do
+      if vp8_munger != nil and buffer != nil do
         VP8Munger.munge(vp8_munger, buffer)
       else
         {vp8_munger, buffer}

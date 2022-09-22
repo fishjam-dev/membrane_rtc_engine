@@ -250,6 +250,38 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
     assert munged_l_buffer2.metadata.rtp.timestamp <= (1 <<< 32) - 1
   end
 
+  test "RTPMunger drops buffers that would cause duplicated sequence number" do
+    [first_h_buffer | h_encoding] = generate_encoding(0, 0, 10)
+    l_encoding = generate_encoding(0, 0, 10)
+
+    [first_l_buffer | _rest] = l_encoding = swap(l_encoding, 0, 1)
+
+    rtp_munger =
+      RTPMunger.new(90_000)
+      |> RTPMunger.init(first_h_buffer)
+
+    # Munge h encoding
+    rtp_munger =
+      Enum.reduce(h_encoding, rtp_munger, fn h_buffer, rtp_munger ->
+        {rtp_munger, _munged_h_buffer} = RTPMunger.munge(rtp_munger, h_buffer)
+        rtp_munger
+      end)
+
+    # Switch the layer
+    rtp_munger = RTPMunger.update(rtp_munger, first_l_buffer)
+
+    # Munge l encoding
+    {_rtp_munger, munged_l_encoding} =
+      Enum.reduce(l_encoding, {rtp_munger, []}, fn l_buffer, {rtp_munger, munged_l_encoding} ->
+        {rtp_munger, munged_l_buffer} = RTPMunger.munge(rtp_munger, l_buffer)
+        {rtp_munger, munged_l_encoding ++ [munged_l_buffer]}
+      end)
+
+    # Second buffer should be discarded by the munger
+    assert [_first, nil | rest_munged_l_encoding] = munged_l_encoding
+    assert length(rest_munged_l_encoding) == 8
+  end
+
   defp generate_encoding(seq_num_base, timestamp_base, packets_num) do
     for i <- 0..(packets_num - 1), into: [] do
       %Membrane.Buffer{
