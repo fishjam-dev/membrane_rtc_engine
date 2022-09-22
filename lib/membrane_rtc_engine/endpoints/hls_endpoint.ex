@@ -219,7 +219,16 @@ if Enum.all?(
 
       {spec, state} =
         if MapSet.member?(state.stream_ids, track.stream_id) do
-          {spec, state}
+            new_spec = Map.put(spec, :links, spec.links ++ [
+              link(({:aac_parser, track.id}))
+              |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+              |> to({:hls_sink_bin, track.stream_id}),
+
+              link({:video_parser, track.id})
+              |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+              |> to({:hls_sink_bin, track.stream_id})
+            ])
+          {new_spec, state}
         else
           # remove directory if it already exists
           File.rm_rf(directory)
@@ -260,8 +269,9 @@ if Enum.all?(
             |> to({:opus_decoder, track.id})
             |> to({:aac_encoder, track.id})
             |> to({:aac_parser, track.id})
-            |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-            |> to({:hls_sink_bin, track.stream_id})
+            
+            # |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+            # |> to({:hls_sink_bin, track.stream_id})
           ]
         }
       end
@@ -300,8 +310,8 @@ if Enum.all?(
           link_builder
           |> to({:keyframe_requester, track.id})
           |> to({:video_parser, track.id})
-          |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
-          |> to({:hls_sink_bin, track.stream_id})
+          # |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+          # |> to({:hls_sink_bin, track.stream_id})
         ]
       }
   end
