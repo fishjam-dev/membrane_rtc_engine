@@ -25,7 +25,7 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
 
   @impl true
   def handle_init(_opts) do
-    {:ok, %{caps: %{}, input_pads_counter: 0, dts: %{}}}
+    {:ok, %{caps: %{}, first_pts: %{}, playing: false, input_pads_counter: 0}}
   end
 
   @impl true
@@ -61,20 +61,41 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, type) = _pad, %Membrane.Buffer{} = buffer, _ctx, state) do
-    case state.input_pads_counter do
-      2 ->
-        state =
-          if is_nil(Map.get(state.dts, type)),
-            do: put_in(state, [:dts, type], buffer.pts),
-            else: state
+  def handle_process(
+        Pad.ref(:input, type) = _pad,
+        %Membrane.Buffer{} = buffer,
+        _ctx,
+        %{input_pads_counter: 2, playing: true} = state
+      ) do
+    state =
+      if is_nil(Map.get(state.first_pts, type)),
+        do: put_in(state, [:first_pts, type], buffer.pts),
+        else: state
 
-        buffer = %Buffer{buffer | pts: Ratio.sub(buffer.pts, Map.get(state.dts, type, 0))}
-        {{:ok, buffer: {Pad.ref(:output, type), buffer}}, state}
+    buffer = %Buffer{buffer | pts: Ratio.sub(buffer.pts, Map.get(state.first_pts, type))}
+    {{:ok, buffer: {Pad.ref(:output, type), buffer}}, state}
+  end
 
-      _else ->
-        {:ok, state}
-    end
+  @impl true
+  def handle_process(
+        Pad.ref(:input, :video) = _pad,
+        %Membrane.Buffer{} = buffer,
+        _ctx,
+        %{input_pads_counter: 2} = state
+      )
+      when buffer.metadata.h264.key_frame? do
+    new_state =
+      state
+      |> Map.put(:playing, true)
+      |> put_in([:first_pts, :video], buffer.pts)
+
+    buffer = %Buffer{buffer | pts: 0}
+    {{:ok, buffer: {Pad.ref(:output, :video), buffer}}, new_state}
+  end
+
+  @impl true
+  def handle_process(_pad, _buffer, _ctx, state) do
+    {:ok, state}
   end
 
   @impl true
