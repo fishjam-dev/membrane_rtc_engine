@@ -61,11 +61,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
     elapsed_time_in_s = Time.as_seconds(now - state.estimation_timestamp)
     expected_bytes = elapsed_time_in_s * state.bandwidth_estimation
     missing = expected_bytes - state.bytes_sent
-    dbg({expected_bytes, missing})
 
     state =
       if missing > 0 do
-        # TODO: consider holding out a little bit before sending a padding packet
         # Send paddings
 
         no_padding_packets =

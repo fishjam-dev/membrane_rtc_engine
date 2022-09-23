@@ -102,7 +102,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       # Timestamps can be duplicated, so we always take the highest one we seen to avoid causing any ordering problems
       |> put_in([:rtp, :timestamp], rtp_munger.last_timestamp)
 
-    rtp_munger = Map.update!(rtp_munger, :seq_num_offset, &(&1 + 1))
+    rtp_munger = Map.update!(rtp_munger, :seq_num_offset, &(&1 - 1))
 
     {rtp_munger, %{buffer | metadata: metadata}}
   end
@@ -155,10 +155,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           {rtp_munger, nil}
       end
     else
-      # # duplicate packet
-      # # at the moment, perform the same actions we are performing
-      # # for out-of-order packet
-      # # TODO maybe we should ignore it?
       # seq_num_diff == 0 ->
       #   buffer = update_sn_ts.(buffer)
       #   {rtp_munger, buffer}

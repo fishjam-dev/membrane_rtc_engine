@@ -412,8 +412,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:bandwidth_estimation, estimation}, from, _ctx, state) do
-    dbg(from)
+  def handle_notification({:bandwidth_estimation, estimation}, _from, _ctx, state) do
     ConnectionProber.update_bandwidth_estimation(state.connection_prober, estimation)
     {:ok, state}
   end
