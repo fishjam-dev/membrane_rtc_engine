@@ -13,7 +13,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   require Membrane.Logger
 
   alias Membrane.Buffer
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{Forwarder, VariantSelector}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{ConnectionProber, Forwarder, VariantSelector}
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
@@ -41,6 +41,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 Track variant that will be forwarded whenever it is active.
                 Can be changed with `t:set_target_variant_msg/0`.
                 """
+              ],
+              connection_prober_pid: [
+                spec: pid()
               ]
 
   def_input_pad :input,
@@ -54,7 +57,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     caps: Membrane.RTP
 
   @impl true
-  def handle_init(%__MODULE__{track: track, initial_target_variant: initial_target_variant}) do
+  def handle_init(%__MODULE__{
+        connection_prober_pid: connection_prober_pid,
+        track: track,
+        initial_target_variant: initial_target_variant
+      }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
     selector = VariantSelector.new(initial_target_variant)
 
@@ -62,8 +69,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       track: track,
       forwarder: forwarder,
       selector: selector,
-      needs_reconfiguration: false
+      needs_reconfiguration: false,
+      last_packet_metadata: nil,
+      connection_prober: connection_prober_pid
     }
+
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_prepared_to_playing(_ctx, state) do
+    unless state.track.encoding == :OPUS,
+      do: ConnectionProber.register_track_receiver(state.connection_prober, self())
 
     {:ok, state}
   end
@@ -109,7 +126,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     {forwarder, buffer} = Forwarder.align(forwarder, buffer)
     actions = if buffer, do: [buffer: {:output, buffer}], else: []
-    state = %{state | forwarder: forwarder, needs_reconfiguration: false}
+
+    state = %{
+      state
+      | forwarder: forwarder,
+        needs_reconfiguration: false,
+        last_packet_metadata: buffer.metadata.rtp
+    }
+
+    ConnectionProber.buffer_sent(state.connection_prober, buffer)
+
     {{:ok, actions}, state}
   end
 
@@ -127,22 +153,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_other(:send_padding_packet, _ctx, state) do
-    _packet = %Buffer{
+  def handle_other(:send_padding_packet, ctx, state)
+      when not is_nil(state.last_packet_metadata) and not ctx.pads.output.end_of_stream? do
+    buffer = %Buffer{
       payload: <<>>,
       metadata: %{
         rtp: %{
-          # TODO: ssrc
-          # TODO: sequence_number
-          # TODO: extensions
-          # TODO: cssrc
-          is_padding?: true
+          is_padding?: true,
+          ssrc: state.last_packet_metadata.ssrc,
+          extensions: [],
+          csrcs: [],
+          payload_type: state.last_packet_metadata.payload_type,
+          marker: false,
+          sequence_number: :unknown,
+          timestamp: :unknown
         }
       }
     }
 
+    {forwarder, buffer} = Forwarder.align(state.forwarder, buffer)
+
     # TOOD: uncomment the line below
-    # {{:ok, buffer: {:output, packet}}, state}
+    {{:ok, buffer: {:output, buffer}}, %{state | forwarder: forwarder}}
+  end
+
+  @impl true
+  def handle_other(:send_padding_packet, _ctx, state) do
+    Process.send_after(self(), :send_padding_packet, 10)
     {:ok, state}
   end
 

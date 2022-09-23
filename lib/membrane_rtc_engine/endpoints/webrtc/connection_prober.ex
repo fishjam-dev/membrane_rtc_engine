@@ -25,11 +25,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
 
   @impl GenServer
   def handle_cast({:bandwidth_estimation, estimation}, state) do
+    dbg(estimation)
+    if state.bitrate_timer, do: :timer.cancel(state.bitrate_timer)
+
     {:ok, timer} = :timer.send_interval(100, :check_bytes_sent)
 
     state = %{
       state
-      | bandwidth_estimation: estimation,
+      | bandwidth_estimation: estimation / 8,
         estimation_timestamp: get_timestamp(),
         bitrate_timer: timer,
         bytes_sent: 0
@@ -45,11 +48,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   end
 
   @impl GenServer
+  def handle_cast({:register_track_receiver, tr}, state) do
+    state = Map.update!(state, :track_receivers, &Qex.push_front(&1, tr))
+    {:noreply, state}
+  end
+
+  @impl GenServer
   def handle_info(:check_bytes_sent, state) do
+    use Numbers, overload_operators: true
+
     now = get_timestamp()
     elapsed_time_in_s = Time.as_seconds(now - state.estimation_timestamp)
     expected_bytes = elapsed_time_in_s * state.bandwidth_estimation
     missing = expected_bytes - state.bytes_sent
+    dbg({expected_bytes, missing})
 
     state =
       if missing > 0 do
@@ -60,6 +72,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
           missing
           |> Ratio.new(@padding_packet_size)
           |> Ratio.ceil()
+          |> then(&max(&1, Enum.count(state.track_receivers)))
 
         state
         |> send_padding_packets(no_padding_packets)
@@ -77,9 +90,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   def update_bandwidth_estimation(prober, estimation),
     do: GenServer.cast(prober, {:bandwidth_estimation, estimation})
 
-  @spec buffer_sent(pid(), non_neg_integer()) :: :ok
+  @spec buffer_sent(pid(), Buffer.t()) :: :ok
   def buffer_sent(prober, %Buffer{payload: payload}),
     do: GenServer.cast(prober, {:buffer_sent, byte_size(payload)})
+
+  @spec register_track_receiver(pid(), pid()) :: :ok
+  def register_track_receiver(prober, tr \\ self()),
+    do: GenServer.cast(prober, {:register_track_receiver, tr})
 
   ## Helper functions
   defp get_timestamp(), do: System.monotonic_time(:nanosecond)

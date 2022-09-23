@@ -89,15 +89,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   end
 
   @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t() | nil}
+  def munge(rtp_munger, %Membrane.Buffer{} = buffer)
+      when buffer.metadata.rtp.is_padding? == true do
+    # This function clause deals with padding packets
+
+    metadata =
+      buffer.metadata
+      |> put_in(
+        [:rtp, :sequence_number],
+        calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger)
+      )
+      # Timestamps can be duplicated, so we always take the highest one we seen to avoid causing any ordering problems
+      |> put_in([:rtp, :timestamp], rtp_munger.last_timestamp)
+
+    rtp_munger = Map.update!(rtp_munger, :seq_num_offset, &(&1 + 1))
+
+    {rtp_munger, %{buffer | metadata: metadata}}
+  end
+
   def munge(rtp_munger, buffer) do
     # TODO we should use Sender Reports instead
     packet_arrival = System.monotonic_time(:millisecond)
 
-    calculate_seq_num = fn seq_num ->
-      # add 1 <<< 16 (max sequence number) to handle sequence number rollovers
-      # properly - we will avoid negative sequence numbers in this way
-      rem(seq_num + (1 <<< 16) - rtp_munger.seq_num_offset, 1 <<< 16)
-    end
+    calculate_seq_num = &calculate_seq_num(&1, rtp_munger)
 
     update_ts = fn metadata ->
       update_in(metadata, [:rtp, :timestamp], fn timestamp ->
@@ -116,7 +130,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
 
     seq_num_diff = buffer.metadata.rtp.sequence_number - rtp_munger.highest_incoming_seq_num
 
-    cond do
+    if seq_num_diff > -(1 <<< 15) and seq_num_diff <= 0 do
       # out-of-order packet - update its sequence number
       # and timestamp without updating munger
       #
@@ -128,53 +142,57 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       # scenario in which the difference between subsequent sequence numbers
       # is equal to 0 - 65 536 = -65 536 - such packet cannot be
       # considered as out-of-order
-      seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 ->
-        case Cache.get(rtp_munger.cache, buffer.metadata.rtp.sequence_number) do
-          {:ok, seq_num} ->
-            metadata =
-              buffer.metadata
-              |> then(update_ts)
-              |> put_in([:rtp, :sequence_number], seq_num)
+      case Cache.get(rtp_munger.cache, buffer.metadata.rtp.sequence_number) do
+        {:ok, seq_num} ->
+          metadata =
+            buffer.metadata
+            |> then(update_ts)
+            |> put_in([:rtp, :sequence_number], seq_num)
 
-            {rtp_munger, %{buffer | metadata: metadata}}
+          {rtp_munger, %{buffer | metadata: metadata}}
 
-          {:error, :not_found} ->
-            {rtp_munger, nil}
-        end
-
-      # duplicate packet
-      # at the moment, perform the same actions we are performing
-      # for out-of-order packet
-      # TODO maybe we should ignore it?
-      seq_num_diff == 0 ->
-        buffer = update_sn_ts.(buffer)
-        {rtp_munger, buffer}
+        {:error, :not_found} ->
+          {rtp_munger, nil}
+      end
+    else
+      # # duplicate packet
+      # # at the moment, perform the same actions we are performing
+      # # for out-of-order packet
+      # # TODO maybe we should ignore it?
+      # seq_num_diff == 0 ->
+      #   buffer = update_sn_ts.(buffer)
+      #   {rtp_munger, buffer}
 
       # in order but not necessarily contiguous packet
-      true ->
-        highest_incoming_seq_num = buffer.metadata.rtp.sequence_number
-        buffer = update_sn_ts.(buffer)
+      highest_incoming_seq_num = buffer.metadata.rtp.sequence_number
+      buffer = update_sn_ts.(buffer)
 
-        cache =
-          if seq_num_diff > 1 do
-            (rtp_munger.highest_incoming_seq_num + 1)..(highest_incoming_seq_num - 1)
-            |> Enum.reduce(rtp_munger.cache, fn seq_num, cache ->
-              Cache.push(cache, seq_num, calculate_seq_num.(seq_num))
-            end)
-          else
-            rtp_munger.cache
-          end
+      cache =
+        if seq_num_diff > 1 do
+          (rtp_munger.highest_incoming_seq_num + 1)..(highest_incoming_seq_num - 1)
+          |> Enum.reduce(rtp_munger.cache, fn seq_num, cache ->
+            Cache.push(cache, seq_num, calculate_seq_num.(seq_num))
+          end)
+        else
+          rtp_munger.cache
+        end
 
-        rtp_munger = %__MODULE__{
-          rtp_munger
-          | highest_incoming_seq_num: highest_incoming_seq_num,
-            last_seq_num: buffer.metadata.rtp.sequence_number,
-            last_timestamp: buffer.metadata.rtp.timestamp,
-            last_packet_arrival: packet_arrival,
-            cache: cache
-        }
+      rtp_munger = %__MODULE__{
+        rtp_munger
+        | highest_incoming_seq_num: highest_incoming_seq_num,
+          last_seq_num: buffer.metadata.rtp.sequence_number,
+          last_timestamp: buffer.metadata.rtp.timestamp,
+          last_packet_arrival: packet_arrival,
+          cache: cache
+      }
 
-        {rtp_munger, buffer}
+      {rtp_munger, buffer}
     end
+  end
+
+  defp calculate_seq_num(seq_num, rtp_munger) do
+    # add 1 <<< 16 (max sequence number) to handle sequence number rollovers
+    # properly - we will avoid negative sequence numbers in this way
+    rem(seq_num + (1 <<< 16) - rtp_munger.seq_num_offset, 1 <<< 16)
   end
 end
