@@ -5,7 +5,7 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
 
   def_input_pad :input,
     caps: [
-      {Membrane.H264, profile: one_of([:constrained_baseline, :baseline])},
+      {Membrane.H264, stream_format: :byte_stream},
       Membrane.AAC,
       Membrane.Opus
     ],
@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
 
   def_output_pad :output,
     caps: [
-      {Membrane.H264, profile: one_of([:constrained_baseline, :baseline])},
+      {Membrane.H264, stream_format: :byte_stream},
       Membrane.AAC,
       Membrane.Opus
     ],
@@ -75,5 +75,10 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
       _else ->
         {:ok, state}
     end
+  end
+
+  @impl true
+  def handle_end_of_stream(Pad.ref(:input, type) = _pad, _ctx, state) do
+    {{:ok, end_of_stream: Pad.ref(:output, type)}, state}
   end
 end
