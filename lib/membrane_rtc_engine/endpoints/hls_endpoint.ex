@@ -115,7 +115,6 @@ if Enum.all?(
     @impl true
     def handle_other({:new_tracks, tracks}, ctx, state) do
       {:endpoint, endpoint_id} = ctx.name
-      tracks = Enum.filter(tracks, fn track -> :raw in track.format end)
 
       state =
         Enum.reduce(tracks, state, fn track, state ->

@@ -8,7 +8,6 @@ defmodule Membrane.RTC.EngineTest do
     DumpEndpoint,
     FileEndpoint,
     MessageEndpoint,
-    NaiveFilter,
     TrackEndpoint
   }
 
@@ -382,20 +381,10 @@ defmodule Membrane.RTC.EngineTest do
           id: track_id
         )
 
-      parser = %Membrane.H264.FFmpeg.Parser{
-        framerate: {24, 1},
-        alignment: :nal
-      }
-
       file_endpoint = %FileEndpoint{
         rtc_engine: rtc_engine,
         file_path: file_path,
-        track: track,
-        interceptor: fn link_builder ->
-          link_builder
-          |> Membrane.ParentSpec.to(:parser, parser)
-        end,
-        depayloading_filter: NaiveFilter
+        track: track
       }
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)

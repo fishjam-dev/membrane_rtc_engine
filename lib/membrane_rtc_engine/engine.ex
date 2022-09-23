@@ -165,10 +165,10 @@ defmodule Membrane.RTC.Engine do
   Where `caps` are `t:Membrane.Caps.t/0` or `:any`.
 
   * publish for some tracks using actions `t:publish_action_t/0` and subscribe for some tracks using
-  function `#{inspect(__MODULE__)}.subscribe/5`. The first will cause RTC Engine to send a message in
+  function `#{inspect(__MODULE__)}.subscribe/4`. The first will cause RTC Engine to send a message in
   form of `{:new_tracks, tracks}` where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
   When an Endpoint receives such a message it can subscribe for new tracks by
-  using `#{inspect(__MODULE__)}.subscribe/5` function. An Endpoint will be notified about track readiness
+  using `#{inspect(__MODULE__)}.subscribe/4` function. An Endpoint will be notified about track readiness
   it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
   callback can look like this
 
