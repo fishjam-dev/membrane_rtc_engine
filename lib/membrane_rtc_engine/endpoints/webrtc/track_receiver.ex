@@ -2,11 +2,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @moduledoc """
   Element responsible for handling WebRTC track.
 
-  Its main responsibility is requesting the highest available
+  Its main responsibility is to request the highest available
   track variant. If currently used track variant becomes inactive,
   TrackReceiver will switch to the next available variant.
 
-  Outgoing RTP packets are from the same sequence number
+  Outgoing RTP packets belong to the same sequence number
   and timestamp spaces but they are not guaranteed to be in order and
   contiguous.
 
