@@ -102,7 +102,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       # Timestamps can be duplicated, so we always take the highest one we seen to avoid causing any ordering problems
       |> put_in([:rtp, :timestamp], rtp_munger.last_timestamp)
 
-    rtp_munger = Map.update!(rtp_munger, :seq_num_offset, &(&1 - 1))
+    rtp_munger =
+      rtp_munger
+      |> Map.update!(:seq_num_offset, &(&1 - 1))
+      |> Map.put(:last_seq_num, metadata.rtp.sequence_number)
 
     {rtp_munger, %{buffer | metadata: metadata}}
   end
