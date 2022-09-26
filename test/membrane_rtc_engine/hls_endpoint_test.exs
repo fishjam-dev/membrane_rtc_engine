@@ -23,11 +23,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
   end
 
   describe "HLS Endpoint test" do
-    @tag :debug
     test "creates correct hls stream from h264 file", %{rtc_engine: rtc_engine} do
       file_endpoint_id = "file-endpoint-id"
 
-      file_name = "video"
+      file_name = "rtp_h264_video"
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
