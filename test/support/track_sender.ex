@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Support.Testing.TrackSender do
+defmodule Membrane.RTC.Engine.Support.TrackSender do
   @moduledoc false
 
   # This is a very simple version of WebRTC.TrackSender element.

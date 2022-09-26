@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Support.Testing
+  alias Membrane.RTC.Engine.Support.TrackSender
   alias Membrane.Stream.Deserializer
 
   @type encoding_t() :: String.t()
@@ -56,7 +56,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
           location: state.file_path
         },
         deserializer: Deserializer,
-        track_sender: %Testing.TrackSender{track: state.track}
+        track_sender: %TrackSender{track: state.track}
       },
       links: [
         link(:source)
