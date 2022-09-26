@@ -25,14 +25,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
 
   @impl GenServer
   def handle_cast({:bandwidth_estimation, estimation}, state) do
-    dbg(estimation)
     if state.bitrate_timer, do: :timer.cancel(state.bitrate_timer)
 
-    {:ok, timer} = :timer.send_interval(100, :check_bytes_sent)
+    {:ok, timer} = :timer.send_interval(10, :check_bytes_sent)
 
     state = %{
       state
-      | bandwidth_estimation: estimation / 8,
+      | # TODO: rethink how target bandwidth should be calculated - + 200kbps seems potentially problematic
+        bandwidth_estimation: (estimation + 200_000) / 8,
         estimation_timestamp: get_timestamp(),
         bitrate_timer: timer,
         bytes_sent: 0
@@ -70,7 +70,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
           missing
           |> Ratio.new(@padding_packet_size)
           |> Ratio.ceil()
-          |> then(&max(&1, Enum.count(state.track_receivers)))
 
         state
         |> send_padding_packets(no_padding_packets)
@@ -103,6 +102,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
 
   defp send_padding_packets(state, no_packets) do
     Enum.reduce(1..no_packets, state, fn _i, state ->
+      # We need to select a track receiver in such a way that each one sends an equal amount of packets to create
+      # => Round Robin
       {tr, track_receivers} = Qex.pop!(state.track_receivers)
       send(tr, :send_padding_packet)
 
