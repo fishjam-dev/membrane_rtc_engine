@@ -750,7 +750,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       origin,
       track.encoding,
       track.rtp_mapping.clock_rate,
-      [:RTP, :raw],
       track.fmtp,
       id: track.id,
       variants: variants,

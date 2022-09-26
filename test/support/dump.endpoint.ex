@@ -24,13 +24,6 @@ defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
                 Each track will be stored in seperate file.
                 """
               ],
-              format: [
-                spec: atom(),
-                default: nil,
-                description: """
-                Track format this endpoint will subscribe for. Pass `nil` to subscribe for each track.
-                """
-              ],
               owner: [
                 spec: pid(),
                 description: "Pid of parent all notifications will be send to."
@@ -45,7 +38,6 @@ defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
   def handle_init(opts) do
     state = %{
       directory_path: opts.directory_path,
-      format: opts.format,
       rtc_engine: opts.rtc_engine,
       owner: opts.owner
     }
@@ -84,11 +76,6 @@ defmodule Membrane.RTC.Engine.Support.DumpEndpoint do
   @impl true
   def handle_other({:new_tracks, tracks}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
-
-    tracks =
-      if state.format != nil,
-        do: Enum.filter(tracks, fn track -> state.format in track.format end),
-        else: tracks
 
     Enum.reduce_while(tracks, {:ok, state}, fn track, {:ok, state} ->
       case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do

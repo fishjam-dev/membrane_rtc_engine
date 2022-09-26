@@ -5,27 +5,11 @@ defmodule Membrane.RTC.EngineTest do
   alias Membrane.RTC.Engine.{Message, Peer}
 
   alias Membrane.RTC.Engine.Support.{
-    DumpEndpoint,
-    FileEndpoint,
     MessageEndpoint,
     TrackEndpoint
   }
 
-  alias ExSDP.Attribute.FMTP
-
-  @fixtures_dir "./test/fixtures/"
-  @output_dir "./test/output/"
-  @reference_dir "./test/dump_reference"
-
   setup do
-    with {:ok, files} <- File.ls(@output_dir) do
-      for file <- files do
-        output_path = Path.join(@output_dir, file)
-
-        File.rm(output_path)
-      end
-    end
-
     options = [
       id: "test_rtc"
     ]
@@ -215,7 +199,6 @@ defmodule Membrane.RTC.EngineTest do
           peer_id,
           :VP8,
           nil,
-          :raw,
           nil,
           id: track_id,
           metadata: metadata
@@ -276,7 +259,6 @@ defmodule Membrane.RTC.EngineTest do
           peer_id,
           :VP8,
           nil,
-          :raw,
           nil,
           id: track_id,
           metadata: metadata
@@ -325,93 +307,6 @@ defmodule Membrane.RTC.EngineTest do
       endpoint_id = :test_endpoint
       :ok = Engine.message_endpoint(rtc_engine, endpoint_id, :message)
       refute_receive :message
-    end
-  end
-
-  describe "Engine linking test" do
-    @tag :skip
-    test "engine properly links for both formats", %{rtc_engine: rtc_engine} do
-      test_format_dump_endpoint_id = "test-format-dump-endpoint"
-      raw_dump_endpoint_id = "raw-dump-endpoint"
-
-      test_format_path = Path.join(@output_dir, "test-format")
-      raw_path = Path.join(@output_dir, "raw")
-
-      File.mkdir_p!(test_format_path)
-      File.mkdir_p!(raw_path)
-
-      raw_endpoint = %DumpEndpoint{
-        directory_path: raw_path,
-        format: :raw,
-        rtc_engine: rtc_engine,
-        owner: self()
-      }
-
-      test_format_endpoint = %DumpEndpoint{
-        directory_path: test_format_path,
-        format: :test_format,
-        rtc_engine: rtc_engine,
-        owner: self()
-      }
-
-      :ok = Engine.add_endpoint(rtc_engine, raw_endpoint, endpoint_id: raw_dump_endpoint_id)
-
-      :ok =
-        Engine.add_endpoint(rtc_engine, test_format_endpoint,
-          endpoint_id: test_format_dump_endpoint_id
-        )
-
-      file_endpoint_id = "file-endpoint-id"
-
-      file_name = "one_second.h264"
-      file_path = Path.join(@fixtures_dir, file_name)
-
-      track_id = "multiple-formats-test-track-id"
-      stream_id = "multiple-formats-test-stream"
-
-      track =
-        Engine.Track.new(
-          :video,
-          stream_id,
-          file_endpoint_id,
-          :H264,
-          90_000,
-          [:test_format, :raw],
-          %FMTP{pt: 127},
-          id: track_id
-        )
-
-      file_endpoint = %FileEndpoint{
-        rtc_engine: rtc_engine,
-        file_path: file_path,
-        track: track
-      }
-
-      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
-
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
-
-      assert %{
-               "type" => "tracksAdded",
-               "data" => %{
-                 "trackIdToMetadata" => %{track_id => nil},
-                 "peerId" => file_endpoint_id
-               }
-             } == Jason.decode!(data)
-
-      Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
-
-      assert_receive({:end_of_stream, ^test_format_dump_endpoint_id}, 2_000)
-      assert_receive({:end_of_stream, ^raw_dump_endpoint_id})
-
-      raw_output_path = Path.join([raw_path, track_id])
-      test_output_path = Path.join([test_format_path, track_id])
-      reference_path = Path.join([@reference_dir, track_id])
-
-      assert File.read!(raw_output_path) == File.read!(reference_path)
-      assert File.read!(test_output_path) == File.read!(reference_path)
-
-      Engine.terminate(rtc_engine, blocking?: true)
     end
   end
 

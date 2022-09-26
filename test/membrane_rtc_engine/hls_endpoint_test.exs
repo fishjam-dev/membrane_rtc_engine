@@ -42,7 +42,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
           file_endpoint_id,
           :H264,
           90_000,
-          [:RTP],
           nil,
           id: track_id
         )

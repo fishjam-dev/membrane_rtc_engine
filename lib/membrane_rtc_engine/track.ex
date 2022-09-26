@@ -19,7 +19,6 @@ defmodule Membrane.RTC.Engine.Track do
     :encoding,
     :variants,
     :clock_rate,
-    :format,
     :active?,
     :metadata,
     :ctx
@@ -30,7 +29,6 @@ defmodule Membrane.RTC.Engine.Track do
 
   @type id :: String.t()
   @type encoding :: atom()
-  @type format :: [atom()]
 
   @typedoc """
   Possible track variants.
@@ -55,9 +53,6 @@ defmodule Membrane.RTC.Engine.Track do
   * `encoding` - track encoding
   * `variants` - list of possible track variants. Refer to `t:variant/0`.
   * `clock_rate` - track clock rate
-  * `format` - list of available track formats. At this moment max two formats can be specified.
-  One of them has to be `:raw` which indicates that other Endpoints will receive this track in format
-  of `encoding`. The other one can be any atom (e.g. `:RTP`).
   * `fmtp` - struct describing format specific parameters e.g. for H264 it contains `profile_level_id`
   * `active?` - indicates whether track is still available or not (because peer left a room)
   * `metadata` - any data passed by user to be linked with this track
@@ -71,7 +66,6 @@ defmodule Membrane.RTC.Engine.Track do
           encoding: encoding,
           variants: [variant()],
           clock_rate: Membrane.RTP.clock_rate_t(),
-          format: format,
           fmtp: FMTP,
           active?: boolean(),
           metadata: any(),
@@ -110,11 +104,10 @@ defmodule Membrane.RTC.Engine.Track do
           String.t(),
           encoding(),
           Membrane.RTP.clock_rate_t(),
-          format(),
           FMTP,
           opts_t()
         ) :: t
-  def new(type, stream_id, origin, encoding, clock_rate, format, fmtp, opts \\ []) do
+  def new(type, stream_id, origin, encoding, clock_rate, fmtp, opts \\ []) do
     id = Keyword.get(opts, :id, Base.encode16(:crypto.strong_rand_bytes(8)))
 
     %__MODULE__{
@@ -123,7 +116,6 @@ defmodule Membrane.RTC.Engine.Track do
       origin: origin,
       encoding: encoding,
       clock_rate: clock_rate,
-      format: format,
       fmtp: fmtp,
       id: id,
       active?: Keyword.get(opts, :active?, true),
