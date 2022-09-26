@@ -22,8 +22,12 @@ defmodule Membrane.RTC.HLSEndpointTest do
     [rtc_engine: pid]
   end
 
-  describe "HLS Endpoint test" do
+  describe "HLS Endpoint" do
     test "creates correct hls stream from h264 file", %{rtc_engine: rtc_engine} do
+      # FIXME MV-147
+      # after engine refactor this test
+      # produces video with glitches
+
       file_endpoint_id = "file-endpoint-id"
 
       file_name = "rtp_h264_video"
