@@ -259,14 +259,10 @@ if Enum.all?(
             hls_mode: state.hls_mode
           }
 
-          spec = %{
-            spec
-            | children: Map.put(spec.children, {:hls_sink_bin, track.stream_id}, hls_sink_bin)
-          }
-
           new_spec =
-            Map.put(
-              spec,
+            spec
+            |> put_in([:children, {:hls_sink_bin, track.stream_id}], hls_sink_bin)
+            |> Map.put(
               :links,
               spec.links ++
                 [
