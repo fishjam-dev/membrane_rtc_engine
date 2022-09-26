@@ -139,7 +139,9 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Message.PeerLeft
         ],
         Exceptions: [
+          Membrane.RTC.Engine.Exception.PublishTrackError,
           Membrane.RTC.Engine.Exception.RequestTrackVariantError,
+          Membrane.RTC.Engine.Exception.TrackReadyError,
           Membrane.RTC.Engine.Exception.TrackVariantStateError
         ]
       ]
