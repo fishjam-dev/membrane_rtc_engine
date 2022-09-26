@@ -1,13 +1,19 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
-  @moduledoc false
+  @moduledoc """
+  Element responsible for handling WebRTC track.
 
-  # TrackReceiver:
-  # * generates probe packets on request from the
-  # outside (todo)
-  # * handles simulcast encoding selection
-  # * adjusts RTP packets (sequence numbers, timestamps,
-  # VP8 payload headers, etc.)
+  Its main responsibility is requesting the highest available
+  track variant. If currently used track variant becomes inactive,
+  TrackReceiver will switch to the next available variant.
 
+  Outgoing RTP packets are from the same sequence number
+  and timestamp spaces but they are not guaranteed to be in order and
+  contiguous.
+
+  To unpack RTP see `Membrane.RTC.Engine.Track.get_depayloader/1`.
+
+  TrackReceiver can be controlled with `t:control_msg/0`.
+  """
   use Membrane.Filter
 
   require Membrane.Logger
@@ -24,12 +30,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   alias Membrane.RTC.Engine.Track
 
   @typedoc """
-  Message that can be sent to change target variant.
+  Messages that can be sent to TrackReceiver to control its behavior.
+  """
+  @type control_msg() :: set_target_variant_msg() | request_keyframe_msg()
 
-  Target variant is variant that will be forwarded
+  @typedoc """
+  Changes target track variant.
+
+  Target track variant is variant that will be forwarded
   whenever it is active.
   """
   @type set_target_variant_msg :: {:set_target_variant, Track.variant()}
+
+  @typedoc """
+  Forces TrackReceiver to send keyframe request for current track variant.
+  """
+  @type request_keyframe_msg :: :request_keyframe
 
   def_options track: [
                 type: :struct,
