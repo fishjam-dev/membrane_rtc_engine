@@ -158,10 +158,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           {rtp_munger, nil}
       end
     else
-      # seq_num_diff == 0 ->
-      #   buffer = update_sn_ts.(buffer)
-      #   {rtp_munger, buffer}
-
       # in order but not necessarily contiguous packet
       highest_incoming_seq_num = buffer.metadata.rtp.sequence_number
       buffer = update_sn_ts.(buffer)

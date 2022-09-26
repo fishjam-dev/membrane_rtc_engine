@@ -173,7 +173,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     {forwarder, buffer} = Forwarder.align(state.forwarder, buffer)
 
-    # TOOD: uncomment the line below
     {{:ok, buffer: {:output, buffer}}, %{state | forwarder: forwarder}}
   end
 

@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
   use Bunch.Access
 
   @max_seq_num 2 ** 16
-  @history_size div(@max_seq_num, 2)
+  @history_size div(@max_seq_num, 8)
 
   @enforcekeys [:cache]
   defstruct @enforcekeys
