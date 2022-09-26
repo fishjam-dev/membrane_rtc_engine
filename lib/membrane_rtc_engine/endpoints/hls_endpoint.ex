@@ -187,6 +187,7 @@ if Enum.all?(
         |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
       {removed_track, tracks} = Map.pop!(state.tracks, track_id)
+      state = %{state | tracks: tracks}
 
       sink_bin_used? =
         Enum.any?(tracks, fn {_id, track} ->
@@ -213,16 +214,16 @@ if Enum.all?(
 
       directory = Path.join(state.output_directory, track.stream_id)
 
-      # remove directory if it already exists
-      File.rm_rf(directory)
-      File.mkdir_p!(directory)
-
       spec = hls_links_and_children(link_builder, track.encoding, track, state.framerate)
 
       {spec, state} =
         if MapSet.member?(state.stream_ids, track.stream_id) do
           {spec, state}
         else
+          # remove directory if it already exists
+          File.rm_rf(directory)
+          File.mkdir_p!(directory)
+
           hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
             manifest_module: Membrane.HTTPAdaptiveStream.HLS,
             target_window_duration: state.target_window_duration,
