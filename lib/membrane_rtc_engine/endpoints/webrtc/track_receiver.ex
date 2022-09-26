@@ -21,6 +21,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     TrackVariantSwitched
   }
 
+  alias Membrane.RTC.Engine.Track
+
   @typedoc """
   Message that can be sent to change target variant.
 
