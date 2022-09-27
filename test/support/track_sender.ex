@@ -1,19 +1,19 @@
-defmodule Membrane.RTC.Engine.Support.TrackSender do
-  @moduledoc false
+defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
+  @moduledoc """
+  This is a very simple version of
+  `Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender` element.
 
-  # This is a very simple version of WebRTC.TrackSender element.
-  #
-  # Engine forwards track starting from a keyframe.
-  # Therefore, whenever some endpoint requests some
-  # track, engine sends keyframe request to the track
-  # source.
-  #
-  # In case of publishing from a file we are not able to
-  # generate keyframe on request. This element ignores
-  # incoming demands and starts sending data after receiving
-  # first keyframe request. Subsequent keyframe requests
-  # are ignored.
+  Engine forwards track starting from a keyframe.
+  Therefore, whenever some endpoint requests some
+  track, engine sends keyframe request to the track
+  source.
 
+  In case of publishing from a file we are not able to
+  generate keyframe on request. This element ignores
+  incoming demands and starts sending data after receiving
+  first keyframe request. Subsequent keyframe requests
+  are ignored.
+  """
   use Membrane.Filter
 
   require Membrane.Logger
