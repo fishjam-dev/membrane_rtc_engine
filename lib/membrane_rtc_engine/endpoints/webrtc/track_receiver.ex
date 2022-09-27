@@ -15,6 +15,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   alias Membrane.Buffer
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{ConnectionProber, Forwarder, VariantSelector}
 
+  alias Membrane.RTC.Engine.Track
+
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
     TrackVariantPaused,
@@ -32,7 +34,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   def_options track: [
                 type: :struct,
-                spec: Membrane.RTC.Engine.Track.t(),
+                spec: Track.t(),
                 description: "Track this adapter will maintain"
               ],
               initial_target_variant: [

@@ -15,7 +15,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
   alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed}
   alias Membrane.RTC.Engine.Track
-  alias Membrane.WebRTC.BitrateEstimator
 
   @keyframe_request_interval_ms 500
   @variant_statuses_check_interval_s 1
@@ -58,8 +57,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
        trackers: %{},
        bitrate_estimators: %{},
        requested_keyframes: MapSet.new(),
-       telemetry_label: telemetry_label,
-       bitrate_estimators: %{}
+       telemetry_label: telemetry_label
      }}
   end
 
