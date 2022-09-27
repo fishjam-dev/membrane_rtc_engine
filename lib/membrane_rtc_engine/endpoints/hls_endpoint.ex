@@ -233,7 +233,7 @@ if Enum.all?(
     def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
-
+      
       directory = Path.join(state.output_directory, track.stream_id)
 
       spec =
@@ -395,7 +395,7 @@ if Enum.all?(
           |> to({:decoder, track_id}, Membrane.H264.FFmpeg.Decoder)
           |> to({:resolution_scaler, track_id}, resolution_scaler)
           |> to({:framerate_converter, track_id}, framerate_converter)
-          |> to({:encoder, track_id}, Membrane.H264.FFmpeg.Encoder)
+          |> to({:encoder, track_id}, %Membrane.H264.FFmpeg.Encoder{profile: :baseline})
           |> to({:video_parser_out, track_id}, video_parser_out)
         end
       end
@@ -409,9 +409,7 @@ if Enum.all?(
     end
 
     defp add_synchronizer_and_sink_bin(spec, track, directory, state) do
-      IO.inspect("add sync")
       if MapSet.member?(state.stream_ids, track.stream_id) do
-        IO.inspect("add sync1")
         hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
           manifest_module: Membrane.HTTPAdaptiveStream.HLS,
           target_window_duration: state.target_window_duration,
@@ -446,7 +444,6 @@ if Enum.all?(
 
         {new_spec, state}
       else
-        IO.inspect("add sync2")
         new_spec = %{
           spec
           | children:
@@ -462,8 +459,6 @@ if Enum.all?(
     end
 
     defp add_sink_bin(spec, track, directory, state) do
-      IO.inspect("add sink")
-
       if MapSet.member?(state.stream_ids, track.stream_id) do
         {spec, state}
       else
