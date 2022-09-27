@@ -418,10 +418,10 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
-  Subscribes endpoint for track.
+  Subscribes an endpoint for a track.
 
-  Endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
-  Endpoint_id is a an id of endpoint, which want to subscribe for track.
+  The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
+  `endpoint_id` is the id of the endpoint, which wants to subscribe for the track.
   """
   @spec subscribe(
           rtc_engine :: pid(),
