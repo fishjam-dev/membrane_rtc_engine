@@ -100,6 +100,7 @@ if Enum.all?(
       state = %{
         rtc_engine: opts.rtc_engine,
         tracks: %{},
+        started_tracks: MapSet.new(),
         stream_ids: MapSet.new(),
         output_directory: opts.output_directory,
         owner: opts.owner,
@@ -168,6 +169,45 @@ if Enum.all?(
     end
 
     @impl true
+    def handle_notification(
+          {:variant_switched, _new_variant},
+          {:track_receiver, track_id},
+          _ctx,
+          state
+        ) do
+      track = Map.fetch!(state.tracks, track_id)
+
+      # this can be simplified after MC-72
+      # instead of checking whether timer was
+      # created or not, we can create timer
+      # with `:no_interval` option in `handle_pad_added`
+      # and always stop and start it here
+      {actions, state} =
+        cond do
+          track.type == :audio ->
+            {[], state}
+
+          MapSet.member?(state.started_tracks, track_id) ->
+            actions = [
+              {:stop_timer, {:request_keyframe, track_id}},
+              {:start_timer, {{:request_keyframe, track_id}, state.target_segment_duration}}
+            ]
+
+            {actions, state}
+
+          true ->
+            actions = [
+              {:start_timer, {{:request_keyframe, track_id}, state.target_segment_duration}}
+            ]
+
+            state = Map.update!(state, :started_tracks, &MapSet.put(&1, track_id))
+            {actions, state}
+        end
+
+      {{:ok, actions}, state}
+    end
+
+    @impl true
     def handle_notification(notification, _element, _context, state) do
       Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
       {:ok, state}
@@ -200,9 +240,11 @@ if Enum.all?(
           else: [{:hls_sink_bin, removed_track.stream_id} | children]
 
       stop_timer_action =
-        if removed_track.type == :video,
+        if removed_track.type == :video and MapSet.member?(state.started_tracks, track_id),
           do: [stop_timer: {:request_keyframe, removed_track.id}],
           else: []
+
+      state = Map.update!(state, :started_tracks, &MapSet.delete(&1, track_id))
 
       {{:ok, [remove_child: children] ++ stop_timer_action}, state}
     end
@@ -243,14 +285,7 @@ if Enum.all?(
           {new_spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
         end
 
-      timer_action =
-        if track.type == :video do
-          [{:start_timer, {{:request_keyframe, track.id}, state.target_segment_duration}}]
-        else
-          []
-        end
-
-      {{:ok, [spec: spec] ++ timer_action}, state}
+      {{:ok, spec: spec}, state}
     end
 
     @impl true

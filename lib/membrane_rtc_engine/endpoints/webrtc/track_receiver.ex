@@ -12,7 +12,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   To unpack RTP see `Membrane.RTC.Engine.Track.get_depayloader/1`.
 
-  TrackReceiver can be controlled with `t:control_msg/0`.
+  To control TrackReceiver behavior see `t:control_msg/0`.
+
+  TrackReceiver also emits some notificaitons. They are defined
+  in `t:notifications/0`.
   """
   use Membrane.Filter
 
@@ -46,6 +49,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   Forces TrackReceiver to send keyframe request for current track variant.
   """
   @type request_keyframe_msg :: :request_keyframe
+
+  @typedoc """
+  Notifications that TrackReceiver emits.
+  """
+  @type notifications() :: variant_switched_not()
+
+  @typedoc """
+  Emitted whenever TrackReceiver starts receiving new track variant.
+  """
+  @type variant_switched_not() :: {:variant_switched, Track.variant()}
 
   def_options track: [
                 type: :struct,
