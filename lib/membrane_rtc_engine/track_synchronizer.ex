@@ -4,28 +4,20 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
   alias Membrane.Buffer
 
   def_input_pad :input,
-    caps: [
-      {Membrane.H264, stream_format: :byte_stream},
-      Membrane.AAC,
-      Membrane.Opus
-    ],
-    demand_mode: :auto,
     demand_unit: :buffers,
-    availability: :on_request
+    caps: :any,
+    availability: :on_request,
+    demand_mode: :auto
 
   def_output_pad :output,
-    caps: [
-      {Membrane.H264, stream_format: :byte_stream},
-      Membrane.AAC,
-      Membrane.Opus
-    ],
-    demand_mode: :auto,
     demand_unit: :buffers,
-    availability: :on_request
+    caps: :any,
+    availability: :on_request,
+    demand_mode: :auto
 
   @impl true
   def handle_init(_opts) do
-    {:ok, %{caps: %{}, first_pts: %{}, playing: false, input_pads_counter: 0}}
+    {:ok, %{caps: %{}, video_first_pts: 0, input_pads_counter: 0}}
   end
 
   @impl true
@@ -62,18 +54,12 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
 
   @impl true
   def handle_process(
-        Pad.ref(:input, type) = _pad,
+        Pad.ref(:input, :audio) = _pad,
         %Membrane.Buffer{} = buffer,
         _ctx,
-        %{input_pads_counter: 2, playing: true} = state
+        %{input_pads_counter: 2} = state
       ) do
-    state =
-      if is_nil(Map.get(state.first_pts, type)),
-        do: put_in(state, [:first_pts, type], buffer.pts),
-        else: state
-
-    buffer = %Buffer{buffer | pts: Ratio.sub(buffer.pts, Map.get(state.first_pts, type))}
-    {{:ok, buffer: {Pad.ref(:output, type), buffer}}, state}
+    {{:ok, buffer: {Pad.ref(:output, :audio), buffer}}, state}
   end
 
   @impl true
@@ -82,19 +68,19 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
         %Membrane.Buffer{} = buffer,
         _ctx,
         %{input_pads_counter: 2} = state
-      )
-      when buffer.metadata.h264.key_frame? do
-    new_state =
-      state
-      |> Map.put(:playing, true)
-      |> put_in([:first_pts, :video], buffer.pts)
+      ) do
+    state =
+      if 0 == Map.get(state, :video_first_pts),
+        do: Map.put(state, :video_first_pts, buffer.pts),
+        else: state
 
-    buffer = %Buffer{buffer | pts: 0}
-    {{:ok, buffer: {Pad.ref(:output, :video), buffer}}, new_state}
+    buffer = %Buffer{buffer | pts: Ratio.sub(buffer.pts, state.video_first_pts)}
+    {{:ok, buffer: {Pad.ref(:output, :video), buffer}}, state}
   end
 
   @impl true
-  def handle_process(_pad, _buffer, _ctx, state) do
+  def handle_process(_pad, buffer, _ctx, state) do
+    IO.inspect(buffer, label: :else)
     {:ok, state}
   end
 

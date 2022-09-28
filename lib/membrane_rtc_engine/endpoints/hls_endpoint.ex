@@ -253,7 +253,6 @@ if Enum.all?(
         File.mkdir_p!(directory)
       end
 
-      IO.inspect(state.hls_mode, label: :mode)
       {spec, state} =
         if state.hls_mode == :muxed_av,
           do: add_synchronizer_and_sink_bin(spec, track, directory, state),
@@ -273,16 +272,9 @@ if Enum.all?(
              state
            ) do
         %ParentSpec{
-          children: %{
-            {:opus_decoder, track.id} => Membrane.Opus.Decoder,
-            {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-            {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
-          },
+          children: %{},
           links: [
             link_builder
-            |> to({:opus_decoder, track.id})
-            |> to({:aac_encoder, track.id})
-            |> to({:aac_parser, track.id})
             |> then(
               if state.hls_mode == :muxed_av,
                 do: &(via_in(&1, Pad.ref(:input, :audio)) |> to({:track_sync, track.stream_id})),
@@ -342,24 +334,10 @@ if Enum.all?(
            transcoding_config,
            state
          ) do
-      transcoding_interceptor = create_transcoding_interceptor(transcoding_config, track.id)
-
       %ParentSpec{
-        children: %{
-          {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
-            interval: segment_duration
-          },
-          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
-            alignment: :au,
-            attach_nalus?: true,
-            framerate: framerate
-          }
-        },
+        children: %{},
         links: [
           link_builder
-          |> to({:keyframe_requester, track.id})
-          |> to({:video_parser, track.id})
-          |> then(transcoding_interceptor)
           |> then(
             if state.hls_mode == :muxed_av,
               do: &(via_in(&1, Pad.ref(:input, :video)) |> to({:track_sync, track.stream_id})),
@@ -410,6 +388,9 @@ if Enum.all?(
 
     defp add_synchronizer_and_sink_bin(spec, track, directory, state) do
       if MapSet.member?(state.stream_ids, track.stream_id) do
+        transcoding_interceptor =
+          create_transcoding_interceptor(state.transcoding_config, track.id)
+
         hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
           manifest_module: Membrane.HTTPAdaptiveStream.HLS,
           target_window_duration: state.target_window_duration,
@@ -420,9 +401,23 @@ if Enum.all?(
           },
           hls_mode: state.hls_mode
         }
+
         spec = %{
           spec
-          | children: Map.put(spec.children, {:hls_sink_bin, track.stream_id}, hls_sink_bin)
+          | children: %{
+              {:hls_sink_bin, track.stream_id} => hls_sink_bin,
+              {:opus_decoder, track.id} => Membrane.Opus.Decoder,
+              {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
+              {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none},
+              {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
+                interval: state.target_segment_duration
+              },
+              {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+                alignment: :au,
+                attach_nalus?: true,
+                framerate: state.framerate
+              }
+            }
         }
 
         new_spec =
@@ -433,10 +428,16 @@ if Enum.all?(
               [
                 link({:track_sync, track.stream_id})
                 |> via_out(Pad.ref(:output, :audio))
+                |> to({:opus_decoder, track.id})
+                |> to({:aac_encoder, track.id})
+                |> to({:aac_parser, track.id})
                 |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
                 |> to({:hls_sink_bin, track.stream_id}),
                 link({:track_sync, track.stream_id})
                 |> via_out(Pad.ref(:output, :video))
+                |> to({:keyframe_requester, track.id})
+                |> to({:video_parser, track.id})
+                |> then(transcoding_interceptor)
                 |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
                 |> to({:hls_sink_bin, track.stream_id})
               ]
@@ -472,6 +473,7 @@ if Enum.all?(
           },
           hls_mode: state.hls_mode
         }
+
         new_spec = %{
           spec
           | children: Map.put(spec.children, {:hls_sink_bin, track.stream_id}, hls_sink_bin)
