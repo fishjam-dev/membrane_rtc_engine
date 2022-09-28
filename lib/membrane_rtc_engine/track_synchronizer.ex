@@ -1,4 +1,8 @@
 defmodule Membrane.RTC.Engine.TrackSynchronizer do
+  @moduledoc """
+  TrackSynchronizer is responsible for synchronizing audio and video tracks.
+  Synchronizer will drop all of the buffers until both pads are added. Also it will change timestamps accordingly.
+  """
   use Membrane.Filter
 
   alias Membrane.Buffer
@@ -79,8 +83,7 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
   end
 
   @impl true
-  def handle_process(_pad, buffer, _ctx, state) do
-    IO.inspect(buffer, label: :else)
+  def handle_process(_pad, _buffer, _ctx, state) do
     {:ok, state}
   end
 

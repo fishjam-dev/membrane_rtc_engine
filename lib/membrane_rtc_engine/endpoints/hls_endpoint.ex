@@ -230,10 +230,10 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
+    def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, %{hls_mode: :separate_av} = state) do
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
-      
+
       directory = Path.join(state.output_directory, track.stream_id)
 
       spec =
@@ -243,22 +243,129 @@ if Enum.all?(
           track,
           state.target_segment_duration,
           state.framerate,
-          state.transcoding_config,
-          state
+          state.transcoding_config
         )
 
-      if !MapSet.member?(state.stream_ids, track.stream_id) do
-        # remove directory if it already exists
-        File.rm_rf(directory)
-        File.mkdir_p!(directory)
-      end
-
       {spec, state} =
-        if state.hls_mode == :muxed_av,
-          do: add_synchronizer_and_sink_bin(spec, track, directory, state),
-          else: add_sink_bin(spec, track, directory, state)
+        if MapSet.member?(state.stream_ids, track.stream_id) do
+          {spec, state}
+        else
+          # remove directory if it already exists
+          File.rm_rf(directory)
+          File.mkdir_p!(directory)
+
+          hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
+            manifest_module: Membrane.HTTPAdaptiveStream.HLS,
+            target_window_duration: state.target_window_duration,
+            target_segment_duration: state.target_segment_duration,
+            persist?: false,
+            storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
+              directory: directory
+            },
+            hls_mode: state.hls_mode
+          }
+
+          new_spec = %{
+            spec
+            | children: Map.put(spec.children, {:hls_sink_bin, track.stream_id}, hls_sink_bin)
+          }
+
+          {new_spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
+        end
 
       {{:ok, spec: spec}, state}
+    end
+
+    @impl true
+    def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, %{hls_mode: :muxed_av} = state) do
+      link_builder = link_bin_input(pad)
+      track = Map.get(state.tracks, track_id)
+      directory = Path.join(state.output_directory, track.stream_id)
+      track_type = if track.encoding == :H264, do: :video, else: :audio
+
+      link = link_synchronizer(link_builder, track, track_type)
+
+      {spec, state} =
+        if MapSet.member?(state.stream_ids, track.stream_id) do
+          hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
+            manifest_module: Membrane.HTTPAdaptiveStream.HLS,
+            target_window_duration: state.target_window_duration,
+            target_segment_duration: state.target_segment_duration,
+            persist?: false,
+            storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
+              directory: directory
+            },
+            hls_mode: state.hls_mode
+          }
+
+          {hls_link_both_tracks(link, track, hls_sink_bin, state), state}
+        else
+          # remove directory if it already exists
+          File.rm_rf(directory)
+          File.mkdir_p!(directory)
+
+          spec = %ParentSpec{
+            children: %{
+              {:track_sync, track.stream_id} => Membrane.RTC.Engine.TrackSynchronizer
+            },
+            links: link
+          }
+
+          {spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
+        end
+
+      {{:ok, spec: spec}, state}
+    end
+
+    defp link_synchronizer(
+           link_builder,
+           track,
+           track_type
+         ) do
+      [
+        link_builder
+        |> via_in(Pad.ref(:input, track_type))
+        |> to({:track_sync, track.stream_id})
+      ]
+    end
+
+    defp hls_link_both_tracks(link, track, hls_sink_bin, state) do
+      transcoding_interceptor = create_transcoding_interceptor(state.transcoding_config, track.id)
+
+      %ParentSpec{
+        children: %{
+          {:hls_sink_bin, track.stream_id} => hls_sink_bin,
+          {:opus_decoder, track.id} => Membrane.Opus.Decoder,
+          {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
+          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none},
+          {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
+            interval: state.target_segment_duration
+          },
+          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+            alignment: :au,
+            attach_nalus?: true,
+            framerate: state.framerate
+          }
+        },
+        links:
+          link ++
+            [
+              link({:track_sync, track.stream_id})
+              |> via_out(Pad.ref(:output, :audio))
+              |> to({:opus_decoder, track.id})
+              |> to({:aac_encoder, track.id})
+              |> to({:aac_parser, track.id})
+              |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+              |> to({:hls_sink_bin, track.stream_id}),
+              link({:track_sync, track.stream_id})
+              |> via_out(Pad.ref(:output, :video))
+              |> to({:keyframe_requester, track.id})
+              |> to({:video_parser, track.id})
+              |> then(transcoding_interceptor)
+              |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+              |> to({:hls_sink_bin, track.stream_id})
+            ]
+      }
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
@@ -268,20 +375,21 @@ if Enum.all?(
              track,
              _segment_duration,
              _framerate,
-             _transcoding_config,
-             state
+             _transcoding_config
            ) do
         %ParentSpec{
-          children: %{},
+          children: %{
+            {:opus_decoder, track.id} => Membrane.Opus.Decoder,
+            {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
+            {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+          },
           links: [
             link_builder
-            |> then(
-              if state.hls_mode == :muxed_av,
-                do: &(via_in(&1, Pad.ref(:input, :audio)) |> to({:track_sync, track.stream_id})),
-                else:
-                  &(via_in(&1, Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-                    |> to({:hls_sink_bin, track.stream_id}))
-            )
+            |> to({:opus_decoder, track.id})
+            |> to({:aac_encoder, track.id})
+            |> to({:aac_parser, track.id})
+            |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+            |> to({:hls_sink_bin, track.stream_id})
           ]
         }
       end
@@ -292,8 +400,7 @@ if Enum.all?(
              _track,
              _segment_duration,
              _framerate,
-             _transcoding_config,
-             state
+             _transcoding_config
            ) do
         raise """
         Cannot find one of the modules required to support Opus audio input.
@@ -308,20 +415,14 @@ if Enum.all?(
            track,
            _segment_duration,
            _framerate,
-           _transcoding_config,
-           state
+           _transcoding_config
          ),
          do: %ParentSpec{
            children: %{},
            links: [
              link_builder
-             |> then(
-               if state.hls_mode == :muxed_av,
-                 do: &(via_in(&1, Pad.ref(:input, :audio)) |> to({:track_sync, track.stream_id})),
-                 else:
-                   &(via_in(&1, Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-                     |> to({:hls_sink_bin, track.stream_id}))
-             )
+             |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+             |> to({:hls_sink_bin, track.stream_id})
            ]
          }
 
@@ -331,20 +432,28 @@ if Enum.all?(
            track,
            segment_duration,
            framerate,
-           transcoding_config,
-           state
+           transcoding_config
          ) do
+      transcoding_interceptor = create_transcoding_interceptor(transcoding_config, track.id)
+
       %ParentSpec{
-        children: %{},
+        children: %{
+          {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
+            interval: segment_duration
+          },
+          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+            alignment: :au,
+            attach_nalus?: true,
+            framerate: framerate
+          }
+        },
         links: [
           link_builder
-          |> then(
-            if state.hls_mode == :muxed_av,
-              do: &(via_in(&1, Pad.ref(:input, :video)) |> to({:track_sync, track.stream_id})),
-              else:
-                &(via_in(&1, Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
-                  |> to({:hls_sink_bin, track.stream_id}))
-          )
+          |> to({:keyframe_requester, track.id})
+          |> to({:video_parser, track.id})
+          |> then(transcoding_interceptor)
+          |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+          |> to({:hls_sink_bin, track.stream_id})
         ]
       }
     end
@@ -383,103 +492,6 @@ if Enum.all?(
         Cannot find some of the modules required to perform transcoding.
         Ensure `:membrane_ffmpeg_swscale_plugin` and `membrane_framerate_converter_plugin` are added to the deps.
         """
-      end
-    end
-
-    defp add_synchronizer_and_sink_bin(spec, track, directory, state) do
-      if MapSet.member?(state.stream_ids, track.stream_id) do
-        transcoding_interceptor =
-          create_transcoding_interceptor(state.transcoding_config, track.id)
-
-        hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
-          manifest_module: Membrane.HTTPAdaptiveStream.HLS,
-          target_window_duration: state.target_window_duration,
-          target_segment_duration: state.target_segment_duration,
-          persist?: false,
-          storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
-            directory: directory
-          },
-          hls_mode: state.hls_mode
-        }
-
-        spec = %{
-          spec
-          | children: %{
-              {:hls_sink_bin, track.stream_id} => hls_sink_bin,
-              {:opus_decoder, track.id} => Membrane.Opus.Decoder,
-              {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-              {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none},
-              {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
-                interval: state.target_segment_duration
-              },
-              {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
-                alignment: :au,
-                attach_nalus?: true,
-                framerate: state.framerate
-              }
-            }
-        }
-
-        new_spec =
-          Map.put(
-            spec,
-            :links,
-            spec.links ++
-              [
-                link({:track_sync, track.stream_id})
-                |> via_out(Pad.ref(:output, :audio))
-                |> to({:opus_decoder, track.id})
-                |> to({:aac_encoder, track.id})
-                |> to({:aac_parser, track.id})
-                |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-                |> to({:hls_sink_bin, track.stream_id}),
-                link({:track_sync, track.stream_id})
-                |> via_out(Pad.ref(:output, :video))
-                |> to({:keyframe_requester, track.id})
-                |> to({:video_parser, track.id})
-                |> then(transcoding_interceptor)
-                |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
-                |> to({:hls_sink_bin, track.stream_id})
-              ]
-          )
-
-        {new_spec, state}
-      else
-        new_spec = %{
-          spec
-          | children:
-              Map.put(
-                spec.children,
-                {:track_sync, track.stream_id},
-                Membrane.RTC.Engine.TrackSynchronizer
-              )
-        }
-
-        {new_spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
-      end
-    end
-
-    defp add_sink_bin(spec, track, directory, state) do
-      if MapSet.member?(state.stream_ids, track.stream_id) do
-        {spec, state}
-      else
-        hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
-          manifest_module: Membrane.HTTPAdaptiveStream.HLS,
-          target_window_duration: state.target_window_duration,
-          target_segment_duration: state.target_segment_duration,
-          persist?: false,
-          storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
-            directory: directory
-          },
-          hls_mode: state.hls_mode
-        }
-
-        new_spec = %{
-          spec
-          | children: Map.put(spec.children, {:hls_sink_bin, track.stream_id}, hls_sink_bin)
-        }
-
-        {new_spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
       end
     end
   end
