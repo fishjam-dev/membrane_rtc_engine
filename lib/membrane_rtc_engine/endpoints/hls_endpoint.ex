@@ -302,7 +302,12 @@ if Enum.all?(
             hls_mode: state.hls_mode
           }
 
-          {hls_link_both_tracks(link, track, hls_sink_bin, state), state}
+          audio_encoding =
+            if track_type == :audio,
+              do: track.encoding,
+              else: get_audio_encoding(track.stream_id, state.tracks)
+
+          {hls_link_both_tracks(link, track, hls_sink_bin, audio_encoding, state), state}
         else
           # remove directory if it already exists
           File.rm_rf(directory)
@@ -321,7 +326,7 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp hls_link_both_tracks(link, track, hls_sink_bin, state) do
+    defp hls_link_both_tracks(link, track, hls_sink_bin, audio_encoding, state) do
       transcoding_interceptor = create_transcoding_interceptor(state.transcoding_config, track.id)
 
       %ParentSpec{
@@ -342,7 +347,7 @@ if Enum.all?(
               link({:track_sync, track.stream_id})
               |> via_out(Pad.ref(:output, :audio))
               |> then(
-                if track.encoding == :OPUS,
+                if audio_encoding == :OPUS,
                   do:
                     &(to(&1, {:opus_decoder, track.id}, Membrane.Opus.Decoder)
                       |> to({:aac_encoder, track.id}, Membrane.AAC.FDK.Encoder)
@@ -362,6 +367,15 @@ if Enum.all?(
               |> to({:hls_sink_bin, track.stream_id})
             ]
       }
+    end
+
+    defp get_audio_encoding(stream_id, tracks) do
+      {_track_id, track} =
+        Enum.find(tracks, fn {_track_id, track} ->
+          track.stream_id == stream_id && track.type == :audio
+        end)
+
+      track.encoding
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
