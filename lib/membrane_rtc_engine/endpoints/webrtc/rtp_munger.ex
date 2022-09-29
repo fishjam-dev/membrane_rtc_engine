@@ -29,6 +29,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           last_seq_num: integer(),
           seq_num_offset: integer(),
           last_timestamp: integer(),
+          last_marker: boolean(),
           timestamp_offset: integer(),
           last_packet_arrival: integer()
         }
@@ -41,6 +42,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
                 seq_num_offset: 0,
                 last_timestamp: 0,
                 timestamp_offset: 0,
+                last_marker: true,
                 last_packet_arrival: 0
               ]
 
@@ -84,6 +86,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       | highest_incoming_seq_num: buffer.metadata.rtp.sequence_number - 1,
         seq_num_offset: seq_num_offset,
         timestamp_offset: timestamp_offset,
+        last_marker: true,
         cache: Cache.new()
     }
   end
@@ -93,21 +96,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       when buffer.metadata.rtp.is_padding? == true do
     # This function clause deals with padding packets
 
-    metadata =
-      buffer.metadata
-      |> put_in(
-        [:rtp, :sequence_number],
-        calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger)
-      )
-      # Timestamps can be duplicated, so we always take the highest one we seen to avoid causing any ordering problems
-      |> put_in([:rtp, :timestamp], rtp_munger.last_timestamp)
+    if rtp_munger.last_marker == true do
+      metadata =
+        buffer.metadata
+        |> put_in(
+          [:rtp, :sequence_number],
+          calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger)
+        )
+        # Timestamps can be duplicated, so we always take the highest one we seen to avoid causing any ordering problems
+        |> put_in([:rtp, :timestamp], rtp_munger.last_timestamp)
 
-    rtp_munger =
-      rtp_munger
-      |> Map.update!(:seq_num_offset, &(&1 - 1))
-      |> Map.put(:last_seq_num, metadata.rtp.sequence_number)
+      rtp_munger =
+        rtp_munger
+        |> Map.update!(:seq_num_offset, &(&1 - 1))
+        |> Map.put(:last_seq_num, metadata.rtp.sequence_number)
 
-    {rtp_munger, %{buffer | metadata: metadata}}
+      {rtp_munger, %{buffer | metadata: metadata}}
+    else
+      {rtp_munger, nil}
+    end
   end
 
   def munge(rtp_munger, buffer) do
@@ -177,6 +184,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
         | highest_incoming_seq_num: highest_incoming_seq_num,
           last_seq_num: buffer.metadata.rtp.sequence_number,
           last_timestamp: buffer.metadata.rtp.timestamp,
+          last_marker: buffer.metadata.rtp.marker,
           last_packet_arrival: packet_arrival,
           cache: cache
       }

@@ -48,6 +48,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   end
 
   @impl GenServer
+  def handle_cast(:probe_sent, state) do
+    state = Map.update!(state, :bytes_sent, &(&1 + @padding_packet_size))
+    {:noreply, state}
+  end
+
+  @impl GenServer
   def handle_cast({:register_track_receiver, tr}, state) do
     state = Map.update!(state, :track_receivers, &Qex.push_front(&1, tr))
     {:noreply, state}
@@ -71,9 +77,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
           |> Ratio.new(@padding_packet_size)
           |> Ratio.ceil()
 
-        state
-        |> send_padding_packets(no_padding_packets)
-        |> Map.update!(:bytes_sent, &(&1 + no_padding_packets * @padding_packet_size))
+        send_padding_packets(state, no_padding_packets)
       else
         state
       end
@@ -91,6 +95,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   def buffer_sent(prober, %Buffer{payload: payload}),
     do: GenServer.cast(prober, {:buffer_sent, byte_size(payload)})
 
+  @spec probe_sent(pid()) :: :ok
+  def probe_sent(prober),
+    do: GenServer.cast(prober, :probe_sent)
+
   @spec register_track_receiver(pid(), pid()) :: :ok
   def register_track_receiver(prober, tr \\ self()),
     do: GenServer.cast(prober, {:register_track_receiver, tr})
@@ -101,6 +109,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   defp send_padding_packets(state, 0), do: state
 
   defp send_padding_packets(state, no_packets) do
+    no_packets = min(no_packets, 1)
+
     Enum.reduce(1..no_packets, state, fn _i, state ->
       # We need to select a track receiver in such a way that each one sends an equal amount of packets to create
       # => Round Robin
