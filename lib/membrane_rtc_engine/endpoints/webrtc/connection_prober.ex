@@ -63,7 +63,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
     missing = expected_bytes - state.bytes_sent
 
     state =
-      if missing > 0 do
+      if Ratio.to_float(missing) > 0 do
         # Send paddings
 
         no_padding_packets =
