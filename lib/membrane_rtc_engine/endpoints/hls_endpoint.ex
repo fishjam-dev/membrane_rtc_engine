@@ -283,7 +283,11 @@ if Enum.all?(
       directory = Path.join(state.output_directory, track.stream_id)
       track_type = if track.encoding == :H264, do: :video, else: :audio
 
-      link = link_synchronizer(link_builder, track, track_type)
+      link = [
+        link_builder
+        |> via_in(Pad.ref(:input, track_type))
+        |> to({:track_sync, track.stream_id})
+      ]
 
       {spec, state} =
         if MapSet.member?(state.stream_ids, track.stream_id) do
@@ -317,27 +321,12 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp link_synchronizer(
-           link_builder,
-           track,
-           track_type
-         ) do
-      [
-        link_builder
-        |> via_in(Pad.ref(:input, track_type))
-        |> to({:track_sync, track.stream_id})
-      ]
-    end
-
     defp hls_link_both_tracks(link, track, hls_sink_bin, state) do
       transcoding_interceptor = create_transcoding_interceptor(state.transcoding_config, track.id)
 
       %ParentSpec{
         children: %{
           {:hls_sink_bin, track.stream_id} => hls_sink_bin,
-          {:opus_decoder, track.id} => Membrane.Opus.Decoder,
-          {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none},
           {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
             interval: state.target_segment_duration
           },
@@ -352,9 +341,16 @@ if Enum.all?(
             [
               link({:track_sync, track.stream_id})
               |> via_out(Pad.ref(:output, :audio))
-              |> to({:opus_decoder, track.id})
-              |> to({:aac_encoder, track.id})
-              |> to({:aac_parser, track.id})
+              |> then(
+                if track.encoding == :OPUS,
+                  do:
+                    &(to(&1, {:opus_decoder, track.id}, Membrane.Opus.Decoder)
+                      |> to({:aac_encoder, track.id}, Membrane.AAC.FDK.Encoder)
+                      |> to({:aac_parser, track.id}, %Membrane.AAC.Parser{
+                        out_encapsulation: :none
+                      })),
+                  else: & &1
+              )
               |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
               |> to({:hls_sink_bin, track.stream_id}),
               link({:track_sync, track.stream_id})

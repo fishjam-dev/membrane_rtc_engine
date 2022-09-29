@@ -26,13 +26,11 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
 
   @impl true
   def handle_caps(Pad.ref(:input, type) = _pad, caps, ctx, state) do
-    case Map.has_key?(ctx.pads, Pad.ref(:output, type)) do
-      true ->
-        {{:ok, caps: {Pad.ref(:output, type), caps}}, state}
-
-      false ->
-        state = put_in(state, [:caps, type], caps)
-        {:ok, state}
+    if Map.has_key?(ctx.pads, Pad.ref(:output, type)) do
+      {{:ok, caps: {Pad.ref(:output, type), caps}}, state}
+    else
+      state = put_in(state, [:caps, type], caps)
+      {:ok, state}
     end
   end
 
@@ -42,12 +40,9 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, :video) = pad, _ctx, %{caps: %{video: caps}} = state) do
-    {{:ok, caps: {pad, caps}}, state}
-  end
-
-  @impl true
-  def handle_pad_added(Pad.ref(:output, :audio) = pad, _ctx, %{caps: %{audio: caps}} = state) do
+  def handle_pad_added(Pad.ref(:output, type) = pad, _ctx, state)
+      when is_map_key(state.caps, type) do
+    caps = Map.get(state.caps, type)
     {{:ok, caps: {pad, caps}}, state}
   end
 
@@ -78,7 +73,8 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
         do: Map.put(state, :video_first_pts, buffer.pts),
         else: state
 
-    buffer = %Buffer{buffer | pts: Ratio.sub(buffer.pts, state.video_first_pts)}
+    synchronized_pts = Ratio.sub(buffer.pts, state.video_first_pts)
+    buffer = %Buffer{buffer | pts: synchronized_pts}
     {{:ok, buffer: {Pad.ref(:output, :video), buffer}}, state}
   end
 
