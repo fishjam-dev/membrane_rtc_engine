@@ -2,10 +2,12 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig do
   @moduledoc """
   Module representing transcoding configuration for the HLS endpoint.
 
-  When enabled, H264 video track is decoded, it's resolution is scaled and framerate
-  converted to chosen, stable values and it's encoded to H264 again.
-  Useful, because membrane_rtc_engine can output track with changing resolution
-  which produces multiple HLS headers. Some HLS players does not handle changing resolution well.
+  When enabled, transcoding will unify video framerate and resolution.
+
+  Transcoding is useful when consuming tracks with variable parameters i.e.
+  changing resolution and/or framerate (e.g. tracks coming from WebRTC endpoint).
+  Such tracks are often problematic for HLS players as it's hard to ensure video
+  smoothness at parameters change.
   """
 
   @typedoc """

@@ -17,7 +17,7 @@ if Enum.all?(
     ]
     ```
 
-    It can perform transcoding (more information in `Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig` moduledoc),
+    It can perform transcoding (see `Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig`),
     in such case these plugins are also needed:
     ```
     [
