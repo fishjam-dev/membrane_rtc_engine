@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   To unpack RTP see `Membrane.RTC.Engine.Track.get_depayloader/1`.
 
-  To control TrackReceiver behavior see `t:control_msg/0`.
+  To control TrackReceiver behavior see `t:control_messages/0`.
 
   TrackReceiver also emits some notificaitons. They are defined
   in `t:notifications/0`.
@@ -35,7 +35,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @typedoc """
   Messages that can be sent to TrackReceiver to control its behavior.
   """
-  @type control_msg() :: set_target_variant_msg() | request_keyframe_msg()
+  @type control_messages() :: set_target_variant() | request_keyframe()
 
   @typedoc """
   Changes target track variant.
@@ -43,22 +43,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   Target track variant is variant that will be forwarded
   whenever it is active.
   """
-  @type set_target_variant_msg :: {:set_target_variant, Track.variant()}
+  @type set_target_variant() :: {:set_target_variant, Track.variant()}
 
   @typedoc """
-  Forces TrackReceiver to send keyframe request for current track variant.
+  Forces TrackReceiver to request keyframe for current track variant.
   """
-  @type request_keyframe_msg :: :request_keyframe
+  @type request_keyframe() :: :request_keyframe
 
   @typedoc """
   Notifications that TrackReceiver emits.
   """
-  @type notifications() :: variant_switched_not()
+  @type notifications() :: variant_switched()
 
   @typedoc """
-  Emitted whenever TrackReceiver starts receiving new track variant.
+  Notification emitted whenever TrackReceiver starts receiving a new track variant.
   """
-  @type variant_switched_not() :: {:variant_switched, Track.variant()}
+  @type variant_switched() :: {:variant_switched, Track.variant()}
 
   def_options track: [
                 type: :struct,
