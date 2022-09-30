@@ -302,7 +302,7 @@ if Enum.all?(
               track: track,
               initial_target_variant: :high
             },
-            {:depayloader, track.id} => Track.get_depayloader(track),
+            {:depayloader, track.id} => get_depayloader(track),
             {:opus_decoder, track.id} => Membrane.Opus.Decoder,
             {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
             {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
@@ -345,7 +345,7 @@ if Enum.all?(
             track: track,
             initial_target_variant: :high
           },
-          {:depayloader, track.id} => Track.get_depayloader(track),
+          {:depayloader, track.id} => get_depayloader(track),
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
             attach_nalus?: true,
@@ -361,5 +361,11 @@ if Enum.all?(
           |> to({:hls_sink_bin, track.stream_id})
         ]
       }
+
+    defp get_depayloader(track) do
+      track
+      |> Track.get_depayloader()
+      |> tap(&unless &1, do: raise("Couldn't find depayloader for track #{inspect(track)}"))
+    end
   end
 end
