@@ -825,7 +825,7 @@ defmodule Membrane.RTC.Engine do
     tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
     track_ids = Enum.map(tracks, & &1.id)
     broadcast(MediaEvent.tracks_removed(endpoint_id, track_ids))
-    tracks_children = Enum.flat_map(tracks, &get_track_elements(&1.id, ctx))
+    tracks_children = Enum.map(tracks, &get_track_tee(&1.id, ctx)) |> Enum.reject(&is_nil(&1))
     {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
   end
 
@@ -927,7 +927,7 @@ defmodule Membrane.RTC.Engine do
   # - find_children_for_endpoint/2: Convenience function to identify all Elements owned by an
   #   Endpoint, via its Tracks.
   #
-  # - get_track_elements/2: Convenience function to identify all Elements related to Track (e.g. tee)
+  # - get_track_tee/2: Convenience function to get tee for given track
   #
 
   defp handle_add_endpoint(endpoint_entry, opts, state) do
@@ -998,13 +998,16 @@ defmodule Membrane.RTC.Engine do
     children =
       endpoint
       |> Endpoint.get_tracks()
-      |> Enum.flat_map(fn track -> get_track_elements(track.id, ctx) end)
+      |> Enum.map(&get_track_tee(&1.id, ctx))
+      |> Enum.reject(&is_nil(&1))
 
     [endpoint: endpoint.id] ++ children
   end
 
-  defp get_track_elements(track_id, ctx) do
-    Enum.filter([tee: track_id], &Map.has_key?(ctx.children, &1))
+  defp get_track_tee(track_id, ctx) do
+    if Map.has_key?(ctx.children, tee: track_id) do
+      {:tee, track_id}
+    end
   end
 
   #
