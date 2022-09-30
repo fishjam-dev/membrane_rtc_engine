@@ -171,7 +171,7 @@ defmodule Membrane.RTC.Engine.Tee do
   @impl true
   def handle_event(
         Pad.ref(:output, {:endpoint, endpoint_id}) = pad,
-        %Membrane.KeyframeRequestEvent{} = ev,
+        %Membrane.KeyframeRequestEvent{} = event,
         _ctx,
         state
       ) do
@@ -185,7 +185,7 @@ defmodule Membrane.RTC.Engine.Tee do
 
       {:ok, state}
     else
-      {{:ok, event: {Pad.ref(:input, {state.track.id, variant}), ev}}, state}
+      {{:ok, event: {Pad.ref(:input, {state.track.id, variant}), event}}, state}
     end
   end
 
