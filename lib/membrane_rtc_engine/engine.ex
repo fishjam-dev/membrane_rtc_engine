@@ -1005,7 +1005,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp get_track_tee(track_id, ctx) do
-    if Map.has_key?(ctx.children, tee: track_id) do
+    if Map.has_key?(ctx.children, {:tee, track_id}) do
       {:tee, track_id}
     end
   end
