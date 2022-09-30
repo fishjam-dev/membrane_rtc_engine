@@ -200,7 +200,6 @@ defmodule Membrane.RTC.Engine do
   require Membrane.TelemetryMetrics
 
   alias Membrane.RTC.Engine.{
-    DisplayManager,
     Endpoint,
     FilterTee,
     MediaEvent,
@@ -224,14 +223,12 @@ defmodule Membrane.RTC.Engine do
   * `id` is used by logger. If not provided it will be generated.
   * `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
   Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
-  * `display_manager?` - set to `true` if you want to limit number of tracks sent from `#{inspect(__MODULE__)}.Endpoint.WebRTC` to a browser.
   """
 
   @type options_t() :: [
           id: String.t(),
           trace_ctx: map(),
-          telemetry_label: Membrane.TelemetryMetrics.label(),
-          display_manager?: boolean()
+          telemetry_label: Membrane.TelemetryMetrics.label()
         ]
 
   @typedoc """
@@ -288,9 +285,7 @@ defmodule Membrane.RTC.Engine do
 
   defp do_start(func, options, process_options) when func in [:start, :start_link] do
     id = options[:id] || "#{UUID.uuid4()}"
-    display_manager? = options[:display_manager?] || false
     options = Keyword.put(options, :id, id)
-    options = Keyword.put(options, :display_manager?, display_manager?)
     Membrane.Logger.info("Starting a new RTC Engine instance with id: #{id}")
     apply(Membrane.Pipeline, func, [__MODULE__, options, process_options])
   end
@@ -460,14 +455,6 @@ defmodule Membrane.RTC.Engine do
 
     Membrane.OpenTelemetry.start_span(@life_span_id, start_span_opts)
 
-    display_manager =
-      if options[:display_manager?] do
-        {:ok, pid} = DisplayManager.start_link(ets_name: options[:id], engine: self())
-        pid
-      else
-        nil
-      end
-
     telemetry_label = (options[:telemetry_label] || []) ++ [room_id: options[:id]]
 
     {{:ok, playback: :playing},
@@ -480,8 +467,7 @@ defmodule Membrane.RTC.Engine do
        endpoints: %{},
        pending_subscriptions: [],
        filters: %{},
-       subscriptions: %{},
-       display_manager: display_manager
+       subscriptions: %{}
      }}
   end
 
@@ -833,6 +819,23 @@ defmodule Membrane.RTC.Engine do
     {{:ok, tracks_msgs ++ [remove_child: track_tees]}, state}
   end
 
+  defp handle_endpoint_notification(
+         {:publish, track_id, msg},
+         endpoint_id,
+         _ctx,
+         state
+       ) do
+    forwarding_msg =
+      state.endpoints
+      |> Stream.reject(&(elem(&1, 0) == endpoint_id))
+      |> Stream.reject(&is_nil(elem(&1, 1)))
+      |> Map.keys()
+      |> Enum.filter(&Map.has_key?(state.subscriptions[&1], track_id))
+      |> Enum.map(&[forward: {{:endpoint, &1}, msg}])
+
+    {{:ok, forwarding_msg}, state}
+  end
+
   defp handle_endpoint_notification({:custom_media_event, data}, peer_id, _ctx, state) do
     dispatch(peer_id, MediaEvent.custom(data))
     {:ok, state}
@@ -897,7 +900,6 @@ defmodule Membrane.RTC.Engine do
         )
 
         broadcast(MediaEvent.peer_left(peer_id))
-        send_if_not_nil(state.display_manager, {:unregister_endpoint, {:endpoint, peer_id}})
         {actions, state}
     end
   end
@@ -945,15 +947,9 @@ defmodule Membrane.RTC.Engine do
       log_metadata: [rtc_engine: state.id]
     }
 
-    display_manager_message =
-      if state.display_manager != nil,
-        do: {endpoint_name, {:display_manager, state.display_manager}},
-        else: nil
-
     actions =
       [
         spec: spec,
-        forward: display_manager_message,
         forward: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}
       ]
       |> Keyword.filter(fn
