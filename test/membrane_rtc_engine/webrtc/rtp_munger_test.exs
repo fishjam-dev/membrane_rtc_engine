@@ -27,7 +27,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 1001,
-          timestamp: 12_345
+          timestamp: 12_345,
+          marker: true
         }
       }
     }
@@ -37,7 +38,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 1002,
-          timestamp: 15_345
+          timestamp: 15_345,
+          marker: true
         }
       }
     }
@@ -80,7 +82,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 1001,
-          timestamp: 12_345
+          timestamp: 12_345,
+          marker: true
         }
       }
     }
@@ -90,7 +93,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 1003,
-          timestamp: 18_345
+          timestamp: 18_345,
+          marker: true
         }
       }
     }
@@ -100,7 +104,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 1002,
-          timestamp: 15_345
+          timestamp: 15_345,
+          marker: true
         }
       }
     }
@@ -131,7 +136,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 45_000,
-          timestamp: 34_567
+          timestamp: 34_567,
+          marker: true
         }
       }
     }
@@ -141,7 +147,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 45_001,
-          timestamp: 37_567
+          timestamp: 37_567,
+          marker: true
         }
       }
     }
@@ -160,7 +167,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
         rtp: %{
           # max seq num
           sequence_number: (1 <<< 16) - 1,
-          timestamp: 12_345
+          timestamp: 12_345,
+          marker: true
         }
       }
     }
@@ -170,7 +178,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 0,
-          timestamp: 15_345
+          timestamp: 15_345,
+          marker: true
         }
       }
     }
@@ -201,7 +210,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 45_000,
-          timestamp: 34_567
+          timestamp: 34_567,
+          marker: true
         }
       }
     }
@@ -220,7 +230,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
         rtp: %{
           sequence_number: 5_000,
           # max timestamp
-          timestamp: (1 <<< 32) - 1
+          timestamp: (1 <<< 32) - 1,
+          marker: true
         }
       }
     }
@@ -230,7 +241,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
       metadata: %{
         rtp: %{
           sequence_number: 5_001,
-          timestamp: 3_000
+          timestamp: 3_000,
+          marker: true
         }
       }
     }
@@ -289,7 +301,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
         metadata: %{
           rtp: %{
             sequence_number: seq_num_base + i,
-            timestamp: timestamp_base + 3000 * i
+            timestamp: timestamp_base + 3000 * i,
+            marker: true
           }
         }
       }
