@@ -302,12 +302,7 @@ if Enum.all?(
             hls_mode: state.hls_mode
           }
 
-          audio_encoding =
-            if track_type == :audio,
-              do: track.encoding,
-              else: get_audio_encoding(track.stream_id, state.tracks)
-
-          {hls_link_both_tracks(link, track, hls_sink_bin, audio_encoding, state), state}
+          {hls_link_both_tracks(link, track, hls_sink_bin, state), state}
         else
           # remove directory if it already exists
           File.rm_rf(directory)
@@ -326,16 +321,21 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp hls_link_both_tracks(link, track, hls_sink_bin, audio_encoding, state) do
-      transcoding_interceptor = create_transcoding_interceptor(state.transcoding_config, track.id)
+    defp hls_link_both_tracks(link, track, hls_sink_bin, state) do
+      {audio_track, video_track} = get_audio_video_tracks(track, state)
+
+      transcoding_interceptor =
+        create_transcoding_interceptor(state.transcoding_config, video_track.id)
+
+      opus_aac_transcoding_interceptor = maybe_opus_aac_transcoding(audio_track)
 
       %ParentSpec{
         children: %{
           {:hls_sink_bin, track.stream_id} => hls_sink_bin,
-          {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
+          {:keyframe_requester, video_track.id} => %Membrane.KeyframeRequester{
             interval: state.target_segment_duration
           },
-          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+          {:video_parser, video_track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
             attach_nalus?: true,
             framerate: state.framerate
@@ -346,36 +346,40 @@ if Enum.all?(
             [
               link({:track_sync, track.stream_id})
               |> via_out(Pad.ref(:output, :audio))
-              |> then(
-                if audio_encoding == :OPUS,
-                  do:
-                    &(to(&1, {:opus_decoder, track.id}, Membrane.Opus.Decoder)
-                      |> to({:aac_encoder, track.id}, Membrane.AAC.FDK.Encoder)
-                      |> to({:aac_parser, track.id}, %Membrane.AAC.Parser{
-                        out_encapsulation: :none
-                      })),
-                  else: & &1
-              )
-              |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+              |> then(opus_aac_transcoding_interceptor)
+              |> via_in(Pad.ref(:input, {:audio, audio_track.id}), options: [encoding: :AAC])
               |> to({:hls_sink_bin, track.stream_id}),
               link({:track_sync, track.stream_id})
               |> via_out(Pad.ref(:output, :video))
-              |> to({:keyframe_requester, track.id})
-              |> to({:video_parser, track.id})
+              |> to({:keyframe_requester, video_track.id})
+              |> to({:video_parser, video_track.id})
               |> then(transcoding_interceptor)
-              |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+              |> via_in(Pad.ref(:input, {:video, video_track.id}), options: [encoding: :H264])
               |> to({:hls_sink_bin, track.stream_id})
             ]
       }
     end
 
-    defp get_audio_encoding(stream_id, tracks) do
+    defp get_audio_video_tracks(curr_track, state) do
       {_track_id, track} =
-        Enum.find(tracks, fn {_track_id, track} ->
-          track.stream_id == stream_id && track.type == :audio
+        Enum.find(state.tracks, fn {_track_id, track} ->
+          track.stream_id == curr_track.stream_id && track.type != curr_track.type
         end)
 
-      track.encoding
+      if curr_track.type == :audio, do: {curr_track, track}, else: {track, curr_track}
+    end
+
+    defp maybe_opus_aac_transcoding(audio_track) do
+      opus_aac_transcoding =
+        &(to(&1, {:opus_decoder, audio_track.id}, Membrane.Opus.Decoder)
+          |> to({:aac_encoder, audio_track.id}, Membrane.AAC.FDK.Encoder)
+          |> to({:aac_parser, audio_track.id}, %Membrane.AAC.Parser{
+            out_encapsulation: :none
+          }))
+
+      if audio_track.encoding == :OPUS,
+        do: opus_aac_transcoding,
+        else: & &1
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
