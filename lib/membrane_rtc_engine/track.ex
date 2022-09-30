@@ -42,7 +42,7 @@ defmodule Membrane.RTC.Engine.Track do
 
   Audio tracks can have only one variant - `:high`.
   """
-  @type variant() :: :high | :medium | :low
+  @type variant :: :high | :medium | :low
 
   @typedoc """
   This module contains:

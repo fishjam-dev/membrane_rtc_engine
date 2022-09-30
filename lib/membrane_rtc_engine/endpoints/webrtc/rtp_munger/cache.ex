@@ -18,7 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
   defstruct @enforcekeys
 
   @type t() :: %__MODULE__{
-          cache: Qex.t({non_neg_integer(), non_neg_integer(), non_neg_integer()})
+          cache: Qex.t({non_neg_integer(), non_neg_integer()})
         }
 
   @spec new() :: t()
@@ -59,10 +59,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
   end
 
   defp get_window_size(%{cache: cache} = _state) do
-    get_seq_num = &elem(&1, 0)
-
-    first = cache |> Qex.first!() |> then(get_seq_num)
-    last = cache |> Qex.last!() |> then(get_seq_num)
+    {first, _mapped_first} = cache |> Qex.first!()
+    {last, _mapped_last} = cache |> Qex.last!()
 
     rem(last - first + @max_seq_num, @max_seq_num)
   end

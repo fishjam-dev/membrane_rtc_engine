@@ -10,7 +10,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   @spec start_link() :: GenServer.on_start()
   def start_link(), do: GenServer.start_link(__MODULE__, [], [])
 
-  @impl GenServer
+  ## Public API
+
+  @spec update_bandwidth_estimation(pid(), number()) :: :ok
+  def update_bandwidth_estimation(prober, estimation),
+    do: GenServer.cast(prober, {:bandwidth_estimation, estimation})
+
+  @spec buffer_sent(pid(), Buffer.t()) :: :ok
+  def buffer_sent(prober, %Buffer{payload: payload}),
+    do: GenServer.cast(prober, {:buffer_sent, byte_size(payload)})
+
+  @spec probe_sent(pid()) :: :ok
+  def probe_sent(prober),
+    do: GenServer.cast(prober, :probe_sent)
+
+  @spec register_track_receiver(pid(), pid()) :: :ok
+  def register_track_receiver(prober, tr \\ self()),
+    do: GenServer.cast(prober, {:register_track_receiver, tr})
+
+  @impl true
   def init(_opts) do
     state = %{
       bandwidth_estimation: nil,
@@ -23,7 +41,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
     {:ok, state}
   end
 
-  @impl GenServer
+  @impl true
   def handle_cast({:bandwidth_estimation, estimation}, state) do
     if state.bitrate_timer, do: :timer.cancel(state.bitrate_timer)
 
@@ -41,25 +59,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
     {:noreply, state}
   end
 
-  @impl GenServer
+  @impl true
   def handle_cast({:buffer_sent, size}, state) do
     state = Map.update!(state, :bytes_sent, &(&1 + size))
     {:noreply, state}
   end
 
-  @impl GenServer
+  @impl true
   def handle_cast(:probe_sent, state) do
     state = Map.update!(state, :bytes_sent, &(&1 + @padding_packet_size))
     {:noreply, state}
   end
 
-  @impl GenServer
+  @impl true
   def handle_cast({:register_track_receiver, tr}, state) do
     state = Map.update!(state, :track_receivers, &Qex.push_front(&1, tr))
     {:noreply, state}
   end
 
-  @impl GenServer
+  @impl true
   def handle_info(:check_bytes_sent, state) do
     use Numbers, overload_operators: true
 
@@ -85,31 +103,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
     {:noreply, state}
   end
 
-  ## Public API
-
-  @spec update_bandwidth_estimation(pid(), number()) :: :ok
-  def update_bandwidth_estimation(prober, estimation),
-    do: GenServer.cast(prober, {:bandwidth_estimation, estimation})
-
-  @spec buffer_sent(pid(), Buffer.t()) :: :ok
-  def buffer_sent(prober, %Buffer{payload: payload}),
-    do: GenServer.cast(prober, {:buffer_sent, byte_size(payload)})
-
-  @spec probe_sent(pid()) :: :ok
-  def probe_sent(prober),
-    do: GenServer.cast(prober, :probe_sent)
-
-  @spec register_track_receiver(pid(), pid()) :: :ok
-  def register_track_receiver(prober, tr \\ self()),
-    do: GenServer.cast(prober, {:register_track_receiver, tr})
-
   ## Helper functions
-  defp get_timestamp(), do: System.monotonic_time(:nanosecond)
+  defp get_timestamp(), do: Time.monotonic_time()
 
   defp send_padding_packets(state, 0), do: state
 
-  defp send_padding_packets(state, no_packets) do
-    Enum.reduce(1..no_packets, state, fn _i, state ->
+  defp send_padding_packets(state, packets_num) do
+    Enum.reduce(1..packets_num, state, fn _i, state ->
       # We need to select a track receiver in such a way that each one sends an equal amount of packets to create
       # => Round Robin
       {tr, track_receivers} = Qex.pop!(state.track_receivers)

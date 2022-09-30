@@ -12,7 +12,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.Buffer
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{ConnectionProber, Forwarder, VariantSelector}
 
   alias Membrane.RTC.Engine.Track
@@ -44,7 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 Can be changed with `t:set_target_variant_msg/0`.
                 """
               ],
-              connection_prober_pid: [
+              connection_prober: [
                 spec: pid()
               ]
 
@@ -60,7 +59,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_init(%__MODULE__{
-        connection_prober_pid: connection_prober_pid,
+        connection_prober: connection_prober,
         track: track,
         initial_target_variant: initial_target_variant
       }) do
@@ -72,8 +71,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       forwarder: forwarder,
       selector: selector,
       needs_reconfiguration: false,
-      last_packet_metadata: nil,
-      connection_prober: connection_prober_pid
+      connection_prober: connection_prober
     }
 
     {:ok, state}
@@ -81,7 +79,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_prepared_to_playing(_ctx, state) do
-    unless state.track.encoding == :OPUS,
+    unless state.track.type == :audio,
       do: ConnectionProber.register_track_receiver(state.connection_prober, self())
 
     {:ok, state}
@@ -142,8 +140,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     state = %{
       state
       | forwarder: forwarder,
-        needs_reconfiguration: false,
-        last_packet_metadata: buffer.metadata.rtp
+        needs_reconfiguration: false
     }
 
     ConnectionProber.buffer_sent(state.connection_prober, buffer)
@@ -166,24 +163,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_other(:send_padding_packet, ctx, state)
-      when not is_nil(state.last_packet_metadata) and not ctx.pads.output.end_of_stream? do
-    buffer = %Buffer{
-      payload: <<>>,
-      metadata: %{
-        rtp: %{
-          is_padding?: true,
-          ssrc: state.last_packet_metadata.ssrc,
-          extensions: [],
-          csrcs: [],
-          payload_type: state.last_packet_metadata.payload_type,
-          marker: false,
-          sequence_number: :unknown,
-          timestamp: :unknown
-        }
-      }
-    }
-
-    {forwarder, buffer} = Forwarder.align(state.forwarder, buffer)
+      when not ctx.pads.output.end_of_stream? do
+    {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
 
     actions =
       if is_nil(buffer) do

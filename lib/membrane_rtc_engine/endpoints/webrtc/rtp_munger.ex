@@ -34,9 +34,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           last_packet_arrival: integer()
         }
 
-  @enforce_keys [:clock_rate, :cache]
+  @enforce_keys [:clock_rate]
   defstruct @enforce_keys ++
               [
+                cache: Cache.new(),
                 highest_incoming_seq_num: 0,
                 last_seq_num: 0,
                 seq_num_offset: 0,
@@ -51,7 +52,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   """
   @spec new(Membrane.RTP.clock_rate_t()) :: t()
   def new(clock_rate) do
-    %__MODULE__{clock_rate: clock_rate, cache: Cache.new()}
+    %__MODULE__{clock_rate: clock_rate}
   end
 
   @spec init(t(), Membrane.Buffer.t()) :: t()
@@ -103,7 +104,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           [:rtp, :sequence_number],
           calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger)
         )
-        # Timestamps can be duplicated, so we always take the highest one we seen to avoid causing any ordering problems
         |> put_in([:rtp, :timestamp], rtp_munger.last_timestamp)
 
       rtp_munger =
@@ -121,29 +121,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     # TODO we should use Sender Reports instead
     packet_arrival = System.monotonic_time(:millisecond)
 
-    calculate_seq_num = &calculate_seq_num(&1, rtp_munger)
-
-    update_ts = fn metadata ->
-      update_in(metadata, [:rtp, :timestamp], fn timestamp ->
-        rem(timestamp + (1 <<< 32) - rtp_munger.timestamp_offset, 1 <<< 32)
-      end)
-    end
-
     update_sn_ts = fn buffer ->
       metadata =
         buffer.metadata
-        |> update_in([:rtp, :sequence_number], calculate_seq_num)
-        |> then(update_ts)
+        |> update_in([:rtp, :sequence_number], &calculate_seq_num(&1, rtp_munger))
+        |> update_in([:rtp, :timestamp], &calculate_timestamp(&1, rtp_munger))
 
       %Membrane.Buffer{buffer | metadata: metadata}
     end
 
     seq_num_diff = buffer.metadata.rtp.sequence_number - rtp_munger.highest_incoming_seq_num
 
-    if seq_num_diff > -(1 <<< 15) and seq_num_diff <= 0 do
-      # out-of-order packet - update its sequence number
+    if seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 do
+      # out-of-order or duplicate packet - update its sequence number
       # and timestamp without updating munger
-      #
       # 1 <<< 15 represents half of maximal sequence number
       # so we detect out-of-order packet when the difference is
       # high enough (-32 768; 0)
@@ -156,7 +147,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
         {:ok, seq_num} ->
           metadata =
             buffer.metadata
-            |> then(update_ts)
+            |> update_in([:rtp, :timestamp], &calculate_timestamp(&1, rtp_munger))
             |> put_in([:rtp, :sequence_number], seq_num)
 
           {rtp_munger, %{buffer | metadata: metadata}}
@@ -173,7 +164,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
         if seq_num_diff > 1 do
           (rtp_munger.highest_incoming_seq_num + 1)..(highest_incoming_seq_num - 1)
           |> Enum.reduce(rtp_munger.cache, fn seq_num, cache ->
-            Cache.push(cache, seq_num, calculate_seq_num.(seq_num))
+            Cache.push(cache, seq_num, calculate_seq_num(seq_num, rtp_munger))
           end)
         else
           rtp_munger.cache
@@ -197,5 +188,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     # add 1 <<< 16 (max sequence number) to handle sequence number rollovers
     # properly - we will avoid negative sequence numbers in this way
     rem(seq_num + (1 <<< 16) - rtp_munger.seq_num_offset, 1 <<< 16)
+  end
+
+  defp calculate_timestamp(timestamp, rtp_munger) do
+    rem(timestamp + (1 <<< 32) - rtp_munger.timestamp_offset, 1 <<< 32)
   end
 end
