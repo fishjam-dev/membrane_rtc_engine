@@ -185,21 +185,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     {forwarder, buffer} = Forwarder.align(state.forwarder, buffer)
 
-    # if state.track.type == :video do
-    #   IO.inspect(buffer.metadata.rtp.sequence_number, label: "#{inspect(self())}")
-    # end
-
     actions =
-      if buffer do
-        # if state.track.type == :video do
-        #   IO.inspect(buffer.metadata.rtp.sequence_number, label: "#{inspect(self())}")
-        # end
-        Membrane.Logger.info("Sending RTP padding")
+      if is_nil(buffer) do
+        []
+      else
         ConnectionProber.probe_sent(state.connection_prober)
         [buffer: {:output, buffer}]
-      else
-        Membrane.Logger.warn("Not sending RTP padding due to frame boundaries")
-        []
       end
 
     {{:ok, actions}, %{state | forwarder: forwarder}}

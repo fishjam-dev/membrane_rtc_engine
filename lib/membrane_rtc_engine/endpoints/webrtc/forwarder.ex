@@ -89,7 +89,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   @doc """
   Adjusts RTP packet header and payload.
   """
-  @spec align(t(), Buffer.t()) :: {t(), Buffer.t()}
+  @spec align(t(), Buffer.t()) :: {t(), Buffer.t() | nil}
   def align(
         %__MODULE__{started?: false} = forwarder,
         %{metadata: %{is_keyframe: true}} = buffer

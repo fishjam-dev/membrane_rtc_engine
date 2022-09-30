@@ -109,8 +109,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   defp send_padding_packets(state, 0), do: state
 
   defp send_padding_packets(state, no_packets) do
-    no_packets = min(no_packets, 1)
-
     Enum.reduce(1..no_packets, state, fn _i, state ->
       # We need to select a track receiver in such a way that each one sends an equal amount of packets to create
       # => Round Robin
