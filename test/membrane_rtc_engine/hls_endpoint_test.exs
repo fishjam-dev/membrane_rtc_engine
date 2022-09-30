@@ -9,7 +9,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
   @fixtures_dir "./test/fixtures/"
   @reference_dir "./test/hls_reference/"
-  @output_dir "./test/hls_output/"
 
   setup do
     options = [
@@ -24,7 +23,12 @@ defmodule Membrane.RTC.HLSEndpointTest do
   end
 
   describe "HLS Endpoint test" do
-    test "creates correct hls stream from single (h264) input", %{rtc_engine: rtc_engine} do
+    @describetag :tmp_dir
+
+    test "creates correct hls stream from single (h264) input", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: tmp_dir
+    } do
       file_endpoint_id = "file-endpoint-id"
 
       file_name = "video.h264"
@@ -36,7 +40,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       stream_id = "test-stream"
       reference_id = "single-track-h264"
 
-      hls_endpoint = create_hls_endpoint(rtc_engine, false)
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, false)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
 
       file_endpoint =
@@ -62,7 +66,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.remove_endpoint(rtc_engine, file_endpoint_id)
 
-      output_dir = Path.join([@output_dir, stream_id])
+      output_dir = Path.join([tmp_dir, stream_id])
       reference_dir = Path.join([@reference_dir, reference_id])
 
       directory_files = File.ls!(output_dir)
@@ -77,12 +81,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
       end
 
       assert_receive {:cleanup, _cleanup_function, ^stream_id}
-
-      File.rm_rf!(@output_dir)
     end
 
     test "creates correct hls stream from multiple (h264, aac) inputs belonging to the same stream",
-         %{rtc_engine: rtc_engine} do
+         %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
       video_file_endpoint_id = "video-file-endpoint"
       audio_file_endpoint_id = "audio-file-endpoint"
 
@@ -96,7 +98,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       stream_id = "test-stream"
       reference_id = "multiple-tracks-h264-aac"
 
-      hls_endpoint = create_hls_endpoint(rtc_engine, false)
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, false)
 
       audio_file_endpoint =
         create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
@@ -146,7 +148,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Process.sleep(2_000)
 
-      output_dir = Path.join([@output_dir, stream_id])
+      output_dir = Path.join([tmp_dir, stream_id])
       reference_dir = Path.join([@reference_dir, reference_id])
 
       output_files = output_dir |> File.ls!() |> Enum.sort()
@@ -168,12 +170,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
       refute_received({:cleanup, _cleanup_function, ^stream_id})
     end
 
-    test "check if number of headers is reduced to 1 when resolution is not stable", %{
-      rtc_engine: rtc_engine
+    test "number of headers is reduced to 1 when resolution is not stable", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: tmp_dir
     } do
       file_endpoint_id = "transcoding-file-endpoint-id"
 
-      file_name = "sample.h264"
+      file_name = "variable_framerate.h264"
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
@@ -181,7 +184,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       track_id = "test-track-id"
       stream_id = "transcoding-test-stream"
 
-      hls_endpoint = create_hls_endpoint(rtc_engine, true)
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, true)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
 
       file_endpoint =
@@ -201,33 +204,30 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 40_000)
+      assert_receive({:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 5_000)
 
-      Process.sleep(25_000)
+      Process.sleep(5_000)
 
       Engine.remove_endpoint(rtc_engine, file_endpoint_id)
 
-      output_dir = Path.join([@output_dir, stream_id])
+      output_dir = Path.join([tmp_dir, stream_id])
       directory_files = File.ls!(output_dir)
 
       # if number of header files is greater than 1, transcoding is not working properly
-      assert Enum.count(directory_files, fn file -> match?("video_header" <> _rest, file) end) ==
-               1
+      assert Enum.count(directory_files, &String.starts_with?(&1, "video_header")) == 1
 
       assert_receive {:cleanup, _cleanup_function, ^stream_id}
-
-      File.rm_rf!(@output_dir)
     end
   end
 
-  defp create_hls_endpoint(rtc_engine, transcoding?) do
+  defp create_hls_endpoint(rtc_engine, output_dir, transcoding?) do
     transcoding_config =
       if transcoding?, do: %TranscodingConfig{enabled?: true}, else: %TranscodingConfig{}
 
     %HLS{
       rtc_engine: rtc_engine,
       owner: self(),
-      output_directory: Path.join(["./", "test", "hls_output"]),
+      output_directory: output_dir,
       target_window_duration: :infinity,
       framerate: {60, 1},
       transcoding_config: transcoding_config

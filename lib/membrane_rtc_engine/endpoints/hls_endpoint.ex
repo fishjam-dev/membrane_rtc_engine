@@ -17,7 +17,8 @@ if Enum.all?(
     ]
     ```
 
-    It can perform transcoding, in such case these plugins are also needed:
+    It can perform transcoding (more information in `Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig` moduledoc),
+    in such case these plugins are also needed:
     ```
     [
       :membrane_ffmpeg_swscale_plugin,
@@ -342,7 +343,7 @@ if Enum.all?(
            framerate,
            transcoding_config
          ) do
-      transcoding_interceptor = create_transcoding_interceptor(transcoding_config, track.id)
+      link_to_transcoder = create_transcoder_link(transcoding_config, track.id)
 
       %ParentSpec{
         children: %{
@@ -359,17 +360,17 @@ if Enum.all?(
           link_builder
           |> to({:keyframe_requester, track.id})
           |> to({:video_parser, track.id})
-          |> then(transcoding_interceptor)
+          |> then(link_to_transcoder)
           |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
           |> to({:hls_sink_bin, track.stream_id})
         ]
       }
     end
 
-    defp create_transcoding_interceptor(%TranscodingConfig{enabled?: false}, _track_id), do: & &1
+    defp create_transcoder_link(%TranscodingConfig{enabled?: false}, _track_id), do: & &1
 
     if Enum.all?(@transcoding_deps, &Code.ensure_loaded?/1) do
-      defp create_transcoding_interceptor(transcoding_config, track_id) do
+      defp create_transcoder_link(transcoding_config, track_id) do
         resolution_scaler = %Membrane.FFmpeg.SWScale.Scaler{
           output_width: transcoding_config.output_width,
           output_height: transcoding_config.output_height
@@ -395,7 +396,7 @@ if Enum.all?(
         end
       end
     else
-      defp create_transcoding_interceptor(_transcoding_config, _track_id) do
+      defp create_transcoder_link(_transcoding_config, _track_id) do
         raise """
         Cannot find some of the modules required to perform transcoding.
         Ensure `:membrane_ffmpeg_swscale_plugin` and `membrane_framerate_converter_plugin` are added to the deps.
