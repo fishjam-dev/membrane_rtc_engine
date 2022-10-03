@@ -35,7 +35,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @typedoc """
   Messages that can be sent to TrackReceiver to control its behavior.
   """
-  @type control_messages() :: set_target_variant() | request_keyframe()
+  @type control_messages() :: set_target_variant()
 
   @typedoc """
   Changes target track variant.
@@ -44,11 +44,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   whenever it is active.
   """
   @type set_target_variant() :: {:set_target_variant, Track.variant()}
-
-  @typedoc """
-  Forces TrackReceiver to request keyframe for current track variant.
-  """
-  @type request_keyframe() :: :request_keyframe
 
   @typedoc """
   Notifications that TrackReceiver emits.
@@ -71,6 +66,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 Track variant that will be forwarded whenever it is active.
                 Can be changed with `t:set_target_variant_msg/0`.
                 """
+              ],
+              keyframe_request_interval: [
+                spec: Membrane.Time.t() | nil,
+                default: nil,
+                description: """
+                Defines how often keyframe requests should be sent for
+                currently used track variant.
+
+                This option should be used in very specific cases (e.g. see HLS endpoint)
+                as generating keyframes increases track bitrate and might introduce
+                additional delay.
+                """
               ]
 
   def_input_pad :input,
@@ -84,7 +91,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     caps: Membrane.RTP
 
   @impl true
-  def handle_init(%__MODULE__{track: track, initial_target_variant: initial_target_variant}) do
+  def handle_init(opts) do
+    %__MODULE__{
+      track: track,
+      initial_target_variant: initial_target_variant,
+      keyframe_request_interval: keyframe_request_interval
+    } = opts
+
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
     selector = VariantSelector.new(initial_target_variant)
 
@@ -92,10 +105,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       track: track,
       forwarder: forwarder,
       selector: selector,
-      needs_reconfiguration: false
+      needs_reconfiguration: false,
+      keyframe_request_interval: keyframe_request_interval
     }
 
     {:ok, state}
+  end
+
+  @impl true
+  def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
+    actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
+    {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_tick(:request_keyframe, _ctx, state) do
+    {{:ok, maybe_request_keyframe(state.selector.current_variant)}, state}
   end
 
   @impl true
@@ -123,6 +148,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     actions = maybe_request_track_variant(next_variant)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_event(_pad, %Membrane.KeyframeRequestEvent{}, _ctx, state) do
+    {{:ok, maybe_request_keyframe(state.selector.current_variant)}, state}
   end
 
   @impl true
@@ -156,14 +186,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_other(:request_keyframe, _ctx, state) do
-    {{:ok, event: {:input, %Membrane.KeyframeRequestEvent{}}}, state}
-  end
-
-  @impl true
   def handle_other(msg, ctx, state) do
     super(msg, ctx, state)
   end
+
+  defp maybe_request_keyframe(nil), do: []
+
+  defp maybe_request_keyframe(_current_variant),
+    do: [event: {:input, %Membrane.KeyframeRequestEvent{}}]
 
   defp maybe_request_track_variant(nil), do: []
 

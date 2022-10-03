@@ -1,7 +1,10 @@
 if Enum.all?(
      [
        Membrane.H264.FFmpeg.Parser,
-       Membrane.HTTPAdaptiveStream.SinkBin
+       Membrane.HTTPAdaptiveStream.SinkBin,
+       Membrane.Opus.Decoder,
+       Membrane.AAC.Parser,
+       Membrane.AAC.FDK.Encoder
      ],
      &Code.ensure_loaded?/1
    ) do
@@ -9,20 +12,14 @@ if Enum.all?(
     @moduledoc """
     An Endpoint responsible for converting incoming tracks to HLS playlist.
 
-    This module requires the following plugins to be present in your `mix.exs` for H264 & AAC input:
+    This module requires the following plugins to be present in your `mix.exs` for H264 & OPUS input:
     ```
     [
       :membrane_h264_ffmpeg_plugin,
       :membrane_http_adaptive_stream_plugin,
-    ]
-    ```
-
-    Plus, optionally it supports OPUS audio input - for that, additional dependencies are needed:
-    ```
-    [
       :membrane_opus_plugin,
       :membrane_aac_plugin,
-      :membrane_aac_fdk_plugin,
+      :membrane_aac_fdk_plugin
     ]
     ```
     """
@@ -33,8 +30,6 @@ if Enum.all?(
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
-
-    @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
 
     def_input_pad :input,
       demand_unit: :buffers,
@@ -100,7 +95,6 @@ if Enum.all?(
       state = %{
         rtc_engine: opts.rtc_engine,
         tracks: %{},
-        started_tracks: MapSet.new(),
         stream_ids: MapSet.new(),
         output_directory: opts.output_directory,
         owner: opts.owner,
@@ -169,45 +163,6 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_notification(
-          {:variant_switched, _new_variant},
-          {:track_receiver, track_id},
-          _ctx,
-          state
-        ) do
-      track = Map.fetch!(state.tracks, track_id)
-
-      # this can be simplified after MC-72
-      # instead of checking whether timer was
-      # created or not, we can create timer
-      # with `:no_interval` option in `handle_pad_added`
-      # and always stop and start it here
-      {actions, state} =
-        cond do
-          track.type == :audio ->
-            {[], state}
-
-          MapSet.member?(state.started_tracks, track_id) ->
-            actions = [
-              {:stop_timer, {:request_keyframe, track_id}},
-              {:start_timer, {{:request_keyframe, track_id}, state.target_segment_duration}}
-            ]
-
-            {actions, state}
-
-          true ->
-            actions = [
-              {:start_timer, {{:request_keyframe, track_id}, state.target_segment_duration}}
-            ]
-
-            state = Map.update!(state, :started_tracks, &MapSet.put(&1, track_id))
-            {actions, state}
-        end
-
-      {{:ok, actions}, state}
-    end
-
-    @impl true
     def handle_notification(notification, _element, _context, state) do
       Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
       {:ok, state}
@@ -239,14 +194,7 @@ if Enum.all?(
           do: children,
           else: [{:hls_sink_bin, removed_track.stream_id} | children]
 
-      stop_timer_action =
-        if removed_track.type == :video and MapSet.member?(state.started_tracks, track_id),
-          do: [stop_timer: {:request_keyframe, removed_track.id}],
-          else: []
-
-      state = Map.update!(state, :started_tracks, &MapSet.delete(&1, track_id))
-
-      {{:ok, [remove_child: children] ++ stop_timer_action}, state}
+      {{:ok, [remove_child: children]}, state}
     end
 
     @impl true
@@ -256,7 +204,7 @@ if Enum.all?(
 
       directory = Path.join(state.output_directory, track.stream_id)
 
-      spec = hls_links_and_children(link_builder, track.encoding, track, state.framerate)
+      spec = hls_links_and_children(link_builder, track, state)
 
       {spec, state} =
         if MapSet.member?(state.stream_ids, track.stream_id) do
@@ -294,62 +242,44 @@ if Enum.all?(
       {{:ok, actions}, state}
     end
 
-    if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, :OPUS, track, _framerate) do
-        %ParentSpec{
-          children: %{
-            {:track_receiver, track.id} => %TrackReceiver{
-              track: track,
-              initial_target_variant: :high
-            },
-            {:depayloader, track.id} => get_depayloader(track),
-            {:opus_decoder, track.id} => Membrane.Opus.Decoder,
-            {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-            {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
-          },
-          links: [
-            link_builder
-            |> to({:track_receiver, track.id})
-            |> to({:depayloader, track.id})
-            |> to({:opus_decoder, track.id})
-            |> to({:aac_encoder, track.id})
-            |> to({:aac_parser, track.id})
-            |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-            |> to({:hls_sink_bin, track.stream_id})
-          ]
-        }
-      end
-    else
-      defp hls_links_and_children(_link_builder, :OPUS, _track, _framerate) do
-        raise """
-        Cannot find one of the modules required to support Opus audio input.
-        Ensure `:membrane_opus_plugin`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
-        """
-      end
-    end
-
-    defp hls_links_and_children(link_builder, :AAC, track, _framerate),
-      do: %ParentSpec{
-        children: %{},
-        links: [
-          link_builder
-          |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-          |> to({:hls_sink_bin, track.stream_id})
-        ]
-      }
-
-    defp hls_links_and_children(link_builder, :H264, track, framerate),
-      do: %ParentSpec{
+    defp hls_links_and_children(link_builder, %Track{encoding: :OPUS} = track, _state) do
+      %ParentSpec{
         children: %{
           {:track_receiver, track.id} => %TrackReceiver{
             track: track,
             initial_target_variant: :high
           },
           {:depayloader, track.id} => get_depayloader(track),
+          {:opus_decoder, track.id} => Membrane.Opus.Decoder,
+          {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
+          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+        },
+        links: [
+          link_builder
+          |> to({:track_receiver, track.id})
+          |> to({:depayloader, track.id})
+          |> to({:opus_decoder, track.id})
+          |> to({:aac_encoder, track.id})
+          |> to({:aac_parser, track.id})
+          |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+          |> to({:hls_sink_bin, track.stream_id})
+        ]
+      }
+    end
+
+    defp hls_links_and_children(link_builder, %Track{encoding: :H264} = track, state),
+      do: %ParentSpec{
+        children: %{
+          {:track_receiver, track.id} => %TrackReceiver{
+            track: track,
+            initial_target_variant: :high,
+            keyframe_request_interval: state.target_segment_duration
+          },
+          {:depayloader, track.id} => get_depayloader(track),
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
             attach_nalus?: true,
-            framerate: framerate
+            framerate: state.framerate
           }
         },
         links: [
