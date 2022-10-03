@@ -231,7 +231,7 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
+    def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, %{hls_mode: :separate_av} = state) do
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
 
@@ -275,6 +275,111 @@ if Enum.all?(
         end
 
       {{:ok, spec: spec}, state}
+    end
+
+    @impl true
+    def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, %{hls_mode: :muxed_av} = state) do
+      link_builder = link_bin_input(pad)
+      track = Map.get(state.tracks, track_id)
+      directory = Path.join(state.output_directory, track.stream_id)
+      track_type = if track.encoding == :H264, do: :video, else: :audio
+
+      link = [
+        link_builder
+        |> via_in(Pad.ref(:input, track_type))
+        |> to({:track_sync, track.stream_id})
+      ]
+
+      {spec, state} =
+        if MapSet.member?(state.stream_ids, track.stream_id) do
+          hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
+            manifest_module: Membrane.HTTPAdaptiveStream.HLS,
+            target_window_duration: state.target_window_duration,
+            target_segment_duration: state.target_segment_duration,
+            persist?: false,
+            storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
+              directory: directory
+            },
+            hls_mode: state.hls_mode
+          }
+
+          {hls_link_both_tracks(link, track, hls_sink_bin, state), state}
+        else
+          # remove directory if it already exists
+          File.rm_rf(directory)
+          File.mkdir_p!(directory)
+
+          spec = %ParentSpec{
+            children: %{
+              {:track_sync, track.stream_id} => Membrane.RTC.Engine.TrackSynchronizer
+            },
+            links: link
+          }
+
+          {spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
+        end
+
+      {{:ok, spec: spec}, state}
+    end
+
+    defp hls_link_both_tracks(link, track, hls_sink_bin, state) do
+      {audio_track, video_track} = get_audio_video_tracks(track, state)
+
+      link_to_transcoder = create_transcoder_link(state.transcoding_config, video_track.id)
+
+      link_to_opus_aac_transcoder = maybe_create_opus_aac_transcoder_link(audio_track)
+
+      %ParentSpec{
+        children: %{
+          {:hls_sink_bin, track.stream_id} => hls_sink_bin,
+          {:keyframe_requester, video_track.id} => %Membrane.KeyframeRequester{
+            interval: state.target_segment_duration
+          },
+          {:video_parser, video_track.id} => %Membrane.H264.FFmpeg.Parser{
+            alignment: :au,
+            attach_nalus?: true,
+            framerate: state.framerate
+          }
+        },
+        links:
+          link ++
+            [
+              link({:track_sync, track.stream_id})
+              |> via_out(Pad.ref(:output, :audio))
+              |> then(link_to_opus_aac_transcoder)
+              |> via_in(Pad.ref(:input, {:audio, audio_track.id}), options: [encoding: :AAC])
+              |> to({:hls_sink_bin, track.stream_id}),
+              link({:track_sync, track.stream_id})
+              |> via_out(Pad.ref(:output, :video))
+              |> to({:keyframe_requester, video_track.id})
+              |> to({:video_parser, video_track.id})
+              |> then(link_to_transcoder)
+              |> via_in(Pad.ref(:input, {:video, video_track.id}), options: [encoding: :H264])
+              |> to({:hls_sink_bin, track.stream_id})
+            ]
+      }
+    end
+
+    defp get_audio_video_tracks(curr_track, state) do
+      {_track_id, track} =
+        Enum.find(state.tracks, fn {_track_id, track} ->
+          track.stream_id == curr_track.stream_id && track.type != curr_track.type
+        end)
+
+      if curr_track.type == :audio, do: {curr_track, track}, else: {track, curr_track}
+    end
+
+    defp maybe_create_opus_aac_transcoder_link(audio_track) do
+      opus_aac_transcoding =
+        &(to(&1, {:opus_decoder, audio_track.id}, Membrane.Opus.Decoder)
+          |> to({:aac_encoder, audio_track.id}, Membrane.AAC.FDK.Encoder)
+          |> to({:aac_parser, audio_track.id}, %Membrane.AAC.Parser{
+            out_encapsulation: :none
+          }))
+
+      if audio_track.encoding == :OPUS,
+        do: opus_aac_transcoding,
+        else: & &1
     end
 
     if Enum.all?(@opus_deps, &Code.ensure_loaded?/1) do
@@ -391,7 +496,7 @@ if Enum.all?(
           |> to({:decoder, track_id}, Membrane.H264.FFmpeg.Decoder)
           |> to({:resolution_scaler, track_id}, resolution_scaler)
           |> to({:framerate_converter, track_id}, framerate_converter)
-          |> to({:encoder, track_id}, Membrane.H264.FFmpeg.Encoder)
+          |> to({:encoder, track_id}, %Membrane.H264.FFmpeg.Encoder{profile: :baseline})
           |> to({:video_parser_out, track_id}, video_parser_out)
         end
       end
