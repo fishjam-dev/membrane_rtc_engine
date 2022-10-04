@@ -14,6 +14,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   import Bitwise
 
   alias __MODULE__.Cache
+  alias Membrane.RTC.Engine.Track
 
   @typedoc """
   * `highest_incoming_seq_num` - the highest incoming sequence number for current encoding.
@@ -92,31 +93,35 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     }
   end
 
-  @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t() | nil}
-  def munge(rtp_munger, %Membrane.Buffer{} = buffer)
-      when buffer.metadata.rtp.is_padding? == true do
-    # This function clause deals with padding packets
+  @spec generate_padding_packet(t(), Track.t()) :: {t(), Membrane.Buffer.t() | nil}
+  def generate_padding_packet(rtp_munger, track) when rtp_munger.last_marker do
+    buffer = %Membrane.Buffer{
+      payload: <<>>,
+      metadata: %{
+        rtp: %{
+          is_padding?: true,
+          ssrc: "",
+          extensions: [],
+          csrcs: [],
+          payload_type: track.payload_type,
+          marker: false,
+          sequence_number: calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger),
+          timestamp: rtp_munger.last_timestamp
+        }
+      }
+    }
 
-    if rtp_munger.last_marker == true do
-      metadata =
-        buffer.metadata
-        |> put_in(
-          [:rtp, :sequence_number],
-          calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger)
-        )
-        |> put_in([:rtp, :timestamp], rtp_munger.last_timestamp)
+    rtp_munger =
+      rtp_munger
+      |> Map.update!(:seq_num_offset, &(&1 - 1))
+      |> Map.put(:last_seq_num, buffer.metadata.rtp.sequence_number)
 
-      rtp_munger =
-        rtp_munger
-        |> Map.update!(:seq_num_offset, &(&1 - 1))
-        |> Map.put(:last_seq_num, metadata.rtp.sequence_number)
-
-      {rtp_munger, %{buffer | metadata: metadata}}
-    else
-      {rtp_munger, nil}
-    end
+    {rtp_munger, buffer}
   end
 
+  def generate_padding_packet(rtp_munger, _track), do: {rtp_munger, nil}
+
+  @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t() | nil}
   def munge(rtp_munger, buffer) do
     # TODO we should use Sender Reports instead
     packet_arrival = System.monotonic_time(:millisecond)

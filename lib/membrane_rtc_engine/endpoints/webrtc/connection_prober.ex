@@ -43,6 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
 
   @impl true
   def handle_cast({:bandwidth_estimation, estimation}, state) do
+    # FIXME: this might not be long enough for Track Receiver to send the padding packet and / or arrive at frame boundary
     if state.bitrate_timer, do: :timer.cancel(state.bitrate_timer)
 
     {:ok, timer} = :timer.send_interval(10, :check_bytes_sent)

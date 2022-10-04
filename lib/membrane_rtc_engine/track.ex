@@ -66,6 +66,7 @@ defmodule Membrane.RTC.Engine.Track do
   @type t :: %__MODULE__{
           type: :audio | :video,
           stream_id: String.t(),
+          # TODO: remove pt and clock-rate and replace it with RTP mapping field
           payload_type: non_neg_integer() | nil,
           id: id,
           origin: String.t(),

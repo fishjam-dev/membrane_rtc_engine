@@ -89,23 +89,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
 
   @spec generate_padding_packet(t(), Track.t()) :: {t(), Buffer.t() | nil}
   def generate_padding_packet(%__MODULE__{} = forwarder, %Track{} = track) do
-    buffer = %Buffer{
-      payload: <<>>,
-      metadata: %{
-        rtp: %{
-          is_padding?: true,
-          ssrc: "",
-          extensions: [],
-          csrcs: [],
-          payload_type: track.payload_type,
-          marker: false,
-          sequence_number: :unknown,
-          timestamp: :unknown
-        }
-      }
-    }
-
-    align(forwarder, buffer)
+    {rtp_munger, buffer} = RTPMunger.generate_padding_packet(forwarder.rtp_munger, track)
+    {%{forwarder | rtp_munger: rtp_munger}, buffer}
   end
 
   @doc """
