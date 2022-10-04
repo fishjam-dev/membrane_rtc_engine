@@ -201,6 +201,7 @@ if Enum.all?(
           _ctx,
           state
         ) do
+      # TODO tu czasami jest race con, kiedy przestane byc prezenterem zanim dostane playlist playable
       %{origin: origin} = Map.fetch!(state.tracks, track_id)
       # notify about playable just when video becomes available
       send(state.owner, {:playlist_playable, content_type, state.room_id, origin})
@@ -240,6 +241,52 @@ if Enum.all?(
           {:switch, track_type} => Membrane.RTC.Engine.Endpoint.HLS.Switch
         }
 
+        audio_caps = %Membrane.RawAudio{
+          channels: 1,
+          sample_rate: 16_000,
+          sample_format: :s16le
+        }
+
+        children = case track_type do
+          :video ->
+            children
+            |> Map.put({:generator, track_type}, %Membrane.BlankVideoGenerator{
+              caps: %Membrane.RawVideo{
+                pixel_format: :I420,
+                height: 720,
+                width: 1280,
+                framerate: {24, 1},
+                aligned: true
+              },
+              duration: :infinity
+            })
+            |> Map.put({:generator_encoder, track_type}, Membrane.H264.FFmpeg.Encoder)
+            |> Map.put({:generator_parser, track_type}, Membrane.H264.FFmpeg.Parser)
+          :audio ->
+            {audio_encoder, audio_parser} = if track.encoding == :AAC do
+              {Membrane.AAC.FDK.Encoder, Membrane.AAC.Parser}
+            else
+              {%Membrane.Opus.Encoder{
+                input_caps: audio_caps
+              }, Membrane.Opus.Parser}
+            end
+            children
+            |> Map.put({:generator, track_type}, %Membrane.SilenceGenerator{
+              caps: audio_caps,
+              duration: :infinity
+            })
+            |> Map.put({:generator_encoder, track_type}, audio_encoder)
+            |> Map.put({:generator_parser, track_type}, audio_parser)
+        end
+
+        links = [
+          link({:generator, track_type})
+          |> to({:generator_encoder, track_type})
+          |> to({:generator_parser, track_type})
+          |> via_in(Pad.ref(:input, :static), options: [track: nil])
+          |> to({:switch, track_type})
+        ]
+
         spec = hls_links_and_children(
           link({:switch, track_type}),
           track.encoding,
@@ -250,6 +297,7 @@ if Enum.all?(
         )
 
         spec = %ParentSpec{spec | children: Map.merge(spec.children, children)}
+        spec = %ParentSpec{spec | links: spec.links ++ links}
         state = put_in(state, [:linked, track_type], true)
 
         {spec, state}

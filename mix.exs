@@ -76,6 +76,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_h264_ffmpeg_plugin, "~> 0.21.5", optional: true},
       {:membrane_framerate_converter_plugin, "~> 0.5.0", optional: true},
       {:membrane_ffmpeg_swscale_plugin, "~> 0.10.0", optional: true},
+      {:membrane_generator_plugin, "~> 0.6.0", optional: true},
 
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},

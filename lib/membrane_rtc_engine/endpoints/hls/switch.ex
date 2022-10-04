@@ -15,11 +15,15 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
   def_input_pad :input,
                 demand_mode: :auto,
                 availability: :on_request,
-                caps: {RemoteStream, type: :packetized, content_format: one_of([
+                caps: [
+                  Membrane.AAC,
+                  Membrane.Opus,
+                  Membrane.H264,
+                  {RemoteStream, type: :packetized, content_format: one_of([
                     Membrane.H264,
                     Membrane.AAC,
                     Membrane.Opus
-                  ])},
+                  ])}],
                 options: [
                   track: [
                     spec: Membrane.RTC.Engine.Track.t(),
@@ -31,18 +35,22 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   def_output_pad :output,
                  demand_mode: :auto,
-                 caps: {RemoteStream, type: :packetized, content_format: one_of([
-                   Membrane.H264,
-                   Membrane.AAC,
-                   Membrane.Opus
-                 ])}
+                 caps: [
+                  Membrane.AAC,
+                  Membrane.Opus,
+                  Membrane.H264,
+                  {RemoteStream, type: :packetized, content_format: one_of([
+                    Membrane.H264,
+                    Membrane.AAC,
+                    Membrane.Opus
+                  ])}]
 
   @impl true
   def handle_init(_opts) do
     state = %{
       tracks: %{},
       tracks_caps: %{},
-      awaiting_id: nil,
+      awaiting_id: :static,
       cur_id: nil,
       awaiting_origin: nil,
       universal_pts: nil,
@@ -76,18 +84,10 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   @impl true
   def handle_process(Pad.ref(:input, track_id), buffer, _ctx, %{awaiting_id: track_id} = state)
-  when buffer.metadata.is_keyframe do
-    state = if is_nil(state.universal_pts) do
-      state
-      |> Map.put(:universal_pts, buffer.pts)
-      |> put_in([:prev_pts, track_id], 0)
-    else
-      state
-    end
-
-    {new_universal_pts, state} = get_and_update_pts(track_id, state, buffer)
-    buffer = %Buffer{buffer | pts: new_universal_pts}
-    state = %{state | universal_pts: new_universal_pts}
+  when buffer.metadata.is_keyframe and not is_nil(state.prev_diff) do
+    {new_diff, state} = update_pts(track_id, state, buffer)
+    state = %{state | universal_pts: state.universal_pts + new_diff}
+    buffer = %{buffer | pts: state.universal_pts}
 
     state =
       state
@@ -103,16 +103,17 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   @impl true
   def handle_process(Pad.ref(:input, track_id), buffer, _ctx, %{cur_id: track_id} = state) do
-    {new_universal_pts, state} = get_and_update_pts(track_id, state, buffer)
-    buffer = %Buffer{buffer | pts: new_universal_pts}
-    state = %{state | universal_pts: new_universal_pts}
+    {new_diff, state} = update_pts(track_id, state, buffer)
+    state = %{state | universal_pts: state.universal_pts + new_diff}
+    buffer = %{buffer | pts: state.universal_pts}
 
     {{:ok, buffer: {Pad.ref(:output), buffer}}, state}
   end
 
   @impl true
   def handle_process(Pad.ref(:input, track_id), buffer, _ctx, state) do
-    {_new_universal_pts, state} = get_and_update_pts(track_id, state, buffer)
+    {new_diff, state} = update_pts(track_id, state, buffer) # TODO do przetestowania
+
     {:ok, state}
   end
 
@@ -127,6 +128,13 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
     end
 
     {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:input, :static), _ctx, state) do
+    # Switch expects to be liked to source of static video/audio
+    # which will be forwarded when end_of_stream arrives at currently forwarded track's pad
+    {:ok, state}
   end
 
   @impl true
@@ -152,13 +160,16 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   @impl true
   def handle_end_of_stream(Pad.ref(:input, track_id), _ctx, %{cur_id: track_id} = state) do
-    {{:ok, end_of_stream: Pad.ref(:output)}, state}
+    awaiting_id = if is_nil(state.awaiting_id), do: :static, else: state.awaiting_id
+    {:ok, %{state | awaiting_id: awaiting_id}}
   end
 
   @impl true
   def handle_end_of_stream(Pad.ref(:input, _track_id), _ctx, state), do: {:ok, state}
 
-  defp get_and_update_pts(track_id, state, buffer) do
+  defp update_pts(track_id, state, buffer) do
+    state = if is_nil(state.universal_pts), do: %{state | universal_pts: buffer.pts}, else: state
+
     new_diff = if Map.has_key?(state.prev_pts, track_id) do
       buffer.pts - state.prev_pts[track_id]
     else
@@ -170,6 +181,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
       |> Map.put(:prev_diff, new_diff)
       |> put_in([:prev_pts, track_id], buffer.pts)
 
-    {state.universal_pts + new_diff, state}
+    {new_diff, state}
   end
 end
