@@ -119,8 +119,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_tick(:request_keyframe, _ctx, state) do
-    {{:ok, maybe_request_keyframe(state.selector.current_variant)}, state}
+  def handle_tick(:request_keyframe, ctx, state) do
+    {{:ok, maybe_request_keyframe(state.selector.current_variant, ctx)}, state}
   end
 
   @impl true
@@ -133,26 +133,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(_pad, %TrackVariantPaused{variant: variant} = event, _ctx, state) do
+  def handle_event(_pad, %TrackVariantPaused{variant: variant} = event, ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
     {selector, next_variant} = VariantSelector.variant_inactive(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    actions = maybe_request_track_variant(next_variant, ctx)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
 
   @impl true
-  def handle_event(_pad, %TrackVariantResumed{variant: variant} = event, _ctx, state) do
+  def handle_event(_pad, %TrackVariantResumed{variant: variant} = event, ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
     {selector, next_variant} = VariantSelector.variant_active(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    actions = maybe_request_track_variant(next_variant, ctx)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
 
   @impl true
-  def handle_event(_pad, %Membrane.KeyframeRequestEvent{}, _ctx, state) do
-    {{:ok, maybe_request_keyframe(state.selector.current_variant)}, state}
+  def handle_event(_pad, %Membrane.KeyframeRequestEvent{}, ctx, state) do
+    {{:ok, maybe_request_keyframe(state.selector.current_variant, ctx)}, state}
   end
 
   @impl true
@@ -173,7 +173,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_other({:set_target_variant, variant}, _ctx, state) do
+  def handle_other({:set_target_variant, variant}, ctx, state) do
     if variant not in state.track.variants do
       raise("""
       Tried to set invalid target variant: #{inspect(variant)} for track: #{inspect(state.track)}.
@@ -181,7 +181,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     end
 
     {selector, next_variant} = VariantSelector.set_target_variant(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    actions = maybe_request_track_variant(next_variant, ctx)
     {{:ok, actions}, %{state | selector: selector}}
   end
 
@@ -190,13 +190,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     super(msg, ctx, state)
   end
 
-  defp maybe_request_keyframe(nil), do: []
+  # although `:input` pad is static it might not exist
+  #
+  # consider scenario when track receiver is encapsulated
+  # into bin with dynamic input pad
+  #
+  # after unlinking bin's dynamic input pad
+  # we are loosing our static pad
+  defp maybe_request_keyframe(nil, _ctx), do: []
 
-  defp maybe_request_keyframe(_current_variant),
+  defp maybe_request_keyframe(_current_variant, %{pads: %{input: _pad_data}}),
     do: [event: {:input, %Membrane.KeyframeRequestEvent{}}]
 
-  defp maybe_request_track_variant(nil), do: []
+  defp maybe_request_track_variant(nil, _ctx), do: []
 
-  defp maybe_request_track_variant(variant),
+  defp maybe_request_track_variant(variant, %{pads: %{input: _pad_data}}),
     do: [event: {:input, %RequestTrackVariant{variant: variant}}]
 end

@@ -501,6 +501,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {{:ok, spec: spec}, state}
   end
 
+  @impl true
+  def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
+    {{:ok, remove_child: {:track_receiver, track_id}}, state}
+  end
+
+  @impl true
+  def handle_pad_removed(Pad.ref(:output, {track_id, _variant}), ctx, state) do
+    # check if there are any variants that are still linked
+    track_linked? =
+      ctx.pads
+      |> Map.keys()
+      |> Enum.any?(&match?(Pad.ref(:output, {^track_id, _variant}), &1))
+
+    if track_linked? do
+      {:ok, state}
+    else
+      {{:ok, remove_child: {:track_sender, track_id}}, state}
+    end
+  end
+
   defp handle_custom_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
     state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
     msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
