@@ -126,16 +126,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     {forwarder, buffer} = Forwarder.align(forwarder, buffer)
 
-    actions =
-      if buffer do
-        # if state.track.type == :video do
-        #   IO.inspect(buffer.metadata.rtp.sequence_number, label: "#{inspect(self())}")
-        # end
-
-        [buffer: {:output, buffer}]
-      else
-        []
-      end
+    actions = if buffer, do: [buffer: {:output, buffer}], else: []
 
     state = %{
       state
@@ -167,11 +158,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
 
     actions =
-      if is_nil(buffer) do
-        []
-      else
+      if buffer do
         ConnectionProber.probe_sent(state.connection_prober)
         [buffer: {:output, buffer}]
+      else
+        []
       end
 
     {{:ok, actions}, %{state | forwarder: forwarder}}
