@@ -24,7 +24,7 @@ defmodule Membrane.RTC.Engine.Track do
     :metadata,
     :ctx
   ]
-  defstruct @enforce_keys
+  defstruct @enforce_keys ++ [:payload_type]
 
   @supported_variants [:high, :medium, :low]
 
@@ -66,6 +66,7 @@ defmodule Membrane.RTC.Engine.Track do
   @type t :: %__MODULE__{
           type: :audio | :video,
           stream_id: String.t(),
+          payload_type: non_neg_integer() | nil,
           id: id,
           origin: String.t(),
           encoding: encoding,
@@ -119,6 +120,7 @@ defmodule Membrane.RTC.Engine.Track do
 
     %__MODULE__{
       type: type,
+      payload_type: Keyword.get(opts, :payload_type),
       stream_id: stream_id,
       origin: origin,
       encoding: encoding,

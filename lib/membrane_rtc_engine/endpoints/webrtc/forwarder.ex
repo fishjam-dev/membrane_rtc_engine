@@ -97,7 +97,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
           ssrc: "",
           extensions: [],
           csrcs: [],
-          payload_type: track.fmtp.pt,
+          payload_type: track.payload_type,
           marker: false,
           sequence_number: :unknown,
           timestamp: :unknown

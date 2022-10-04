@@ -797,7 +797,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       variants: variants,
       active?: track.status != :disabled,
       metadata: metadata,
-      ctx: %{extension_key => track.extmaps}
+      ctx: %{extension_key => track.extmaps},
+      payload_type: track.rtp_mapping.payload_type
     )
   end
 
