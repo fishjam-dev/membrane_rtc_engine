@@ -35,7 +35,7 @@ defmodule Membrane.RTC.Engine.DisplayManager do
           }
         }
 
-  @type ordered_tracks_and_state_t() :: {[Track.id()], t()}
+  @type ordered_tracks_and_state_t() :: {[Track.id()], [Track.id()], t()}
 
   @type vad_notification_t() ::
           {:silence, String.t(), integer()}
@@ -179,10 +179,13 @@ defmodule Membrane.RTC.Engine.DisplayManager do
         max(state.video_tracks_limit - Enum.count(state.prioritized_tracks), 0)
       end
 
-    ordered_tracks = ordered_tracks |> Enum.take(video_tracks_limit) |> Enum.map(& &1.id)
+    limited_ordered_tracks = ordered_tracks |> Enum.take(video_tracks_limit) |> Enum.map(& &1.id)
 
-    tracks_priority = state.prioritized_tracks ++ ordered_tracks
-    {tracks_priority, state}
+    stopped_tracks =
+      ordered_tracks |> Enum.reject(&(&1.id not in limited_ordered_tracks)) |> Enum.map(& &1.id)
+
+    tracks_priority = state.prioritized_tracks ++ limited_ordered_tracks
+    {tracks_priority, stopped_tracks, state}
   end
 
   defp sort_vads(_vad, nil), do: true
@@ -191,4 +194,16 @@ defmodule Membrane.RTC.Engine.DisplayManager do
   defp sort_vads({:silence, _timestamp1}, {:speech, _timestamp2}), do: false
   defp sort_vads({:speech, _timestamp1}, {:silence, _timestamp2}), do: true
   defp sort_vads({:speech, timestamp1}, {:speech, timestamp2}), do: timestamp1 < timestamp2
+
+  @spec map_tracks_to_actions([Track.id()], [Track.id()]) :: [
+          {:forward, {{:track_receiver, Track.id()}, :start_track | :stop_track}}
+        ]
+  def map_tracks_to_actions(running_tracks, stopped_tracks) do
+    Enum.map(running_tracks, fn track_id ->
+      {:forward, {{:track_receiver, track_id}, :start_track}}
+    end) ++
+      Enum.map(stopped_tracks, fn track_id ->
+        {:forward, {{:track_receiver, track_id}, :stop_track}}
+      end)
+  end
 end

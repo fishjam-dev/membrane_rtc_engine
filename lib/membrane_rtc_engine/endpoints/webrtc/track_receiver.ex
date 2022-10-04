@@ -186,6 +186,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
+  def handle_other(msg, ctx, state) when msg in [:start_track, :stop_track] do
+    {{:ok, event: {:input, msg}}, state}
+  end
+
+  @impl true
   def handle_other(msg, ctx, state) do
     super(msg, ctx, state)
   end

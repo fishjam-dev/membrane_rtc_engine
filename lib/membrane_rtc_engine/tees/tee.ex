@@ -63,7 +63,8 @@ defmodule Membrane.RTC.Engine.Tee do
     state =
       put_in(state, [:routes, pad], %{
         target_variant: nil,
-        current_variant: nil
+        current_variant: nil,
+        enabled?: true
       })
 
     actions =
