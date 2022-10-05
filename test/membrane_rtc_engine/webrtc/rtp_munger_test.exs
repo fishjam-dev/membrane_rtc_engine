@@ -262,7 +262,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
     assert munged_l_buffer2.metadata.rtp.timestamp <= (1 <<< 32) - 1
   end
 
-  test "RTPMunger drops buffers that would cause duplicated sequence number" do
+  test "RTP Munger drops out-of-order buffer that would cause duplicated sequence numbers just after encoding swtich" do
     [first_h_buffer | h_encoding] = generate_encoding(0, 0, 10)
     l_encoding = generate_encoding(0, 0, 10)
 

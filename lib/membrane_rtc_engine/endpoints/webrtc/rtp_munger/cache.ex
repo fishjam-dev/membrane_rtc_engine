@@ -6,7 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
   # It is a moving window with a size defined by difference of first and last sequence number present in the cache
 
   # !!! WARNING !!!
-  # This module doesn't handle out-of-order entries, there isn't even a chech as it's not meant to be used outside RTPMunger.
+  # This module doesn't handle out-of-order entries, there isn't even a check as it's not meant to be used outside RTPMunger.
   # RTPMunger is responsible for ensuring that entries are added in appropriate order
 
   use Bunch.Access
@@ -14,15 +14,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
   @max_seq_num 2 ** 16
   @history_size div(@max_seq_num, 8)
 
-  @enforcekeys [:cache]
-  defstruct @enforcekeys
+  defstruct cache: Qex.new()
 
   @type t() :: %__MODULE__{
-          cache: Qex.t({non_neg_integer(), non_neg_integer()})
+          cache:
+            Qex.t({original_seq_num :: non_neg_integer(), mapped_seq_num :: non_neg_integer()})
         }
 
   @spec new() :: t()
-  def new(), do: %__MODULE__{cache: Qex.new()}
+  def new(), do: %__MODULE__{}
 
   @spec push(t(), non_neg_integer(), non_neg_integer()) :: t()
   def push(%__MODULE__{} = state, from, to) do
@@ -47,6 +47,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
     end
   end
 
+  # FIXME: this needs to be called every time RTPMunger sees a buffer
+  # Calling it only when writing to a cache is not enough
   defp remove_outdated_entries(state) do
     window_size = get_window_size(state)
 

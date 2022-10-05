@@ -111,7 +111,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
 
   defp send_padding_packets(state, packets_num) do
     Enum.reduce(1..packets_num, state, fn _i, state ->
-      # We need to select a track receiver in such a way that each one sends an equal amount of packets to create
+      # It's a good idea to select a track receiver in such a way that each one sends an equal amount of packets
       # => Round Robin
       {tr, track_receivers} = Qex.pop!(state.track_receivers)
       send(tr, :send_padding_packet)
