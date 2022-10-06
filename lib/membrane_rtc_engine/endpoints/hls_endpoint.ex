@@ -376,14 +376,4 @@ if Enum.all?(
       end
     end
   end
-else
-  raise """
-  Cannot find one of the modules required to use HLS endpoint.
-  Ensure that following deps are added in your mix.exs:
-  * `:membrane_http_adaptive_stream_plugin`,
-  * `:membrane_h264_ffmpeg_plugin`,
-  * `:membrane_opus_plugin`,
-  * `:membrane_aac_plugin`
-  * `:membrane_aac_fdk_plugin`
-  """
 end
