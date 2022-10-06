@@ -169,6 +169,27 @@ defmodule Membrane.RTC.Engine.Tee do
   end
 
   @impl true
+  def handle_event(
+        Pad.ref(:output, {:endpoint, endpoint_id}) = pad,
+        %Membrane.KeyframeRequestEvent{} = event,
+        _ctx,
+        state
+      ) do
+    %{current_variant: variant} = state.routes[pad]
+
+    if Map.has_key?(state.inactive_variants, variant) do
+      Membrane.Logger.debug("""
+      Endpoint #{endpoint_id} requested keyframe for inactive track variant: #{variant}. \
+      Track #{inspect(state.track)}. Ignoring.
+      """)
+
+      {:ok, state}
+    else
+      {{:ok, event: {Pad.ref(:input, {state.track.id, variant}), event}}, state}
+    end
+  end
+
+  @impl true
   def handle_event(pad, event, ctx, state) do
     super(pad, event, ctx, state)
   end

@@ -22,12 +22,15 @@ defmodule Membrane.RTC.HLSEndpointTest do
     [rtc_engine: pid]
   end
 
-  describe "HLS Endpoint test" do
-    @tag :skip
+  describe "HLS Endpoint" do
     test "creates correct hls stream from h264 file", %{rtc_engine: rtc_engine} do
+      # FIXME MV-147
+      # after engine refactor this test
+      # produces video with glitches
+
       file_endpoint_id = "file-endpoint-id"
 
-      file_name = "video.h264"
+      file_name = "rtp_h264_video"
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
@@ -41,8 +44,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
           stream_id,
           file_endpoint_id,
           :H264,
-          nil,
-          [:raw],
+          90_000,
           nil,
           id: track_id
         )
@@ -52,24 +54,15 @@ defmodule Membrane.RTC.HLSEndpointTest do
         owner: self(),
         output_directory: Path.join(["./", "test", "hls_output"]),
         target_window_duration: :infinity,
-        framerate: {60, 1}
+        target_segment_duration: Membrane.Time.seconds(10)
       }
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
 
-      parser = %Membrane.H264.FFmpeg.Parser{
-        attach_nalus?: true,
-        skip_until_parameters?: false,
-        framerate: {60, 1}
-      }
-
       file_endpoint = %FileEndpoint{
         rtc_engine: rtc_engine,
         file_path: file_path,
-        track: track,
-        interceptor: fn link_builder ->
-          Membrane.ParentSpec.to(link_builder, :parser, parser)
-        end
+        track: track
       }
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
@@ -109,6 +102,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert_receive {:cleanup, _cleanup_function, ^stream_id}
 
       File.rm_rf!(@output_dir)
+
+      Engine.terminate(rtc_engine, blocking?: true)
     end
   end
 end
