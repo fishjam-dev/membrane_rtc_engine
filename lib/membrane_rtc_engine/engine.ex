@@ -61,8 +61,6 @@ defmodule Membrane.RTC.Engine do
   +--------+                 +---------+             +--------+               +---------+
   ```
 
-
-
   ### Media Events
 
   Media Events are blackbox messages that carry data important for the
@@ -140,55 +138,7 @@ defmodule Membrane.RTC.Engine do
   * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
   saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
 
-  User can also implement custom Endpoints.
-
-  ### Implementing custom RTC Engine Endpoint
-
-  Each RTC Engine Endpoint has to:
-  * implement `Membrane.Bin` behavior
-  * specify input, output, or both input and output pads depending on what it is intended to do.
-  For example, if Endpoint will not publish any tracks but only subscribe for tracks from other Endpoints it can specify only input pads.
-  Pads should have the following form
-
-  ```elixir
-    def_input_pad :input,
-      demand_unit: :buffers,
-      caps: <caps>,
-      availability: :on_request
-
-    def_output_pad :output,
-      demand_unit: :buffers,
-      caps: <caps>,
-      availability: :on_request
-  ```
-
-  Where `caps` are `t:Membrane.Caps.t/0` or `:any`.
-
-  * publish for some tracks using actions `t:publish_action_t/0` and subscribe for some tracks using
-  function `#{inspect(__MODULE__)}.subscribe/4`. The first will cause RTC Engine to send a message in
-  form of `{:new_tracks, tracks}` where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
-  When an Endpoint receives such a message it can subscribe for new tracks by
-  using `#{inspect(__MODULE__)}.subscribe/4` function. An Endpoint will be notified about track readiness
-  it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
-  callback can look like this
-
-  ```elixir
-    @impl true
-    def handle_pad_added(Pad.ref(:input, _track_id) = pad, _ctx, state) do
-      links = [
-        link_bin_input(pad)
-        |> via_in(pad)
-        |> to(:my_element)
-      ]
-
-      {{:ok, spec: %ParentSpec{links: links}}, state}
-    end
-  ```
-
-  Where `:my_element` is a custom Membrane element responsible for processing track.
-
-  Endpoint will be also notified when some tracks it subscribed for are removed with
-  `{:removed_tracks, tracks}` message where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0`.
+  User can also implement custom Endpoints see...
   """
 
   use Membrane.Pipeline

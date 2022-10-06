@@ -1,10 +1,15 @@
 # Engine Architecture
 
-![Alt text](assets/tee_diagram.drawio.svg)
+Engine itself is responsible for forwarding tracks to proper endpoints.
+It is protocol agnostic i.e. it doesn't store information specific for 
+any of multimedia protocols or standards.
 
-Currently engine endpoints can publish two formats:
-- non-raw - this situation is shown in the upper part of diagram
-- raw - this situation is shown in the lower part of diagram
+For each track there is separate tee responsible for
+forwarding this track to all subscribed endpoints.
+
+![Alt text](assets/engine_architecture.svg)
+
+
 
 
 
