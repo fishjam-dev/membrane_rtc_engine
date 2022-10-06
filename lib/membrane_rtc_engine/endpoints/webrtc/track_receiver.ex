@@ -134,7 +134,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         needs_reconfiguration: false
     }
 
-    ConnectionProber.buffer_sent(state.connection_prober, buffer)
+    if buffer, do: ConnectionProber.buffer_sent(state.connection_prober, buffer)
 
     {{:ok, actions}, state}
   end

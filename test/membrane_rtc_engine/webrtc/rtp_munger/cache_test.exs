@@ -4,7 +4,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.CacheTest do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache
 
   @max_seq_num 2 ** 16
-  @history_size div(@max_seq_num, 2)
+  @history_size 64
 
   describe "RTPMunger.Cache" do
     test "can retrieve stored information" do
@@ -38,8 +38,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.CacheTest do
 
       cache =
         Cache.new()
-        |> Cache.push(too_old_seq_num, 0)
-        |> Cache.push(1, 20)
+        |> Cache.push(too_old_seq_num - 1, too_old_seq_num)
+        |> Cache.push(1, 2)
 
       assert {:error, :not_found} = Cache.get(cache, too_old_seq_num)
     end

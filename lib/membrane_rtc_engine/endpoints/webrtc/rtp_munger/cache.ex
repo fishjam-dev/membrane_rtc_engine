@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
   use Bunch.Access
 
   @max_seq_num 2 ** 16
-  @history_size div(@max_seq_num, 8)
+  @history_size 64
 
   defstruct cache: Qex.new()
 
@@ -26,9 +26,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
 
   @spec push(t(), non_neg_integer(), non_neg_integer()) :: t()
   def push(%__MODULE__{} = state, from, to) do
-    state
-    |> Map.update!(:cache, &Qex.push(&1, {from, to}))
-    |> remove_outdated_entries()
+    new_state = Map.update!(state, :cache, &Qex.push(&1, {from, to}))
+
+    if Enum.empty?(state.cache) do
+      new_state
+    else
+      {_last, last} = Qex.last!(state.cache)
+      remove_outdated_entries(new_state, last)
+    end
   end
 
   @spec get(t(), non_neg_integer()) :: {:ok, non_neg_integer()} | {:error, :not_found}
@@ -47,23 +52,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
     end
   end
 
-  # FIXME: this needs to be called every time RTPMunger sees a buffer
-  # Calling it only when writing to a cache is not enough
-  defp remove_outdated_entries(state) do
-    window_size = get_window_size(state)
+  @spec remove_outdated_entries(t(), non_neg_integer()) :: t()
+  def remove_outdated_entries(state, last_mapping) do
+    window_size = get_window_size(state, last_mapping)
 
     if window_size >= @history_size do
       {_entry, cache} = Qex.pop(state.cache)
-      remove_outdated_entries(%{state | cache: cache})
+      remove_outdated_entries(%{state | cache: cache}, last_mapping)
     else
       state
     end
   end
 
-  defp get_window_size(%{cache: cache} = _state) do
-    {first, _mapped_first} = cache |> Qex.first!()
-    {last, _mapped_last} = cache |> Qex.last!()
+  defp get_window_size(%{cache: cache} = _state, last_mapping) do
+    case Qex.first(cache) do
+      {:value, {_first, first_mapping}} ->
+        rem(last_mapping - first_mapping + @max_seq_num, @max_seq_num)
 
-    rem(last - first + @max_seq_num, @max_seq_num)
+      :empty ->
+        0
+    end
   end
 end

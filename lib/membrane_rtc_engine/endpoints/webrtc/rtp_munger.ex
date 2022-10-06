@@ -115,6 +115,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       rtp_munger
       |> Map.update!(:seq_num_offset, &(&1 - 1))
       |> Map.put(:last_seq_num, buffer.metadata.rtp.sequence_number)
+      |> Map.update!(
+        :cache,
+        &Cache.remove_outdated_entries(&1, buffer.metadata.rtp.sequence_number)
+      )
 
     {rtp_munger, buffer}
   end
@@ -172,7 +176,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
             Cache.push(cache, seq_num, calculate_seq_num(seq_num, rtp_munger))
           end)
         else
-          rtp_munger.cache
+          Cache.remove_outdated_entries(rtp_munger.cache, buffer.metadata.rtp.sequence_number)
         end
 
       rtp_munger = %__MODULE__{
