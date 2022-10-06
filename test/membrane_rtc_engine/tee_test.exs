@@ -203,7 +203,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
   end
 
   defp build_h264_track() do
-    Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+    Track.new(:video, @stream_id, @track_origin, :H264, 90_000, nil,
       id: @track_id,
       variants: @variants
     )

@@ -7,7 +7,6 @@ defmodule Membrane.RTC.Engine.Subscription do
   @typedoc """
   * `endpoint_id` - id of endpoint making subscription
   * `track_id` - id of track endpoint subscribes for
-  * `format` - format of track endpoint subscribes for
   * `status` - status of subscription. Subscription is
   `active` when track some endpoint subscribed for is linked
   to this endpoint and `pending` otherwise
@@ -16,11 +15,10 @@ defmodule Membrane.RTC.Engine.Subscription do
   @type t() :: %__MODULE__{
           endpoint_id: Endpoint.id(),
           track_id: Track.id(),
-          format: Track.format(),
           status: :pending | :active,
           opts: Engine.subscription_opts_t()
         }
 
-  @enforce_keys [:endpoint_id, :track_id, :format]
+  @enforce_keys [:endpoint_id, :track_id]
   defstruct @enforce_keys ++ [status: :pending, opts: []]
 end

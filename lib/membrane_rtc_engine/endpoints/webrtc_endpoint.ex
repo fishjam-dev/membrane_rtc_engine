@@ -266,7 +266,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification(
-        {:new_track, track_id, rid, encoding, depayloading_filter},
+        {:new_track, track_id, rid, encoding, _depayloading_filter},
         _from,
         _ctx,
         state
@@ -289,7 +289,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     variant = to_track_variant(rid)
 
-    {{:ok, notify: {:track_ready, track_id, variant, encoding, depayloading_filter}}, state}
+    {{:ok, notify: {:track_ready, track_id, variant, encoding}}, state}
   end
 
   @impl true
@@ -300,7 +300,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:endpoint, endpoint_id} = ctx.name
 
     Enum.each(new_outbound_tracks, fn track ->
-      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id, :RTP) do
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
         :ok ->
           Membrane.OpenTelemetry.add_event(@life_span_id, :subscribing_on_track,
             track_id: track.id
@@ -499,6 +499,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     }
 
     {{:ok, spec: spec}, state}
+  end
+
+  @impl true
+  def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
+    {{:ok, remove_child: {:track_receiver, track_id}}, state}
+  end
+
+  @impl true
+  def handle_pad_removed(Pad.ref(:output, {track_id, _variant}), ctx, state) do
+    # check if there are any variants that are still linked
+    track_linked? =
+      ctx.pads
+      |> Map.keys()
+      |> Enum.any?(&match?(Pad.ref(:output, {^track_id, _variant}), &1))
+
+    if track_linked? do
+      {:ok, state}
+    else
+      {{:ok, remove_child: {:track_sender, track_id}}, state}
+    end
   end
 
   defp handle_custom_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
@@ -750,7 +770,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       origin,
       track.encoding,
       track.rtp_mapping.clock_rate,
-      [:RTP, :raw],
       track.fmtp,
       id: track.id,
       variants: variants,

@@ -124,6 +124,7 @@ defmodule Membrane.RTC.Engine.MixProject do
         Endpoints: [
           Membrane.RTC.Engine.Endpoint.WebRTC,
           Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig,
+          Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver,
           Membrane.RTC.Engine.Endpoint.HLS,
           Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
         ],
@@ -141,7 +142,9 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Message.PeerLeft
         ],
         Exceptions: [
+          Membrane.RTC.Engine.Exception.PublishTrackError,
           Membrane.RTC.Engine.Exception.RequestTrackVariantError,
+          Membrane.RTC.Engine.Exception.TrackReadyError,
           Membrane.RTC.Engine.Exception.TrackVariantStateError
         ]
       ]

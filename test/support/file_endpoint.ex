@@ -1,14 +1,16 @@
 defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   @moduledoc false
 
-  # Endpoint that publishes data from a file in the realtime. It will start publishing data when it receives message :start.
-  # Buffers from the file must have timestamps, because they will be used by Realtimer.
+  # Endpoint that publishes data from a file.
+  # Starts publishing data on receiving `:start` message.
 
   use Membrane.Bin
 
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Support.StaticTrackSender
+  alias Membrane.Stream.Deserializer
 
   @type encoding_t() :: String.t()
 
@@ -23,16 +25,6 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
               track: [
                 spec: Engine.Track.t(),
                 description: "Track to publish"
-              ],
-              interceptor: [
-                spec:
-                  (Membrane.ParentSpec.link_builder_t() -> Membrane.ParentSpec.link_builder_t()),
-                description: "Function which link source with processing children"
-              ],
-              depayloading_filter: [
-                spec: Membrane.ParentSpec.child_spec_t() | nil,
-                default: nil,
-                description: "Element which depayloads stream to raw format"
               ]
 
   def_output_pad :output,
@@ -45,9 +37,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
     state = %{
       rtc_engine: opts.rtc_engine,
       file_path: opts.file_path,
-      track: opts.track,
-      interceptor: opts.interceptor,
-      depayloading_filter: opts.depayloading_filter
+      track: opts.track
     }
 
     {:ok, state}
@@ -65,12 +55,13 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
         source: %Membrane.File.Source{
           location: state.file_path
         },
-        realtimer: Membrane.Realtimer
+        deserializer: Deserializer,
+        track_sender: %StaticTrackSender{track: state.track}
       },
       links: [
         link(:source)
-        |> then(state.interceptor)
-        |> to(:realtimer)
+        |> to(:deserializer)
+        |> to(:track_sender)
         |> to_bin_output(pad)
       ]
     }
@@ -90,9 +81,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   @impl true
   def handle_other(:start, _ctx, state) do
-    track_ready =
-      {:track_ready, state.track.id, nil, state.track.encoding, state.depayloading_filter}
-
+    track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
     {{:ok, notify: track_ready}, state}
   end
 end

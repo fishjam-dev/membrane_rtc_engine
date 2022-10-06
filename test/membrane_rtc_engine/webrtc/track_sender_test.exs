@@ -21,16 +21,15 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   describe "TrackSender" do
     test "adds `is_keyframe` flag to each buffer" do
       [
-        {Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+        {Track.new(:video, @stream_id, @track_origin, :H264, 90_000, nil,
            id: @track_id,
            variants: @variants
          ), false},
-        {Track.new(:video, @stream_id, @track_origin, :VP8, 90_000, :raw, nil,
+        {Track.new(:video, @stream_id, @track_origin, :VP8, 90_000, nil,
            id: @track_id,
            variants: @variants
          ), false},
-        {Track.new(:audio, @stream_id, @track_origin, :OPUS, 48_000, :raw, nil, id: @track_id),
-         true}
+        {Track.new(:audio, @stream_id, @track_origin, :OPUS, 48_000, nil, id: @track_id), true}
       ]
       |> Enum.each(fn {track, expected_is_keyframe_value} ->
         test_is_keyframe(track, expected_is_keyframe_value)
@@ -163,7 +162,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   end
 
   defp build_h264_track() do
-    Track.new(:video, @stream_id, @track_origin, :H264, 90_000, :raw, nil,
+    Track.new(:video, @stream_id, @track_origin, :H264, 90_000, nil,
       id: @track_id,
       variants: @variants
     )
