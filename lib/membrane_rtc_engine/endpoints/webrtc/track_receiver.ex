@@ -27,7 +27,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     RequestTrackVariant,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched
+    TrackVariantSwitched,
+    TrackStopped,
+    TrackVadChanged
   }
 
   alias Membrane.RTC.Engine.Track
@@ -114,7 +116,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
-    actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
+    interval_actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
+    {cached_actions, state} = Map.pop(state, :cached_actions, [])
+    actions = interval_actions ++ cached_actions
     {{:ok, actions}, state}
   end
 
@@ -156,6 +160,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
+  def handle_event(_pad, %TrackVadChanged{} = event, _ctx, state) do
+    Membrane.Logger.debug("Received event: #{inspect(event)}")
+    {{:ok, notify: event}, state}
+  end
+
+  @impl true
   def handle_event(pad, event, ctx, state) do
     super(pad, event, ctx, state)
   end
@@ -186,8 +196,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_other(msg, ctx, state) when msg in [:start_track, :stop_track] do
-    {{:ok, event: {:input, msg}}, state}
+  def handle_other(:stop_track, ctx, state) do
+    {selector, nil} = VariantSelector.set_target_variant(state.selector, nil)
+    actions = [event: {:input, %TrackStopped{}}]
+    {actions, state} = send_action_if_pads_exists(actions, ctx, state)
+
+    {{:ok, actions}, %{state | selector: selector}}
+  end
+
+  @impl true
+  def handle_other(:start_track, ctx, state) do
+    {selector, next_variant} = VariantSelector.set_target_variant(state.selector, :high)
+    actions = maybe_request_track_variant(next_variant)
+    {actions, state} = send_action_if_pads_exists(actions, ctx, state)
+    {{:ok, actions}, %{state | selector: selector}}
   end
 
   @impl true
@@ -199,6 +221,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   defp maybe_request_keyframe(_current_variant),
     do: [event: {:input, %Membrane.KeyframeRequestEvent{}}]
+
+  defp send_action_if_pads_exists(actions, ctx, state)
+       when ctx.pads == [] or ctx.playback_state != :playing do
+    {[], Map.put(state, :cached_actions, actions)}
+  end
+
+  defp send_action_if_pads_exists(actions, _ctx, state) do
+    {actions, state}
+  end
 
   defp maybe_request_track_variant(nil), do: []
 

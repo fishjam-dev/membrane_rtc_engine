@@ -213,7 +213,6 @@ defmodule Membrane.RTC.Engine do
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
-  @pub_sub_name Membrane.RTC.Engine.PubSub
 
   @life_span_id "rtc_engine.life_span"
 
@@ -292,9 +291,6 @@ defmodule Membrane.RTC.Engine do
 
   @spec get_registry_name() :: atom()
   def get_registry_name(), do: @registry_name
-
-  @spec get_pub_sub_name() :: atom()
-  def get_pub_sub_name(), do: @pub_sub_name
 
   @doc """
   Adds endpoint to the RTC Engine
@@ -827,11 +823,13 @@ defmodule Membrane.RTC.Engine do
        ) do
     forwarding_msg =
       state.endpoints
-      |> Stream.reject(&(elem(&1, 0) == endpoint_id))
-      |> Stream.reject(&is_nil(elem(&1, 1)))
-      |> Map.keys()
-      |> Enum.filter(&Map.has_key?(state.subscriptions[&1], track_id))
-      |> Enum.map(&[forward: {{:endpoint, &1}, msg}])
+      |> Stream.reject(fn {id, endpoint} -> id == endpoint_id or is_nil(endpoint) end)
+      |> Enum.filter(fn {endpoint_id, _endpoint} ->
+        Map.has_key?(state.subscriptions[endpoint_id], track_id)
+      end)
+      |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
+        [forward: {{:endpoint, endpoint_id}, msg}]
+      end)
 
     {{:ok, forwarding_msg}, state}
   end

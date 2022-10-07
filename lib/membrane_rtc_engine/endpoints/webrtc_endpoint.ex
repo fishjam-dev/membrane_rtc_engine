@@ -20,7 +20,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
-  alias Phoenix.PubSub
+  alias Membrane.RTC.Engine.Event.TrackVadChanged
 
   @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
   @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
@@ -198,11 +198,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> Map.merge(%{
         outbound_tracks: %{},
         inbound_tracks: %{},
-        display_manager: nil
+        display_manager: nil,
+        endpoint_id_to_action: %{}
       })
-
-    :ok =
-      PubSub.subscribe(Engine.get_pub_sub_name(), to_string(Membrane.RTC.Engine.DisplayManager))
 
     {:ok, state}
   end
@@ -261,7 +259,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {_actions, state} =
       state.display_manager
       |> DisplayManager.add_inbound_tracks(tracks)
-      |> update_display_manager(state)
+      |> update_display_manager(ctx, state)
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :publishing_new_tracks,
       tracks_ids: Enum.map(tracks, & &1.id)
@@ -271,14 +269,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:removed_tracks, tracks}, :endpoint_bin, _ctx, state) do
+  def handle_notification({:removed_tracks, tracks}, :endpoint_bin, ctx, state) do
     tracks = Enum.map(tracks, &to_rtc_track(&1, Map.get(state.inbound_tracks, &1.id)))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
     {actions, state} =
       state.display_manager
       |> DisplayManager.remove_tracks(tracks)
-      |> update_display_manager(state)
+      |> update_display_manager(ctx, state)
 
     {{:ok, [notify: {:publish, {:removed_tracks, tracks}}] ++ actions},
      %{state | inbound_tracks: inbound_tracks}}
@@ -347,20 +345,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {actions, state} =
       state.display_manager
       |> DisplayManager.subscribe_tracks(new_outbound_tracks)
-      |> update_display_manager(state)
+      |> update_display_manager(ctx, state)
 
     {{:ok, actions}, state}
   end
 
   @impl true
-  def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
-    {:endpoint, endpoint_id} = ctx.name
-
+  def handle_notification({:vad, val}, :endpoint_bin, _ctx, state) do
     audio_inbound_track = state.inbound_tracks |> Map.values() |> Enum.find(&(&1.type == :audio))
 
-    vad_notification = {:vad_notification, endpoint_id, val, DisplayManager.get_monotonic_time()}
+    vad_notification = %TrackVadChanged{
+      vad_value: val,
+      timestamp: DisplayManager.get_monotonic_time()
+    }
 
-    {{:ok, {:publish, audio_inbound_track.id, vad_notification}}, state}
+    {{:ok, forward: {{:track_sender, audio_inbound_track.id}, vad_notification}}, state}
   end
 
   @impl true
@@ -418,6 +417,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_notification(
+        %TrackVadChanged{vad_value: vad_value, timestamp: timestamp},
+        {:track_receiver, track_id},
+        ctx,
+        state
+      ) do
+    endpoint_id = Map.fetch!(state.outbound_tracks, track_id).origin
+
+    {actions, state} =
+      state.display_manager
+      |> DisplayManager.add_vad_notification(endpoint_id, vad_value, timestamp)
+      |> update_display_manager(ctx, state)
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   def handle_notification(notification, _element, _ctx, state),
     do: {{:ok, notify: notification}, state}
 
@@ -461,16 +477,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_other({:vad_notification, _endpoint_id, _value, _timestamp} = msg, _ctx, state) do
-    {actions, state} =
-      state.display_manager
-      |> DisplayManager.add_vad_notification(msg)
-      |> update_display_manager(state)
-
-    {{:ok, actions}, state}
-  end
-
-  @impl true
   def handle_other(msg, ctx, state) do
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
@@ -490,7 +496,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> to(:endpoint_bin)
     ]
 
-    {{:ok, spec: %ParentSpec{log_metadata: state.log_metadata, links: links}}, state}
+    {action, endpoint_id_to_action} =
+      Map.pop(state.endpoint_id_to_action, {:track_receiver, track_id})
+
+    state = %{state | endpoint_id_to_action: endpoint_id_to_action}
+
+    actions = if action == nil, do: [], else: [action]
+
+    {{:ok, [spec: %ParentSpec{log_metadata: state.log_metadata, links: links}] ++ actions}, state}
   end
 
   @impl true
@@ -568,29 +581,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {{:ok, forward({:track_receiver, data.track_id}, msg, ctx)}, state}
   end
 
-  defp handle_custom_media_event(%{type: :prioritize_track, data: data}, _ctx, state) do
+  defp handle_custom_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
     # msg = {:prioritize_track, ctx.name, data.track_id}
     # send_if_not_nil(state.display_manager, msg)
     {actions, state} =
       state.display_manager
       |> DisplayManager.prioritize_track(data.track_id)
-      |> update_display_manager(state)
+      |> update_display_manager(ctx, state)
 
     {{:ok, actions}, state}
   end
 
-  defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, _ctx, state) do
+  defp handle_custom_media_event(%{type: :unprioritize_track, data: data}, ctx, state) do
     # msg = {:unprioritize_track, ctx.name, data.track_id}
     # send_if_not_nil(state.display_manager, msg)
     {actions, state} =
       state.display_manager
       |> DisplayManager.unprioritize_track(data.track_id)
-      |> update_display_manager(state)
+      |> update_display_manager(ctx, state)
 
     {{:ok, actions}, state}
   end
 
-  defp handle_custom_media_event(%{type: :prefered_video_sizes, data: data}, _ctx, state) do
+  defp handle_custom_media_event(%{type: :prefered_video_sizes, data: data}, ctx, state) do
     {_actions, state} =
       state.display_manager
       |> DisplayManager.change_prefered_video_sizes(
@@ -599,7 +612,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         data.small_screens,
         data.same_size?
       )
-      |> update_display_manager(state)
+      |> update_display_manager(ctx, state)
 
     {:ok, state}
   end
@@ -840,14 +853,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_rid(:medium), do: "m"
   defp to_rid(:low), do: "l"
 
-  defp update_display_manager({running_track_ids, stopped_track_ids, display_manager}, state) do
+  defp update_display_manager({running_track_ids, stopped_track_ids, display_manager}, ctx, state) do
     state = %{state | display_manager: display_manager}
     actions = DisplayManager.map_tracks_to_actions(running_track_ids, stopped_track_ids)
+
+    {actions, state} =
+      Enum.reduce(actions, {[], state}, fn {:forward, {element_name, _msg_type}} = action,
+                                           {actions, state} ->
+        if find_child(ctx, pattern: ^element_name) == nil do
+          state = put_in(state, [:endpoint_id_to_action, element_name], action)
+          {actions, state}
+        else
+          {[action | actions], state}
+        end
+      end)
 
     {actions, state}
   end
 
-  defp update_display_manager(display_manager, state) do
+  defp update_display_manager(display_manager, _ctx, state) do
     state = %{state | display_manager: display_manager}
     {[], state}
   end

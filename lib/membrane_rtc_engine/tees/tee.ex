@@ -4,11 +4,15 @@ defmodule Membrane.RTC.Engine.Tee do
 
   require Membrane.Logger
 
+  alias Membrane.RTC.Engine.Track
+
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched
+    TrackVariantSwitched,
+    TrackStopped,
+    TrackVadChanged
   }
 
   alias Membrane.RTC.Engine.Exception.{RequestTrackVariantError, TrackVariantStateError}
@@ -17,7 +21,7 @@ defmodule Membrane.RTC.Engine.Tee do
 
   def_options track: [
                 type: :struct,
-                spec: Membrane.RTC.Engine.Track.t(),
+                spec: Track.t(),
                 description: "Track this tee is going to forward to other endpoints"
               ]
 
@@ -45,7 +49,8 @@ defmodule Membrane.RTC.Engine.Tee do
      %{
        track: opts.track,
        routes: %{},
-       inactive_variants: MapSet.new(opts.track.variants)
+       inactive_variants: MapSet.new(opts.track.variants),
+       cached_vad_event: nil
      }}
   end
 
@@ -63,8 +68,7 @@ defmodule Membrane.RTC.Engine.Tee do
     state =
       put_in(state, [:routes, pad], %{
         target_variant: nil,
-        current_variant: nil,
-        enabled?: true
+        current_variant: nil
       })
 
     actions =
@@ -74,7 +78,11 @@ defmodule Membrane.RTC.Engine.Tee do
           |> active_variants()
           |> Enum.flat_map(&[event: {pad, %TrackVariantResumed{variant: &1}}])
 
-        [caps: {pad, %Membrane.RTP{}}] ++ actions
+        vad_event = Map.get(state, :cached_vad_event)
+
+        vad_action = if vad_event == nil, do: [], else: [event: {pad, vad_event}]
+
+        [caps: {pad, %Membrane.RTP{}}] ++ vad_action ++ actions
       else
         []
       end
@@ -139,6 +147,26 @@ defmodule Membrane.RTC.Engine.Tee do
 
   @impl true
   def handle_event(
+        Pad.ref(:input, _id),
+        %TrackVadChanged{} = event,
+        _ctx,
+        %{track: %Track{type: :audio}} = state
+      ) do
+    {{:ok, forward: event}, %{state | cached_vad_event: event}}
+  end
+
+  @impl true
+  def handle_event(
+        Pad.ref(:input, _id),
+        %TrackVadChanged{},
+        _ctx,
+        state
+      ) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_event(
         Pad.ref(:output, {:endpoint, endpoint_id}) = output_pad,
         %RequestTrackVariant{variant: requested_variant} = event,
         _ctx,
@@ -188,6 +216,21 @@ defmodule Membrane.RTC.Engine.Tee do
     else
       {{:ok, event: {Pad.ref(:input, {state.track.id, variant}), event}}, state}
     end
+  end
+
+  @impl true
+  def handle_event(
+        Pad.ref(:output, {:endpoint, _endpoint_id}) = output_pad,
+        %TrackStopped{},
+        _ctx,
+        state
+      ) do
+    state =
+      update_in(state, [:routes, output_pad], fn old_route ->
+        %{old_route | target_variant: nil, current_variant: nil}
+      end)
+
+    {:ok, state}
   end
 
   @impl true

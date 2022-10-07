@@ -51,9 +51,9 @@ defmodule Membrane.RTC.Engine.DisplayManager do
   @spec get_monotonic_time() :: Time.t()
   def get_monotonic_time(), do: Time.monotonic_time()
 
-  @spec add_vad_notification(t(), {:vad_notification, String.t(), :silence | :speech, integer()}) ::
+  @spec add_vad_notification(t(), String.t(), :silence | :speech, integer()) ::
           ordered_tracks_and_state_t()
-  def add_vad_notification(state, {:vad_notification, endpoint_name, value, timestamp})
+  def add_vad_notification(state, endpoint_name, value, timestamp)
       when value in [:silence, :speech] do
     calculate_tracks_priority(state, [{value, endpoint_name, timestamp}])
   end
@@ -163,7 +163,10 @@ defmodule Membrane.RTC.Engine.DisplayManager do
       |> Enum.sort_by(fn {_endpoint_name, time} -> time end, &sort_vads/2)
       |> Enum.map(fn {endpoint_name, _time} -> endpoint_name end)
 
-    ordered_tracks = Enum.flat_map(ordered_endpoint_names, &Map.get(state.endpoint_tracks, &1))
+    ordered_tracks =
+      ordered_endpoint_names
+      |> Enum.flat_map(&Map.get(state.endpoint_tracks, &1))
+      |> Enum.filter(&(&1.type == :video))
 
     inbound_tracks = Map.get(state.endpoint_tracks, state.endpoint_name)
 
@@ -182,9 +185,9 @@ defmodule Membrane.RTC.Engine.DisplayManager do
     limited_ordered_tracks = ordered_tracks |> Enum.take(video_tracks_limit) |> Enum.map(& &1.id)
 
     stopped_tracks =
-      ordered_tracks |> Enum.reject(&(&1.id not in limited_ordered_tracks)) |> Enum.map(& &1.id)
+      ordered_tracks |> Enum.reject(&(&1.id in limited_ordered_tracks)) |> Enum.map(& &1.id)
 
-    tracks_priority = state.prioritized_tracks ++ limited_ordered_tracks
+    tracks_priority = MapSet.to_list(state.prioritized_tracks) ++ limited_ordered_tracks
     {tracks_priority, stopped_tracks, state}
   end
 

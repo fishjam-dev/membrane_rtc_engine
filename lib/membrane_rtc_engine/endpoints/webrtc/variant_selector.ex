@@ -7,7 +7,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   alias Membrane.RTC.Engine.Track
 
   @type t() :: %__MODULE__{
-          target_variant: Track.variant(),
+          target_variant: Track.variant() | nil,
           current_variant: Track.variant() | nil,
           queued_variant: Track.variant() | nil,
           active_variants: MapSet.t(Track.variant())
@@ -110,20 +110,34 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   If the target variant is not active, we will switch to it when it becomes active again
   """
-  @spec set_target_variant(t(), Track.variant()) :: {t(), Track.variant() | nil}
+  @spec set_target_variant(t(), Track.variant() | nil) :: {t(), Track.variant() | nil}
   def set_target_variant(selector, variant) do
-    if variant in selector.active_variants do
-      selector = %__MODULE__{selector | target_variant: variant}
-      select_variant(selector, variant)
-    else
-      Membrane.Logger.debug("""
-      Requested inactive variant #{inspect(variant)}. Saving it as target.
-      It will be requested once it becomes active
-      """)
+    cond do
+      variant in selector.active_variants ->
+        selector = %__MODULE__{selector | target_variant: variant}
+        select_variant(selector, variant)
 
-      selector = %__MODULE__{selector | target_variant: variant}
+      variant == nil ->
+        Membrane.Logger.debug("Stop track")
 
-      {selector, nil}
+        selector = %__MODULE__{
+          selector
+          | target_variant: nil,
+            current_variant: nil,
+            queued_variant: nil
+        }
+
+        {selector, nil}
+
+      true ->
+        Membrane.Logger.debug("""
+        Requested inactive variant #{inspect(variant)}. Saving it as target.
+        It will be requested once it becomes active
+        """)
+
+        selector = %__MODULE__{selector | target_variant: variant}
+
+        {selector, nil}
     end
   end
 

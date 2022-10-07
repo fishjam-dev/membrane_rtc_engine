@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   alias Membrane.{Buffer, Time}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
-  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed}
+  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed, TrackVadChanged}
   alias Membrane.RTC.Engine.Track
 
   @keyframe_request_interval_ms 500
@@ -146,6 +146,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     actions = [event: {pad, %Membrane.KeyframeRequestEvent{}}]
 
     {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_other(
+        %TrackVadChanged{} = event,
+        _ctx,
+        %{track: %Track{type: :audio}} = state
+      ) do
+    {{:ok, event: {Pad.ref(:output, {state.track.id, :high}), event}}, state}
+  end
+
+  @impl true
+  def handle_other(
+        %TrackVadChanged{},
+        _ctx,
+        %{track: %Track{type: :video}} = state
+      ) do
+    {:ok, state}
   end
 
   @impl true
