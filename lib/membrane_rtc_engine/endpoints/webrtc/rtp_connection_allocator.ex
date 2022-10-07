@@ -193,7 +193,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   defp maybe_stop_timer(%__MODULE__{} = state) do
-    if is_deficient?(state), do: stop_timer(state), else: state
+    if not is_deficient?(state), do: stop_timer(state), else: state
   end
 
   defp maybe_start_timer(%__MODULE__{} = state) do

@@ -130,8 +130,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     cond do
       # This clause makes sure that we're not doing anything if we already have target variant
-      selector.target_variant in [selector.current_variant, selector.queued_variant] ->
+      selector.target_variant in [selector.current_variant, selector.queued_variant] and selector.variant_bitrates[selector.target_variant] <= selector.current_allocation ->
         {selector, nil}
+        |> tap(fn {selector, _variant} -> manage_allocation(selector) end)
 
       # This clause makes sure that we're selecting target variant if it becomes active and if we have enough bandwidth for it
       selector.target_variant == variant and
@@ -233,7 +234,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
        when not is_nil(variant) and variant in [selector.current_variant, selector.queued_variant],
        do: {:error, :doesnt_exist}
 
-  # I don't think we should call that if we have queued variant, we should wait to get it in
   defp next_desired_variant(%__MODULE__{current_variant: variant} = selector) do
     selector.active_variants
     |> sort_variants()
@@ -280,16 +280,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     next_variant = next_desired_variant(selector)
 
     cond do
-      queued_variant_bitrate > selector.current_allocation ->
-        # We probably have a problem here. Technically, this should be handled by best_active_variant call
-        :ok
-
       # If we're not having that much margin left in current allocation, try to request higher allocation
       # It is very important that this clause takes precedence over the one that aims to increase quality.
       # If we don't have enough bandwidth to maintain current quality, don't bother with better quality, try to salvage current quality
       required_bitrate > 0.95 * selector.current_allocation ->
         Membrane.Logger.info(
           "Requesting #{required_bitrate / 1024} kbps from connection prober as a mean to maintain current quality"
+        )
+
+        ConnectionProber.request_allocation(selector.connection_prober, required_bitrate * 1.1)
+
+      required_bitrate * 1.2 < selector.current_allocation ->
+        Membrane.Logger.info(
+          "Requesting #{required_bitrate / 1024} kbps from connection prober to free unused bitrate"
         )
 
         ConnectionProber.request_allocation(selector.connection_prober, required_bitrate * 1.1)
