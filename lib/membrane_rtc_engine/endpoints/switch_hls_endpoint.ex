@@ -238,7 +238,9 @@ if Enum.all?(
 
       {spec, state} = if not state.linked[track_type] do
         children = %{
-          {:switch, track_type} => Membrane.RTC.Engine.Endpoint.HLS.Switch
+          {:switch, track_type} => %Membrane.RTC.Engine.Endpoint.HLS.Switch{type: track_type},
+          {:generator_realtimer, track_type} => Membrane.Realtimer,
+          {:generator_metadata_fixer, track_type} => Membrane.RTC.Engine.Endpoint.HLS.MetadataFixer
         }
 
         audio_caps = %Membrane.RawAudio{
@@ -247,21 +249,25 @@ if Enum.all?(
           sample_format: :s16le
         }
 
+        video_caps = %Membrane.RawVideo{
+          pixel_format: :I420,
+          height: 720,
+          width: 1280,
+          framerate: {24, 1},
+          aligned: true
+        }
+
         children = case track_type do
           :video ->
             children
             |> Map.put({:generator, track_type}, %Membrane.BlankVideoGenerator{
-              caps: %Membrane.RawVideo{
-                pixel_format: :I420,
-                height: 720,
-                width: 1280,
-                framerate: {24, 1},
-                aligned: true
-              },
+              caps: video_caps,
               duration: :infinity
             })
             |> Map.put({:generator_encoder, track_type}, Membrane.H264.FFmpeg.Encoder)
-            |> Map.put({:generator_parser, track_type}, Membrane.H264.FFmpeg.Parser)
+            |> Map.put({:generator_parser, track_type}, %Membrane.H264.FFmpeg.Parser{
+              framerate: video_caps.framerate
+            })
           :audio ->
             {audio_encoder, audio_parser} = if track.encoding == :AAC do
               {Membrane.AAC.FDK.Encoder, Membrane.AAC.Parser}
@@ -283,6 +289,8 @@ if Enum.all?(
           link({:generator, track_type})
           |> to({:generator_encoder, track_type})
           |> to({:generator_parser, track_type})
+          |> to({:generator_metadata_fixer, track_type})
+          |> to({:generator_realtimer, track_type})
           |> via_in(Pad.ref(:input, :static), options: [track: nil])
           |> to({:switch, track_type})
         ]

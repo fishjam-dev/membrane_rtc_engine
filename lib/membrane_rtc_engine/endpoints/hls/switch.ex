@@ -10,20 +10,14 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
   require Membrane.Logger
 
   alias Membrane.Buffer
-  alias Membrane.RemoteStream
+  alias Membrane.{RemoteStream, H264, AAC, Opus}
 
   def_input_pad :input,
                 demand_mode: :auto,
                 availability: :on_request,
-                caps: [
-                  Membrane.AAC,
-                  Membrane.Opus,
-                  Membrane.H264,
-                  {RemoteStream, type: :packetized, content_format: one_of([
-                    Membrane.H264,
-                    Membrane.AAC,
-                    Membrane.Opus
-                  ])}],
+                caps: [AAC, Opus,H264,
+                  {RemoteStream, type: :packetized, content_format: one_of([H264, AAC, Opus])}
+                ],
                 options: [
                   track: [
                     spec: Membrane.RTC.Engine.Track.t(),
@@ -35,26 +29,28 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   def_output_pad :output,
                  demand_mode: :auto,
-                 caps: [
-                  Membrane.AAC,
-                  Membrane.Opus,
-                  Membrane.H264,
-                  {RemoteStream, type: :packetized, content_format: one_of([
-                    Membrane.H264,
-                    Membrane.AAC,
-                    Membrane.Opus
-                  ])}]
+                 caps: [AAC, Opus,H264,
+                 {RemoteStream, type: :packetized, content_format: one_of([H264, AAC, Opus])}
+                 ]
+
+  def_options type: [
+                spec: :audio | :video,
+                description: """
+                Type of input and output tracks.
+                """
+              ]
 
   @impl true
-  def handle_init(_opts) do
+  def handle_init(opts) do
     state = %{
+      type: opts.type,
       tracks: %{},
       tracks_caps: %{},
       awaiting_id: :static,
-      cur_id: nil,
       awaiting_origin: nil,
-      universal_pts: nil,
-      prev_pts: %{},
+      cur_id: nil,
+      universal_timestamp: nil,
+      prev_timestamp: %{},
       prev_diff: nil,
     }
 
@@ -84,10 +80,29 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   @impl true
   def handle_process(Pad.ref(:input, track_id), buffer, _ctx, %{awaiting_id: track_id} = state)
-  when buffer.metadata.is_keyframe and not is_nil(state.prev_diff) do
-    {new_diff, state} = update_pts(track_id, state, buffer)
-    state = %{state | universal_pts: state.universal_pts + new_diff}
-    buffer = %{buffer | pts: state.universal_pts}
+  when buffer.metadata.is_keyframe and (is_nil(state.universal_timestamp) or not is_nil(state.prev_diff)) do
+    cur_timestamp = get_timestamp(buffer, state.type)
+
+    {state, buffer} = if is_nil(state.universal_timestamp) do
+      state = %{state | universal_timestamp: cur_timestamp}
+      buffer = %Buffer{buffer | pts: state.universal_timestamp}
+      {state, buffer}
+    else
+      new_diff = if Map.has_key?(state.prev_timestamp, track_id) do
+        cur_timestamp - state.prev_timestamp[track_id]
+      else
+        state.prev_diff
+      end
+
+      state = %{state | prev_diff: new_diff}
+      state = %{state | universal_timestamp: state.universal_timestamp + new_diff}
+      buffer = %Buffer{buffer | pts: state.universal_timestamp}
+
+      {state, buffer}
+    end
+
+    state = put_in(state, [:prev_timestamp, track_id], cur_timestamp)
+
 
     state =
       state
@@ -103,16 +118,43 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
 
   @impl true
   def handle_process(Pad.ref(:input, track_id), buffer, _ctx, %{cur_id: track_id} = state) do
-    {new_diff, state} = update_pts(track_id, state, buffer)
-    state = %{state | universal_pts: state.universal_pts + new_diff}
-    buffer = %{buffer | pts: state.universal_pts}
+    cur_timestamp = get_timestamp(buffer, state.type)
+
+    {state, buffer} = if is_nil(state.universal_timestamp) do
+      state = %{state | universal_timestamp: cur_timestamp}
+      buffer = %Buffer{buffer | pts: state.universal_timestamp}
+      {state, buffer}
+    else
+      new_diff = if Map.has_key?(state.prev_timestamp, track_id) do
+        cur_timestamp - state.prev_timestamp[track_id]
+      else
+        state.prev_diff
+      end
+
+      state = %{state | prev_diff: new_diff}
+      state = %{state | universal_timestamp: state.universal_timestamp + new_diff}
+      buffer = %Buffer{buffer | pts: state.universal_timestamp}
+
+      {state, buffer}
+    end
+
+    state = put_in(state, [:prev_timestamp, track_id], cur_timestamp)
+
 
     {{:ok, buffer: {Pad.ref(:output), buffer}}, state}
   end
 
   @impl true
   def handle_process(Pad.ref(:input, track_id), buffer, _ctx, state) do
-    {new_diff, state} = update_pts(track_id, state, buffer) # TODO do przetestowania
+    cur_timestamp = get_timestamp(buffer, state.type)
+
+    new_diff = if Map.has_key?(state.prev_timestamp, track_id) do
+      cur_timestamp - state.prev_timestamp[track_id]
+    else
+      state.prev_diff
+    end
+    state = %{state | prev_diff: new_diff}
+    state = put_in(state, [:prev_timestamp, track_id], cur_timestamp)
 
     {:ok, state}
   end
@@ -167,20 +209,31 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.Switch do
   @impl true
   def handle_end_of_stream(Pad.ref(:input, _track_id), _ctx, state), do: {:ok, state}
 
-  defp update_pts(track_id, state, buffer) do
-    state = if is_nil(state.universal_pts), do: %{state | universal_pts: buffer.pts}, else: state
+  defp update_timestamp(track_id, state, buffer) do
+    # Output buffer pts (universal_timestamp) is rewritten to ensure non-decreasing pts value
+    # Pts difference between following buffers is the same as in input buffers if they come from the same track
+    # Else (when track changes) last rembered difference (prev_diff) is used
+    # When prev_diff is not available, switch waits for next keyframe from awaiting track
+    # in order to find any usable prev_diff
 
-    new_diff = if Map.has_key?(state.prev_pts, track_id) do
-      buffer.pts - state.prev_pts[track_id]
+    cur_timestamp = get_timestamp(buffer, state.type)
+
+    state = put_in(state, [:prev_timestamp, track_id], cur_timestamp)
+
+    if is_nil(state.universal_timestamp) do
+      {0, %{state | universal_timestamp: cur_timestamp}}
     else
-      state.prev_diff
+      new_diff = if Map.has_key?(state.prev_timestamp, track_id) do
+        cur_timestamp - state.prev_timestamp[track_id]
+      else
+        state.prev_diff
+      end
+
+      {new_diff, Map.put(state, :prev_diff, new_diff)}
     end
-
-    state =
-      state
-      |> Map.put(:prev_diff, new_diff)
-      |> put_in([:prev_pts, track_id], buffer.pts)
-
-    {new_diff, state}
   end
+
+  defp get_timestamp(buffer, _type) when not is_nil(buffer.pts), do: buffer.pts
+  defp get_timestamp(buffer, type) when not is_nil(buffer.dts) and type == :audio, do: buffer.dts
+  defp get_timestamp(_buffer, _type), do: raise "Buffer does not contain valid pts or dts"
 end
