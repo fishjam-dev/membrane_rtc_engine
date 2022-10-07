@@ -80,7 +80,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     selector
     |> Map.put(:current_allocation, allocation)
     |> perform_automatic_layer_selection()
-    |> dbg()
   end
 
   @doc """
@@ -278,7 +277,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       [current_variant_bitrate, queued_variant_bitrate]
       |> Enum.max()
 
-    next_variant = next_desired_variant(selector) |> dbg()
+    next_variant = next_desired_variant(selector)
 
     cond do
       queued_variant_bitrate > selector.current_allocation ->
