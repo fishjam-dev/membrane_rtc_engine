@@ -95,6 +95,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
 
   @spec generate_padding_packet(t(), Track.t()) :: {t(), Membrane.Buffer.t() | nil}
   def generate_padding_packet(rtp_munger, track) when rtp_munger.last_marker do
+    # We can only generate padding packets at frame boundary
     buffer = %Membrane.Buffer{
       payload: <<>>,
       metadata: %{
