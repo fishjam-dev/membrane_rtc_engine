@@ -18,13 +18,13 @@ defmodule Membrane.RTC.Engine.DisplayManager do
                   small_screens: nil,
                   medium_screens: nil
                 },
-                prioritized_tracks: MapSet.new()
+                prioritized_tracks: MapSet.new([])
               ]
 
   @type t :: %__MODULE__{
           video_tracks_limit: integer() | nil,
           endpoint_name: String.t(),
-          prioritized_tracks: MapSet.new(),
+          prioritized_tracks: MapSet.t(),
           endpoint_tracks: %{String.t() => [Track.t()]},
           ends_of_speech: %{String.t() => {:silence | :speech, integer()} | nil},
           screens_sizes: %{
@@ -168,7 +168,7 @@ defmodule Membrane.RTC.Engine.DisplayManager do
       |> Enum.flat_map(&Map.get(state.endpoint_tracks, &1))
       |> Enum.filter(&(&1.type == :video))
 
-    inbound_tracks = Map.get(state.endpoint_tracks, state.endpoint_name)
+    inbound_tracks = Map.get(state.endpoint_tracks, state.endpoint_name, [])
 
     ordered_tracks =
       Enum.reject(ordered_tracks, fn track ->

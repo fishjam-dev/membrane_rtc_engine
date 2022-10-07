@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   alias Membrane.{Buffer, Time}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
-  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed, TrackVadChanged}
+  alias Membrane.RTC.Engine.Event.{TrackVadChanged, TrackVariantPaused, TrackVariantResumed}
   alias Membrane.RTC.Engine.Track
 
   @keyframe_request_interval_ms 500

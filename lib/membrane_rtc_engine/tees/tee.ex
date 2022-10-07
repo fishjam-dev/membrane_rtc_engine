@@ -4,18 +4,18 @@ defmodule Membrane.RTC.Engine.Tee do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Track
-
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
+    TrackStopped,
+    TrackVadChanged,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched,
-    TrackStopped,
-    TrackVadChanged
+    TrackVariantSwitched
   }
 
   alias Membrane.RTC.Engine.Exception.{RequestTrackVariantError, TrackVariantStateError}
+
+  alias Membrane.RTC.Engine.Track
 
   @supported_codecs [:H264, :VP8, :OPUS]
 

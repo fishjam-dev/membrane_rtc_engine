@@ -25,11 +25,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
+    TrackStopped,
+    TrackVadChanged,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched,
-    TrackStopped,
-    TrackVadChanged
+    TrackVariantSwitched
   }
 
   alias Membrane.RTC.Engine.Track
