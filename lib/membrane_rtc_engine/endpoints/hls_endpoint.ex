@@ -262,6 +262,66 @@ if Enum.all?(
           File.rm_rf(directory)
           File.mkdir_p!(directory)
 
+
+          ffmpeg_filters = fn
+            width, height, 1 ->
+              "[0:v]scale=#{width}:#{height}:force_original_aspect_ratio=decrease,setsar=1/1,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2"
+
+            width, height, 2 ->
+              "[0:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[left];"
+              |> Kernel.<>("[1:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[right];")
+              |> Kernel.<>("[left][right]hstack")
+
+
+            width, height, 3 ->
+              "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[lefttop];"
+              |> Kernel.<>("[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[leftdown];")
+              |> Kernel.<>("[2:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[right];")
+              |> Kernel.<>("[lefttop][leftdown]vstack=inputs=2[left];")
+              |> Kernel.<>("[left][right]hstack=inputs=2")
+
+
+            width, height, 4 ->
+              "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[lefttop];"
+              |> Kernel.<>("[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[righttop];")
+              |> Kernel.<>("[2:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[leftdown];")
+              |> Kernel.<>("[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[rightdown];")
+              |> Kernel.<>("[lefttop][righttop]hstack=inputs=2[top];")
+              |> Kernel.<>("[leftdown][rightdown]hstack=inputs=2[down];")
+              |> Kernel.<>("[top][down]vstack=inputs=2")
+
+            width, height, 5 ->
+              rest = rem(width, 3)
+              column_width = div(width, 3)
+
+              "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[lefttop];"
+              |> Kernel.<>("[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middletop];")
+              |> Kernel.<>("[2:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[right];")
+              |> Kernel.<>("[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[leftdown];")
+              |> Kernel.<>("[4:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middledown];")
+              |> Kernel.<>("[lefttop][middletop]hstack=inputs=2[top];[leftdown][middledown]hstack=inputs=2[bottom];")
+              |> Kernel.<>("[top][bottom]vstack=inputs=2[left];")
+              |> Kernel.<>("[left][right]hstack=inputs=2")
+
+
+            width, height, 6 ->
+              rest = rem(width, 3)
+              column_width = div(width, 3)
+
+              "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[lefttop];"
+              |> Kernel.<>("[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middletop];")
+              |> Kernel.<>("[2:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[righttop];")
+              |> Kernel.<>("[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[leftdown];")
+              |> Kernel.<>("[4:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middledown];")
+              |> Kernel.<>("[5:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[rightdown];")
+              |> Kernel.<>("[lefttop][middletop][righttop]hstack=inputs=3[top];")
+              |> Kernel.<>("[leftdown][middledown][rightdown]hstack=inputs=3[bottom];")
+              |> Kernel.<>("[top][bottom]vstack=inputs=2")
+
+            _, _, n ->
+              raise("No matching filter found for #{n} input(s)")
+          end
+
           compositor = %Membrane.VideoMixer{
             output_caps: %Membrane.RawVideo{
               width: state.transcoding_config.output_width,
@@ -269,7 +329,8 @@ if Enum.all?(
               pixel_format: :I420,
               framerate: state.transcoding_config.output_framerate,
               aligned: true
-            }
+            },
+            filters: ffmpeg_filters
           }
 
           video_parser_out = %Membrane.H264.FFmpeg.Parser{
