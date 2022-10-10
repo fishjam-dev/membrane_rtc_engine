@@ -138,7 +138,7 @@ defmodule Membrane.RTC.Engine do
   * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
   saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
 
-  User can also implement custom Endpoints see...
+  User can also implement custom Endpoints, see Custom Endpoints guide.
   """
 
   use Membrane.Pipeline

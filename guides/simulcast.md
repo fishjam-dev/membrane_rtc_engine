@@ -33,10 +33,10 @@ alias Membrane.WebRTC.Extension.{Mid, Rid, TWCC}
 }
 ```
 
-Here we turn simulcast on and choose medium variant as target for each track
+Here we turn simulcast on and choose `:medium` variant as a target for each track
 that is going to be forwarded to the browser.
-Target variant means that it will be choosen whenever it is active.
-If for some reason medium variant is inactive we will temporarily forward some other variant.
+Target variant means that it will be chosen whenever it is active.
+If for some reason `:medium` variant is inactive we will temporarily forward some other variant.
 
 On the other hand, setting `enabled` to `false` will result in rejecting all incoming simulcast tracks i.e. client will not send them to the server.
 
