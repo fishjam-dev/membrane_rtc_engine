@@ -236,26 +236,31 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
        when state.allocated_bandwidth > state.available_bandwidth do
     negotiable_trs = track_receivers |> Map.values() |> Enum.count(& &1.negotiable?)
 
-    non_negotiable_bandwidth =
-      track_receivers
-      |> Map.values()
-      |> Enum.filter(&(not &1.negotiable?))
-      |> Enum.map(& &1.current_allocation)
-      |> Enum.sum()
+    if negotiable_trs > 0 do
+      non_negotiable_bandwidth =
+        track_receivers
+        |> Map.values()
+        |> Enum.filter(&(not &1.negotiable?))
+        |> Enum.map(& &1.current_allocation)
+        |> Enum.sum()
 
-    allocation = (state.available_bandwidth - non_negotiable_bandwidth) / negotiable_trs
+      allocation = (state.available_bandwidth - non_negotiable_bandwidth) / negotiable_trs
 
-    track_receivers =
-      Map.new(track_receivers, fn
-        {k, %{negotiable?: false} = v} -> {k, v}
-        {k, v} -> {k, %{v | current_allocation: allocation, target_allocation: nil}}
-      end)
+      track_receivers =
+        Map.new(track_receivers, fn
+          {k, %{negotiable?: false} = v} -> {k, v}
+          {k, v} -> {k, %{v | current_allocation: allocation, target_allocation: nil}}
+        end)
 
-    for receiver <- Map.values(track_receivers) do
-      send(receiver.pid, %AllocationGrantedNotification{allocation: receiver.current_allocation})
+      for receiver <- Map.values(track_receivers) do
+        send(receiver.pid, %AllocationGrantedNotification{allocation: receiver.current_allocation})
+      end
+
+      %{state | track_receivers: track_receivers, allocated_bandwidth: state.available_bandwidth}
+    else
+      Logger.warn("We're using more bandwidth then we have, but we cannot lower our usage")
+      state
     end
-
-    %{state | track_receivers: track_receivers, allocated_bandwidth: state.available_bandwidth}
   end
 
   defp update_allocations(%__MODULE__{available_bandwidth: bandwidth} = state) do
