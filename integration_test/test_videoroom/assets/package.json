@@ -1,7 +1,7 @@
 {
     "license": "MIT",
     "dependencies": {
-        "@membraneframework/membrane-webrtc-js": "github:membraneframework/membrane-webrtc-js#select-encoding",
+        "@membraneframework/membrane-webrtc-js": "github:membraneframework/membrane-webrtc-js",
         "phoenix": "file:../deps/phoenix",
         "playwright": "1.18.1"
     }
