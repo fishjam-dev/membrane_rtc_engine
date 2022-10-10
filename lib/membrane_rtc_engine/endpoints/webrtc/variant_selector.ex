@@ -130,7 +130,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     cond do
       # This clause makes sure that we're not doing anything if we already have target variant
-      selector.target_variant in [selector.current_variant, selector.queued_variant] and selector.variant_bitrates[selector.target_variant] <= selector.current_allocation ->
+      selector.target_variant in [selector.current_variant, selector.queued_variant] and
+          selector.variant_bitrates[selector.target_variant] <= selector.current_allocation ->
         {selector, nil}
         |> tap(fn {selector, _variant} -> manage_allocation(selector) end)
 

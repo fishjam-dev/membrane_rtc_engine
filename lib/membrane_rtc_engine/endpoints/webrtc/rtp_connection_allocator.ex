@@ -23,6 +23,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
             track_receivers: %{pid() => track_receiver_metadata()},
             probing_queue: Qex.t(),
             available_bandwidth: non_neg_integer() | :unknown,
+            probing_target_bitrate: non_neg_integer(),
             allocated_bandwidth: non_neg_integer(),
             bitrate_timer: :timer.tref() | nil,
             estimation_timestamp: integer(),
@@ -31,6 +32,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   defstruct [
     :bitrate_timer,
+    probing_target_bitrate: 0,
     available_bandwidth: :unknown,
     track_receivers: %{},
     allocated_bandwidth: 0,
@@ -86,7 +88,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
     state =
       state
-      |> Map.put(:available_bandwidth, estimation + 200_000)
+      |> Map.put(:available_bandwidth, estimation)
+      |> Map.put(:probing_target_bitrate, estimation + 200)
       |> update_allocations()
       |> stop_timer()
       |> maybe_start_timer()
@@ -164,7 +167,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
     now = get_timestamp()
     elapsed_time_in_s = Time.as_seconds(now - state.estimation_timestamp)
-    expected_bits = elapsed_time_in_s * state.available_bandwidth
+    expected_bits = elapsed_time_in_s * state.probing_target_bitrate
     missing = expected_bits - state.bits_sent
 
     state =
@@ -193,7 +196,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   defp maybe_stop_timer(%__MODULE__{} = state) do
-    if not is_deficient?(state), do: stop_timer(state), else: state
+    if is_deficient?(state), do: state, else: stop_timer(state)
   end
 
   defp maybe_start_timer(%__MODULE__{} = state) do
