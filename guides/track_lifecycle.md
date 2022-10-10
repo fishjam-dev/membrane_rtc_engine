@@ -12,7 +12,7 @@ In general:
 
 Audio tracks can have only one variant - `:high`.
 
-The whole flow starts with instantiating a new track with `Membrane.RTC.Engine.Track.new/7`.
+At first, each track is created with `Membrane.RTC.Engine.Track.new/7`.
 It is important that the engine supports only RTP tracks so each endpoint
 that publishes some track has to publish it in the form of RTP packets.
 
@@ -27,17 +27,47 @@ to subscribe for them.
 Next, each track variant is marked as ready with `t:Membrane.RTC.Engine.track_ready_action_t/0`.
 The action informs the engine that it can link bin's output pad to the engine itself.
 
-At the end, each track variant is resumed with `Membrane.RTC.Engine.Event.TrackVariantResumed`
-and finally media data starts flowing.
+At this point, the track is published and marked as ready.
+Next section outlines how resuming, pausing and requesting track variants looks like.
 
-When track variant becomes inactive for some reason (e.g. browser stops sending it to the
-server because of bandwidth limitation), such track is marked as paused with
+## Managing track variants
+
+### Resuming and pausing track variant
+
+```ascii
+Endpoint ---- TrackVariantResumed (:medium) ---> Engine
+Endpoint ----        media (:medium)        ---> Engine
+Endpoint ---- TrackVariantResumed (:low)    ---> Engine
+Endpoint ----        media (:low)           ---> Engine
+Endpoint ---- TrackVariantPaused (:medium)  ---> Engine
+``` 
+
+General rules:
+* media can flow only when a track variant is in the resumed state
+* when a track variant becomes inactive for some reason (e.g. browser stops sending it to the
+server because of bandwidth limitation), such variant is marked as paused with
 `Membrane.RTC.Engine.Event.TrackVariantPaused`.
 
-The whole flow is summarized below
 
-1. Publish track with `t:Membrane.RTC.Engine.publish_action_t/0`
-2. Mark variant as ready with `t:Membrane.RTC.Engine.track_ready_action_t/0`
-3. Mark variant as resumed with `Membrane.RTC.Engine.Event.TrackVariantResumed`
-4. Start sending media data
-5. If some track variant is no longer available pause it with `Membrane.RTC.Engine.Event.TrackVariantPaused`.
+### Requesting track variant
+
+```ascii
+Engine ---- TrackVariantResumed (:medium) ---> Endpoint
+Engine <--- RequestTrackVariant (:medium) ---- Endpoint
+Engine ---- TrackVariantResumed (:low)    ---> Endpoint
+Engine ---- TrackVariantSwitched          ---> Endpoint
+Engine ----        media                  ---> Endpoint
+Engine ---- TrackVariantPaused  (:medium) ---> Endpoint
+Engine <--- RequestTrackVariant (:low)    ---- Endpoint
+``` 
+
+General rules:
+* after requesting a track variant but before receiving the
+very first media packets, there is always the 
+`Membrane.RTC.Engine.Event.TrackVariantSwitched` event.
+* if requested track variant becomes inactive before being delivered,
+it has to be re-requested once it becomes active again
+* sending the `Membrane.RTC.Engine.Event.RequestTrackVariant` event 
+causes engine to send the `Membrane.KeyframeRequestEvent` event to the track origin.
+Once engine receives a keyframe from the publisher it will start forwarding 
+requested track.

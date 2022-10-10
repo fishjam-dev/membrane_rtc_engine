@@ -2,8 +2,13 @@ defmodule Membrane.RTC.Engine.Event.RequestTrackVariant do
   @moduledoc """
   Event for changing track variant that is currently being received.
 
-  Engine will start sending a new track variant as soon
-  as it receives a keyframe for the new variant.
+  Sending this event will cause engine to send a keyframe request
+  event to the track origin. Once engine receives a keyframe
+  for requested track variant, it will start forwarding it to
+  the requester.
+
+  If requested track variant becomes inactive before being delivered
+  it has to be re-requested when it becomes active again.
 
   See also `Membrane.RTC.Engine.Event.TrackVariantSwitched`.
   """

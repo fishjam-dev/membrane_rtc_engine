@@ -22,11 +22,6 @@ This implies that:
 * encoding switch has to be performed when server receives a keyframe from the new encoding. 
 In other case video will freeze for a while after switching encodings. 
 
-## Architecture
-
-![Alt text](assets/simulcast_architecture.drawio.svg)
-
-
 ## Forwarder
 It is responsible for forwarding proper encoding.
 It encapsulates mungers (described below).
@@ -46,15 +41,6 @@ SSRC is being rewritten by other Membrane element.
 ### VP8 Munger
 
 Rewrites VP8 RTP payload fields - keyidx, picture_id, tl0picidx
-
-## EncodingTracker
-
-Browser can pause sending some encoding when e.g. it doesn't have enough bandwidth.
-This fact is not communicated to the server.
-`EncodingTracker` is responsible for tracking encoding activity i.e. whether it is still active.
-In our architecture, we create `EncodingTracker` per simulcast encoding.
-Next, `SimulcastTee` polls information about encoding status every `x` seconds and
-when some encoding is no longer active it informs all `Forwarders`.
 
 ## Disabling Simulcast
 
