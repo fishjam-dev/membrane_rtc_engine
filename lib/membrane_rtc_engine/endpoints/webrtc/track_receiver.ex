@@ -126,8 +126,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     {forwarder, buffer} = Forwarder.align(forwarder, buffer)
 
-    actions = if buffer, do: [buffer: {:output, buffer}], else: []
-
     state = %{
       state
       | forwarder: forwarder,
@@ -135,6 +133,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     }
 
     if buffer, do: ConnectionProber.buffer_sent(state.connection_prober, buffer)
+
+    actions =
+      if buffer do
+        ConnectionProber.buffer_sent(state.connection_prober, buffer)
+        [buffer: {:output, buffer}]
+      else
+        []
+      end
 
     {{:ok, actions}, state}
   end

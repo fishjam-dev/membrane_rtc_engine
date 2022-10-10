@@ -12,6 +12,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
   use Bunch.Access
 
   @max_seq_num 2 ** 16
+
+  # History size is determined by the window size of SRTP Encryptor, which happens to have to be
+  # at least 64
   @history_size 64
 
   defstruct cache: Qex.new()
