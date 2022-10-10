@@ -21,7 +21,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{ConnectionProber, Forwarder, VariantSelector}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{Forwarder, VariantSelector}
 
   alias Membrane.RTC.Engine.Track
 
@@ -81,6 +81,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 additional delay.
                 """
               ],
+              connection_prober_module: [
+                spec: module()
+              ],
               connection_prober: [
                 spec: pid()
               ]
@@ -100,7 +103,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         connection_prober: connection_prober,
         track: track,
         initial_target_variant: initial_target_variant,
-      keyframe_request_interval: keyframe_request_interval
+        keyframe_request_interval: keyframe_request_interval,
+        connection_prober_module: connection_prober_module
       }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
     selector = VariantSelector.new(initial_target_variant)
@@ -111,7 +115,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       selector: selector,
       needs_reconfiguration: false,
       keyframe_request_interval: keyframe_request_interval,
-      connection_prober: connection_prober
+      connection_prober: connection_prober,
+      connection_prober_module: connection_prober_module
     }
 
     {:ok, state}
@@ -120,7 +125,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
     unless state.track.type == :audio,
-      do: ConnectionProber.register_track_receiver(state.connection_prober, self())
+      do: state.connection_prober_module.register_track_receiver(state.connection_prober, self())
+
     actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
     {{:ok, actions}, state}
   end
@@ -182,11 +188,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         needs_reconfiguration: false
     }
 
-    if buffer, do: ConnectionProber.buffer_sent(state.connection_prober, buffer)
-
     actions =
       if buffer do
-        ConnectionProber.buffer_sent(state.connection_prober, buffer)
+        state.connection_prober_module.buffer_sent(state.connection_prober, buffer)
         [buffer: {:output, buffer}]
       else
         []
@@ -215,7 +219,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     actions =
       if buffer do
-        ConnectionProber.probe_sent(state.connection_prober)
+        state.connection_prober_module.probe_sent(state.connection_prober)
         [buffer: {:output, buffer}]
       else
         []

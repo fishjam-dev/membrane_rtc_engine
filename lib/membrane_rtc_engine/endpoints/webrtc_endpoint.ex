@@ -499,7 +499,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> to({:track_receiver, track_id}, %TrackReceiver{
         track: track,
         initial_target_variant: initial_target_variant,
-        connection_prober: state.connection_prober
+        connection_prober: state.connection_prober,
+        connection_prober_module: ConnectionProber
       })
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)

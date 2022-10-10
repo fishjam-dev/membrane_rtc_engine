@@ -1,9 +1,11 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   @moduledoc false
 
+  @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.BandwidthManager
   use GenServer
 
   alias Membrane.{Buffer, Time}
+
 
   @padding_packet_size Membrane.RTP.Packet.padding_packet_size()
 
@@ -12,19 +14,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
 
   ## Public API
 
-  @spec update_bandwidth_estimation(pid(), number()) :: :ok
+  @impl true
   def update_bandwidth_estimation(prober, estimation),
     do: GenServer.cast(prober, {:bandwidth_estimation, estimation})
 
-  @spec buffer_sent(pid(), Buffer.t()) :: :ok
+  @impl true
   def buffer_sent(prober, %Buffer{payload: payload}),
     do: GenServer.cast(prober, {:buffer_sent, byte_size(payload)})
 
-  @spec probe_sent(pid()) :: :ok
+  @impl true
   def probe_sent(prober),
     do: GenServer.cast(prober, :probe_sent)
 
-  @spec register_track_receiver(pid(), pid()) :: :ok
+  @impl true
   def register_track_receiver(prober, tr \\ self()),
     do: GenServer.cast(prober, {:register_track_receiver, tr})
 
