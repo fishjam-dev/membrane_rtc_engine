@@ -21,7 +21,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{Forwarder, VariantSelector}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{ConnectionProber, Forwarder, VariantSelector}
+
+  alias Membrane.RTC.Engine.Track
 
   alias Membrane.RTC.Engine.Track
 
