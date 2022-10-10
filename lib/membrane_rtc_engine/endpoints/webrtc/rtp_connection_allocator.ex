@@ -22,7 +22,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     do: GenServer.cast(prober, {:buffer_sent, byte_size(payload)})
 
   @impl true
-  @spec probe_sent(atom | pid | {atom, any} | {:via, atom, any}) :: :ok
   def probe_sent(prober),
     do: GenServer.cast(prober, :probe_sent)
 

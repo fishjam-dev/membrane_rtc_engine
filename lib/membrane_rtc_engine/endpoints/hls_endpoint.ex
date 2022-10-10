@@ -247,7 +247,10 @@ if Enum.all?(
         children: %{
           {:track_receiver, track.id} => %TrackReceiver{
             track: track,
-            initial_target_variant: :high
+            initial_target_variant: :high,
+            connection_allocator: self(),
+            connection_allocator_module:
+              Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator
           },
           {:depayloader, track.id} => get_depayloader(track),
           {:opus_decoder, track.id} => Membrane.Opus.Decoder,
@@ -273,7 +276,10 @@ if Enum.all?(
           {:track_receiver, track.id} => %TrackReceiver{
             track: track,
             initial_target_variant: :high,
-            keyframe_request_interval: state.target_segment_duration
+            keyframe_request_interval: state.target_segment_duration,
+            connection_allocator: self(),
+            connection_allocator_module:
+              Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator
           },
           {:depayloader, track.id} => get_depayloader(track),
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
