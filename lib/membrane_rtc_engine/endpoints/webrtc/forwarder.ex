@@ -9,6 +9,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.Buffer
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
+  alias Membrane.RTC.Engine.Track
 
   @opaque t() :: %__MODULE__{
             codec: :H264 | :VP8 | :OPUS,
@@ -86,10 +87,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     %__MODULE__{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}
   end
 
+  @spec generate_padding_packet(t(), Track.t()) :: {t(), Buffer.t() | nil}
+  def generate_padding_packet(%__MODULE__{} = forwarder, %Track{} = track) do
+    {rtp_munger, buffer} = RTPMunger.generate_padding_packet(forwarder.rtp_munger, track)
+    {%{forwarder | rtp_munger: rtp_munger}, buffer}
+  end
+
   @doc """
   Adjusts RTP packet header and payload.
   """
-  @spec align(t(), Buffer.t()) :: {t(), Buffer.t()}
+  @spec align(t(), Buffer.t()) :: {t(), Buffer.t() | nil}
   def align(
         %__MODULE__{started?: false} = forwarder,
         %{metadata: %{is_keyframe: true}} = buffer
@@ -112,7 +119,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       end
 
     {vp8_munger, buffer} =
-      if vp8_munger do
+      if vp8_munger != nil and buffer != nil do
         VP8Munger.munge(vp8_munger, buffer)
       else
         {vp8_munger, buffer}
