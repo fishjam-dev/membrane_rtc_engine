@@ -537,8 +537,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
 
-  defp handle_custom_media_event(%{type: :select_encoding, data: data}, ctx, state) do
-    msg = {:set_target_variant, to_track_variant(data.encoding)}
+  defp handle_custom_media_event(%{type: :set_target_track_variant, data: data}, ctx, state) do
+    msg = {:set_target_variant, to_track_variant(data.variant)}
     {{:ok, forward({:track_receiver, data.track_id}, msg, ctx)}, state}
   end
 
@@ -739,16 +739,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     end
   end
 
-  defp deserialize(%{"type" => "selectEncoding"} = event) do
+  defp deserialize(%{"type" => "setTargetTrackVariant"} = event) do
     case event do
       %{
-        "type" => "selectEncoding",
+        "type" => "setTargetTrackVariant",
         "data" => %{
           "trackId" => tid,
-          "encoding" => encoding
+          "variant" => variant
         }
       } ->
-        {:ok, %{type: :select_encoding, data: %{track_id: tid, encoding: encoding}}}
+        {:ok, %{type: :set_target_track_variant, data: %{track_id: tid, variant: variant}}}
 
       _other ->
         {:error, :invalid_media_event}

@@ -162,7 +162,7 @@ class Room {
     const peer = this.peers[0]
     const trackIds = Array.from(peer.trackIdToMetadata.keys())
     const videoTrackIds = trackIds.filter(trackId => this.remoteTracks.get(trackId).track.kind == "video")
-    videoTrackIds.forEach(trackId => this.webrtc.selectTrackEncoding(trackId, encoding))
+    videoTrackIds.forEach(trackId => this.webrtc.setTargetTrackEncoding(trackId, encoding))
   }
 
   getPeerEncoding = () => { return this.peerEncoding }
