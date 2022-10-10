@@ -21,7 +21,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{Forwarder, VariantSelector}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{ConnectionProber, Forwarder, VariantSelector}
+
+  alias Membrane.RTC.Engine.Track
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
@@ -57,7 +59,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   def_options track: [
                 type: :struct,
-                spec: Membrane.RTC.Engine.Track.t(),
+                spec: Track.t(),
                 description: "Track this adapter will maintain"
               ],
               initial_target_variant: [
@@ -78,6 +80,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 as generating keyframes increases track bitrate and might introduce
                 additional delay.
                 """
+              ],
+              connection_prober: [
+                spec: pid()
               ]
 
   def_input_pad :input,
@@ -91,13 +96,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     caps: Membrane.RTP
 
   @impl true
-  def handle_init(opts) do
-    %__MODULE__{
-      track: track,
-      initial_target_variant: initial_target_variant,
+  def handle_init(%__MODULE__{
+        connection_prober: connection_prober,
+        track: track,
+        initial_target_variant: initial_target_variant,
       keyframe_request_interval: keyframe_request_interval
-    } = opts
-
+      }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
     selector = VariantSelector.new(initial_target_variant)
 
@@ -106,7 +110,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       forwarder: forwarder,
       selector: selector,
       needs_reconfiguration: false,
-      keyframe_request_interval: keyframe_request_interval
+      keyframe_request_interval: keyframe_request_interval,
+      connection_prober: connection_prober
     }
 
     {:ok, state}
@@ -114,6 +119,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
+    unless state.track.type == :audio,
+      do: ConnectionProber.register_track_receiver(state.connection_prober, self())
     actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
     {{:ok, actions}, state}
   end
@@ -168,8 +175,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         else: state.forwarder
 
     {forwarder, buffer} = Forwarder.align(forwarder, buffer)
-    state = %{state | forwarder: forwarder, needs_reconfiguration: false}
-    {{:ok, buffer: {:output, buffer}}, state}
+
+    state = %{
+      state
+      | forwarder: forwarder,
+        needs_reconfiguration: false
+    }
+
+    if buffer, do: ConnectionProber.buffer_sent(state.connection_prober, buffer)
+
+    actions =
+      if buffer do
+        ConnectionProber.buffer_sent(state.connection_prober, buffer)
+        [buffer: {:output, buffer}]
+      else
+        []
+      end
+
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -183,6 +206,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {selector, next_variant} = VariantSelector.set_target_variant(state.selector, variant)
     actions = maybe_request_track_variant(next_variant)
     {{:ok, actions}, %{state | selector: selector}}
+  end
+
+  @impl true
+  def handle_other(:send_padding_packet, ctx, state)
+      when not ctx.pads.output.end_of_stream? do
+    {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
+
+    actions =
+      if buffer do
+        ConnectionProber.probe_sent(state.connection_prober)
+        [buffer: {:output, buffer}]
+      else
+        []
+      end
+
+    {{:ok, actions}, %{state | forwarder: forwarder}}
+  end
+
+  @impl true
+  def handle_other(:send_padding_packet, _ctx, state) do
+    Process.send_after(self(), :send_padding_packet, 10)
+    {:ok, state}
   end
 
   @impl true

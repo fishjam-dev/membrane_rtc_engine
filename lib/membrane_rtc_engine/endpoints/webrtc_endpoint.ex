@@ -21,6 +21,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
+  alias __MODULE__.ConnectionProber
+
   @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
   @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
 
@@ -201,7 +203,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> Map.merge(%{
         outbound_tracks: %{},
         inbound_tracks: %{},
-        display_manager: nil
+        display_manager: nil,
+        connection_prober: nil
       })
 
     {:ok, state}
@@ -210,6 +213,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_prepared_to_playing(ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
+    {:ok, connection_prober} = ConnectionProber.start_link()
 
     log_metadata = state.log_metadata ++ [webrtc_endpoint: endpoint_id]
 
@@ -236,7 +240,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       log_metadata: log_metadata
     }
 
-    {{:ok, spec: spec}, %{state | log_metadata: log_metadata}}
+    {{:ok, spec: spec},
+     %{state | log_metadata: log_metadata, connection_prober: connection_prober}}
   end
 
   @impl true
@@ -407,8 +412,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification(notification, _element, _ctx, state),
-    do: {{:ok, notify: notification}, state}
+  def handle_notification({:bandwidth_estimation, estimation}, _from, _ctx, state) do
+    ConnectionProber.update_bandwidth_estimation(state.connection_prober, estimation)
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_notification(notification, _element, _ctx, state) do
+    {{:ok, notify: notification}, state}
+  end
 
   @impl true
   def handle_other(
@@ -486,7 +498,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       link_bin_input(pad)
       |> to({:track_receiver, track_id}, %TrackReceiver{
         track: track,
-        initial_target_variant: initial_target_variant
+        initial_target_variant: initial_target_variant,
+        connection_prober: state.connection_prober
       })
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
@@ -803,7 +816,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       variants: variants,
       active?: track.status != :disabled,
       metadata: metadata,
-      ctx: %{extension_key => track.extmaps}
+      ctx: %{extension_key => track.extmaps},
+      payload_type: track.rtp_mapping.payload_type
     )
   end
 
