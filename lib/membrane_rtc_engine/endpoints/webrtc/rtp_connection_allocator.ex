@@ -10,7 +10,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   alias __MODULE__.AllocationGrantedNotification
 
   alias Membrane.{Buffer, Time}
-  alias Membrane.RTC.Engine.Track
 
   @typep track_receiver_metadata() :: %{
            pid: pid(),

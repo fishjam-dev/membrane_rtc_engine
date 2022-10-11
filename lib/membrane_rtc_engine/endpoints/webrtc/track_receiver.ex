@@ -118,7 +118,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         connection_allocator_module: connection_allocator_module
       }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
-    selector = VariantSelector.new(connection_prober, track, initial_target_variant)
+    selector = VariantSelector.new(connection_allocator, track, initial_target_variant)
 
     state = %{
       track: track,
