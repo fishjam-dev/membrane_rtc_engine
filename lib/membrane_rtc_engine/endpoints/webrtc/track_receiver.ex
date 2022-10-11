@@ -81,13 +81,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 additional delay.
                 """
               ],
-              connection_prober_module: [
+              connection_allocator_module: [
                 spec: module(),
-                default: Membrane.RTC.Engine.Endpoint.HLS.DummyBandwidthManager
+                default: Membrane.RTC.Engine.Endpoint.WebRTC.DefaultConnectionAllocator,
+                description: """
+                Module implementing `Membrane.RTC.Engine.Endpoint.WebRTC.BandwidthManager` behavior
+                that should be used by the TrackReceiver.
+                """
               ],
-              connection_prober: [
+              connection_allocator: [
                 spec: pid(),
-                default: nil
+                default: nil,
+                description: """
+                PID of the instance of the BandwidthManager that should be used by the TrackReceiver
+                """
               ]
 
   def_input_pad :input,
@@ -102,11 +109,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_init(%__MODULE__{
-        connection_prober: connection_prober,
+        connection_allocator: connection_allocator,
         track: track,
         initial_target_variant: initial_target_variant,
         keyframe_request_interval: keyframe_request_interval,
-        connection_prober_module: connection_prober_module
+        connection_allocator_module: connection_allocator_module
       }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
     selector = VariantSelector.new(initial_target_variant)
@@ -117,8 +124,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       selector: selector,
       needs_reconfiguration: false,
       keyframe_request_interval: keyframe_request_interval,
-      connection_prober: connection_prober,
-      connection_prober_module: connection_prober_module
+      connection_allocator: connection_allocator,
+      connection_allocator_module: connection_allocator_module
     }
 
     {:ok, state}
@@ -126,8 +133,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
-    unless state.track.type == :audio,
-      do: state.connection_prober_module.register_track_receiver(state.connection_prober, self())
+    if state.track.type == :video,
+      do:
+        state.connection_allocator_module.register_track_receiver(
+          state.connection_allocator,
+          self()
+        )
 
     actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
     {{:ok, actions}, state}
@@ -192,7 +203,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     actions =
       if buffer do
-        state.connection_prober_module.buffer_sent(state.connection_prober, buffer)
+        state.connection_allocator_module.buffer_sent(state.connection_allocator, buffer)
         [buffer: {:output, buffer}]
       else
         []
@@ -221,7 +232,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     actions =
       if buffer do
-        state.connection_prober_module.probe_sent(state.connection_prober)
+        state.connection_allocator_module.probe_sent(state.connection_allocator)
         [buffer: {:output, buffer}]
       else
         []

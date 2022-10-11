@@ -1,6 +1,6 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.BandwidthManager do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   @moduledoc """
-  Behavior defining a set of function for managing bandwidth
+  Behavior defining a set of function for managing connection allocations for TrackReceivers
   """
 
   alias Membrane.Buffer
@@ -16,12 +16,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.BandwidthManager do
   @callback probe_sent(pid()) :: :ok
 
   @doc """
-  Function called by the TrackReceiver to register itself in the Manager
+  Function called by the TrackReceiver to register itself in the allocator
   """
   @callback register_track_receiver(pid(), pid()) :: :ok
 
   @doc """
-  A function called by the endpoint, to update the bandwidth estimation in the manager
+  A function called by the endpoint, to update the bandwidth estimation in the allocator
   """
   @callback update_bandwidth_estimation(pid(), number()) :: :ok
 end

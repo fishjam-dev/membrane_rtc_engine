@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
   @moduledoc false
 
-  @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.BandwidthManager
+  @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator
   use GenServer
 
   alias Membrane.{Buffer, Time}
