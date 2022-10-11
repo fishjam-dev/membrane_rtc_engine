@@ -6,7 +6,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
 
   alias Membrane.{Buffer, Time}
 
-
   @padding_packet_size Membrane.RTP.Packet.padding_packet_size()
 
   @spec start_link() :: GenServer.on_start()
