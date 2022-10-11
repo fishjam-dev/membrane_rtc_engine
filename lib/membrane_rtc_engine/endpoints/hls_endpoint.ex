@@ -248,8 +248,8 @@ if Enum.all?(
           {:track_receiver, track.id} => %TrackReceiver{
             track: track,
             initial_target_variant: :high,
-            connection_prober: self(),
-            connection_prober_module: __MODULE__.DummyProber
+            connection_prober: nil,
+            connection_prober_module: __MODULE__.DummyBandwidthManager
           },
           {:depayloader, track.id} => get_depayloader(track),
           {:opus_decoder, track.id} => Membrane.Opus.Decoder,

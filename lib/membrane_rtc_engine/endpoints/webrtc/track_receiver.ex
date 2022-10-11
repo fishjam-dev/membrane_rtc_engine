@@ -82,10 +82,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 """
               ],
               connection_prober_module: [
-                spec: module()
+                spec: module(),
+                default: Membrane.RTC.Engine.Endpoint.HLS.DummyBandwidthManager
               ],
               connection_prober: [
-                spec: pid()
+                spec: pid(),
+                default: nil
               ]
 
   def_input_pad :input,
