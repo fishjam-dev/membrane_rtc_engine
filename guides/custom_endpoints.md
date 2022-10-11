@@ -33,16 +33,14 @@ Pads should be in the following form
 ```elixir
 def_input_pad :input,
     demand_unit: :buffers,
-    caps: <caps>,
+    caps: Membrane.RTP,
     availability: :on_request
 
 def_output_pad :output,
     demand_unit: :buffers,
-    caps: <caps>,
+    caps: Membrane.RTP,
     availability: :on_request
 ```
-
-Where `caps` are `t:Membrane.Caps.t/0` or `:any`.
 
 When it comes to endpoint options we will have:
 * `rtc_engine` - pid of RTC engine. It will be used for subscribing for a track
