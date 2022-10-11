@@ -133,8 +133,7 @@ if Enum.all?(
         framerate: opts.framerate,
         target_segment_duration: opts.target_segment_duration,
         transcoding_config: opts.transcoding_config,
-        # TODO from where the event name is taken
-        event_name: "event"
+        event_id: UUID.uuid4()
       }
 
       {:ok, state}
@@ -181,7 +180,7 @@ if Enum.all?(
           state
         ) do
       # notify about playable just when video becomes available
-      send(state.owner, {:playlist_playable, content_type, state.event_name})
+      send(state.owner, {:playlist_playable, content_type, state.event_id})
       {:ok, state}
     end
 
@@ -204,36 +203,40 @@ if Enum.all?(
 
     @impl true
     def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
-      children =
+      children_to_remove =
         [
           :opus_decoder,
           :aac_encoder,
           :aac_parser,
           :keyframe_requester,
           :video_parser,
-          :video_parser_out,
           :decoder,
-          :encoder,
-          :resolution_scaler,
           :framerate_converter
         ]
         |> Enum.map(&{&1, track_id})
         |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
-      # {removed_track, tracks} = Map.pop!(state.tracks, track_id)
-      # state = %{state | tracks: tracks}
+      {_removed_track, tracks} = Map.pop!(state.tracks, track_id)
+      state = %{state | tracks: tracks}
 
-      # sink_bin_used? =
-      #   Enum.any?(tracks, fn {_id, track} ->
-      #     track.stream_id == removed_track.stream_id
-      #   end)
+      any_video_track_left? =
+        Enum.any?(tracks, fn {_id, track} ->
+          track.type == :video
+        end)
 
-      # children =
-      #   if sink_bin_used?,
-      #     do: children,
-      #     else: [{:hls_sink_bin, @dummy_uuid} | children]
+      children_to_remove =
+        if any_video_track_left? do
+          children_to_remove
+        else
+          add_video_sink_children(children_to_remove)
+        end
 
-      {{:ok, remove_child: children}, state}
+      {{:ok, remove_child: children_to_remove}, state}
+    end
+
+    defp add_video_sink_children(children) do
+      sink_children = [:compositor, :encoder, :video_parser_out, :hls_sink_bin]
+      children ++ sink_children
     end
 
     @impl true
@@ -241,8 +244,7 @@ if Enum.all?(
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
 
-      event_name = "event"
-      directory = Path.join(state.output_directory, event_name)
+      directory = Path.join(state.output_directory, state.event_id)
 
       spec =
         hls_links_and_children(
@@ -262,30 +264,39 @@ if Enum.all?(
           File.rm_rf(directory)
           File.mkdir_p!(directory)
 
-
           ffmpeg_filters = fn
             width, height, 1 ->
               "[0:v]scale=#{width}:#{height}:force_original_aspect_ratio=decrease,setsar=1/1,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2"
 
             width, height, 2 ->
               "[0:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[left];"
-              |> Kernel.<>("[1:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[right];")
+              |> Kernel.<>(
+                "[1:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[right];"
+              )
               |> Kernel.<>("[left][right]hstack")
-
 
             width, height, 3 ->
               "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[lefttop];"
-              |> Kernel.<>("[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[leftdown];")
-              |> Kernel.<>("[2:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[right];")
+              |> Kernel.<>(
+                "[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[leftdown];"
+              )
+              |> Kernel.<>(
+                "[2:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[right];"
+              )
               |> Kernel.<>("[lefttop][leftdown]vstack=inputs=2[left];")
               |> Kernel.<>("[left][right]hstack=inputs=2")
 
-
             width, height, 4 ->
               "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[lefttop];"
-              |> Kernel.<>("[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[righttop];")
-              |> Kernel.<>("[2:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[leftdown];")
-              |> Kernel.<>("[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[rightdown];")
+              |> Kernel.<>(
+                "[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[righttop];"
+              )
+              |> Kernel.<>(
+                "[2:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[leftdown];"
+              )
+              |> Kernel.<>(
+                "[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[rightdown];"
+              )
               |> Kernel.<>("[lefttop][righttop]hstack=inputs=2[top];")
               |> Kernel.<>("[leftdown][rightdown]hstack=inputs=2[down];")
               |> Kernel.<>("[top][down]vstack=inputs=2")
@@ -295,25 +306,44 @@ if Enum.all?(
               column_width = div(width, 3)
 
               "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[lefttop];"
-              |> Kernel.<>("[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middletop];")
-              |> Kernel.<>("[2:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[right];")
-              |> Kernel.<>("[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[leftdown];")
-              |> Kernel.<>("[4:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middledown];")
-              |> Kernel.<>("[lefttop][middletop]hstack=inputs=2[top];[leftdown][middledown]hstack=inputs=2[bottom];")
+              |> Kernel.<>(
+                "[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middletop];"
+              )
+              |> Kernel.<>(
+                "[2:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[right];"
+              )
+              |> Kernel.<>(
+                "[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[leftdown];"
+              )
+              |> Kernel.<>(
+                "[4:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middledown];"
+              )
+              |> Kernel.<>(
+                "[lefttop][middletop]hstack=inputs=2[top];[leftdown][middledown]hstack=inputs=2[bottom];"
+              )
               |> Kernel.<>("[top][bottom]vstack=inputs=2[left];")
               |> Kernel.<>("[left][right]hstack=inputs=2")
-
 
             width, height, 6 ->
               rest = rem(width, 3)
               column_width = div(width, 3)
 
               "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[lefttop];"
-              |> Kernel.<>("[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middletop];")
-              |> Kernel.<>("[2:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[righttop];")
-              |> Kernel.<>("[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[leftdown];")
-              |> Kernel.<>("[4:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middledown];")
-              |> Kernel.<>("[5:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[rightdown];")
+              |> Kernel.<>(
+                "[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middletop];"
+              )
+              |> Kernel.<>(
+                "[2:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[righttop];"
+              )
+              |> Kernel.<>(
+                "[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[leftdown];"
+              )
+              |> Kernel.<>(
+                "[4:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middledown];"
+              )
+              |> Kernel.<>(
+                "[5:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[rightdown];"
+              )
               |> Kernel.<>("[lefttop][middletop][righttop]hstack=inputs=3[top];")
               |> Kernel.<>("[leftdown][middledown][rightdown]hstack=inputs=3[bottom];")
               |> Kernel.<>("[top][bottom]vstack=inputs=2")
