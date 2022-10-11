@@ -135,13 +135,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
-    if state.track.type == :video,
-      do:
-        state.connection_allocator_module.register_track_receiver(
-          state.connection_allocator,
-          self()
-        )
-
     actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
     {{:ok, actions}, state}
   end
