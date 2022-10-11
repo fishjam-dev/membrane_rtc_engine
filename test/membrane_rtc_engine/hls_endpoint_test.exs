@@ -28,9 +28,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       # FIXME MV-147
       # after engine refactor this test
       # produces video with glitches
-      # After implementing connection probing, it produces video without glitches
-      # but now we have too many segments
-      # Apparently this test wasn't supposed to run without transcoding
+      # Now it produces video without glitches but we have too many segments
+      # Apparently this test wasn't supposed to run without transcoding implemented
 
       file_endpoint_id = "file-endpoint-id"
 
