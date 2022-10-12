@@ -88,7 +88,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     state =
       state
       |> Map.put(:available_bandwidth, estimation)
-      |> Map.put(:probing_target_bitrate, estimation + 200)
+      |> Map.put(:probing_target_bitrate, estimation + 200_000)
       |> update_allocations()
       |> stop_timer()
       |> maybe_start_timer()
@@ -137,24 +137,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     receiver = Map.fetch!(state.track_receivers, pid)
 
     state =
-      if receiver.current_allocation >= target or not receiver.negotiable? do
-        # Receiver lowers its allocation or this TR has non-negotiable allocation. It is therefore always granted
+      cond do
+        receiver.current_allocation == target ->
+          state
 
-        send(pid, %AllocationGrantedNotification{allocation: target})
+        receiver.current_allocation > target or not receiver.negotiable? ->
+          # Receiver lowers its allocation or this TR has non-negotiable allocation. It is therefore always granted
 
-        state
-        |> put_in([:track_receivers, pid], %{
-          receiver
-          | current_allocation: target,
-            target_allocation: nil
-        })
-        |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
-        |> update_allocations()
-      else
-        # Receiver raises its allocation. This might not be instantly granted
-        state
-        |> put_in([:track_receivers, pid], %{receiver | target_allocation: target})
-        |> update_allocations()
+          send(pid, %AllocationGrantedNotification{allocation: target})
+
+          state
+          |> put_in([:track_receivers, pid], %{
+            receiver
+            | current_allocation: target,
+              target_allocation: nil
+          })
+          |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
+          |> update_allocations()
+
+        true ->
+          # Receiver raises its allocation. This might not be instantly granted
+          state
+          |> put_in([:track_receivers, pid], %{receiver | target_allocation: target})
+          |> update_allocations()
       end
 
     {:noreply, state}
