@@ -8,6 +8,9 @@ saves tracks published by the WebRTC endpoint.
 > diving deeper in this guide.
 > You will also find there some information about publishing a track.
 
+> #### HLS endpoint {: .tip}
+> Another endpoint that saves WebRTC tracks and is shipped with the engine is [the HLS endpoint](`Membrane.RTC.Engine.Endpoint.HLS`).
+
 ## General rules
 
 Each RTC Engine endpoint has to:
