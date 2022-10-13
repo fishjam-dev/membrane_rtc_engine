@@ -60,7 +60,7 @@ defmodule Membrane.RTC.Engine.Track do
           simulcast_encodings: [String.t()],
           clock_rate: Membrane.RTP.clock_rate_t(),
           format: format,
-          fmtp: FMTP,
+          fmtp: FMTP.t(),
           active?: boolean(),
           metadata: any(),
           ctx: map()
