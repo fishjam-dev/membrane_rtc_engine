@@ -21,8 +21,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @opaque state_t() :: %__MODULE__{
             track_receivers: %{pid() => track_receiver_metadata()},
             probing_queue: Qex.t(),
+            probing_state: :increase_estimation | :maintain_estimation,
             available_bandwidth: non_neg_integer() | :unknown,
-            probing_target_bitrate: non_neg_integer(),
             allocated_bandwidth: non_neg_integer(),
             bitrate_timer: :timer.tref() | nil,
             estimation_timestamp: integer(),
@@ -33,6 +33,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     :bitrate_timer,
     probing_target_bitrate: 0,
     available_bandwidth: :unknown,
+    probing_state: :increase_estimation,
     track_receivers: %{},
     allocated_bandwidth: 0,
     estimation_timestamp: 0,
@@ -90,8 +91,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       |> Map.put(:available_bandwidth, estimation)
       |> Map.put(:probing_target_bitrate, estimation + 200_000)
       |> update_allocations()
-      |> stop_timer()
-      |> maybe_start_timer()
+      |> stop_probing_timer()
+      |> start_probing_timer()
+      |> update_probing_target()
 
     {:noreply, state}
   end
@@ -162,16 +164,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           |> update_allocations()
       end
 
-    {:noreply, state}
+    {:noreply, update_probing_target(state)}
   end
 
   @impl GenServer
   def handle_info(:check_bits_sent, state) do
     use Numbers, overload_operators: true
 
+    probing_target =
+      case state.probing_state do
+        :maintain_estimation -> state.allocated_bandwidth
+        :increase_estimation -> state.available_bandwidth + 200_000
+      end
+
     now = get_timestamp()
     elapsed_time_in_s = Time.as_seconds(now - state.estimation_timestamp)
-    expected_bits = elapsed_time_in_s * state.probing_target_bitrate
+    expected_bits = elapsed_time_in_s * probing_target
     missing = expected_bits - state.bits_sent
 
     state =
@@ -192,24 +200,41 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   ## Helper functions
-  defp stop_timer(%__MODULE__{bitrate_timer: nil} = state), do: state
+  defp stop_probing_timer(%__MODULE__{bitrate_timer: nil} = state), do: state
 
-  defp stop_timer(%__MODULE__{} = state) do
+  defp stop_probing_timer(%__MODULE__{} = state) do
     {:ok, :cancel} = :timer.cancel(state.bitrate_timer)
     %{state | bitrate_timer: nil}
   end
 
-  defp maybe_stop_timer(%__MODULE__{} = state) do
-    if is_deficient?(state), do: state, else: stop_timer(state)
+  defp start_probing_timer(%__MODULE__{available_bandwidth: :unknown} = state), do: state
+
+  defp start_probing_timer(%__MODULE__{} = state) do
+    # we're not probing if we estimate infinite bandwidth or when none of the tracks is deficient
+    {:ok, timer} = :timer.send_interval(10, :check_bits_sent)
+    %{state | bitrate_timer: timer, estimation_timestamp: get_timestamp(), bits_sent: 0}
   end
 
-  defp maybe_start_timer(%__MODULE__{} = state) do
-    # we're not probing if we estimate infinite bandwidth or when none of the tracks is deficient
-    if state.available_bandwidth != :unknown and is_deficient?(state) do
-      {:ok, timer} = :timer.send_interval(10, :check_bits_sent)
-      %{state | bitrate_timer: timer, estimation_timestamp: get_timestamp(), bits_sent: 0}
-    else
-      state
+  defp update_probing_target(state) do
+    cond do
+      not is_deficient?(state) and state.probing_state == :increase_estimation ->
+        Logger.debug("Switching probing target to maintain estimation")
+
+        state
+        |> Map.put(:probing_state, :maintain_estimation)
+        |> stop_probing_timer()
+        |> start_probing_timer()
+
+      state.probing_state == :maintain_estimation and is_deficient?(state) ->
+        Logger.debug("Switching probing target to increase estimation")
+
+        state
+        |> Map.put(:probing_state, :increase_estimation)
+        |> stop_probing_timer()
+        |> start_probing_timer()
+
+      true ->
+        state
     end
   end
 
@@ -276,7 +301,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     |> Enum.find(&(&1.target_allocation - &1.current_allocation <= free_bandwidth))
     |> case do
       nil ->
-        maybe_stop_timer(state)
+        state
 
       receiver ->
         pid = receiver.pid

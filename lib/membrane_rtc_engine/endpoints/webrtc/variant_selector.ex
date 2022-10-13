@@ -156,10 +156,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   @spec set_current_variant(t(), Track.variant()) :: t()
   def set_current_variant(%__MODULE__{queued_variant: variant} = selector, variant) do
     %__MODULE__{selector | current_variant: variant, queued_variant: nil}
+    |> tap(&manage_allocation/1)
   end
 
   def set_current_variant(%__MODULE__{} = selector, variant) do
     %__MODULE__{selector | current_variant: variant}
+    |> tap(&manage_allocation/1)
   end
 
   @doc """
@@ -235,17 +237,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
        when not is_nil(variant) and variant in [selector.current_variant, selector.queued_variant],
        do: {:error, :doesnt_exist}
 
-  defp next_desired_variant(%__MODULE__{current_variant: variant} = selector) do
-    selector.active_variants
+  defp next_desired_variant(
+         %__MODULE__{current_variant: current_variant, queued_variant: queued_variant} = selector
+       ) do
+    pivot = queued_variant || current_variant
+
+    MapSet.put(selector.active_variants, nil)
     |> sort_variants()
     |> Enum.reverse()
-    |> then(fn
-      variants when is_nil(variant) -> [nil | variants]
-      variants -> Enum.drop_while(variants, &(&1 != variant))
-    end)
+    |> Enum.drop_while(&(&1 != pivot))
     |> case do
-      [^variant, next | _variants] -> {:ok, next}
-      _otherwise -> {:error, :doesnt_exist}
+      [^pivot] -> {:error, :doesnt_exist}
+      [^pivot | other] -> {:ok, List.first(other)}
     end
   end
 
