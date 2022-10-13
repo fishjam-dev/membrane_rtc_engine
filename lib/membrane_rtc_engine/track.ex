@@ -145,6 +145,33 @@ defmodule Membrane.RTC.Engine.Track do
 
   Returns Membrane child specification or `nil` if depayloader
   couldn't be determined.
+
+  ## Examples
+
+      @impl true
+      def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
+        children = %{
+          {:track_receiver, track_id} => %TrackReceiver{
+            track: Map.fetch!(state.tracks, track_id),
+            initial_target_variant: :high
+          },
+          {:depayloader, track.id} => get_depayloader(track),
+          {:serializer, track_id} => Membrane.Stream.Serializer,
+          {:sink, track_id} => %Membrane.File.Sink{
+            location: Path.join(state.output_dir_path, track_id)
+          }
+        }
+
+        links = [
+          link_bin_input(pad)
+          |> to({:track_receiver, track_id})
+          |> to({:depayloader, track.id})
+          |> to({:serializer, track_id})
+          |> to({:sink, track_id})
+        ]
+
+        {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+      end
   """
   @spec get_depayloader(t()) :: Membrane.ParentSpec.child_spec_t() | nil
   def get_depayloader(track) do

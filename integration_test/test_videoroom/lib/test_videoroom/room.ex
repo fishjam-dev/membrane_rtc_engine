@@ -128,7 +128,10 @@ defmodule TestVideoroom.Room do
       telemetry_label: [room_id: state.room_id, peer_id: peer.id],
       # webrtc_extensions: [Mid, Rid],
       webrtc_extensions: [Mid, Rid, TWCC],
-      simulcast_config: %SimulcastConfig{enabled: true, initial_target_variant: fn _track -> :medium end}
+      simulcast_config: %SimulcastConfig{
+        enabled: true,
+        initial_target_variant: fn _track -> :medium end
+      }
     }
 
     Engine.accept_peer(rtc_engine, peer.id)

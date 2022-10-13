@@ -151,14 +151,14 @@ if Enum.all?(
 
             {:error, :invalid_track_id} ->
               Membrane.Logger.debug("""
-              Couldn't subscribe to track: #{inspect(track.id)}. No such track.
+              Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
               It had to be removed just after publishing it. Ignoring.
               """)
 
               state
 
             {:error, reason} ->
-              raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+              raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
           end
         end)
 
