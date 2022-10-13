@@ -22,7 +22,7 @@ that publishes some track has to publish it in the form of RTP packets.
 
 After creating a track it is published using `t:Membrane.RTC.Engine.publish_action_t/0`.
 This causes the engine to notify other endpoints about new tracks and allows other endpoints
-to subscribe for them.
+to subscribe to them.
 
 Next, each track variant is marked as ready with `t:Membrane.RTC.Engine.track_ready_action_t/0`.
 The action informs the engine that it can link bin's output pad to the engine itself.

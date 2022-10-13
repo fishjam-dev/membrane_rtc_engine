@@ -310,7 +310,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
         {:error, :invalid_track_id} ->
           Membrane.Logger.debug("""
-          Couldn't subscribe to track: #{inspect(track.id)}. No such track.
+          Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
           It was probably removed before we restarted ICE. Ignoring.
           """)
 
@@ -320,7 +320,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
             reason: inspect(reason)
           )
 
-          raise "Couldn't subscribe to track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+          raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
       end
     end)
 
@@ -397,9 +397,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_other({:new_tracks, tracks}, ctx, state) do
-    # Don't subscribe for new tracks yet.
+    # Don't subscribe to new tracks yet.
     # We will do this after ice restart is finished.
-    # Notification :negotiation_done  will inform us about it
+    # Notification :negotiation_done will inform us about it
 
     webrtc_tracks =
       Enum.map(

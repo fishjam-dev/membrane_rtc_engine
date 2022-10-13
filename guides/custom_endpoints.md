@@ -18,7 +18,7 @@ Each RTC Engine endpoint has to:
 * have at least one Membrane element that will be responsible for producing or
 consuming data as Membrane bins are used only for logical grouping - they
 don't process data
-* publish or/and subscribe for tracks
+* publish or/and subscribe to tracks
 
 ## Implementing `Membrane.Bin`
 
@@ -108,7 +108,7 @@ For each incoming track we will create separate serializer and sink.
 Whenever some endpoint publishes its tracks, all other endpoints receive a message
 in form of `{:new_tracks, tracks}` where `tracks` is a list of `t:Membrane.RTC.Engine.Track.t/0`.
 
-To subscribe for any of the published tracks, an endpoint has to call `Membrane.RTC.Engine.subscribe/4`. 
+To subscribe to any of the published tracks, an endpoint has to call `Membrane.RTC.Engine.subscribe/4`. 
 
 After subscribing for a track the endpoint will be notified about its readiness in
 `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
@@ -260,14 +260,14 @@ defmodule RecordingEndpoint do
 
         {:error, :invalid_track_id} ->
           Membrane.Logger.warn("""
-          Couldn't subscribe to track: #{inspect(track.id)}. No such track.
+          Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
           It had to be removed just after publishing it. Ignoring.
           """)
 
           {:cont, {:ok, state}}
 
         {:error, reason} ->
-          raise "Couldn't subscribe for track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+          raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
       end
     end)
   end

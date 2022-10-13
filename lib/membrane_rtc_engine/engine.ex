@@ -122,7 +122,7 @@ defmodule Membrane.RTC.Engine do
 
   ## Endpoints
 
-  `Endpoints` are `Membrane.Bin`s able to publish their own tracks and subscribe for tracks from other Endpoints.
+  `Endpoints` are `Membrane.Bin`s able to publish their own tracks and subscribe to tracks from other Endpoints.
   One can think about Endpoint as an entity responsible for handling some specific task.
   An Endpoint can be added and removed using `add_endpoint/3` and `remove_endpoint/2` respectively.
 
@@ -371,7 +371,7 @@ defmodule Membrane.RTC.Engine do
   Subscribes an endpoint for a track.
 
   The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
-  `endpoint_id` is the id of the endpoint, which wants to subscribe for the track.
+  `endpoint_id` is the id of the endpoint, which wants to subscribe to the track.
   """
   @spec subscribe(
           rtc_engine :: pid(),
