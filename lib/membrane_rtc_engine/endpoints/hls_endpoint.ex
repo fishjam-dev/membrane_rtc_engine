@@ -388,7 +388,9 @@ if Enum.all?(
             },
             links: [
               link(:compositor)
-              |> to(:encoder, Membrane.H264.FFmpeg.Encoder)
+              |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
+                profile: :baseline
+              })
               |> to(:video_parser_out)
               |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
               |> to(:hls_sink_bin)
