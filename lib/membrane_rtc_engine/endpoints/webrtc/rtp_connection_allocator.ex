@@ -114,7 +114,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       pid: pid,
       current_allocation: bandwidth,
       target_allocation: nil,
-      negotiable?: track.type == :video
+      negotiable?: length(track.variants) > 1
     }
 
     state =
