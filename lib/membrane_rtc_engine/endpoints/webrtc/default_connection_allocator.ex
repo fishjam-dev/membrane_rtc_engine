@@ -6,7 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.DefaultConnectionAllocator do
   """
   @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber.AllocationGrantedNotification
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification
 
   @impl true
   def say_hello(_manager, _bandwidth, _track), do: :ok

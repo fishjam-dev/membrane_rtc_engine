@@ -21,7 +21,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{ConnectionProber, Forwarder, VariantSelector}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{
+    ConnectionAllocator.AllocationGrantedNotification,
+    Forwarder,
+    VariantSelector
+  }
 
   alias Membrane.RTC.Engine.Track
 
@@ -245,13 +249,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_other({:bitrate_estimation, _estimation}, _ctx, state) do
     # Handle bitrate estimations of incoming variants
-    # They're currently ignoring this information
+    # We're currently ignoring this information
     {:ok, state}
   end
 
   @impl true
   def handle_other(
-        %ConnectionProber.AllocationGrantedNotification{allocation: allocation},
+        %AllocationGrantedNotification{allocation: allocation},
         _ctx,
         state
       ) do

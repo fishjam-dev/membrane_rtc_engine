@@ -45,23 +45,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   """
   @spec new(pid(), Track.t(), Track.variant()) :: t()
   def new(connection_prober, track, initial_target_variant \\ :high) do
-    allocation =
+    variant_bitrates =
       case track.type do
-        :audio -> 60_000
-        :video -> 200_000
+        :audio -> @default_bitrates_audio
+        :video -> @default_bitrates_video
       end
 
-    ConnectionProber.say_hello(connection_prober, allocation, track)
+    initial_allocation =
+      case track.type do
+        :audio -> variant_bitrates[:high]
+        :video -> variant_bitrates[:low]
+      end
+
+    ConnectionProber.say_hello(connection_prober, initial_allocation, track)
 
     %__MODULE__{
       target_variant: initial_target_variant,
       connection_prober: connection_prober,
-      variant_bitrates:
-        case track.type do
-          :audio -> @default_bitrates_audio
-          :video -> @default_bitrates_video
-        end,
-      current_allocation: allocation
+      variant_bitrates: variant_bitrates,
+      current_allocation: initial_allocation
     }
   end
 
@@ -129,18 +131,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     }
 
     cond do
-      # This clause makes sure that we're not doing anything if we already have target variant
+      # This clause makes sure that we're not doing anything if we already have target variant and said target fits in the allocation
       selector.target_variant in [selector.current_variant, selector.queued_variant] and
           selector.variant_bitrates[selector.target_variant] <= selector.current_allocation ->
+        manage_allocation(selector)
         {selector, nil}
-        |> tap(fn {selector, _variant} -> manage_allocation(selector) end)
 
       # This clause makes sure that we're selecting target variant if it becomes active and if we have enough bandwidth for it
       selector.target_variant == variant and
           selector.variant_bitrates[selector.target_variant] * 1.2 <= selector.current_allocation ->
         selector
         |> select_variant(variant)
-        |> tap(fn {selector, _variant} -> manage_allocation(selector) end)
+        |> tap(&manage_allocation/1)
 
       # This clause runs automatic layer selection algorithm if we haven't yet seen the target of if we don't have enough bandwidth for the target
       true ->
@@ -230,9 +232,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     |> List.first()
   end
 
-  # TODO: refactor `next_desired_variant`
   # This function clause makes sure that we're no longer looking for a better variant when we already use target variant
-  # NOTE: nil check is used because `nil` in target_variant means that we do not have any target variant
+  # NOTE: nil check is used because `nil` in target_variant means that we do not have any target variant which is not the same as `nil` in `current_variant` or `queued_variant`
   defp next_desired_variant(%__MODULE__{target_variant: variant} = selector)
        when not is_nil(variant) and variant in [selector.current_variant, selector.queued_variant],
        do: {:error, :doesnt_exist}
@@ -270,8 +271,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   defp perform_automatic_layer_selection(%__MODULE__{} = selector) do
     selector
     |> select_variant()
-    |> tap(fn {selector, _variant} -> manage_allocation(selector) end)
+    |> tap(&manage_allocation/1)
   end
+
+  defp manage_allocation({selector, _variant}), do: manage_allocation(selector)
 
   defp manage_allocation(%__MODULE__{} = selector) do
     current_variant_bitrate = selector.variant_bitrates[selector.current_variant]

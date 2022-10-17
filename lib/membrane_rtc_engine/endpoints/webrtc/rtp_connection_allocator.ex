@@ -7,7 +7,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   require Logger
 
-  alias __MODULE__.AllocationGrantedNotification
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification
 
   alias Membrane.{Buffer, Time}
 
@@ -18,7 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
            negotiable?: boolean()
          }
 
-  @opaque state_t() :: %__MODULE__{
+  @opaque t() :: %__MODULE__{
             track_receivers: %{pid() => track_receiver_metadata()},
             probing_queue: Qex.t(),
             probing_state: :increase_estimation | :maintain_estimation,
@@ -31,7 +31,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   defstruct [
     :bitrate_timer,
-    probing_target_bitrate: 0,
     available_bandwidth: :unknown,
     probing_state: :increase_estimation,
     track_receivers: %{},
@@ -89,11 +88,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     state =
       state
       |> Map.put(:available_bandwidth, estimation)
-      |> Map.put(:probing_target_bitrate, estimation + 200_000)
       |> update_allocations()
       |> stop_probing_timer()
       |> start_probing_timer()
-      |> update_probing_target()
+      |> update_probing_state()
 
     {:noreply, state}
   end
@@ -164,7 +162,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           |> update_allocations()
       end
 
-    {:noreply, update_probing_target(state)}
+    {:noreply, update_probing_state(state)}
   end
 
   @impl GenServer
@@ -215,7 +213,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     %{state | bitrate_timer: timer, estimation_timestamp: get_timestamp(), bits_sent: 0}
   end
 
-  defp update_probing_target(state) do
+  defp update_probing_state(state) do
     cond do
       not is_deficient?(state) and state.probing_state == :increase_estimation ->
         Logger.debug("Switching probing target to maintain estimation")
@@ -250,7 +248,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   defp send_padding_packets(state, packets_num) do
     Enum.reduce(1..packets_num, state, fn _i, state ->
-      # We need to select a track receiver in such a way that each one sends an equal amount of packets to create
+      # It's a good idea to select a track receiver in such a way that each one sends an equal amount of packets to create
       # => Round Robin
       {tr, queue} = Qex.pop!(state.probing_queue)
       send(tr, :send_padding_packet)
