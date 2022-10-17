@@ -90,7 +90,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 """
               ],
               connection_allocator: [
-                spec: pid(),
+                spec: pid() | nil,
                 default: nil,
                 description: """
                 PID of the instance of the ConnectionAllocator that should be used by the TrackReceiver
