@@ -129,6 +129,8 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Endpoint.WebRTC,
           Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig,
           Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver,
+          Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator,
+          Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator,
           Membrane.RTC.Engine.Endpoint.HLS,
           Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
         ],
