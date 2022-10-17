@@ -83,7 +83,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
               ],
               connection_allocator_module: [
                 spec: module(),
-                default: Membrane.RTC.Engine.Endpoint.WebRTC.DefaultConnectionAllocator,
+                default: Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator,
                 description: """
                 Module implementing `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator` behavior
                 that should be used by the TrackReceiver.

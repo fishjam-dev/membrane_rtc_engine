@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   @moduledoc """
   Behavior defining a set of functions for managing connection allocations for TrackReceivers.
-  
+
   It is responsible for allocating connection bandwidth for track receivers and probing the connection. 
   """
 

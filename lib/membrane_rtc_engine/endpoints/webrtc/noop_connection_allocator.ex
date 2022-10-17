@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.DefaultConnectionAllocator do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator do
   @moduledoc """
   Implementation of `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator` that does nothing.
 
