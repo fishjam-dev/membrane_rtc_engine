@@ -1,6 +1,7 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @moduledoc false
 
+  @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator
   use GenServer
 
   alias Membrane.{Buffer, Time}
@@ -12,23 +13,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber do
 
   ## Public API
 
-  @spec update_bandwidth_estimation(pid(), number()) :: :ok
+  @impl true
   def update_bandwidth_estimation(prober, estimation),
     do: GenServer.cast(prober, {:bandwidth_estimation, estimation})
 
-  @spec buffer_sent(pid(), Buffer.t()) :: :ok
+  @impl true
   def buffer_sent(prober, %Buffer{payload: payload}),
     do: GenServer.cast(prober, {:buffer_sent, byte_size(payload)})
 
-  @spec probe_sent(pid()) :: :ok
+  @impl true
+  @spec probe_sent(atom | pid | {atom, any} | {:via, atom, any}) :: :ok
   def probe_sent(prober),
     do: GenServer.cast(prober, :probe_sent)
 
-  @spec register_track_receiver(pid(), pid()) :: :ok
+  @impl true
   def register_track_receiver(prober, tr \\ self()),
     do: GenServer.cast(prober, {:register_track_receiver, tr})
 
   @impl true
+  @spec init(any) ::
+          {:ok,
+           %{
+             bandwidth_estimation: nil,
+             bitrate_timer: nil,
+             bytes_sent: 0,
+             estimation_timestamp: 0,
+             track_receivers: Qex.t()
+           }}
   def init(_opts) do
     state = %{
       bandwidth_estimation: nil,
