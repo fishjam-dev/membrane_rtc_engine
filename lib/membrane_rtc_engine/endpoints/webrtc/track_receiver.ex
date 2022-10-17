@@ -85,7 +85,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 spec: module(),
                 default: Membrane.RTC.Engine.Endpoint.WebRTC.DefaultConnectionAllocator,
                 description: """
-                Module implementing `Membrane.RTC.Engine.Endpoint.WebRTC.BandwidthManager` behavior
+                Module implementing `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator` behavior
                 that should be used by the TrackReceiver.
                 """
               ],
@@ -93,7 +93,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 spec: pid(),
                 default: nil,
                 description: """
-                PID of the instance of the BandwidthManager that should be used by the TrackReceiver
+                PID of the instance of the ConnectionAllocator that should be used by the TrackReceiver
                 """
               ]
 
