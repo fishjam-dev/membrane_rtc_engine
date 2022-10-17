@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   use ExUnit.Case
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{DefaultConnectionAllocator, VariantSelector}
 
   test "VariantSelector selects another variant when currently used variant becomes inactive" do
     selector = create_selector()
@@ -48,7 +48,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   end
 
   test "VariantSelector selects a new variant when it is better than currently used variant and while waiting for the target variant" do
-    selector = VariantSelector.new(self(), %{type: :video}, :high)
+    selector = VariantSelector.new(DefaultConnectionAllocator, self(), %{type: :video}, :high)
     selector = %{selector | current_allocation: 9_999_999_999_999}
 
     assert {selector, :low} = VariantSelector.variant_active(selector, :low)
@@ -57,7 +57,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   end
 
   defp create_selector() do
-    selector = VariantSelector.new(self(), %{type: :video}, :high)
+    selector = VariantSelector.new(DefaultConnectionAllocator, self(), %{type: :video}, :high)
     selector = %{selector | current_allocation: 9_999_999_999_999}
 
     assert {selector, :high} = VariantSelector.variant_active(selector, :high)

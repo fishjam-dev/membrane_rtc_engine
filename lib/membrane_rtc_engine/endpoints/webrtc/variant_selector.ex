@@ -3,7 +3,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   # module responsible for choosing track variant
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionProber
   alias Membrane.RTC.Engine.Track
 
   @default_bitrates_video %{
@@ -25,10 +24,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           active_variants: MapSet.t(Track.variant()),
           current_allocation: non_neg_integer(),
           variant_bitrates: bitrates_t(),
-          connection_prober: pid()
+          connection_allocator: pid(),
+          connection_allocator_module: module()
         }
 
-  @enforce_keys [:current_allocation, :connection_prober, :variant_bitrates]
+  @enforce_keys [
+    :current_allocation,
+    :connection_allocator,
+    :connection_allocator_module,
+    :variant_bitrates
+  ]
   defstruct @enforce_keys ++
               [
                 :target_variant,
@@ -43,8 +48,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   * `initial_target_variant` - variant to prioritize. It will be
   chosen whenever it is active. Can be changed with `set_target_variant/2`.
   """
-  @spec new(pid(), Track.t(), Track.variant()) :: t()
-  def new(connection_prober, track, initial_target_variant \\ :high) do
+  @spec new(module(), pid(), Track.t(), Track.variant()) :: t()
+  def new(
+        connection_allocator_module,
+        connection_allocator,
+        track,
+        initial_target_variant \\ :high
+      ) do
     variant_bitrates =
       case track.type do
         :audio -> @default_bitrates_audio
@@ -57,13 +67,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         :video -> variant_bitrates[:low]
       end
 
-    ConnectionProber.say_hello(connection_prober, initial_allocation, track)
+    connection_allocator_module.say_hello(connection_allocator, initial_allocation, track)
 
     %__MODULE__{
       target_variant: initial_target_variant,
-      connection_prober: connection_prober,
+      connection_allocator: connection_allocator,
       variant_bitrates: variant_bitrates,
-      current_allocation: initial_allocation
+      current_allocation: initial_allocation,
+      connection_allocator_module: connection_allocator_module
     }
   end
 
@@ -295,14 +306,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           "Requesting #{required_bitrate / 1024} kbps from connection prober as a mean to maintain current quality"
         )
 
-        ConnectionProber.request_allocation(selector.connection_prober, required_bitrate * 1.1)
+        selector.connection_allocator_module.request_allocation(
+          selector.connection_allocator,
+          required_bitrate * 1.1
+        )
 
       required_bitrate * 1.2 < selector.current_allocation ->
         Membrane.Logger.info(
           "Requesting #{required_bitrate / 1024} kbps from connection prober to free unused bitrate"
         )
 
-        ConnectionProber.request_allocation(selector.connection_prober, required_bitrate * 1.1)
+        selector.connection_allocator_module.request_allocation(
+          selector.connection_allocator,
+          required_bitrate * 1.1
+        )
 
       # If there is a next variant that we want, let's try to request an allocation for it
       # We also don't want another
@@ -314,8 +331,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           "Requesting #{bitrate / 1024} kbps from connection prober to increase quality"
         )
 
-        ConnectionProber.request_allocation(
-          selector.connection_prober,
+        selector.connection_allocator_module.request_allocation(
+          selector.connection_allocator,
           bitrate
         )
 

@@ -42,7 +42,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @padding_packet_size 8 * Membrane.RTP.Packet.padding_packet_size()
 
-  @spec start_link() :: GenServer.on_start()
+  @impl true
   def start_link(), do: GenServer.start_link(__MODULE__, [], [])
 
   ## Public API
@@ -96,13 +96,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     {:noreply, state}
   end
 
-  @impl GenServer
+  @impl true
   def handle_cast({:bits_sent, size}, state) do
     state = Map.update!(state, :bits_sent, &(&1 + size))
     {:noreply, state}
   end
 
-  @impl GenServer
+  @impl true
   def handle_cast({:hello, pid, bandwidth, track}, state) do
     # This is the very first call that we're getting from the Track Receiver
     # It is already sending some variant, so whatever bandwidth they are using will be initially allocated
@@ -131,7 +131,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     {:noreply, state}
   end
 
-  @impl GenServer
+  @impl true
   def handle_cast({:request_allocation, pid, target}, state) do
     Logger.info("Receiver #{inspect(pid)} requested allocation of #{target / 1024} kbps")
     receiver = Map.fetch!(state.track_receivers, pid)
@@ -165,7 +165,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     {:noreply, update_probing_state(state)}
   end
 
-  @impl GenServer
+  @impl true
   def handle_info(:check_bits_sent, state) do
     use Numbers, overload_operators: true
 

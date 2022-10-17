@@ -8,6 +8,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   alias Membrane.Buffer
   alias Membrane.RTC.Engine.Track
 
+  @callback start_link() :: GenServer.on_start()
+
   @doc """
   Function invoked by the TrackReceiver whenever a buffer is sent
   """
