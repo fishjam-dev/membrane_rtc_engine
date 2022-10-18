@@ -78,16 +78,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     }
   end
 
-  @spec set_variant_bitrates(t(), bitrates_t()) :: {t(), variant_t()}
-  def set_variant_bitrates(%__MODULE__{} = selector, bitrates) do
-    bitrates = Map.new(bitrates, fn {k, v} -> {k, v.estimation} end)
-    bitrates = Map.merge(selector.variant_bitrates, bitrates)
-
-    selector
-    |> Map.put(:variant_bitrates, bitrates)
-    |> perform_automatic_layer_selection()
-  end
-
   @spec set_bandwidth_allocation(t(), bitrates_t()) :: {t(), variant_t()}
   def set_bandwidth_allocation(%__MODULE__{} = selector, allocation) do
     selector
@@ -97,6 +87,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   @doc """
   Marks given `variant` as inactive.
+
   Returns new selector and variant to request
   or `nil` if there are no changes needed.
   """
@@ -163,6 +154,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   @doc """
   Sets currently used variant.
+
   Should be called when variant change happens
   i.e. after receiving `Membrane.RTC.Engine.Event.TrackVariantSwitched` event.
   """
@@ -179,6 +171,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   @doc """
   Sets the target variant that should be selected whenever it is active.
+
   If the target variant is not active, we will switch to it when it becomes active again
   """
   @spec set_target_variant(t(), Track.variant()) :: {t(), variant_t()}
@@ -302,7 +295,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       # It is very important that this clause takes precedence over the one that aims to increase quality.
       # If we don't have enough bandwidth to maintain current quality, don't bother with better quality, try to salvage current quality
       required_bitrate > 0.95 * selector.current_allocation ->
-        Membrane.Logger.info(
+        Membrane.Logger.debug(
           "Requesting #{required_bitrate / 1024} kbps from connection prober as a mean to maintain current quality"
         )
 
@@ -312,7 +305,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         )
 
       required_bitrate * 1.2 < selector.current_allocation ->
-        Membrane.Logger.info(
+        Membrane.Logger.debug(
           "Requesting #{required_bitrate / 1024} kbps from connection prober to free unused bitrate"
         )
 
@@ -327,7 +320,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         {:ok, variant} = next_variant
         bitrate = selector.variant_bitrates[variant] * 1.1
 
-        Membrane.Logger.info(
+        Membrane.Logger.debug(
           "Requesting #{bitrate / 1024} kbps from connection prober to increase quality"
         )
 

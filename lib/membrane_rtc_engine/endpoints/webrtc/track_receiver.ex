@@ -266,10 +266,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         _ctx,
         state
       ) do
-    Membrane.Logger.info("""
-    I received allocation of #{allocation / 1024} kbps
-    """)
-
     {selector, variant} = VariantSelector.set_bandwidth_allocation(state.selector, allocation)
     actions = maybe_request_track_variant(variant)
     {{:ok, actions}, %{state | selector: selector}}

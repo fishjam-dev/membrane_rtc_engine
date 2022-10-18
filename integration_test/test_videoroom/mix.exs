@@ -37,7 +37,6 @@ defmodule TestVideoroom.MixProject do
       {:cowlib, "~> 2.11", override: true},
       {:membrane_rtc_engine, path: "../../"},
       {:stampede, github: "geometerio/stampede-elixir"},
-      {:mox, "~> 1.0"}
     ]
   end
 

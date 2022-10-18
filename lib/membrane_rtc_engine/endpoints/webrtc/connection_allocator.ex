@@ -8,6 +8,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   alias Membrane.Buffer
   alias Membrane.RTC.Engine.Track
 
+  @doc """
+  A function that should be used by the WebRTC Endpoint to create an instance of ConnectionAllocator
+  """
   @callback start_link() :: GenServer.on_start()
 
   @doc """
@@ -30,5 +33,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   """
   @callback update_bandwidth_estimation(pid(), number()) :: :ok
 
+  @doc """
+  A function used by the VariantSelector to request a different bandwidth allocation.
+
+  In response, the Allocator sends `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification`
+  to the track receiver that gets new allocation.
+  """
   @callback request_allocation(pid(), number()) :: :ok
 end
