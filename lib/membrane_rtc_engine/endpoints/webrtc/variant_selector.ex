@@ -9,16 +9,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     high: 1_500_000,
     medium: 500_000,
     low: 150_000,
-    nil: 0
+    no_variant: 0
   }
 
-  @default_bitrates_audio %{high: 50_000, nil: 0}
+  @default_bitrates_audio %{high: 50_000, no_variant: 0}
 
-  @typep variant_t() :: Track.variant() | nil
+  @typep variant_t() :: Track.variant() | :no_variant
   @typep bitrates_t() :: %{variant_t() => non_neg_integer()}
 
   @type t() :: %__MODULE__{
-          target_variant: Track.variant(),
+          target_variant: Track.variant() | nil,
           current_variant: variant_t(),
           queued_variant: variant_t(),
           active_variants: MapSet.t(Track.variant()),
@@ -37,8 +37,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   defstruct @enforce_keys ++
               [
                 :target_variant,
-                :current_variant,
                 :queued_variant,
+                current_variant: :no_variant,
                 active_variants: MapSet.new()
               ]
 
@@ -78,7 +78,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     }
   end
 
-  @spec set_bandwidth_allocation(t(), bitrates_t()) :: {t(), variant_t()}
+  @doc """
+  Updates the bandwidth allocated to the selector.
+
+  Returns new selector and variant to request,
+  nil if there are no changes needed
+  or `:stop` if you should stop receiving the track in question
+  """
+  @spec set_bandwidth_allocation(t(), bitrates_t()) :: {t(), Track.variant() | :stop | nil}
   def set_bandwidth_allocation(%__MODULE__{} = selector, allocation) do
     selector
     |> Map.put(:current_allocation, allocation)
@@ -88,10 +95,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   @doc """
   Marks given `variant` as inactive.
 
-  Returns new selector and variant to request
-  or `nil` if there are no changes needed.
+  Returns new selector and variant to request,
+  `nil` if there are no changes needed
+  or `:stop` if you should stop receiving the track in question
   """
-  @spec variant_inactive(t(), Track.variant()) :: {t(), variant_t()}
+  @spec variant_inactive(t(), Track.variant()) :: {t(), Track.variant() | :stop | nil}
   def variant_inactive(selector, variant) do
     selector = %__MODULE__{
       selector
@@ -100,9 +108,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     case selector do
       %{current_variant: ^variant} ->
-        %__MODULE__{selector | current_variant: nil}
+        %__MODULE__{selector | current_variant: :no_variant}
 
-      %{queued_variant: ^variant, current_variant: nil} ->
+      %{queued_variant: ^variant, current_variant: :no_variant} ->
         %__MODULE__{selector | queued_variant: nil}
 
       %{queued_variant: ^variant} ->
@@ -119,7 +127,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   Returns new selector and variant to request
   or `nil` if there are no changes needed.
   """
-  @spec variant_active(t(), Track.variant()) :: {t(), variant_t()}
+  @spec variant_active(t(), Track.variant()) :: {t(), Track.variant() | nil}
   def variant_active(selector, variant) do
     selector = %__MODULE__{
       selector
@@ -127,7 +135,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     }
 
     cond do
-      selector.target_variant in [selector.current_variant, selector.queued_variant] ->
+      not is_nil(selector.target_variant) and
+          selector.target_variant in [selector.current_variant, selector.queued_variant] ->
         {selector, nil}
 
       # make sure we're selecting a target variant if it becomes active and we have the bandwidth
@@ -138,7 +147,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
       # otherwise, we're waiting for target, so automatically select a variant in the meantime
       true ->
-        perform_automatic_layer_selection(selector)
+        selector
+        |> perform_automatic_layer_selection()
+        |> case do
+          {selector, :stop} -> {selector, nil}
+          {selector, action} -> {selector, action}
+        end
     end
   end
 
@@ -164,7 +178,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   If the target variant is not active, we will switch to it when it becomes active again
   """
-  @spec set_target_variant(t(), Track.variant()) :: {t(), variant_t()}
+  @spec set_target_variant(t(), Track.variant()) :: {t(), Track.variant() | nil}
   def set_target_variant(selector, variant) do
     if variant in selector.active_variants and can_switch_to_variant(selector, variant) do
       selector = %__MODULE__{selector | target_variant: variant}
@@ -189,10 +203,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     select_variant(selector, variant)
   end
 
-  defp select_variant(selector, nil) do
+  defp select_variant(selector, :no_variant) do
     Membrane.Logger.debug("No active variant.")
-    selector = %__MODULE__{selector | current_variant: nil, queued_variant: nil}
-    {selector, nil}
+    selector = %__MODULE__{selector | current_variant: :no_variant, queued_variant: nil}
+    {selector, :stop}
   end
 
   defp select_variant(
@@ -222,15 +236,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   defp best_active_variant(selector) do
     selector.active_variants
+    |> MapSet.put(:no_variant)
     |> sort_variants()
     |> Enum.filter(&can_switch_to_variant(selector, &1))
     |> List.first()
   end
 
   # This function clause makes sure that we're no longer looking for a better variant when we already use target variant
-  # NOTE: nil check is used because `nil` in target_variant means that we do not have any target variant which is not the same as `nil` in `current_variant` or `queued_variant`
-  defp next_desired_variant(%__MODULE__{target_variant: variant} = selector)
-       when not is_nil(variant) and variant in [selector.current_variant, selector.queued_variant],
+  defp next_desired_variant(%__MODULE__{target_variant: target_variant} = selector)
+       when target_variant in [selector.current_variant, selector.queued_variant],
        do: {:error, :doesnt_exist}
 
   defp next_desired_variant(
@@ -238,7 +252,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
        ) do
     pivot = queued_variant || current_variant
 
-    MapSet.put(selector.active_variants, nil)
+    MapSet.put(selector.active_variants, :no_variant)
     |> sort_variants()
     |> Enum.reverse()
     |> Enum.drop_while(&(&1 != pivot))
@@ -255,7 +269,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         :high -> 3
         :medium -> 2
         :low -> 1
-        nil -> 0
+        :no_variant -> 0
       end,
       :desc
     )
@@ -271,7 +285,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   defp manage_allocation(%__MODULE__{} = selector) do
     current_variant_bitrate = selector.variant_bitrates[selector.current_variant]
-    queued_variant_bitrate = selector.variant_bitrates[selector.queued_variant]
+    queued_variant_bitrate = selector.variant_bitrates[selector.queued_variant] || 0
 
     required_bitrate =
       [current_variant_bitrate, queued_variant_bitrate]

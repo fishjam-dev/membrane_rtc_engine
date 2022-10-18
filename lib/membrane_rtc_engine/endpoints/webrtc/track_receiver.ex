@@ -282,6 +282,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     do: [event: {:input, %Membrane.KeyframeRequestEvent{}}]
 
   defp maybe_request_track_variant(nil), do: []
+  defp maybe_request_track_variant(:stop), do: []
 
   defp maybe_request_track_variant(variant),
     do: [event: {:input, %RequestTrackVariant{variant: variant}}]

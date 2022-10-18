@@ -2,13 +2,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @moduledoc false
 
   @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator
+
   use GenServer
   use Bunch.Access
 
   require Logger
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification
-
   alias Membrane.{Buffer, Time}
 
   @typep track_receiver_metadata() :: %{
