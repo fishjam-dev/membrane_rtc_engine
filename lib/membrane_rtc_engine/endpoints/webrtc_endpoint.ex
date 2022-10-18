@@ -27,6 +27,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
+  # TODO: remove configuring via app env
   @connection_prober Application.compile_env(
                        :membrane_rtc_engine,
                        :connection_prober_implementation,

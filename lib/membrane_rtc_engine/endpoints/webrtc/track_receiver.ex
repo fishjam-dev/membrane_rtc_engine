@@ -125,9 +125,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     selector =
       VariantSelector.new(
+        track,
         connection_allocator_module,
         connection_allocator,
-        track,
         initial_target_variant
       )
 
