@@ -68,15 +68,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     do: GenServer.cast(prober, {:bits_sent, @padding_packet_size})
 
   @impl true
-  @spec init(any) ::
-          {:ok,
-           %{
-             bandwidth_estimation: nil,
-             bitrate_timer: nil,
-             bytes_sent: 0,
-             estimation_timestamp: 0,
-             track_receivers: Qex.t()
-           }}
   def init(_opts) do
     {:ok, %__MODULE__{}}
   end
