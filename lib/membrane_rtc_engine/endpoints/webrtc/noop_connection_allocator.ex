@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator do
   def start_link(), do: {:ok, nil}
 
   @impl true
-  def say_hello(_manager, _bandwidth, _track), do: :ok
+  def register_track_receiver(_manager, _bandwidth, _track), do: :ok
 
   @impl true
   def update_bandwidth_estimation(_manager, _estimation), do: :ok

@@ -167,8 +167,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %TrackVariantPaused{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, next_variant} = VariantSelector.variant_inactive(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.variant_inactive(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
@@ -176,8 +176,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %TrackVariantResumed{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, next_variant} = VariantSelector.variant_active(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.variant_active(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
@@ -226,8 +226,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       """)
     end
 
-    {selector, next_variant} = VariantSelector.set_target_variant(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.set_target_variant(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
     {{:ok, actions}, %{state | selector: selector}}
   end
 
@@ -266,8 +266,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         _ctx,
         state
       ) do
-    {selector, variant} = VariantSelector.set_bandwidth_allocation(state.selector, allocation)
-    actions = maybe_request_track_variant(variant)
+    {selector, selector_action} = VariantSelector.set_bandwidth_allocation(state.selector, allocation)
+    actions = maybe_request_track_variant(selector_action)
     {{:ok, actions}, %{state | selector: selector}}
   end
 

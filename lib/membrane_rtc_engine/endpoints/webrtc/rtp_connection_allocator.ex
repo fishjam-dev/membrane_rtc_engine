@@ -48,7 +48,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   ## Public API
 
   @impl true
-  def say_hello(prober, bandwidth, track),
+  def register_track_receiver(prober, bandwidth, track),
     do: GenServer.cast(prober, {:hello, self(), bandwidth, track})
 
   @impl true

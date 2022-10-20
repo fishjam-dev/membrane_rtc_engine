@@ -26,7 +26,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   @doc """
   Function called by the TrackReceiver to register itself in the allocator
   """
-  @callback say_hello(pid(), number(), Track.t()) :: :ok
+  @callback register_track_receiver(pid(), number(), Track.t()) :: :ok
 
   @doc """
   A function called by the endpoint, to update the bandwidth estimation in the allocator
