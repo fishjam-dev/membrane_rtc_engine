@@ -41,6 +41,7 @@ if Enum.all?(
 
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig
+    alias Membrane.AudioMixer
 
     @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
     @compositor_deps [
@@ -149,7 +150,7 @@ if Enum.all?(
     def handle_other({:new_tracks, tracks}, ctx, state) do
       {:endpoint, endpoint_id} = ctx.name
       # TODO delete "track.type == :video" when audio mixer is added
-      tracks = Enum.filter(tracks, fn track -> :raw in track.format and track.type == :video end)
+      tracks = Enum.filter(tracks, fn track -> :raw in track.format end)
 
       state =
         Enum.reduce(tracks, state, fn track, state ->
@@ -230,16 +231,20 @@ if Enum.all?(
       {{:ok, remove_child: children_to_remove}, state}
     end
 
-    defp add_video_sink_children_if_no_video_left(children, tracks) do
-      sink_children = [:compositor, :encoder, :video_parser_out, :hls_sink_bin]
+    defp add_video_sink_children_if_no_video_left(children, []),
+      do:
+        children ++
+          [
+            :compositor,
+            :encoder,
+            :video_parser_out,
+            :hls_sink_bin,
+            :audio_mixer,
+            :aac_encoder,
+            :aac_parser
+          ]
 
-      any_video_track_left? =
-        Enum.any?(tracks, fn {_id, track} ->
-          track.type == :video
-        end)
-
-      if any_video_track_left?, do: children, else: children ++ sink_children
-    end
+    defp add_video_sink_children_if_no_video_left(children, _tracks), do: children
 
     @impl true
     def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
@@ -301,19 +306,39 @@ if Enum.all?(
         hls_mode: state.hls_mode
       }
 
+      audio_mixer = %Membrane.AudioMixer{
+        caps: %Membrane.RawAudio{
+          channels: 1,
+          sample_rate: 48_000,
+          sample_format: :s16le
+        }
+      }
+
+      {frames_per_second, 1} = state.compositor_config.output_framerate
+      seconds_number = div(state.target_segment_duration, Membrane.Time.seconds(1))
+
       %ParentSpec{
         children: %{
-          :compositor => compositor,
-          :video_parser_out => video_parser_out,
-          :hls_sink_bin => hls_sink_bin
+          compositor: compositor,
+          video_parser_out: video_parser_out,
+          hls_sink_bin: hls_sink_bin,
+          audio_mixer: audio_mixer,
+          aac_encoder: Membrane.AAC.FDK.Encoder,
+          aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none}
         },
         links: [
           link(:compositor)
           |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
-            profile: :baseline
+            profile: :baseline,
+            gop_size: frames_per_second * seconds_number
           })
           |> to(:video_parser_out)
           |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
+          |> to(:hls_sink_bin),
+          link(:audio_mixer)
+          |> to(:aac_encoder)
+          |> to(:aac_parser)
+          |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
           |> to(:hls_sink_bin)
         ]
       }
@@ -336,17 +361,12 @@ if Enum.all?(
            ) do
         %ParentSpec{
           children: %{
-            {:opus_decoder, track.id} => Membrane.Opus.Decoder,
-            {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-            {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+            {:opus_decoder, track.id} => Membrane.Opus.Decoder
           },
           links: [
             link_builder
             |> to({:opus_decoder, track.id})
-            |> to({:aac_encoder, track.id})
-            |> to({:aac_parser, track.id})
-            |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-            |> to({:hls_sink_bin, track.stream_id})
+            |> to(:audio_mixer)
           ]
         }
       end
@@ -368,16 +388,14 @@ if Enum.all?(
     defp hls_links_and_children(
            link_builder,
            :AAC,
-           track,
+           _track,
            _segment_duration,
            _framerate
          ),
          do: %ParentSpec{
-           children: %{},
            links: [
              link_builder
-             |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-             |> to({:hls_sink_bin, track.stream_id})
+             |> to(:audio_mixer)
            ]
          }
 
