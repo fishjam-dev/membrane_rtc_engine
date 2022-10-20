@@ -73,8 +73,8 @@ if Enum.all?(
         Pid of parent all notifications will be send to.
 
         These notifications are:
-          * `{:playlist_playable, content_type, stream_id, origin}`
-          * `{:cleanup, clean_function, stream_id}`
+          * `{:playlist_playable, content_type}`
+          * `{:cleanup, clean_function}`
         """
       ],
       hls_mode: [
@@ -122,6 +122,7 @@ if Enum.all?(
         spec: String.t(),
         description: """
         Id by which the hls output for a given event is recognized. Unique per event.
+        The stream segments is saved to that directory.
         """
       ]
     )
@@ -185,18 +186,18 @@ if Enum.all?(
           state
         ) do
       # notify about playable just when video becomes available
-      send(state.owner, {:playlist_playable, content_type, state.event_id})
+      send(state.owner, {:playlist_playable, content_type})
       {:ok, state}
     end
 
     def handle_notification(
           {:cleanup, clean_function},
-          {:hls_sink_bin, stream_id},
+          :hls_sink_bin,
           _ctx,
           state
         ) do
       # notify about possibility to cleanup as the stream is finished.
-      send(state.owner, {:cleanup, clean_function, stream_id})
+      send(state.owner, {:cleanup, clean_function})
       {:ok, state}
     end
 
