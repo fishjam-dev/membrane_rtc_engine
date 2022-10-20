@@ -26,9 +26,7 @@ defmodule Membrane.RTC.Engine.BitrateEstimator do
   def process(state, buffer) do
     entry = byte_size(buffer.payload) * 8
 
-    state = Map.update!(state, :sizes, &[entry | &1])
-
-    state
+    Map.update!(state, :sizes, &[entry | &1])
   end
 
   @spec estimate(t()) :: {BitrateEstimation.t(), t()}

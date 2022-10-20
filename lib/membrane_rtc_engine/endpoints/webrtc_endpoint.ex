@@ -15,13 +15,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackReceiver, TrackSender}
+
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{
+    SimulcastConfig,
+    TrackReceiver,
+    TrackSender
+  }
+
   alias Membrane.RTC.Engine.Notifications.TrackNotification
   alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
-  alias __MODULE__.RTPConnectionAllocator
+  # TODO: remove configuring via app env
+  @connection_prober Application.compile_env(
+                       :membrane_rtc_engine,
+                       :connection_prober_implementation,
+                       __MODULE__.RTPConnectionAllocator
+                     )
 
   @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
   @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
@@ -213,7 +224,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_prepared_to_playing(ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
-    {:ok, connection_prober} = RTPConnectionAllocator.start_link()
+    {:ok, connection_prober} = @connection_prober.start_link()
 
     log_metadata = state.log_metadata ++ [webrtc_endpoint: endpoint_id]
 
@@ -413,7 +424,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification({:bandwidth_estimation, estimation}, _from, _ctx, state) do
-    RTPConnectionAllocator.update_bandwidth_estimation(state.connection_prober, estimation)
+    @connection_prober.update_bandwidth_estimation(state.connection_prober, estimation)
     {:ok, state}
   end
 
@@ -500,7 +511,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         track: track,
         initial_target_variant: initial_target_variant,
         connection_allocator: state.connection_prober,
-        connection_allocator_module: __MODULE__.RTPConnectionAllocator
+        connection_allocator_module: @connection_prober
       })
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)

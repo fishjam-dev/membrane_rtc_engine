@@ -21,7 +21,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{Forwarder, VariantSelector}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{
+    ConnectionAllocator.AllocationGrantedNotification,
+    Forwarder,
+    VariantSelector
+  }
+
+  alias Membrane.RTC.Engine.Track
 
   alias Membrane.RTC.Engine.Track
 
@@ -116,7 +122,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         connection_allocator_module: connection_allocator_module
       }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
-    selector = VariantSelector.new(initial_target_variant)
+
+    selector =
+      VariantSelector.new(
+        track,
+        connection_allocator_module,
+        connection_allocator,
+        initial_target_variant
+      )
 
     state = %{
       track: track,
@@ -133,13 +146,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
-    if state.track.type == :video,
-      do:
-        state.connection_allocator_module.register_track_receiver(
-          state.connection_allocator,
-          self()
-        )
-
     actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
     {{:ok, actions}, state}
   end
@@ -161,8 +167,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %TrackVariantPaused{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, next_variant} = VariantSelector.variant_inactive(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.variant_inactive(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
@@ -170,8 +176,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %TrackVariantResumed{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, next_variant} = VariantSelector.variant_active(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.variant_active(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
@@ -220,8 +226,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       """)
     end
 
-    {selector, next_variant} = VariantSelector.set_target_variant(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.set_target_variant(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
     {{:ok, actions}, %{state | selector: selector}}
   end
 
@@ -248,6 +254,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
+  def handle_other({:bitrate_estimation, _estimation}, _ctx, state) do
+    # Handle bitrate estimations of incoming variants
+    # We're currently ignoring this information
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_other(
+        %AllocationGrantedNotification{allocation: allocation},
+        _ctx,
+        state
+      ) do
+    {selector, selector_action} =
+      VariantSelector.set_bandwidth_allocation(state.selector, allocation)
+
+    actions = maybe_request_track_variant(selector_action)
+    {{:ok, actions}, %{state | selector: selector}}
+  end
+
+  @impl true
   def handle_other(msg, ctx, state) do
     super(msg, ctx, state)
   end
@@ -257,8 +283,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   defp maybe_request_keyframe(_current_variant),
     do: [event: {:input, %Membrane.KeyframeRequestEvent{}}]
 
-  defp maybe_request_track_variant(nil), do: []
-
-  defp maybe_request_track_variant(variant),
+  defp maybe_request_track_variant({:request, variant}),
     do: [event: {:input, %RequestTrackVariant{variant: variant}}]
+
+  defp maybe_request_track_variant(_other_action), do: []
 end

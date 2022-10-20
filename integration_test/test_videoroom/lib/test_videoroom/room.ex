@@ -126,7 +126,6 @@ defmodule TestVideoroom.Room do
       handshake_opts: handshake_opts,
       log_metadata: [peer_id: peer.id],
       telemetry_label: [room_id: state.room_id, peer_id: peer.id],
-      # webrtc_extensions: [Mid, Rid],
       webrtc_extensions: [Mid, Rid, TWCC],
       simulcast_config: %SimulcastConfig{
         enabled: true,
