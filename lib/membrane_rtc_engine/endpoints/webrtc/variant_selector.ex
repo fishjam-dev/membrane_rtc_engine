@@ -91,7 +91,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     initial_allocation =
       case track.type do
         :audio -> variant_bitrates[:high]
-        :video -> variant_bitrates[:low]
+        # FIXME revisit initial video allocation
+        # in the previous version where we had
+        # variant_bitrates[:low] it could happen that
+        # the first variant that became active was
+        # medium or high. In such a case we were releasing
+        # our initial allocation and we were not sending
+        # anything except audio. As a result our bandwidth
+        # estimation was starting from ~50kbps
+        #
+        # the solution to chose 2*variant_bitrates[:high]
+        # should allow us to send anything at start;
+        # we will adjust quality after next bwe
+        :video -> 2 * variant_bitrates[:high]
       end
 
     connection_allocator_module.register_track_receiver(
