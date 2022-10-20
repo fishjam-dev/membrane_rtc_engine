@@ -1,7 +1,8 @@
-defmodule Membrane.RTC.Engine.TrackSynchronizer do
+defmodule Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer do
   @moduledoc """
-  TrackSynchronizer is responsible for synchronizing audio and video tracks.
-  Synchronizer will drop all of the buffers until both pads are added. Also it will change timestamps accordingly.
+  Element responsible for synchronizing audio and video tracks.
+  It will drop all of the incoming buffers until both pads are added and change timestamps accordingly.
+  This element will synchronize only two tracks (one audio and one video).
   """
   use Membrane.Filter
 
@@ -21,7 +22,7 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
 
   @impl true
   def handle_init(_opts) do
-    {:ok, %{caps: %{}, video_first_pts: 0, input_pads_counter: 0}}
+    {:ok, %{caps: %{}, video_first_pts: nil, input_pads_counter: 0}}
   end
 
   @impl true
@@ -69,9 +70,7 @@ defmodule Membrane.RTC.Engine.TrackSynchronizer do
         %{input_pads_counter: 2} = state
       ) do
     state =
-      if 0 == Map.get(state, :video_first_pts),
-        do: Map.put(state, :video_first_pts, buffer.pts),
-        else: state
+      if state.video_first_pts, do: state, else: Map.put(state, :video_first_pts, buffer.pts)
 
     synchronized_pts = Ratio.sub(buffer.pts, state.video_first_pts)
     buffer = %Buffer{buffer | pts: synchronized_pts}

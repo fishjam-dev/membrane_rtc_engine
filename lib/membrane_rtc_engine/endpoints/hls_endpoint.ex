@@ -41,6 +41,7 @@ if Enum.all?(
 
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
+    alias Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer
 
     @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
     @transcoding_deps [
@@ -282,11 +283,10 @@ if Enum.all?(
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
       directory = Path.join(state.output_directory, track.stream_id)
-      track_type = if track.encoding == :H264, do: :video, else: :audio
 
       link = [
         link_builder
-        |> via_in(Pad.ref(:input, track_type))
+        |> via_in(Pad.ref(:input, track.type))
         |> to({:track_sync, track.stream_id})
       ]
 
@@ -311,7 +311,7 @@ if Enum.all?(
 
           spec = %ParentSpec{
             children: %{
-              {:track_sync, track.stream_id} => Membrane.RTC.Engine.TrackSynchronizer
+              {:track_sync, track.stream_id} => TrackSynchronizer
             },
             links: link
           }

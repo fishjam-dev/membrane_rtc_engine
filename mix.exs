@@ -120,6 +120,7 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Endpoint.WebRTC,
           Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig,
           Membrane.RTC.Engine.Endpoint.HLS,
+          Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer,
           Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
         ],
         Messages: [
