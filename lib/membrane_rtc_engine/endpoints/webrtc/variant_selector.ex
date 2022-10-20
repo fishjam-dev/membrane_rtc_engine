@@ -211,7 +211,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     else
       Membrane.Logger.debug("""
       Requested variant #{inspect(variant)} is either inactive, or we don't have enough bandwidth to use it. Saving it as target.
-      It will be requested once it becomes active
+      It will be requested once it becomes active or we have enough bandwidth
       """)
 
       {selector, :noop}
