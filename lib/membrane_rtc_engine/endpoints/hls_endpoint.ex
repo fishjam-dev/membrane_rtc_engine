@@ -39,8 +39,10 @@ if Enum.all?(
 
     require Membrane.Logger
 
+    alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
+    alias Membrane.Time
 
     @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
     @transcoding_deps [
@@ -93,9 +95,8 @@ if Enum.all?(
                   """
                 ],
                 target_segment_duration: [
-                  type: :time,
-                  spec: Membrane.Time.t(),
-                  default: Membrane.Time.seconds(5),
+                  spec: SegmentDuration.t(),
+                  default: SegmentDuration.new(Time.seconds(5), Time.seconds(5)),
                   description: """
                   Expected length of each segment. Setting it is not necessary, but
                   may help players achieve better UX.
@@ -258,7 +259,6 @@ if Enum.all?(
           hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
             manifest_module: Membrane.HTTPAdaptiveStream.HLS,
             target_window_duration: state.target_window_duration,
-            target_segment_duration: state.target_segment_duration,
             persist?: false,
             storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
               directory: directory
@@ -282,7 +282,7 @@ if Enum.all?(
              link_builder,
              :OPUS,
              track,
-             _segment_duration,
+             segment_duration,
              _framerate,
              _transcoding_config
            ) do
@@ -297,7 +297,9 @@ if Enum.all?(
             |> to({:opus_decoder, track.id})
             |> to({:aac_encoder, track.id})
             |> to({:aac_parser, track.id})
-            |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+            |> via_in(Pad.ref(:input, {:audio, track.id}),
+              options: [encoding: :AAC, segment_duration: segment_duration]
+            )
             |> to({:hls_sink_bin, track.stream_id})
           ]
         }
@@ -322,7 +324,7 @@ if Enum.all?(
            link_builder,
            :AAC,
            track,
-           _segment_duration,
+           segment_duration,
            _framerate,
            _transcoding_config
          ),
@@ -330,7 +332,9 @@ if Enum.all?(
            children: %{},
            links: [
              link_builder
-             |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+             |> via_in(Pad.ref(:input, {:audio, track.id}),
+               options: [encoding: :AAC, segment_duration: segment_duration]
+             )
              |> to({:hls_sink_bin, track.stream_id})
            ]
          }
@@ -348,7 +352,7 @@ if Enum.all?(
       %ParentSpec{
         children: %{
           {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
-            interval: segment_duration
+            interval: segment_duration.target
           },
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
@@ -361,7 +365,9 @@ if Enum.all?(
           |> to({:keyframe_requester, track.id})
           |> to({:video_parser, track.id})
           |> then(link_to_transcoder)
-          |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+          |> via_in(Pad.ref(:input, {:video, track.id}),
+            options: [encoding: :H264, segment_duration: segment_duration]
+          )
           |> to({:hls_sink_bin, track.stream_id})
         ]
       }

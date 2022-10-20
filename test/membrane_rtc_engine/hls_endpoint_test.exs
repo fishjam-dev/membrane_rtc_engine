@@ -31,7 +31,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
     } do
       file_endpoint_id = "file-endpoint-id"
 
-      file_name = "video.h264"
+      file_name = "variable_framerate.h264"
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
