@@ -40,10 +40,10 @@ if Enum.all?(
     require Membrane.Logger
 
     alias Membrane.RTC.Engine
-    alias Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
+    alias Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig
 
     @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
-    @transcoding_deps [
+    @compositor_deps [
       Membrane.H264.FFmpeg.Decoder,
       Membrane.H264.FFmpeg.Encoder,
       Membrane.FFmpeg.SWScale.Scaler,
@@ -111,11 +111,17 @@ if Enum.all?(
         """,
         default: nil
       ],
-      transcoding_config: [
-        spec: TranscodingConfig.t(),
-        default: %TranscodingConfig{},
+      compositor_config: [
+        spec: CompositorConfig.t(),
+        default: %CompositorConfig{},
         description: """
-        Transcoding configuration
+        Compositor configuration describing specs like framerate, compositor filters and more
+        """
+      ],
+      event_id: [
+        spec: String.t(),
+        description: """
+        Id by which the hls output for a given event is recognized. Unique per event.
         """
       ]
     )
@@ -130,10 +136,9 @@ if Enum.all?(
         owner: opts.owner,
         hls_mode: opts.hls_mode,
         target_window_duration: opts.target_window_duration,
-        framerate: opts.framerate,
         target_segment_duration: opts.target_segment_duration,
-        transcoding_config: opts.transcoding_config,
-        event_id: UUID.uuid4()
+        compositor_config: opts.compositor_config,
+        event_id: opts.event_id
       }
 
       {:ok, state}
@@ -219,24 +224,20 @@ if Enum.all?(
       {_removed_track, tracks} = Map.pop!(state.tracks, track_id)
       state = %{state | tracks: tracks}
 
+      children_to_remove = add_video_sink_children_if_no_video_left(children_to_remove, tracks)
+
+      {{:ok, remove_child: children_to_remove}, state}
+    end
+
+    defp add_video_sink_children_if_no_video_left(children, tracks) do
+      sink_children = [:compositor, :encoder, :video_parser_out, :hls_sink_bin]
+
       any_video_track_left? =
         Enum.any?(tracks, fn {_id, track} ->
           track.type == :video
         end)
 
-      children_to_remove =
-        if any_video_track_left? do
-          children_to_remove
-        else
-          add_video_sink_children(children_to_remove)
-        end
-
-      {{:ok, remove_child: children_to_remove}, state}
-    end
-
-    defp add_video_sink_children(children) do
-      sink_children = [:compositor, :encoder, :video_parser_out, :hls_sink_bin]
-      children ++ sink_children
+      if any_video_track_left?, do: children, else: children ++ sink_children
     end
 
     @impl true
@@ -252,8 +253,7 @@ if Enum.all?(
           track.encoding,
           track,
           state.target_segment_duration,
-          state.framerate,
-          state.transcoding_config
+          state.compositor_config.output_framerate
         )
 
       {spec, state} =
@@ -264,143 +264,58 @@ if Enum.all?(
           File.rm_rf(directory)
           File.mkdir_p!(directory)
 
-          ffmpeg_filters = fn
-            width, height, 1 ->
-              "[0:v]scale=#{width}:#{height}:force_original_aspect_ratio=decrease,setsar=1/1,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2"
-
-            width, height, 2 ->
-              "[0:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[left];"
-              |> Kernel.<>(
-                "[1:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[right];"
-              )
-              |> Kernel.<>("[left][right]hstack")
-
-            width, height, 3 ->
-              "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[lefttop];"
-              |> Kernel.<>(
-                "[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[leftdown];"
-              )
-              |> Kernel.<>(
-                "[2:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[right];"
-              )
-              |> Kernel.<>("[lefttop][leftdown]vstack=inputs=2[left];")
-              |> Kernel.<>("[left][right]hstack=inputs=2")
-
-            width, height, 4 ->
-              "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[lefttop];"
-              |> Kernel.<>(
-                "[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[righttop];"
-              )
-              |> Kernel.<>(
-                "[2:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[leftdown];"
-              )
-              |> Kernel.<>(
-                "[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{width}/2:ih,setsar=1[rightdown];"
-              )
-              |> Kernel.<>("[lefttop][righttop]hstack=inputs=2[top];")
-              |> Kernel.<>("[leftdown][rightdown]hstack=inputs=2[down];")
-              |> Kernel.<>("[top][down]vstack=inputs=2")
-
-            width, height, 5 ->
-              rest = rem(width, 3)
-              column_width = div(width, 3)
-
-              "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[lefttop];"
-              |> Kernel.<>(
-                "[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middletop];"
-              )
-              |> Kernel.<>(
-                "[2:v]scale=-1:#{height}:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[right];"
-              )
-              |> Kernel.<>(
-                "[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[leftdown];"
-              )
-              |> Kernel.<>(
-                "[4:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middledown];"
-              )
-              |> Kernel.<>(
-                "[lefttop][middletop]hstack=inputs=2[top];[leftdown][middledown]hstack=inputs=2[bottom];"
-              )
-              |> Kernel.<>("[top][bottom]vstack=inputs=2[left];")
-              |> Kernel.<>("[left][right]hstack=inputs=2")
-
-            width, height, 6 ->
-              rest = rem(width, 3)
-              column_width = div(width, 3)
-
-              "[0:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[lefttop];"
-              |> Kernel.<>(
-                "[1:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middletop];"
-              )
-              |> Kernel.<>(
-                "[2:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[righttop];"
-              )
-              |> Kernel.<>(
-                "[3:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[leftdown];"
-              )
-              |> Kernel.<>(
-                "[4:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}:ih,setsar=1[middledown];"
-              )
-              |> Kernel.<>(
-                "[5:v]scale=-1:#{height}/2:force_original_aspect_ratio=decrease,crop=#{column_width}+#{rest}:ih,setsar=1[rightdown];"
-              )
-              |> Kernel.<>("[lefttop][middletop][righttop]hstack=inputs=3[top];")
-              |> Kernel.<>("[leftdown][middledown][rightdown]hstack=inputs=3[bottom];")
-              |> Kernel.<>("[top][bottom]vstack=inputs=2")
-
-            _, _, n ->
-              raise("No matching filter found for #{n} input(s)")
-          end
-
-          compositor = %Membrane.VideoMixer{
-            output_caps: %Membrane.RawVideo{
-              width: state.transcoding_config.output_width,
-              height: state.transcoding_config.output_height,
-              pixel_format: :I420,
-              framerate: state.transcoding_config.output_framerate,
-              aligned: true
-            },
-            filters: ffmpeg_filters
-          }
-
-          video_parser_out = %Membrane.H264.FFmpeg.Parser{
-            alignment: :au,
-            attach_nalus?: true,
-            framerate: state.transcoding_config.output_framerate
-          }
-
-          hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
-            manifest_module: Membrane.HTTPAdaptiveStream.HLS,
-            target_window_duration: state.target_window_duration,
-            target_segment_duration: state.target_segment_duration,
-            persist?: false,
-            storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
-              directory: directory
-            },
-            hls_mode: state.hls_mode
-          }
-
-          hls_sink_spec = %ParentSpec{
-            children: %{
-              :compositor => compositor,
-              :video_parser_out => video_parser_out,
-              :hls_sink_bin => hls_sink_bin
-            },
-            links: [
-              link(:compositor)
-              |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
-                profile: :baseline
-              })
-              |> to(:video_parser_out)
-              |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
-              |> to(:hls_sink_bin)
-            ]
-          }
-
+          hls_sink_spec = compose_hls_sink_spec(state, directory)
           {merge_parent_specs(spec, hls_sink_spec), state}
         end
 
       {{:ok, spec: spec}, state}
+    end
+
+    defp compose_hls_sink_spec(state, directory) do
+      compositor = %Membrane.VideoMixer{
+        output_caps: %Membrane.RawVideo{
+          width: state.compositor_config.output_width,
+          height: state.compositor_config.output_height,
+          pixel_format: :I420,
+          framerate: state.compositor_config.output_framerate,
+          aligned: true
+        },
+        filters: state.compositor_config.ffmpeg_filter
+      }
+
+      video_parser_out = %Membrane.H264.FFmpeg.Parser{
+        alignment: :au,
+        attach_nalus?: true,
+        framerate: state.compositor_config.output_framerate
+      }
+
+      hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
+        manifest_module: Membrane.HTTPAdaptiveStream.HLS,
+        target_window_duration: state.target_window_duration,
+        target_segment_duration: state.target_segment_duration,
+        persist?: false,
+        storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
+          directory: directory
+        },
+        hls_mode: state.hls_mode
+      }
+
+      %ParentSpec{
+        children: %{
+          :compositor => compositor,
+          :video_parser_out => video_parser_out,
+          :hls_sink_bin => hls_sink_bin
+        },
+        links: [
+          link(:compositor)
+          |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
+            profile: :baseline
+          })
+          |> to(:video_parser_out)
+          |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
+          |> to(:hls_sink_bin)
+        ]
+      }
     end
 
     defp merge_parent_specs(spec1, spec2) do
@@ -416,8 +331,7 @@ if Enum.all?(
              :OPUS,
              track,
              _segment_duration,
-             _framerate,
-             _transcoding_config
+             _framerate
            ) do
         %ParentSpec{
           children: %{
@@ -441,8 +355,7 @@ if Enum.all?(
              :OPUS,
              _track,
              _segment_duration,
-             _framerate,
-             _transcoding_config
+             _framerate
            ) do
         raise """
         Cannot find one of the modules required to support Opus audio input.
@@ -456,8 +369,7 @@ if Enum.all?(
            :AAC,
            track,
            _segment_duration,
-           _framerate,
-           _transcoding_config
+           _framerate
          ),
          do: %ParentSpec{
            children: %{},
@@ -468,57 +380,54 @@ if Enum.all?(
            ]
          }
 
-    defp hls_links_and_children(
-           link_builder,
-           :H264,
-           track,
-           segment_duration,
-           _framerate,
-           transcoding_config
-         ) do
-      transcoding_interceptor = create_transcoder_link(transcoding_config, track.id)
-
-      %ParentSpec{
-        children: %{
-          {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
-            interval: segment_duration
+    if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
+      defp hls_links_and_children(
+             link_builder,
+             :H264,
+             track,
+             segment_duration,
+             framerate
+           ) do
+        %ParentSpec{
+          children: %{
+            {:keyframe_requester, track.id} => %Membrane.KeyframeRequester{
+              interval: segment_duration
+            },
+            {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+              alignment: :au,
+              attach_nalus?: true
+            },
+            {:framerate_converter, track.id} => %Membrane.FramerateConverter{
+              framerate: framerate
+            }
           },
-          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
-            alignment: :au,
-            attach_nalus?: true
-          }
-        },
-        links: [
-          link_builder
-          |> to({:keyframe_requester, track.id})
-          |> to({:video_parser, track.id})
-          |> then(transcoding_interceptor)
-        ]
-      }
-    end
-
-    defp create_transcoder_link(%TranscodingConfig{enabled?: false}, _track_id), do: & &1
-
-    if Enum.all?(@transcoding_deps, &Code.ensure_loaded?/1) do
-      defp create_transcoder_link(transcoding_config, track_id) do
-        framerate_converter = %Membrane.FramerateConverter{
-          framerate: transcoding_config.output_framerate
+          links: [
+            link_builder
+            |> to({:keyframe_requester, track.id})
+            |> to({:video_parser, track.id})
+            |> to({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
+            |> to({:framerate_converter, track.id})
+            |> to(:compositor)
+          ]
         }
-
-        fn link_builder ->
-          link_builder
-          |> to({:decoder, track_id}, Membrane.H264.FFmpeg.Decoder)
-          |> to({:framerate_converter, track_id}, framerate_converter)
-          |> to(:compositor)
-        end
       end
     else
-      defp create_transcoder_link(_transcoding_config, _track_id) do
+      defp hls_links_and_children(
+             _link_builder,
+             :H264,
+             _track,
+             _segment_duration,
+             _framerate
+           ) do
         raise """
-        Cannot find some of the modules required to perform transcoding.
-        Ensure `:membrane_ffmpeg_swscale_plugin` and `membrane_framerate_converter_plugin` are added to the deps.
+        Cannot find some of the modules required to use the video composer.
+        Ensure that the following dependencies are added to the deps.
+        #{merge_strings(@compositor_deps)}
         """
       end
+
+      defp merge_strings(strings),
+        do: strings |> Enum.map(String.replace_suffix("", " ")) |> Enum.reduce(Kernel.<>())
     end
   end
 end
