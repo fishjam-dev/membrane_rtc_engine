@@ -272,7 +272,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   defp next_desired_variant(
          %__MODULE__{current_variant: current_variant, queued_variant: queued_variant} = selector
        ) do
-    pivot = if queued_variant, do: queued_variant, else: current_variant
+    pivot = if queued_variant != :no_variant, do: queued_variant, else: current_variant
 
     MapSet.put(selector.active_variants, :no_variant)
     |> sort_variants()
