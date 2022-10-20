@@ -266,7 +266,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         _ctx,
         state
       ) do
-    {selector, selector_action} = VariantSelector.set_bandwidth_allocation(state.selector, allocation)
+    {selector, selector_action} =
+      VariantSelector.set_bandwidth_allocation(state.selector, allocation)
+
     actions = maybe_request_track_variant(selector_action)
     {{:ok, actions}, %{state | selector: selector}}
   end
