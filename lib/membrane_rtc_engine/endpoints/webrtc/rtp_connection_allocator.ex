@@ -21,7 +21,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @opaque t() :: %__MODULE__{
             track_receivers: %{pid() => track_receiver_metadata()},
             probing_queue: Qex.t(),
-            probing_state: :increase_estimation | :maintain_estimation,
+            prober_status:
+              :increase_estimation
+              | :maintain_estimation
+              | :allowed_bandwidth_deficiency
+              | :disallowed_bandwidth_deficiency,
             available_bandwidth: non_neg_integer() | :unknown,
             allocated_bandwidth: non_neg_integer(),
             bitrate_timer: :timer.tref() | nil,
@@ -32,7 +36,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   defstruct [
     :bitrate_timer,
     available_bandwidth: :unknown,
-    probing_state: :increase_estimation,
+    prober_status: :increase_estimation,
     track_receivers: %{},
     allocated_bandwidth: 0,
     estimation_timestamp: 0,
@@ -79,10 +83,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     state =
       state
       |> Map.put(:available_bandwidth, estimation)
+      |> then(fn
+        %{prober_status: :allowed_bandwidth_deficiency} = state
+        when state.available_bandwidth > estimation ->
+          %{state | prober_status: :disallowed_bandwidth_deficiency}
+
+        state ->
+          state
+      end)
       |> update_allocations()
       |> stop_probing_timer()
       |> start_probing_timer()
-      |> update_probing_state()
+      |> update_prober_status()
 
     {:noreply, state}
   end
@@ -117,7 +129,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       state
       |> put_in([:track_receivers, pid], receiver)
       |> Map.update!(:allocated_bandwidth, &(&1 + bandwidth))
-      |> update_allocations()
+      |> update_prober_status()
 
     {:noreply, state}
   end
@@ -144,24 +156,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
               target_allocation: nil
           })
           |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
+          |> update_prober_status()
           |> update_allocations()
 
         true ->
           # Receiver raises its allocation. This might not be instantly granted
           state
           |> put_in([:track_receivers, pid], %{receiver | target_allocation: target})
+          |> update_prober_status()
           |> update_allocations()
       end
 
-    {:noreply, update_probing_state(state)}
+    {:noreply, state}
   end
 
   @impl true
-  def handle_info(:check_bits_sent, state) do
+  def handle_info(:check_bits_sent, state)
+      when state.prober_status in [:maintain_estimation, :increase_estimation] do
     use Numbers, overload_operators: true
 
     probing_target =
-      case state.probing_state do
+      case state.prober_status do
         :maintain_estimation -> state.allocated_bandwidth
         :increase_estimation -> state.available_bandwidth + 200_000
       end
@@ -188,6 +203,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     {:noreply, state}
   end
 
+  @impl true
+  def handle_info(:check_bits_sent, state), do: {:noreply, state}
+
   ## Helper functions
   defp stop_probing_timer(%__MODULE__{bitrate_timer: nil} = state), do: state
 
@@ -204,21 +222,49 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     %{state | bitrate_timer: timer, estimation_timestamp: get_timestamp(), bits_sent: 0}
   end
 
-  defp update_probing_state(state) do
+  defp update_prober_status(state) do
     cond do
-      not is_deficient?(state) and state.probing_state == :increase_estimation ->
-        Logger.debug("Switching probing target to maintain estimation")
+      state.prober_status not in [:allowed_bandwidth_deficiency, :disallowed_bandwidth_deficiency] and
+          state.allocated_bandwidth > state.available_bandwidth ->
+        state
+        |> Map.put(:prober_status, :allowed_bandwidth_deficiency)
+        |> stop_probing_timer()
+
+      state.prober_status in [:allowed_bandwidth_deficiency, :disallowed_bandwidth_deficiency] and
+        state.allocated_bandwidth <= state.available_bandwidth and not is_deficient?(state) ->
+        Logger.debug(
+          "Switching probing target to maintain estimation after being in the state of allowed deficiency"
+        )
 
         state
-        |> Map.put(:probing_state, :maintain_estimation)
+        |> Map.put(:prober_status, :maintain_estimation)
         |> stop_probing_timer()
         |> start_probing_timer()
 
-      state.probing_state == :maintain_estimation and is_deficient?(state) ->
+      state.prober_status in [:allowed_bandwidth_deficiency, :disallowed_bandwidth_deficiency] and
+        state.allocated_bandwidth <= state.available_bandwidth and is_deficient?(state) ->
+        Logger.debug(
+          "Switching probing target to increase estimation after being in the state of allowed deficiency"
+        )
+
+        state
+        |> Map.put(:prober_status, :increase_estimation)
+        |> stop_probing_timer()
+        |> start_probing_timer()
+
+      not is_deficient?(state) and state.prober_status == :increase_estimation ->
+        Logger.debug("Switching probing target to maintain estimation")
+
+        state
+        |> Map.put(:prober_status, :maintain_estimation)
+        |> stop_probing_timer()
+        |> start_probing_timer()
+
+      state.prober_status == :maintain_estimation and is_deficient?(state) ->
         Logger.debug("Switching probing target to increase estimation")
 
         state
-        |> Map.put(:probing_state, :increase_estimation)
+        |> Map.put(:prober_status, :increase_estimation)
         |> stop_probing_timer()
         |> start_probing_timer()
 
@@ -251,6 +297,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       end)
     end
   end
+
+  defp update_allocations(%__MODULE__{prober_status: :allowed_bandwidth_deficiency} = state),
+    do: state
 
   defp update_allocations(%__MODULE__{available_bandwidth: :unknown} = state), do: state
 
