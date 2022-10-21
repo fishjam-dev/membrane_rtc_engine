@@ -90,7 +90,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     initial_allocation =
       case track.type do
-        :audio -> variant_bitrates[:high]
+        :audio -> variant_bitrates[:high] * 1.1
         # FIXME revisit initial video allocation
         # in the previous version where we had
         # variant_bitrates[:low] it could happen that
@@ -129,6 +129,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     selector
     |> Map.put(:current_allocation, allocation)
     |> perform_automatic_variant_selection()
+  end
+
+  # TODO: doc
+  @spec decrease_allocation(t()) :: {t(), selector_action_t()}
+  def decrease_allocation(%__MODULE__{} = selector) do
+    reply = &send(selector.connection_allocator, {self(), {:decrease_allocation_request, &1}})
+
+    case next_lower_variant(selector) do
+      {:ok, next_variant} when next_variant != :no_variant ->
+        reply.(:accept)
+
+        selector
+        |> select_variant(next_variant)
+        |> tap(&manage_allocation/1)
+
+      _otherwise ->
+        reply.(:reject)
+        {selector, :noop}
+    end
   end
 
   @doc """
@@ -273,6 +292,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     |> Enum.filter(&fits_in_allocation?(selector, &1))
     |> List.first()
     |> then(&(&1 || :no_variant))
+  end
+
+  defp next_lower_variant(%__MODULE__{} = selector) do
+    pivot = selector.current_variant
+
+    selector.active_variants
+    |> MapSet.put(:no_variant)
+    |> sort_variants()
+    |> Enum.reverse()
+    |> Enum.drop_while(&(&1 != pivot))
+    |> case do
+      [^pivot, next_variant | _rest] -> {:ok, next_variant}
+      _otherwise -> {:error, :doesnt_exist}
+    end
   end
 
   # This function clause makes sure that we're no longer looking for a better variant

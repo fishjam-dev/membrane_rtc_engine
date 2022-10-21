@@ -238,47 +238,63 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   defp send_padding_packets(state, 0), do: state
 
   defp send_padding_packets(state, packets_num) do
-    Enum.reduce(1..packets_num, state, fn _i, state ->
-      # It's a good idea to select a track receiver in such a way that each one sends an equal amount of packets to create
-      # => Round Robin
-      {tr, queue} = Qex.pop!(state.probing_queue)
-      send(tr, :send_padding_packet)
+    if Enum.empty?(state.probing_queue) do
+      state
+    else
+      Enum.reduce(1..packets_num, state, fn _i, state ->
+        # It's a good idea to select a track receiver in such a way that each one sends an equal amount of packets to create
+        # => Round Robin
+        {tr, queue} = Qex.pop!(state.probing_queue)
+        send(tr, :send_padding_packet)
 
-      %{state | probing_queue: Qex.push(queue, tr)}
-    end)
+        %{state | probing_queue: Qex.push(queue, tr)}
+      end)
+    end
   end
 
   defp update_allocations(%__MODULE__{available_bandwidth: :unknown} = state), do: state
 
   defp update_allocations(%__MODULE__{track_receivers: track_receivers} = state)
        when state.allocated_bandwidth > state.available_bandwidth do
-    negotiable_trs = track_receivers |> Map.values() |> Enum.count(& &1.negotiable?)
+    track_receivers
+    |> Map.values()
+    |> Enum.filter(& &1.negotiable?)
+    |> case do
+      [] ->
+        false
 
-    if negotiable_trs > 0 do
-      non_negotiable_bandwidth =
-        track_receivers
-        |> Map.values()
-        |> Enum.filter(&(not &1.negotiable?))
-        |> Enum.map(& &1.current_allocation)
-        |> Enum.sum()
+      negotiable_trs ->
+        negotiable_trs
+        |> Enum.sort_by(& &1.current_allocation)
+        |> Enum.find(fn %{pid: pid} ->
+          send(pid, :decrease_your_allocation)
 
-      allocation = (state.available_bandwidth - non_negotiable_bandwidth) / negotiable_trs
+          receive do
+            {^pid, {:decrease_allocation_request, :accept}} ->
+              true
 
-      track_receivers =
-        Map.new(track_receivers, fn
-          {k, %{negotiable?: false} = v} -> {k, v}
-          {k, v} -> {k, %{v | current_allocation: allocation, target_allocation: nil}}
+            {^pid, {:decrease_allocation_request, :reject}} ->
+              false
+
+            {^pid, {:decrease_allocation_request, _other_reply}} ->
+              raise ArgumentError,
+                message: "Got illegal response from track receiver #{inspect(pid)}"
+          after
+            10 ->
+              Logger.debug("Receiver #{inspect(pid)} didn't reply in time :sadge")
+              false
+          end
         end)
-
-      for receiver <- Map.values(track_receivers) do
-        send(receiver.pid, %AllocationGrantedNotification{allocation: receiver.current_allocation})
-      end
-
-      %{state | track_receivers: track_receivers, allocated_bandwidth: state.available_bandwidth}
-    else
-      Logger.warn("We're using more bandwidth then we have, but we cannot lower our usage")
-      state
     end
+    |> case do
+      nil ->
+        Logger.warn("We're overusing the bandwidth, but we cannot decrease our usage")
+
+      value when is_map(value) ->
+        :ok
+    end
+
+    state
   end
 
   defp update_allocations(%__MODULE__{available_bandwidth: bandwidth} = state) do

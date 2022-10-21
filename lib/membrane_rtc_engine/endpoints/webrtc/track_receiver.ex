@@ -168,7 +168,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def handle_event(_pad, %TrackVariantPaused{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
     {selector, selector_action} = VariantSelector.variant_inactive(state.selector, variant)
-    actions = maybe_request_track_variant(selector_action)
+    actions = handle_selector_action(selector_action)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
@@ -177,7 +177,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def handle_event(_pad, %TrackVariantResumed{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
     {selector, selector_action} = VariantSelector.variant_active(state.selector, variant)
-    actions = maybe_request_track_variant(selector_action)
+    actions = handle_selector_action(selector_action)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
@@ -227,7 +227,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     end
 
     {selector, selector_action} = VariantSelector.set_target_variant(state.selector, variant)
-    actions = maybe_request_track_variant(selector_action)
+    actions = handle_selector_action(selector_action)
     {{:ok, actions}, %{state | selector: selector}}
   end
 
@@ -269,7 +269,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {selector, selector_action} =
       VariantSelector.set_bandwidth_allocation(state.selector, allocation)
 
-    actions = maybe_request_track_variant(selector_action)
+    actions = handle_selector_action(selector_action)
+    {{:ok, actions}, %{state | selector: selector}}
+  end
+
+  @impl true
+  def handle_other(:decrease_your_allocation, _ctx, state) do
+    {selector, selector_action} = VariantSelector.decrease_allocation(state.selector)
+    actions = handle_selector_action(selector_action)
     {{:ok, actions}, %{state | selector: selector}}
   end
 
@@ -283,8 +290,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   defp maybe_request_keyframe(_current_variant),
     do: [event: {:input, %Membrane.KeyframeRequestEvent{}}]
 
-  defp maybe_request_track_variant({:request, variant}),
+  defp handle_selector_action({:request, variant}),
     do: [event: {:input, %RequestTrackVariant{variant: variant}}]
 
-  defp maybe_request_track_variant(_other_action), do: []
+  defp handle_selector_action(_other_action), do: []
 end
