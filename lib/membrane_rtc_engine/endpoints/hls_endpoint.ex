@@ -41,7 +41,6 @@ if Enum.all?(
 
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig
-    alias Membrane.AudioMixer
 
     @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
     @compositor_deps [
@@ -299,6 +298,7 @@ if Enum.all?(
         manifest_module: Membrane.HTTPAdaptiveStream.HLS,
         target_window_duration: state.target_window_duration,
         target_segment_duration: state.target_segment_duration,
+        muxer_segment_duration: state.target_segment_duration - Membrane.Time.seconds(1),
         persist?: false,
         storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
           directory: directory
@@ -328,6 +328,9 @@ if Enum.all?(
         },
         links: [
           link(:compositor)
+          # |> to(:framerate_converter, %Membrane.FramerateConverter{
+          #   framerate: state.compositor_config.output_framerate
+          # })
           |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
             profile: :baseline,
             gop_size: frames_per_second * seconds_number
