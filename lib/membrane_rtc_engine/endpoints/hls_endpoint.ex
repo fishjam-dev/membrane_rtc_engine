@@ -263,7 +263,9 @@ if Enum.all?(
             storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
               directory: directory
             },
-            hls_mode: state.hls_mode
+            mode: :live,
+            hls_mode: state.hls_mode,
+            mp4_parameters_in_band?: true
           }
 
           new_spec = %{
