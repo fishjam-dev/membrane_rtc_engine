@@ -115,6 +115,14 @@ if Enum.all?(
                   description: """
                   Transcoding configuration
                   """
+                ],
+                sink_mode: [
+                  spec: :live | :vod,
+                  default: :live,
+                  description: """
+                  Tells if the session is live or a VOD type of broadcast. It can influence type of metadata
+                  inserted into the playlist's manifest.
+                  """
                 ]
 
     @impl true
@@ -129,7 +137,8 @@ if Enum.all?(
         target_window_duration: opts.target_window_duration,
         framerate: opts.framerate,
         target_segment_duration: opts.target_segment_duration,
-        transcoding_config: opts.transcoding_config
+        transcoding_config: opts.transcoding_config,
+        sink_mode: opts.sink_mode
       }
 
       {:ok, state}
@@ -263,9 +272,9 @@ if Enum.all?(
             storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
               directory: directory
             },
-            mode: :live,
+            mode: state.sink_mode,
             hls_mode: state.hls_mode,
-            mp4_parameters_in_band?: true
+            mp4_parameters_in_band?: state.transcoding_config.enabled? == false
           }
 
           new_spec = %{

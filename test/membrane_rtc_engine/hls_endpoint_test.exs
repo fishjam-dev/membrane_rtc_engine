@@ -117,9 +117,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok =
         Engine.add_endpoint(rtc_engine, video_file_endpoint, endpoint_id: video_file_endpoint_id)
 
-      :ok =
-        Engine.add_endpoint(rtc_engine, audio_file_endpoint, endpoint_id: audio_file_endpoint_id)
-
       assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
 
       assert %{
@@ -129,6 +126,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
                  "peerId" => video_file_endpoint_id
                }
              } == Jason.decode!(data)
+
+      :ok =
+        Engine.add_endpoint(rtc_engine, audio_file_endpoint, endpoint_id: audio_file_endpoint_id)
 
       assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
 
@@ -230,7 +230,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       output_directory: output_dir,
       target_window_duration: :infinity,
       framerate: {60, 1},
-      transcoding_config: transcoding_config
+      transcoding_config: transcoding_config,
+      sink_mode: :vod
     }
   end
 
