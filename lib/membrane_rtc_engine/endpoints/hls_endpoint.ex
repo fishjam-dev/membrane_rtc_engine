@@ -206,7 +206,6 @@ if Enum.all?(
           :opus_decoder,
           :aac_encoder,
           :aac_parser,
-          :keyframe_requester,
           :video_parser,
           :video_parser_out,
           :decoder,
@@ -270,12 +269,6 @@ if Enum.all?(
         end
 
       {{:ok, spec: spec}, state}
-    end
-
-    @impl true
-    def handle_tick({:request_keyframe, track_id}, _ctx, state) do
-      actions = [forward: {{:track_receiver, track_id}, :request_keyframe}]
-      {{:ok, actions}, state}
     end
 
     defp hls_links_and_children(link_builder, %Track{encoding: :OPUS} = track, _state) do
