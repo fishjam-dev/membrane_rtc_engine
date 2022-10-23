@@ -54,7 +54,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_core, "~> 0.10.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:membrane_webrtc_plugin, "~> 0.8.0"},
-      {:membrane_rtp_plugin, "~> 0.15.0"},
+      {:membrane_rtp_plugin,
+       github: "membraneframework/membrane_rtp_plugin",
+       branch: "bug/serializer-caps",
+       override: true},
       {:membrane_rtp_format, "~> 0.5.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.6.0"},
       {:membrane_rtp_opus_plugin, "~> 0.6.0"},
@@ -80,7 +83,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},
       {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
-      {:membrane_stream_plugin, "~> 0.1.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},

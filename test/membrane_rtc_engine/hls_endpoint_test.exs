@@ -19,6 +19,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
     Engine.register(pid, self())
 
+    on_exit(fn -> Engine.terminate(pid, blocking?: true) end)
+
     [rtc_engine: pid]
   end
 
@@ -31,7 +33,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
     } do
       file_endpoint_id = "file-endpoint-id"
 
-      file_name = "rtp_h264_video"
+      file_name = "video.h264"
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
@@ -247,25 +249,18 @@ defmodule Membrane.RTC.HLSEndpointTest do
         stream_id,
         video_file_endpoint_id,
         :H264,
-        nil,
-        [:raw],
+        90_000,
         nil,
         id: video_track_id
       )
-
-    parser = %Membrane.H264.FFmpeg.Parser{
-      attach_nalus?: true,
-      skip_until_parameters?: false,
-      framerate: {60, 1}
-    }
 
     %FileEndpoint{
       rtc_engine: rtc_engine,
       file_path: video_file_path,
       track: video_track,
-      interceptor: fn link_builder ->
-        Membrane.ParentSpec.to(link_builder, :parser, parser)
-      end
+      framerate: {60, 1},
+      ssrc: 1234,
+      payload_type: 96
     }
   end
 
@@ -275,9 +270,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
         :audio,
         stream_id,
         audio_file_endpoint_id,
-        :AAC,
-        nil,
-        [:raw],
+        :OPUS,
+        48_000,
         nil,
         id: audio_track_id
       )
@@ -286,11 +280,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       rtc_engine: rtc_engine,
       file_path: Path.join(@fixtures_dir, "audio.aac"),
       track: audio_track,
-      interceptor: fn link_builder ->
-        Membrane.ParentSpec.to(link_builder, :parser, %Membrane.AAC.Parser{
-          out_encapsulation: :none
-        })
-      end
+      ssrc: 2345,
+      payload_type: 108
     }
   end
 end
