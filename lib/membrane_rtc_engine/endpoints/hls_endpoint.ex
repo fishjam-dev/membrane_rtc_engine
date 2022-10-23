@@ -47,7 +47,6 @@ if Enum.all?(
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
 
-    @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
     @transcoding_deps [
       Membrane.H264.FFmpeg.Decoder,
       Membrane.H264.FFmpeg.Encoder,
@@ -333,6 +332,12 @@ if Enum.all?(
       }
     end
 
+    defp get_depayloader(track) do
+      track
+      |> Track.get_depayloader()
+      |> tap(&unless &1, do: raise("Couldn't find depayloader for track #{inspect(track)}"))
+    end
+
     defp create_transcoder_link(%TranscodingConfig{enabled?: false}, _track_id), do: & &1
 
     if Enum.all?(@transcoding_deps, &Code.ensure_loaded?/1) do
@@ -367,12 +372,6 @@ if Enum.all?(
         Cannot find some of the modules required to perform transcoding.
         Ensure `:membrane_ffmpeg_swscale_plugin` and `membrane_framerate_converter_plugin` are added to the deps.
         """
-      end
-
-      defp get_depayloader(track) do
-        track
-        |> Track.get_depayloader()
-        |> tap(&unless &1, do: raise("Couldn't find depayloader for track #{inspect(track)}"))
       end
     end
   end

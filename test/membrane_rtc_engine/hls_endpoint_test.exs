@@ -85,8 +85,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert_receive {:cleanup, _cleanup_function, ^stream_id}
     end
 
+    @tag :skip
     test "creates correct hls stream from multiple (h264, aac) inputs belonging to the same stream",
          %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+      # FIXME add support for publishing OPUS from a file
       video_file_endpoint_id = "video-file-endpoint"
       audio_file_endpoint_id = "audio-file-endpoint"
 
@@ -278,7 +280,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
     %FileEndpoint{
       rtc_engine: rtc_engine,
-      file_path: Path.join(@fixtures_dir, "audio.aac"),
+      file_path: Path.join(@fixtures_dir, "audio.ogg"),
       track: audio_track,
       ssrc: 2345,
       payload_type: 108
