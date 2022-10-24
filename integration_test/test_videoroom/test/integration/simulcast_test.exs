@@ -117,14 +117,14 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       {:click, @set_peer_encoding_low, 1_000},
       {:get_stats, @simulcast_inbound_stats, 10, 1_000, tag: :after_switching_to_low_en},
       {:click, @set_peer_encoding_medium, 1_000},
-      {:get_stats, @simulcast_inbound_stats, 10, 1_000, tag: :after_switching_to_medium_en}
+      {:get_stats, @simulcast_inbound_stats, 10, 1_000, tag: :after_switching_to_medium_en_receiver}
     ]
 
     sender_actions = [
       {:wait, 1_000},
       {:get_stats, @simulcast_outbound_stats, 10, 1_000, tag: :after_switching_to_low_en},
-      {:wait, 1_000},
-      {:get_stats, @simulcast_outbound_stats, 10, 1_000, tag: :after_switching_to_medium_en}
+      {:wait, 10_000},
+      {:get_stats, @simulcast_outbound_stats, 10, 1_000, tag: :after_switching_to_medium_en_sender}
     ]
 
     actions_with_id = [receiver_actions, sender_actions] |> Enum.with_index()
