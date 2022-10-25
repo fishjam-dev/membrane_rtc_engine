@@ -145,7 +145,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
     end
   end
 
-  describe "RTPConnectionAllocator does" do
+  describe "RTPConnectionAllocator prober state" do
     setup %{track: track} = _context do
       prober = %RTPConnectionAllocator{}
 

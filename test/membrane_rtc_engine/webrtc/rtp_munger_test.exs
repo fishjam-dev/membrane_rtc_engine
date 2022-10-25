@@ -1,5 +1,5 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   import Bitwise
 
   import Membrane.RTC.Engine.Support.Utils
