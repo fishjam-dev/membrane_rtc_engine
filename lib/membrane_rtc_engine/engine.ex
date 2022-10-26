@@ -1330,7 +1330,7 @@ defmodule Membrane.RTC.Engine do
         via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
       end
     end)
-    |> via_in(Pad.ref(:input, subscription.track_id))
+    |> via_in(Pad.ref(:input, subscription.track_id), toilet_capacity: 1_000)
     |> to({:endpoint, subscription.endpoint_id})
   end
 
