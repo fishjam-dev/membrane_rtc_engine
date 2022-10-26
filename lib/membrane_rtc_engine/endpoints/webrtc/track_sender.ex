@@ -11,6 +11,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   require Membrane.Logger
 
   alias Membrane.{Buffer, Time}
+  alias Membrane.RTC.Engine.BitrateEstimator
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
   alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed}
   alias Membrane.RTC.Engine.Track
@@ -22,6 +23,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
                               {:check_variant_statuses,
                                Time.seconds(@variant_statuses_check_interval_s)}}
   @stop_variant_check_timer {:stop_timer, :check_variant_statuses}
+
+  @start_bitrate_estimation_timer {:start_timer, {:estimate_bitrate, Time.seconds(1)}}
 
   def_options track: [
                 type: :struct,
@@ -52,6 +55,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
      %{
        track: track,
        trackers: %{},
+       bitrate_estimators: %{},
        requested_keyframes: MapSet.new(),
        telemetry_label: telemetry_label
      }}
@@ -81,7 +85,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         {[], state}
       end
 
-    state = put_in(state, [:trackers, variant], VariantTracker.new(variant))
+    state =
+      state
+      |> put_in([:bitrate_estimators, variant], BitrateEstimator.new())
+      |> put_in([:trackers, variant], VariantTracker.new(variant))
 
     {{:ok, actions}, state}
   end
@@ -105,7 +112,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_pad_removed(_pad, _ctx, state) do
+  def handle_pad_removed(Pad.ref(:input, {_track_id, variant}), _ctx, state) do
+    {_estimator, state} = pop_in(state, [:bitrate_estimators, variant])
     {:ok, state}
   end
 
@@ -121,9 +129,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       |> Enum.filter(fn {_pad_id, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad) end)
 
-    actions = actions ++ [@start_variant_check_timer]
+    actions = actions ++ [@start_variant_check_timer, @start_bitrate_estimation_timer]
 
     {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_tick(:estimate_bitrate, _ctx, state) do
+    {estimations, state} =
+      state.bitrate_estimators
+      |> Enum.reduce({%{}, state}, fn {variant, estimator}, {estimations, state} ->
+        {estimation, estimator} = BitrateEstimator.estimate(estimator)
+
+        {Map.put(estimations, variant, estimation),
+         put_in(state, [:bitrate_estimators, variant], estimator)}
+      end)
+
+    {{:ok, notify: {:estimation, estimations}}, state}
   end
 
   @impl true
@@ -205,7 +227,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       state.telemetry_label
     )
 
-    state = update_in(state, [:trackers, variant], &VariantTracker.increment_samples(&1))
+    state =
+      state
+      |> update_in([:bitrate_estimators, variant], &BitrateEstimator.process(&1, buffer))
+      |> update_in([:trackers, variant], &VariantTracker.increment_samples(&1))
+
     buffer = add_is_keyframe_flag(buffer, track)
 
     {actions, state} =

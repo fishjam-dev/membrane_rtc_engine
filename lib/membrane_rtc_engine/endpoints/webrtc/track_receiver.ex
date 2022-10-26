@@ -21,7 +21,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{Forwarder, VariantSelector}
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{
+    ConnectionAllocator.AllocationGrantedNotification,
+    Forwarder,
+    VariantSelector
+  }
+
+  alias Membrane.RTC.Engine.Track
+
+  alias Membrane.RTC.Engine.Track
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
@@ -57,7 +65,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   def_options track: [
                 type: :struct,
-                spec: Membrane.RTC.Engine.Track.t(),
+                spec: Track.t(),
                 description: "Track this adapter will maintain"
               ],
               initial_target_variant: [
@@ -78,6 +86,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 as generating keyframes increases track bitrate and might introduce
                 additional delay.
                 """
+              ],
+              connection_allocator_module: [
+                spec: module(),
+                default: Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator,
+                description: """
+                Module implementing `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator` behavior
+                that should be used by the TrackReceiver.
+                """
+              ],
+              connection_allocator: [
+                spec: pid() | nil,
+                default: nil,
+                description: """
+                PID of the instance of the ConnectionAllocator that should be used by the TrackReceiver
+                """
               ]
 
   def_input_pad :input,
@@ -91,22 +114,31 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     caps: Membrane.RTP
 
   @impl true
-  def handle_init(opts) do
-    %__MODULE__{
-      track: track,
-      initial_target_variant: initial_target_variant,
-      keyframe_request_interval: keyframe_request_interval
-    } = opts
-
+  def handle_init(%__MODULE__{
+        connection_allocator: connection_allocator,
+        track: track,
+        initial_target_variant: initial_target_variant,
+        keyframe_request_interval: keyframe_request_interval,
+        connection_allocator_module: connection_allocator_module
+      }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
-    selector = VariantSelector.new(initial_target_variant)
+
+    selector =
+      VariantSelector.new(
+        track,
+        connection_allocator_module,
+        connection_allocator,
+        initial_target_variant
+      )
 
     state = %{
       track: track,
       forwarder: forwarder,
       selector: selector,
       needs_reconfiguration: false,
-      keyframe_request_interval: keyframe_request_interval
+      keyframe_request_interval: keyframe_request_interval,
+      connection_allocator: connection_allocator,
+      connection_allocator_module: connection_allocator_module
     }
 
     {:ok, state}
@@ -135,8 +167,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %TrackVariantPaused{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, next_variant} = VariantSelector.variant_inactive(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.variant_inactive(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
@@ -144,8 +176,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %TrackVariantResumed{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, next_variant} = VariantSelector.variant_active(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.variant_active(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
     state = %{state | selector: selector}
     {{:ok, actions}, state}
   end
@@ -168,8 +200,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         else: state.forwarder
 
     {forwarder, buffer} = Forwarder.align(forwarder, buffer)
-    state = %{state | forwarder: forwarder, needs_reconfiguration: false}
-    {{:ok, buffer: {:output, buffer}}, state}
+
+    state = %{
+      state
+      | forwarder: forwarder,
+        needs_reconfiguration: false
+    }
+
+    actions =
+      if buffer do
+        state.connection_allocator_module.buffer_sent(state.connection_allocator, buffer)
+        [buffer: {:output, buffer}]
+      else
+        []
+      end
+
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -180,8 +226,50 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       """)
     end
 
-    {selector, next_variant} = VariantSelector.set_target_variant(state.selector, variant)
-    actions = maybe_request_track_variant(next_variant)
+    {selector, selector_action} = VariantSelector.set_target_variant(state.selector, variant)
+    actions = maybe_request_track_variant(selector_action)
+    {{:ok, actions}, %{state | selector: selector}}
+  end
+
+  @impl true
+  def handle_other(:send_padding_packet, ctx, state)
+      when not ctx.pads.output.end_of_stream? do
+    {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
+
+    actions =
+      if buffer do
+        state.connection_allocator_module.probe_sent(state.connection_allocator)
+        [buffer: {:output, buffer}]
+      else
+        []
+      end
+
+    {{:ok, actions}, %{state | forwarder: forwarder}}
+  end
+
+  @impl true
+  def handle_other(:send_padding_packet, _ctx, state) do
+    Process.send_after(self(), :send_padding_packet, 10)
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_other({:bitrate_estimation, _estimation}, _ctx, state) do
+    # Handle bitrate estimations of incoming variants
+    # We're currently ignoring this information
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_other(
+        %AllocationGrantedNotification{allocation: allocation},
+        _ctx,
+        state
+      ) do
+    {selector, selector_action} =
+      VariantSelector.set_bandwidth_allocation(state.selector, allocation)
+
+    actions = maybe_request_track_variant(selector_action)
     {{:ok, actions}, %{state | selector: selector}}
   end
 
@@ -195,8 +283,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   defp maybe_request_keyframe(_current_variant),
     do: [event: {:input, %Membrane.KeyframeRequestEvent{}}]
 
-  defp maybe_request_track_variant(nil), do: []
-
-  defp maybe_request_track_variant(variant),
+  defp maybe_request_track_variant({:request, variant}),
     do: [event: {:input, %RequestTrackVariant{variant: variant}}]
+
+  defp maybe_request_track_variant(_other_action), do: []
 end

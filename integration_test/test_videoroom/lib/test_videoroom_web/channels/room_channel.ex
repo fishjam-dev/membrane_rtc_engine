@@ -30,7 +30,6 @@ defmodule TestVideoroomWeb.RoomChannel do
 
   defp join_room(room_id, room, socket) do
     peer_id = "#{UUID.uuid4()}"
-    # TODO handle crash of room?
     Process.monitor(room)
     TestVideoroom.Room.add_peer_channel(room, self(), peer_id)
     {:ok, Phoenix.Socket.assign(socket, %{room_id: room_id, room: room, peer_id: peer_id})}

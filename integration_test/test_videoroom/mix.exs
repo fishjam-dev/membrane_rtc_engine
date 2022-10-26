@@ -36,7 +36,8 @@ defmodule TestVideoroom.MixProject do
       {:plug_cowboy, "~> 2.5"},
       {:cowlib, "~> 2.11", override: true},
       {:membrane_rtc_engine, path: "../../"},
-      {:stampede, github: "geometerio/stampede-elixir"}
+      {:membrane_rtp_plugin, github: "membraneframework/membrane_rtp_plugin", branch: "feature/outbound-retransmissions", override: true},
+      {:stampede, github: "geometerio/stampede-elixir"},
     ]
   end
 

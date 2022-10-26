@@ -15,15 +15,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{SimulcastConfig, TrackReceiver, TrackSender}
+
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{
+    SimulcastConfig,
+    TrackReceiver,
+    TrackSender
+  }
+
+  alias Membrane.RTC.Engine.Notifications.TrackNotification
   alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
+
+  # TODO: remove configuring via app env
+  @connection_prober Application.compile_env(
+                       :membrane_rtc_engine,
+                       :connection_prober_implementation,
+                       __MODULE__.RTPConnectionAllocator
+                     )
 
   @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
   @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
 
   @life_span_id "webrtc_endpoint.life_span"
+
+  defmacrop bitrate_notification(estimation) do
+    {:bitrate_estimation, estimation}
+  end
 
   @type encoding_t() :: String.t()
 
@@ -196,7 +214,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> Map.merge(%{
         outbound_tracks: %{},
         inbound_tracks: %{},
-        display_manager: nil
+        display_manager: nil,
+        connection_prober: nil
       })
 
     {:ok, state}
@@ -205,6 +224,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_prepared_to_playing(ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
+    {:ok, connection_prober} = @connection_prober.start_link()
 
     log_metadata = state.log_metadata ++ [webrtc_endpoint: endpoint_id]
 
@@ -231,7 +251,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       log_metadata: log_metadata
     }
 
-    {{:ok, spec: spec}, %{state | log_metadata: log_metadata}}
+    {{:ok, spec: spec},
+     %{state | log_metadata: log_metadata, connection_prober: connection_prober}}
+  end
+
+  @impl true
+  def handle_notification({:estimation, estimations}, {:track_sender, track_id}, _ctx, state) do
+    notification = %TrackNotification{
+      track_id: track_id,
+      notification: bitrate_notification(estimations)
+    }
+
+    {{:ok, notify: {:publish, notification}}, state}
   end
 
   @impl true
@@ -392,8 +423,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification(notification, _element, _ctx, state),
-    do: {{:ok, notify: notification}, state}
+  def handle_notification({:bandwidth_estimation, estimation}, _from, _ctx, state) do
+    @connection_prober.update_bandwidth_estimation(state.connection_prober, estimation)
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_notification(notification, _element, _ctx, state) do
+    {{:ok, notify: notification}, state}
+  end
+
+  @impl true
+  def handle_other(
+        %TrackNotification{
+          track_id: track_id,
+          notification: bitrate_notification(_estimation) = notification
+        },
+        _ctx,
+        state
+      ) do
+    # Forward the data to the Track Receiver
+    {{:ok, forward: {{:track_receiver, track_id}, notification}}, state}
+  end
 
   @impl true
   def handle_other({:new_tracks, tracks}, ctx, state) do
@@ -458,7 +509,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       link_bin_input(pad)
       |> to({:track_receiver, track_id}, %TrackReceiver{
         track: track,
-        initial_target_variant: initial_target_variant
+        initial_target_variant: initial_target_variant,
+        connection_allocator: state.connection_prober,
+        connection_allocator_module: @connection_prober
       })
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
@@ -775,7 +828,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       variants: variants,
       active?: track.status != :disabled,
       metadata: metadata,
-      ctx: %{extension_key => track.extmaps}
+      ctx: %{extension_key => track.extmaps},
+      payload_type: track.rtp_mapping.payload_type
     )
   end
 

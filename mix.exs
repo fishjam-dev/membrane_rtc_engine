@@ -64,11 +64,13 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_rtp_h264_plugin, "~> 0.13.0"},
       {:membrane_tee_plugin, "~> 0.9.0"},
       {:uuid, "~> 1.1"},
+      {:qex, "~> 0.5"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 1.0"},
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.28.3", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
+      {:statistics, "~> 0.6"},
 
       # Optional deps for HLS endpoint
       {:membrane_http_adaptive_stream_plugin, "~> 0.8.1", optional: true},
@@ -127,6 +129,8 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Endpoint.WebRTC,
           Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig,
           Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver,
+          Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator,
+          Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator,
           Membrane.RTC.Engine.Endpoint.HLS,
           Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
         ],
