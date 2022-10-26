@@ -103,7 +103,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         # the solution to chose 2*variant_bitrates[:high]
         # should allow us to send anything at start;
         # we will adjust quality after next bwe
-        :video -> 2 * variant_bitrates[:high]
+        :video -> 1.1 * variant_bitrates[:high]
       end
 
     connection_allocator_module.register_track_receiver(

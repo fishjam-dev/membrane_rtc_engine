@@ -133,15 +133,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       assert_receive %AllocationGrantedNotification{allocation: ^allocation}
     end
 
-    test "starts probing when it doesn't have enough bandwidth to grant the allocation and grants it when allocation becomes available",
-         %{prober: prober, track: track} do
-      allocation = @initial_bandwidth_estimation * 2
+    test "Doesn't grant the allocation that it doesn't have the bandwidth for", %{
+      prober: prober,
+      track: track
+    } do
+      allocation = 9_999_999_999_999_999
       RTPConnectionAllocator.register_track_receiver(prober, 0, track)
       RTPConnectionAllocator.request_allocation(prober, allocation)
-      assert_receive :send_padding_packet
-
-      RTPConnectionAllocator.update_bandwidth_estimation(prober, allocation * 2)
-      assert_receive %AllocationGrantedNotification{allocation: ^allocation}
+      refute_receive %AllocationGrantedNotification{allocation: ^allocation}
     end
   end
 
@@ -175,7 +174,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       refute_receive :decrease_your_allocation, 0
     end
 
-    test "switches to disallowed deficiency from allowed deficiency when bandwidth decreases below allocated bandwidth",
+    test "switches to disallowed deficiency from allowed deficiency when bandwidth allocation decreases",
          %{prober: prober, track: track} do
       # Get to allowed deficiency
       {:noreply, prober} =
@@ -209,7 +208,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       assert prober.prober_status == :allowed_bandwidth_deficiency
     end
 
-    test "switches to increase estimation mode when there is a TR that wants higher allocation",
+    test "switches to :increase_estimation upon allocation request and reverts back to :maintain_estimation after granting allocation",
          %{prober: prober} do
       request = 10_000_000
 
@@ -226,7 +225,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
     end
 
     @tag negotiable?: false
-    test "switches to allowed deficiency_mode when non-negotiable track raises allocation over available bandwidth",
+    test "switches to allowed deficiency non-negotiable track raises allocation over available bandwidth",
          %{prober: prober} do
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast({:request_allocation, self(), 1_000_000_000}, prober)
