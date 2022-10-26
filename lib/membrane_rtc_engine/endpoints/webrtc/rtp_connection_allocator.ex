@@ -40,7 +40,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     probing_queue: Qex.new()
   ]
 
-  @padding_packet_size 8 * Membrane.RTP.Packet.padding_packet_size()
+  @padding_packet_size 8 * 256
 
   @impl true
   def start_link(), do: GenServer.start_link(__MODULE__, [], [])
