@@ -34,12 +34,12 @@ class Room {
     this.videoTrack = null;
     this.audioTrack = null;
     this.peerEncoding = "m"
-    this.encodings = ["l", "m", "h"]
+    this.encodings = ["l", "m", "h"];
     this.peerMetadata = null;
     this.trackMetadata = null;
-    this.selfId = null
-    this.peers = []
-    this.simulcast = simulcast
+    this.selfId = null;
+    this.simulcast = simulcast;
+    this.remoteTracks = new Map();
 
     this.webrtcSocketRefs = [];
     this.webrtcSocketRefs.push(this.socket.onError(this.leave));
@@ -68,15 +68,18 @@ class Room {
         onJoinError: (metadata) => {
           throw `Peer denied.`;
         },
-        onTrackReady: ({ stream, peer, metadata }) => {
-          const video = document.getElementById(peer.id);
+        onTrackReady: (ctx) => {
+          const video = document.getElementById(ctx.peer.id);
 
-          video.srcObject = stream;
+          video.srcObject = ctx.stream;
+          this.remoteTracks.set(ctx.trackId, ctx);
         },
         onTrackAdded: (ctx) => {
           console.log(this.selfId, " track added ", ctx.trackId)
         },
-        onTrackRemoved: (ctx) => { },
+        onTrackRemoved: (ctx) => {
+          this.remoteTracks.delete(ctx.trackId);
+        },
         onPeerJoined: (peer) => {
           this.peers.push(peer);
           this.updateParticipantsList();
@@ -157,10 +160,9 @@ class Room {
 
   selectPeerSimulcastEncoding = (encoding) => {
     const peer = this.peers[0]
-    const tracksId = Array.from(peer.trackIdToMetadata.keys())
-    tracksId.forEach(trackId => {
-      this.webrtc.selectTrackEncoding(peer.id, trackId, encoding)
-    })
+    const trackIds = Array.from(peer.trackIdToMetadata.keys())
+    const videoTrackIds = trackIds.filter(trackId => this.remoteTracks.get(trackId).track.kind == "video")
+    videoTrackIds.forEach(trackId => this.webrtc.setTargetTrackEncoding(trackId, encoding))
   }
 
   getPeerEncoding = () => { return this.peerEncoding }

@@ -10,30 +10,7 @@ At the moment, Membrane supports only receiver preferences i.e. receiver can cho
 
 ## Turning simulcast on/off
 
-On the client side simulcast can be enabled while adding a new track e.g.:
-
-```ts
-    // create MembraneWebRTC class instance
-    // ...
-    // add simulcasted track
-    let trackId = webrtc.addTrack(track, stream, {}, {enabled: true, active_encodings: ["l", "m", "h"]});
-```
-
-This will add a new track that will be sent in three versions:
-* original (identified as `h`)
-* original scaled down by 2 (identified as `m`)
-* original scaled down by 4 (identified as `l`)
-
-You can turn off some of the encodings by excluding them from `active_encodings` list.
-Encodings that are turned off might still be enabled using `enableTrackEncoding` function.
-
-> #### Minimal required resolution {: .warning}
->
-> To make all encodings working, original track resolution has to be at least 1280x720.
-> In other case, browser might not be able to scale resolution down.
-> In case of browser, original track resolution can be specified in constraints
-> passed to [`getUserMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia) 
-> or [`getDisplayMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia).
+### Server side 
 
 On the server side, simulcast can be configured while adding new WebRTC Endpoint by setting its `simulcast_config` option.
 Remember to ensure `Rid`, `Mid` and `TWCC` extensions are used.
@@ -51,43 +28,19 @@ alias Membrane.WebRTC.Extension.{Mid, Rid, TWCC}
   webrtc_extensions: [Rid, Mid, TWCC],
   simulcast_config: %SimulcastConfig{
     enabled: true,
-    default_encoding: fn %Track{simulcast_encodings: _simulcast_encodings} -> "m" end
+    initial_target_variant: fn _track_ -> :medium end
   }
 }
 ```
 
-Here we turn simulcast on and choose medium encoding for each track to be forwarded to the client.
+Here we turn simulcast on and choose `:medium` variant as a target for each track
+that is going to be forwarded to the browser.
+Target variant means that it will be chosen whenever it is active.
+If for some reason `:medium` variant is inactive we will temporarily forward some other variant.
 
 On the other hand, setting `enabled` to `false` will result in rejecting all incoming simulcast tracks i.e. client will not send them to the server.
 
-## Disabling and enabling specific track encoding
+### Client side
 
-After adding simulcasted track, user can disable specific encoding.
-For example, to disable the highest encoding:
-
-```ts
-    // create MembraneWebRTC class instance
-    // ...
-    // add simulcasted track
-    let trackId = webrtc.addTrack(track, stream, {}, true);
-    webrtc.disableTrackEncoding(trackId, "h");
-```
-
-Disabled encoding can be turned on again using `enableTrackEncoding` function.
-
-Membrane RTC Engine tracks encoding activity. 
-Therefore, when some encoding is turned off, RTC Engine will detect this and switch to 
-the highest available encoding.
-When disabled encoding becomes active again, RTC Engine will switch back to it.
-
-## Selecting encoding to receive
-
-By default, RTC Engine will forward the highest available encoding.
-However, this can be changed using `selectTrackEncoding` function.
-For example, to receive the lowest resolution:
-
-```ts
-    webrtc.selectTrackEncoding(peerId, trackId, "l");
-```
-
-where `peerId` is id of peer this track belongs to.
+On the client side simulcast can be enabled while adding a new track and might differ depending
+on the client type e.g. for JS see https://docs.membrane.stream/membrane-webrtc-js/classes/membranewebrtc.html#addtrack

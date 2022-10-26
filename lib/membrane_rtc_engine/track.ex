@@ -1,4 +1,3 @@
-# credo:disable-for-this-file Credo.Check.Design.TagTODO
 defmodule Membrane.RTC.Engine.Track do
   @moduledoc """
   Module representing media track.
@@ -18,18 +17,30 @@ defmodule Membrane.RTC.Engine.Track do
     :origin,
     :fmtp,
     :encoding,
-    :simulcast_encodings,
+    :variants,
     :clock_rate,
-    :format,
     :active?,
     :metadata,
     :ctx
   ]
   defstruct @enforce_keys
 
+  @supported_variants [:high, :medium, :low]
+
   @type id :: String.t()
   @type encoding :: atom()
-  @type format :: [atom()]
+
+  @typedoc """
+  Possible track variants.
+
+  The usage should be as follows:
+  * `:high` - main track variant
+  * `:medium` -  lower (in terms of quality) track variant
+  * `:low` - the lowest track variant
+
+  Audio tracks can have only one variant - `:high`.
+  """
+  @type variant :: :high | :medium | :low
 
   @typedoc """
   This module contains:
@@ -40,12 +51,8 @@ defmodule Membrane.RTC.Engine.Track do
   * `id` - track id
   * `origin` - id of Endpoint this track belongs to
   * `encoding` - track encoding
-  * `simulcast_encodings` - for simulcast tracks this is a list of simulcast encoding identifiers.
-  In other case, this is an empty list.
+  * `variants` - list of possible track variants. Refer to `t:variant/0`.
   * `clock_rate` - track clock rate
-  * `format` - list of available track formats. At this moment max two formats can be specified.
-  One of them has to be `:raw` which indicates that other Endpoints will receive this track in format
-  of `encoding`. The other one can be any atom (e.g. `:RTP`).
   * `fmtp` - struct describing format specific parameters e.g. for H264 it contains `profile_level_id`
   * `active?` - indicates whether track is still available or not (because peer left a room)
   * `metadata` - any data passed by user to be linked with this track
@@ -57,10 +64,9 @@ defmodule Membrane.RTC.Engine.Track do
           id: id,
           origin: String.t(),
           encoding: encoding,
-          simulcast_encodings: [String.t()],
+          variants: [variant()],
           clock_rate: Membrane.RTP.clock_rate_t(),
-          format: format,
-          fmtp: FMTP.t(),
+          fmtp: FMTP,
           active?: boolean(),
           metadata: any(),
           ctx: map()
@@ -71,7 +77,8 @@ defmodule Membrane.RTC.Engine.Track do
 
   If not provided:
   * `id` - will be generated
-  * `simulcast_encodings` - `[]`
+  * `active?` - true
+  * `variants` - `[:high]`
   * `metadata` - `nil`
   * `ctx` - `%{}`
 
@@ -79,7 +86,8 @@ defmodule Membrane.RTC.Engine.Track do
   """
   @type opts_t :: [
           id: String.t(),
-          simulcast_encodings: [String.t()],
+          active?: boolean(),
+          variants: [variant()],
           metadata: any(),
           ctx: map()
         ]
@@ -96,11 +104,10 @@ defmodule Membrane.RTC.Engine.Track do
           String.t(),
           encoding(),
           Membrane.RTP.clock_rate_t(),
-          format(),
           FMTP,
           opts_t()
         ) :: t
-  def new(type, stream_id, origin, encoding, clock_rate, format, fmtp, opts \\ []) do
+  def new(type, stream_id, origin, encoding, clock_rate, fmtp, opts \\ []) do
     id = Keyword.get(opts, :id, Base.encode16(:crypto.strong_rand_bytes(8)))
 
     %__MODULE__{
@@ -109,11 +116,10 @@ defmodule Membrane.RTC.Engine.Track do
       origin: origin,
       encoding: encoding,
       clock_rate: clock_rate,
-      format: format,
       fmtp: fmtp,
       id: id,
-      active?: true,
-      simulcast_encodings: Keyword.get(opts, :simulcast_encodings, []),
+      active?: Keyword.get(opts, :active?, true),
+      variants: Keyword.get(opts, :variants, [:high]),
       metadata: Keyword.get(opts, :metadata),
       ctx: Keyword.get(opts, :ctx, %{})
     }
@@ -124,4 +130,60 @@ defmodule Membrane.RTC.Engine.Track do
   """
   @spec stream_id() :: String.t()
   def stream_id(), do: UUID.uuid4()
+
+  @doc """
+  Returns list of supported track variants.
+  """
+  @spec supported_variants() :: [variant()]
+  def supported_variants(), do: @supported_variants
+
+  @doc """
+  Returns depayloader for given track.
+
+  Depayloader can be used to unpack RTP stream i.e. get
+  data out of RTP packets.
+
+  Returns Membrane child specification or `nil` if depayloader
+  couldn't be determined.
+
+  ## Examples
+
+      @impl true
+      def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
+        children = %{
+          {:track_receiver, track_id} => %TrackReceiver{
+            track: Map.fetch!(state.tracks, track_id),
+            initial_target_variant: :high
+          },
+          {:depayloader, track.id} => get_depayloader(track),
+          {:serializer, track_id} => Membrane.Stream.Serializer,
+          {:sink, track_id} => %Membrane.File.Sink{
+            location: Path.join(state.output_dir_path, track_id)
+          }
+        }
+
+        links = [
+          link_bin_input(pad)
+          |> to({:track_receiver, track_id})
+          |> to({:depayloader, track.id})
+          |> to({:serializer, track_id})
+          |> to({:sink, track_id})
+        ]
+
+        {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+      end
+  """
+  @spec get_depayloader(t()) :: Membrane.ParentSpec.child_spec_t() | nil
+  def get_depayloader(track) do
+    case Membrane.RTP.PayloadFormat.get(track.encoding).depayloader do
+      nil ->
+        nil
+
+      depayloader ->
+        %Membrane.RTP.DepayloaderBin{
+          depayloader: depayloader,
+          clock_rate: track.clock_rate
+        }
+    end
+  end
 end

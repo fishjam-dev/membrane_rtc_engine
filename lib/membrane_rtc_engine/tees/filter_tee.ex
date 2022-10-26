@@ -31,11 +31,6 @@ defmodule Membrane.RTC.Engine.FilterTee do
                 type: :atom,
                 spec: [:H264 | :VP8 | :OPUS],
                 description: "Codec of track #{inspect(__MODULE__)} will forward."
-              ],
-              telemetry_label: [
-                spec: Membrane.TelemetryMetrics.label(),
-                default: [],
-                description: "Label passed to Membrane.TelemetryMetrics functions"
               ]
 
   def_input_pad :input,
@@ -51,8 +46,6 @@ defmodule Membrane.RTC.Engine.FilterTee do
 
   @impl true
   def handle_init(opts) do
-    Membrane.RTC.Utils.telemetry_register(opts.telemetry_label)
-
     state = %{
       ets_name: :"#{opts.ets_name}",
       track_id: opts.track_id,
@@ -60,7 +53,6 @@ defmodule Membrane.RTC.Engine.FilterTee do
       type: opts.type,
       forward_to: MapSet.new(),
       codec: opts.codec,
-      telemetry_label: opts.telemetry_label,
       caps: nil
     }
 
@@ -84,12 +76,6 @@ defmodule Membrane.RTC.Engine.FilterTee do
 
   @impl true
   def handle_process(:input, %Membrane.Buffer{} = buffer, _ctx, %{type: :audio} = state) do
-    Membrane.RTC.Utils.emit_packet_arrival_event(
-      buffer.payload,
-      state.codec,
-      state.telemetry_label
-    )
-
     {{:ok, forward: buffer}, state}
   end
 
@@ -100,23 +86,11 @@ defmodule Membrane.RTC.Engine.FilterTee do
         _ctx,
         %{type: :video, counter: 1000} = state
       ) do
-    Membrane.RTC.Utils.emit_packet_arrival_event(
-      buffer.payload,
-      state.codec,
-      state.telemetry_label
-    )
-
     {{:ok, forward: buffer}, %{state | counter: 0}}
   end
 
   @impl true
   def handle_process(:input, %Membrane.Buffer{} = buffer, ctx, %{type: :video} = state) do
-    Membrane.RTC.Utils.emit_packet_arrival_event(
-      buffer.payload,
-      state.codec,
-      state.telemetry_label
-    )
-
     pads =
       ctx.pads
       |> Map.keys()

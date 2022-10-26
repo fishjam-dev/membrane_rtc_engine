@@ -54,7 +54,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_core, "~> 0.10.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:membrane_webrtc_plugin, "~> 0.8.0"},
-      {:membrane_rtp_plugin, "~> 0.15.0"},
+      {:membrane_rtp_plugin,
+       github: "membraneframework/membrane_rtp_plugin",
+       branch: "bug/serializer-caps",
+       override: true},
       {:membrane_rtp_format, "~> 0.5.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.6.0"},
       {:membrane_rtp_opus_plugin, "~> 0.6.0"},
@@ -80,7 +83,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},
       {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
-      {:membrane_stream_plugin, "~> 0.1.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
@@ -113,14 +115,26 @@ defmodule Membrane.RTC.Engine.MixProject do
       groups_for_extras: groups_for_extras(),
       assets: "internal_docs/assets",
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint, Membrane.RTC.Engine.Message],
+      nest_modules_by_prefix: [
+        Membrane.RTC.Engine.Endpoint,
+        Membrane.RTC.Engine.Event,
+        Membrane.RTC.Engine.Exception,
+        Membrane.RTC.Engine.Message
+      ],
       before_closing_body_tag: &before_closing_body_tag/1,
       groups_for_modules: [
         Endpoints: [
           Membrane.RTC.Engine.Endpoint.WebRTC,
           Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig,
+          Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver,
           Membrane.RTC.Engine.Endpoint.HLS,
           Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
+        ],
+        Events: [
+          Membrane.RTC.Engine.Event.RequestTrackVariant,
+          Membrane.RTC.Engine.Event.TrackVariantSwitched,
+          Membrane.RTC.Engine.Event.TrackVariantPaused,
+          Membrane.RTC.Engine.Event.TrackVariantResumed
         ],
         Messages: [
           Membrane.RTC.Engine.Message,
@@ -128,6 +142,12 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Message.MediaEvent,
           Membrane.RTC.Engine.Message.NewPeer,
           Membrane.RTC.Engine.Message.PeerLeft
+        ],
+        Exceptions: [
+          Membrane.RTC.Engine.Exception.PublishTrackError,
+          Membrane.RTC.Engine.Exception.RequestTrackVariantError,
+          Membrane.RTC.Engine.Exception.TrackReadyError,
+          Membrane.RTC.Engine.Exception.TrackVariantStateError
         ]
       ]
     ]
@@ -139,14 +159,17 @@ defmodule Membrane.RTC.Engine.MixProject do
       "LICENSE",
 
       # guides
+      "guides/track_lifecycle.md",
+      "guides/custom_endpoints.md",
+      "guides/simulcast.md",
       "guides/logs.md",
       "guides/metrics.md",
-      "guides/simulcast.md",
       "guides/traces.md",
 
       # internal docs
       "internal_docs/media_events.md",
       "internal_docs/protocol.md",
+      "internal_docs/webrtc_endpoint.md",
       "internal_docs/simulcast.md": [filename: "internal_simulcast"],
       "internal_docs/engine_architecture.md": [filename: "internal_engine_architecture"]
     ]

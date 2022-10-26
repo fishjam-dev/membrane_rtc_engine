@@ -52,15 +52,15 @@ Messages used by any RTC Engine plugin
 
 #### WebRTC endpoint receives these types of custom `media_event`s from client:
 
-| Name                                      | Description                                                             |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
-| [renegotiateTracks](#renegotiatetracks)   | A request from a peer to renegotiate tracks                             |
-| [prioritizeTrack](#prioritizetrack)       | A request to prioritize the track                                       |
-| [unprioritizeTrack](#unprioritizetrack)   | A request to unprioritize the track                                     |
-| [preferedVideoSizes](#preferedvideosizes) | informs of how many videos in different quality a peer wants to receive |
-| [candidate](#candidate)                   | Contains client's ICE candidate                                         |
-| [sdpOffer](#sdpoffer)                     | Contains an SDP offer from a client                                     |
-| [selectEncoding](#selectencoding)         | A request from a peer to receive a specific encoding of some track      |
+| Name                                            | Description                                                             |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| [renegotiateTracks](#renegotiatetracks)         | A request from a peer to renegotiate tracks                             |
+| [prioritizeTrack](#prioritizetrack)             | A request to prioritize the track                                       |
+| [unprioritizeTrack](#unprioritizetrack)         | A request to unprioritize the track                                     |
+| [preferedVideoSizes](#preferedvideosizes)       | informs of how many videos in different quality a peer wants to receive |
+| [candidate](#candidate)                         | Contains client's ICE candidate                                         |
+| [sdpOffer](#sdpoffer)                           | Contains an SDP offer from a client                                     |
+| [setTargetTrackVariant](#setTargetTrackVariant) | A request from a peer to receive a specific track variant               |
 
 #### WebRTC endpoint sends these type of custom messages to client
 | Name                                    | Description                                                       |
@@ -329,15 +329,17 @@ Messages used by any RTC Engine plugin
   }
   ```
 
-### `selectEncoding`
+### `setTargetTrackVariant`
 
-* Informs that a peer wants to receive a specific encoding of some track
+* Informs that a peer wants to receive a specific track variant. 
+  The track variant will be sent whenever it is available.
+  If choosen variant is unavailable, some other variant will be
+  sent until choosen variant becomes active again.
 
   ```json
   {
-    peerId => peer_id,
     trackId => track_id,
-    encoding => encoding
+    variant => variant
   }
   ```
 

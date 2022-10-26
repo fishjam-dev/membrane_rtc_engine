@@ -61,8 +61,6 @@ defmodule Membrane.RTC.Engine do
   +--------+                 +---------+             +--------+               +---------+
   ```
 
-
-
   ### Media Events
 
   Media Events are blackbox messages that carry data important for the
@@ -124,7 +122,7 @@ defmodule Membrane.RTC.Engine do
 
   ## Endpoints
 
-  `Endpoints` are `Membrane.Bin`s able to publish their own tracks and subscribe for tracks from other Endpoints.
+  `Endpoints` are `Membrane.Bin`s able to publish their own tracks and subscribe to tracks from other Endpoints.
   One can think about Endpoint as an entity responsible for handling some specific task.
   An Endpoint can be added and removed using `add_endpoint/3` and `remove_endpoint/2` respectively.
 
@@ -140,55 +138,7 @@ defmodule Membrane.RTC.Engine do
   * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
   saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
 
-  User can also implement custom Endpoints.
-
-  ### Implementing custom RTC Engine Endpoint
-
-  Each RTC Engine Endpoint has to:
-  * implement `Membrane.Bin` behavior
-  * specify input, output, or both input and output pads depending on what it is intended to do.
-  For example, if Endpoint will not publish any tracks but only subscribe for tracks from other Endpoints it can specify only input pads.
-  Pads should have the following form
-
-  ```elixir
-    def_input_pad :input,
-      demand_unit: :buffers,
-      caps: <caps>,
-      availability: :on_request
-
-    def_output_pad :output,
-      demand_unit: :buffers,
-      caps: <caps>,
-      availability: :on_request
-  ```
-
-  Where `caps` are `t:Membrane.Caps.t/0` or `:any`.
-
-  * publish for some tracks using actions `t:publish_action_t/0` and subscribe for some tracks using
-  function `#{inspect(__MODULE__)}.subscribe/5`. The first will cause RTC Engine to send a message in
-  form of `{:new_tracks, tracks}` where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0` to all other Endpoints.
-  When an Endpoint receives such a message it can subscribe for new tracks by
-  using `#{inspect(__MODULE__)}.subscribe/5` function. An Endpoint will be notified about track readiness
-  it subscribed for in `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
-  callback can look like this
-
-  ```elixir
-    @impl true
-    def handle_pad_added(Pad.ref(:input, _track_id) = pad, _ctx, state) do
-      links = [
-        link_bin_input(pad)
-        |> via_in(pad)
-        |> to(:my_element)
-      ]
-
-      {{:ok, spec: %ParentSpec{links: links}}, state}
-    end
-  ```
-
-  Where `:my_element` is a custom Membrane element responsible for processing track.
-
-  Endpoint will be also notified when some tracks it subscribed for are removed with
-  `{:removed_tracks, tracks}` message where `tracks` is a list of `t:#{inspect(__MODULE__)}.Track.t/0`.
+  User can also implement custom Endpoints, see Custom Endpoints guide.
   """
 
   use Membrane.Pipeline
@@ -202,15 +152,16 @@ defmodule Membrane.RTC.Engine do
   alias Membrane.RTC.Engine.{
     DisplayManager,
     Endpoint,
-    Endpoint.WebRTC.SimulcastTee,
     FilterTee,
     MediaEvent,
     Message,
     Peer,
-    PushOutputTee,
     Subscription,
+    Tee,
     Track
   }
+
+  alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -248,14 +199,8 @@ defmodule Membrane.RTC.Engine do
 
   @typedoc """
   Subscription options.
-
-  * `default_simulcast_encoding` - initial encoding that
-  endpoint making subscription wants to receive.
-  This option has no effect for audio tracks and video tracks
-  that are not simulcast.
-
   """
-  @type subscription_opts_t() :: [default_simulcast_encoding: String.t()]
+  @type subscription_opts_t() :: Keyword.t()
 
   @typedoc """
   Membrane action that will cause RTC Engine to publish some message to all other endpoints.
@@ -264,12 +209,9 @@ defmodule Membrane.RTC.Engine do
 
   @typedoc """
   Membrane action that will inform RTC Engine about track readiness.
-  Depayloading_filter should be nil only, when track that is ready has only one format and it is raw.
   """
   @type track_ready_action_t() ::
-          {:notify,
-           {:track_ready, Track.id(), Track.encoding(),
-            depayloading_filter :: Membrane.ParentSpec.child_spec_t() | nil}}
+          {:notify, {:track_ready, Track.id(), Track.encoding(), Track.variant()}}
 
   @typedoc """
   Membrane action that will generate Custom Media Event.
@@ -426,30 +368,20 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
-  Subscribes endpoint for tracks.
+  Subscribes an endpoint for a track.
 
-  Endpoint  will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
-  `tracks` is a list in form of pairs `{track_id, track_format}`, where `track_id` is id of track this endpoint subscribes for
-  and `track_format` is the format of track that this endpoint is willing to receive.
-  If `track_format` is `:raw` Endpoint will receive track in `t:#{inspect(__MODULE__)}.Track.encoding/0` format.
-  Endpoint_id is a an id of endpoint, which want to subscribe on tracks.
+  The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
+  `endpoint_id` is the id of the endpoint, which wants to subscribe to the track.
   """
   @spec subscribe(
           rtc_engine :: pid(),
           endpoint_id :: String.t(),
           track_id :: Track.id(),
-          format :: atom(),
           opts :: subscription_opts_t
-        ) ::
-          :ok
-          | {:error,
-             :timeout
-             | :invalid_track_id
-             | :invalid_track_format
-             | :invalid_default_simulcast_encoding}
-  def subscribe(rtc_engine, endpoint_id, track_id, format, opts \\ []) do
+        ) :: :ok | {:error, :timeout | :invalid_track_id}
+  def subscribe(rtc_engine, endpoint_id, track_id, opts \\ []) do
     ref = make_ref()
-    send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, format, opts})
+    send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, opts})
 
     receive do
       {^ref, :ok} -> :ok
@@ -461,7 +393,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_init(options) do
-    Logger.metadata(rtc_engine_id: options[:id])
+    Logger.metadata(rtc_engine: options[:id])
 
     if Keyword.has_key?(options, :trace_ctx),
       do: Membrane.OpenTelemetry.attach(options[:trace_ctx])
@@ -607,14 +539,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   def handle_other(
-        {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, format, opts},
+        {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, opts},
         ctx,
         state
       ) do
     subscription = %Subscription{
       endpoint_id: endpoint_id,
       track_id: track_id,
-      format: format,
       opts: opts
     }
 
@@ -662,11 +593,6 @@ defmodule Membrane.RTC.Engine do
     else
       {:ok, state}
     end
-  end
-
-  @impl true
-  def handle_notification(notification, {:tee, track_id}, _ctx, state) do
-    handle_tee_notification(notification, track_id, state)
   end
 
   @impl true
@@ -756,56 +682,6 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
-  defp handle_media_event(
-         :select_encoding,
-         %{peer_id: peer_id, track_id: track_id, encoding: encoding},
-         requester,
-         _ctx,
-         state
-       ) do
-    endpoint = Map.fetch!(state.endpoints, peer_id)
-    subscription = get_in(state, [:subscriptions, requester, track_id])
-    video_track = Endpoint.get_track_by_id(endpoint, track_id)
-
-    cond do
-      subscription == nil ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given endpoint is not subscribed for this track. Ignoring.
-        """)
-
-        {[], state}
-
-      video_track == nil ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given peer does not have this track.
-        Peer tracks: #{inspect(Endpoint.get_tracks(endpoint) |> Enum.map(& &1.id))}
-        Ignoring.
-        """)
-
-        {[], state}
-
-      encoding not in video_track.simulcast_encodings ->
-        Membrane.Logger.warn("""
-        Endpoint #{inspect(requester)} requested encoding #{inspect(encoding)} for
-        track #{inspect(track_id)} belonging to peer #{inspect(peer_id)} but
-        given track does not have this encoding.
-        Track encodings: #{inspect(video_track.simulcast_encodings)}
-        Ignoring.
-        """)
-
-        {[], state}
-
-      true ->
-        tee = {:tee, track_id}
-        actions = [forward: {tee, {:select_encoding, {requester, encoding}}}]
-        {actions, state}
-    end
-  end
-
   #
   # Endpoint Notifications
   #
@@ -813,50 +689,30 @@ defmodule Membrane.RTC.Engine do
   #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
   #   removed tracks. Also forwards custom media events.
   #
-  # - handle_tee_notification/3: Handles incoming notifications from the tee, mainly this is
-  #   used by the Simulcast tee to signal change of encoding.
-  #
 
   defp handle_endpoint_notification(
-         {:track_ready, track_id, rid, encoding, depayloading_filter},
+         {:track_ready, track_id, variant, encoding},
          endpoint_id,
          ctx,
          state
        ) do
-    # NOTE: When `payload_and_depayload_tracks?` options is set to false we may still want to
-    # depayload some streams just in one place to e.g. dump them to HLS or perform any actions on
-    # depayloaded media without adding payload/depayload elements to all EndpointBins (performing
-    # unnecessary work).
-    #
-    # To do that one just need to apply `depayloading_filter` after the tee element on which
-    # filter's the notification arrived.
-
     Membrane.Logger.info(
-      "New incoming #{encoding} track #{track_id} from endpoint #{inspect(endpoint_id)}"
+      "New incoming #{encoding} track #{track_id} (variant: #{variant}) from endpoint #{inspect(endpoint_id)}"
     )
 
     track = get_in(state, [:endpoints, endpoint_id]) |> Endpoint.get_track_by_id(track_id)
 
-    depayloading_filter =
-      if track.format == [:raw] and depayloading_filter != nil do
-        Membrane.Logger.debug(
-          "Track #{track_id} has depayloading filter specified but it is in raw format only. Ignoring depayloading filter."
-        )
+    if variant not in track.variants do
+      raise TrackReadyError, track: track, variant: variant
+    end
 
-        nil
-      else
-        depayloading_filter
-      end
-
-    state = put_in(state, [:filters, track_id], depayloading_filter)
-
-    track_link = build_track_link(rid, track, endpoint_id, ctx, state)
+    track_link = build_track_link(variant, track, endpoint_id, ctx, state)
 
     # check if there are subscriptions for this track and fulfill them
     {subscriptions, pending_subscriptions} =
       Enum.split_with(state.pending_subscriptions, &(&1.track_id == track_id))
 
-    {subscription_links, state} = fulfill_subscriptions(subscriptions, ctx, state)
+    {subscription_links, state} = fulfill_subscriptions(subscriptions, state)
 
     links = [track_link] ++ subscription_links
     state = %{state | pending_subscriptions: pending_subscriptions}
@@ -871,7 +727,7 @@ defmodule Membrane.RTC.Engine do
     spec = %ParentSpec{
       links: links,
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc_engine_id: state.id]
+      log_metadata: [rtc_engine: state.id]
     }
 
     {{:ok, spec: spec}, state}
@@ -883,6 +739,8 @@ defmodule Membrane.RTC.Engine do
          _ctx,
          state
        ) do
+    Enum.each(tracks, &validate_track(&1))
+
     id_to_track = Map.new(tracks, &{&1.id, &1})
 
     state =
@@ -917,8 +775,8 @@ defmodule Membrane.RTC.Engine do
     tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
     track_ids = Enum.map(tracks, & &1.id)
     broadcast(MediaEvent.tracks_removed(endpoint_id, track_ids))
-    tracks_children = Enum.flat_map(tracks, &get_track_elements(&1.id, ctx))
-    {{:ok, tracks_msgs ++ [remove_child: tracks_children]}, state}
+    track_tees = tracks |> Enum.map(&get_track_tee(&1.id, ctx)) |> Enum.reject(&is_nil(&1))
+    {{:ok, tracks_msgs ++ [remove_child: track_tees]}, state}
   end
 
   defp handle_endpoint_notification({:custom_media_event, data}, peer_id, _ctx, state) do
@@ -926,17 +784,23 @@ defmodule Membrane.RTC.Engine do
     {:ok, state}
   end
 
-  defp handle_tee_notification({:encoding_switched, endpoint_id, encoding}, track_id, state) do
-    # send event that endpoint with id `from_endpoint_id` is sending encoding `encoding` for track
-    # `track_id` now
+  defp validate_track(track) do
+    variants = MapSet.new(track.variants)
+    supported_variants = Track.supported_variants() |> MapSet.new()
 
-    {from_endpoint_id, _endpoint} =
-      Enum.find(state.endpoints, fn {_, endpoint} ->
-        Endpoint.get_track_by_id(endpoint, track_id) != nil
-      end)
+    cond do
+      variants == MapSet.new([]) ->
+        raise PublishTrackError, track: track
 
-    dispatch(endpoint_id, MediaEvent.encoding_switched(from_endpoint_id, track_id, encoding))
-    {:ok, state}
+      track.type == :audio and not MapSet.equal?(variants, MapSet.new([:high])) ->
+        raise PublishTrackError, track: track
+
+      MapSet.subset?(variants, supported_variants) == false ->
+        raise PublishTrackError, track: track
+
+      true ->
+        :ok
+    end
   end
 
   #
@@ -1013,8 +877,7 @@ defmodule Membrane.RTC.Engine do
   # - find_children_for_endpoint/2: Convenience function to identify all Elements owned by an
   #   Endpoint, via its Tracks.
   #
-  # - get_track_elements/2: Convenience function to identify all Elements owned by a Track
-  #   such as the tee, raw_format_filter and raw_format_tee.
+  # - get_track_tee/2: Convenience function to get tee for given track
   #
 
   defp handle_add_endpoint(endpoint_entry, opts, state) do
@@ -1025,7 +888,7 @@ defmodule Membrane.RTC.Engine do
       node: opts[:node],
       children: %{endpoint_name => endpoint_entry},
       crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc_engine_id: state.id]
+      log_metadata: [rtc_engine: state.id]
     }
 
     display_manager_message =
@@ -1085,18 +948,16 @@ defmodule Membrane.RTC.Engine do
     children =
       endpoint
       |> Endpoint.get_tracks()
-      |> Enum.flat_map(fn track -> get_track_elements(track.id, ctx) end)
+      |> Enum.map(&get_track_tee(&1.id, ctx))
+      |> Enum.reject(&is_nil(&1))
 
     [endpoint: endpoint.id] ++ children
   end
 
-  defp get_track_elements(track_id, ctx) do
-    [
-      tee: track_id,
-      raw_format_filter: track_id,
-      raw_format_tee: track_id
-    ]
-    |> Enum.filter(&Map.has_key?(ctx.children, &1))
+  defp get_track_tee(track_id, ctx) do
+    if Map.has_key?(ctx.children, {:tee, track_id}) do
+      {:tee, track_id}
+    end
   end
 
   #
@@ -1131,81 +992,41 @@ defmodule Membrane.RTC.Engine do
   #
   # Track Links
   #
-  # - build_track_link/6 - called when the track is ready, via notification from the WebRTC
-  #   endpoint. Create the link from the endpoint which published the track, and starts the
+  # - build_track_link/5 - called when the track is ready, via notification from the WebRTC
+  #   endpoint. Creates the link from the endpoint which published the track, and starts the
   #   underlying tee which is required to bring the content of the track to all subscribers.
   #
-  # - build_track_tee/5 - Called by build_track_link/5; builds the correct tee depending on the
-  #   type of the track (simulcast / filtered / normal).
-  #
-  # - build_track_tee_simulcast/1 - Convenience function, builds a Simulcast tee
-  #
-  # - build_track_tee_filter/4 - Convenience function, builds a Filter tee
-  #
-  # - build_track_tee_push_output/2 - Convenience function, builds a Push Output tee
+  # - build_track_tee/4 - Called by build_track_link/5; builds the correct tee depending on
+  #   display manager is turned on or off
   #
 
-  defp build_track_link(rid, track, endpoint_id, ctx, state) do
-    tee_name =
-      if track.format == [:raw],
-        do: {:raw_format_tee, track.id},
-        else: {:tee, track.id}
-
-    is_simulcast? = rid != nil
-    telemetry_label = [peer_id: endpoint_id, track_id: "#{track.id}:#{rid}"]
-    telemetry_label = Keyword.merge(state.telemetry_label, telemetry_label)
+  defp build_track_link(variant, track, endpoint_id, ctx, state) do
+    tee_name = {:tee, track.id}
 
     link({:endpoint, endpoint_id})
-    |> via_out(Pad.ref(:output, {track.id, rid}))
-    |> then(fn link ->
-      if is_simulcast? do
-        options = [telemetry_label: telemetry_label]
-        via_in(link, Pad.ref(:input, {track.id, rid}), options: options)
-      else
-        link
-      end
-    end)
+    |> via_out(Pad.ref(:output, {track.id, variant}))
+    |> via_in(Pad.ref(:input, {track.id, variant}))
     |> then(fn link ->
       if Map.has_key?(ctx.children, tee_name) do
         to(link, tee_name)
       else
-        to(link, tee_name, build_track_tee(track.id, rid, track, telemetry_label, state))
+        to(link, tee_name, build_track_tee(track.id, variant, track, state))
       end
     end)
   end
 
-  defp build_track_tee(track_id, rid, track, telemetry_label, state) do
-    is_simulcast? = rid != nil
-    is_filter? = state.display_manager != nil
-
-    cond do
-      is_simulcast? -> build_track_tee_simulcast(track)
-      is_filter? -> build_track_tee_filter(state.id, track_id, track, telemetry_label)
-      true -> build_track_tee_push_output(track, telemetry_label)
-    end
-  end
-
-  defp build_track_tee_simulcast(track) do
-    %SimulcastTee{
-      track: track
-    }
-  end
-
-  defp build_track_tee_filter(ets_name, track_id, track, telemetry_label) do
+  defp build_track_tee(track_id, _variant, track, %{display_manager: dm} = state)
+       when dm != nil do
     %FilterTee{
-      ets_name: ets_name,
+      ets_name: state.id,
       track_id: track_id,
       type: track.type,
-      codec: track.encoding,
-      telemetry_label: telemetry_label
+      codec: track.encoding
     }
   end
 
-  defp build_track_tee_push_output(track, telemetry_label) do
-    %PushOutputTee{
-      codec: track.encoding,
-      telemetry_label: telemetry_label
-    }
+  defp build_track_tee(_track_id, _variant, track, _state) do
+    %Tee{track: track}
   end
 
   #
@@ -1215,21 +1036,14 @@ defmodule Membrane.RTC.Engine do
   #   is to be added, via handle_other.
   #
   # - fulfill_or_postpone_subscription/3: Called immediately upon validation of subscription,
-  #   optimistically links subscriber to the track's tee if the track is ready, otherwise adds the
+  #   optimistically links track's tee to the subscriber if the track is ready, otherwise adds the
   #   subscription to the list of pending subscriptions
   #
-  # - fulfill_subscriptions/3: Called when a new track is ready and there are pending
-  #   subscriptions to the track. Within subscription fulfillment, the raw format
-  #   filter/tee is built and linked, if the subscription is raw. Additional links from either the
-  #   normal tee or the raw tee to the subscribing endpoint are also built.
+  # - fulfill_subscriptions/2: Called when a new track is ready and there are pending
+  #   subscriptions to the track.
   #
-  # - build_raw_format_links/3, build_raw_format_link/2: Called by fulfill_subscriptions/3, these
-  #   functions would build, for each track, links through the root tee, via the depayloader,
-  #   to a PushOutputTee, which exposes outpad pads for each subscription to pull from
-  #
-  # - build_subscription_links/2, build_subscription_link/2: Called by fulfill_subscriptions/3,
-  #   these functions build the actual links between 1) either the root tee or the raw tee, and
-  #   2) the endpoint subscribing to the given track.
+  # - build_subscription_links/1, build_subscription_link/1: Called by fulfill_subscriptions/2,
+  #   these functions build the actual links between the tee and the endpoint subscribing for the given track.
   #
   # - get_track/2: Convenience function. Searches for a Track with the given Track ID which is
   #   owned by one of the Endpoints in the list.
@@ -1238,23 +1052,8 @@ defmodule Membrane.RTC.Engine do
   defp validate_subscription(subscription, state) do
     # checks whether subscription is correct
     track = get_track(subscription.track_id, state.endpoints)
-    default_simulcast_encoding = subscription.opts[:default_simulcast_encoding]
 
-    cond do
-      track == nil ->
-        {:error, :invalid_track_id}
-
-      subscription.format not in track.format ->
-        {:error, :invalid_format}
-
-      # check if subscribed for existing simulcast encoding if simulcast is used
-      track.simulcast_encodings != [] and default_simulcast_encoding != nil and
-          default_simulcast_encoding not in track.simulcast_encodings ->
-        {:error, :invalid_default_simulcast_encoding}
-
-      true ->
-        :ok
-    end
+    if track, do: :ok, else: {:error, :invalid_track_id}
   end
 
   defp fulfill_or_postpone_subscription(subscription, ctx, state) do
@@ -1262,22 +1061,15 @@ defmodule Membrane.RTC.Engine do
     # Otherwise, save subscription as pending, we will fulfill it when the tee is linked.
 
     if Map.has_key?(ctx.children, {:tee, subscription.track_id}) do
-      fulfill_subscriptions([subscription], ctx, state)
+      fulfill_subscriptions([subscription], state)
     else
       state = update_in(state, [:pending_subscriptions], &[subscription | &1])
       {[], state}
     end
   end
 
-  defp fulfill_subscriptions(subscriptions, ctx, state) do
-    # Attempt to fulfill multiple subscriptions. This is done so in simultaneous subscriptions
-    # to the raw format can be fulfilled by linking just one pair of raw format filter/tee.
-    #
-    # After all links were built, the subscriptions are added to the state.
-
-    raw_format_links = build_raw_format_links(subscriptions, ctx, state)
-    subscription_links = build_subscription_links(subscriptions, state)
-    links = raw_format_links ++ subscription_links
+  defp fulfill_subscriptions(subscriptions, state) do
+    links = build_subscription_links(subscriptions)
 
     Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
       endpoint_id = subscription.endpoint_id
@@ -1288,48 +1080,13 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp build_raw_format_links(subscriptions, ctx, state) do
-    subscriptions
-    |> Stream.filter(&(&1.format == :raw))
-    |> Stream.map(&get_track(&1.track_id, state.endpoints))
-    |> Stream.uniq_by(& &1.id)
-    |> Stream.reject(
-      &(Map.has_key?(ctx.children, {:raw_format_tee, &1.id}) or &1.format == [:raw])
-    )
-    |> Enum.map(&build_raw_format_link(&1, state))
+  defp build_subscription_links(subscriptions) do
+    Enum.map(subscriptions, &build_subscription_link(&1))
   end
 
-  defp build_raw_format_link(track, state) do
-    # Build raw format filter and tee for the given track.
-    # Raw format filter and tee are connected to the output of the
-    # track's base tee.
-
-    link({:tee, track.id})
-    |> via_out(Pad.ref(:output, {:endpoint, :raw_format_filter}))
-    |> to({:raw_format_filter, track.id}, get_in(state, [:filters, track.id]))
-    |> to({:raw_format_tee, track.id}, %PushOutputTee{codec: track.encoding})
-  end
-
-  defp build_subscription_links(subscriptions, state) do
-    Enum.map(subscriptions, &build_subscription_link(&1, state))
-  end
-
-  defp build_subscription_link(subscription, state) do
-    track = get_track(subscription.track_id, state.endpoints)
-
-    if subscription.format == :raw do
-      link({:raw_format_tee, subscription.track_id})
-    else
-      link({:tee, subscription.track_id})
-    end
-    |> then(fn link ->
-      if track.type == :video and track.simulcast_encodings != [] do
-        options = Keyword.take(subscription.opts, [:default_simulcast_encoding])
-        via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}), options: options)
-      else
-        via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
-      end
-    end)
+  defp build_subscription_link(subscription) do
+    link({:tee, subscription.track_id})
+    |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
     |> via_in(Pad.ref(:input, subscription.track_id))
     |> to({:endpoint, subscription.endpoint_id})
   end
