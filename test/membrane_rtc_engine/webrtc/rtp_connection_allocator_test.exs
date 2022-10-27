@@ -1,5 +1,5 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator
@@ -30,6 +30,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       [prober: prober]
     end
 
+    # This test is a little flaky
     test "correctly probes the connection in :maintain_allocation state", %{
       prober: prober,
       track: track
@@ -78,6 +79,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       refute_receive :send_padding_packet, 0
     end
 
+    # this test is a little flaky
     test "correctly probes the connection in :increase_allocation state", %{
       prober: prober,
       track: track

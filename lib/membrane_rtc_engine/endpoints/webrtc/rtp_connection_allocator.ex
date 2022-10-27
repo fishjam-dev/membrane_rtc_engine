@@ -18,14 +18,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
            negotiable?: boolean()
          }
 
+  # Type describing a status of RTPConnectionAllocator's prober part.
+
+  # - `:increase_estimation` - actively probing slightly over current estimation in order to increase it
+  # - `:maintain_estmation` - only sending enough probes to make sure that the estimation doesn't fall
+  #   below the level of allocated bandwidth
+  # - `:allowed_bandwidth_deficiency` - we have allocated more bandwidth than the estimation, but the estimation
+  #  is increasing. It's only possible to reach this state though allocations from non-negotiable Track
+  #  Receivers and through new Track Receiver registering
+  # - `:disallowed_bandwidth_deficiency` - we have allocated more bandwidth than estimated. This state can be reached
+  #  when we're in `:allowed_bandwidth_deficiency` and estimation decreased, or if the estimation decreases below
+  #  the level of total allocation
+  @typep prober_status_t() ::
+           :increase_estimation
+           | :maintain_estimation
+           | :allowed_bandwidth_deficiency
+           | :disallowed_bandwidth_deficiency
+
   @opaque t() :: %__MODULE__{
             track_receivers: %{pid() => track_receiver_metadata()},
             probing_queue: Qex.t(),
-            prober_status:
-              :increase_estimation
-              | :maintain_estimation
-              | :allowed_bandwidth_deficiency
-              | :disallowed_bandwidth_deficiency,
+            prober_status: prober_status_t(),
             available_bandwidth: non_neg_integer() | :unknown,
             allocated_bandwidth: non_neg_integer(),
             bitrate_timer: :timer.tref() | nil,
@@ -166,14 +179,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def handle_info(:check_bits_sent, state) do
+    # This callback implements probing to target.
+    # It works in a very simple way. Periodically check the amount of data
+    # sent by Track Receivers and compare it with the amount of data
+    # that should have been sent up to this point.
+    # If we didn't send enough, send enough probes to fill the missing part
+
     use Numbers, overload_operators: true
 
     probing_target =
       case state.prober_status do
         :maintain_estimation -> state.allocated_bandwidth
-        :allowed_bandwidth_deficiency -> state.allocated_bandwidth
         :increase_estimation -> state.available_bandwidth + 200_000
-        :disallowed_bandwidth_deficiency -> state.available_bandwidth + 200_000
+        :allowed_bandwidth_deficiency -> state.allocated_bandwidth
+        :disallowed_bandwidth_deficiency -> state.allocated_bandwidth
       end
 
     now = get_timestamp()
