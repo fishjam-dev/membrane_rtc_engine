@@ -165,14 +165,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   @impl true
-  def handle_info(:check_bits_sent, state)
-      when state.prober_status in [:maintain_estimation, :increase_estimation] do
+  def handle_info(:check_bits_sent, state) do
     use Numbers, overload_operators: true
 
     probing_target =
       case state.prober_status do
         :maintain_estimation -> state.allocated_bandwidth
+        :allowed_bandwidth_deficiency -> state.allocated_bandwidth
         :increase_estimation -> state.available_bandwidth + 200_000
+        :disallowed_bandwidth_deficiency -> state.available_bandwidth + 200_000
       end
 
     now = get_timestamp()
@@ -196,9 +197,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
     {:noreply, state}
   end
-
-  @impl true
-  def handle_info(:check_bits_sent, state), do: {:noreply, state}
 
   ## Helper functions
   defp stop_probing_timer(%__MODULE__{bitrate_timer: nil} = state), do: state
@@ -253,6 +251,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         state
         |> Map.put(:prober_status, deficiency_status)
         |> stop_probing_timer()
+        |> start_probing_timer()
 
       state.prober_status in [:allowed_bandwidth_deficiency, :disallowed_bandwidth_deficiency] and
           state.allocated_bandwidth <= state.available_bandwidth ->

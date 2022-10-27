@@ -6,7 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
   alias Membrane.Time
 
   @initial_bandwidth_estimation 10_000
-  @padding_packet_size 8 * Membrane.RTP.Packet.padding_packet_size()
+  @padding_packet_size 8 * 256
 
   setup context do
     track = %{
