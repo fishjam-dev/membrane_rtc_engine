@@ -224,12 +224,12 @@ if Enum.all?(
       {_removed_track, tracks} = Map.pop!(state.tracks, track_id)
       state = %{state | tracks: tracks}
 
-      children_to_remove = add_video_sink_children_if_no_video_left(children_to_remove, tracks)
+      children_to_remove = get_children_to_remove_if_no_track_left(children_to_remove, tracks)
 
       {{:ok, remove_child: children_to_remove}, state}
     end
 
-    defp add_video_sink_children_if_no_video_left(children, []),
+    defp get_children_to_remove_if_no_track_left(children, []),
       do:
         children ++
           [
@@ -242,7 +242,7 @@ if Enum.all?(
             :aac_parser
           ]
 
-    defp add_video_sink_children_if_no_video_left(children, _tracks), do: children
+    defp get_children_to_remove_if_no_track_left(children, _tracks), do: children
 
     @impl true
     def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
@@ -276,6 +276,28 @@ if Enum.all?(
     end
 
     defp compose_hls_sink_spec(state, directory) do
+      hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
+        manifest_module: Membrane.HTTPAdaptiveStream.HLS,
+        target_window_duration: state.target_window_duration,
+        target_segment_duration: state.target_segment_duration,
+        muxer_segment_duration: state.target_segment_duration - Membrane.Time.seconds(1),
+        persist?: false,
+        storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
+          directory: directory
+        },
+        hls_mode: state.hls_mode
+      }
+
+      %ParentSpec{
+        children: %{
+          hls_sink_bin: hls_sink_bin
+        }
+      }
+      |> merge_parent_specs(generate_compositor(state))
+      |> merge_parent_specs(generate_audio_mixer())
+    end
+
+    defp generate_compositor(state) do
       compositor = %Membrane.VideoMixer{
         output_caps: %Membrane.RawVideo{
           width: state.compositor_config.output_width,
@@ -293,18 +315,28 @@ if Enum.all?(
         framerate: state.compositor_config.output_framerate
       }
 
-      hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
-        manifest_module: Membrane.HTTPAdaptiveStream.HLS,
-        target_window_duration: state.target_window_duration,
-        target_segment_duration: state.target_segment_duration,
-        muxer_segment_duration: state.target_segment_duration - Membrane.Time.seconds(1),
-        persist?: false,
-        storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
-          directory: directory
-        },
-        hls_mode: state.hls_mode
-      }
+      {frames_per_second, 1} = state.compositor_config.output_framerate
+      seconds_number = div(state.target_segment_duration, Membrane.Time.seconds(1))
 
+      %ParentSpec{
+        children: %{
+          compositor: compositor,
+          video_parser_out: video_parser_out
+        },
+        links: [
+          link(:compositor)
+          |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
+            profile: :baseline,
+            gop_size: frames_per_second * seconds_number
+          })
+          |> to(:video_parser_out)
+          |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
+          |> to(:hls_sink_bin)
+        ]
+      }
+    end
+
+    defp generate_audio_mixer() do
       audio_mixer = %Membrane.AudioMixer{
         caps: %Membrane.RawAudio{
           channels: 1,
@@ -313,30 +345,13 @@ if Enum.all?(
         }
       }
 
-      {frames_per_second, 1} = state.compositor_config.output_framerate
-      seconds_number = div(state.target_segment_duration, Membrane.Time.seconds(1))
-
       %ParentSpec{
         children: %{
-          compositor: compositor,
-          video_parser_out: video_parser_out,
-          hls_sink_bin: hls_sink_bin,
           audio_mixer: audio_mixer,
           aac_encoder: Membrane.AAC.FDK.Encoder,
           aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none}
         },
         links: [
-          link(:compositor)
-          # |> to(:framerate_converter, %Membrane.FramerateConverter{
-          #   framerate: state.compositor_config.output_framerate
-          # })
-          |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
-            profile: :baseline,
-            gop_size: frames_per_second * seconds_number
-          })
-          |> to(:video_parser_out)
-          |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
-          |> to(:hls_sink_bin),
           link(:audio_mixer)
           |> to(:aac_encoder)
           |> to(:aac_parser)

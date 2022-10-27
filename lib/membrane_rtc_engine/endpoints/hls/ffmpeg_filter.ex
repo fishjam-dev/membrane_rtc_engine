@@ -1,4 +1,4 @@
-defmodule MembraneRtcEngine.Endpoints.Hls.FfmpegFilter do
+defmodule MembraneRtcEngine.Endpoints.Hls.FFmpegFilter do
   @moduledoc false
 
   @spec default_ffmpeg_filter(integer(), integer(), integer()) :: binary()
