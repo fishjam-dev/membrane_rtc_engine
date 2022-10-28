@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
                        Defaults to `default_ffmpeg_filter`
   """
 
-  alias MembraneRtcEngine.Endpoints.Hls.FfmpegFilter
+  alias MembraneRtcEngine.Endpoints.Hls.FFmpegFilter
 
   @type t() :: %__MODULE__{
           output_framerate: {integer(), integer()},
