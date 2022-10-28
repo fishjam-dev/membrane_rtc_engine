@@ -31,7 +31,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
     } do
       file_endpoint_id = "file-endpoint-id"
 
-      file_name = "variable_framerate.h264"
+      file_name = "video.h264"
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
@@ -60,7 +60,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 5_000)
+      assert_receive({:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 10_000)
 
       Process.sleep(15_000)
 
