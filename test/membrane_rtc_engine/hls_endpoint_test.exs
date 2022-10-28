@@ -27,7 +27,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
   describe "HLS Endpoint test" do
     @describetag :tmp_dir
 
-    @tag :skip
     test "creates correct hls stream from single (h264) input", %{
       rtc_engine: rtc_engine,
       tmp_dir: tmp_dir
@@ -175,7 +174,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
       refute_received({:cleanup, _cleanup_function, ^stream_id})
     end
 
-    @tag :skip
     test "number of headers is reduced to 1 when resolution is not stable", %{
       rtc_engine: rtc_engine,
       tmp_dir: tmp_dir
