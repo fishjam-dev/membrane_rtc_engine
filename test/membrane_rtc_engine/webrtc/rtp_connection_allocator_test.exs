@@ -178,7 +178,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       assert {:noreply, prober} =
                RTPConnectionAllocator.handle_cast({:request_allocation, self(), 0}, prober)
 
-      assert prober.prober_status == :maintain_estimation
+      assert prober.prober_status == :maintain_allocation
       refute_receive :decrease_your_allocation, 0
     end
 
@@ -216,7 +216,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       assert prober.prober_status == :allowed_overuse
     end
 
-    test "switches to :increase_estimation upon allocation request and reverts back to :maintain_estimation after granting allocation",
+    test "switches to :increase_estimation upon allocation request and reverts back to :maintain_allocation after granting allocation",
          %{prober: prober} do
       request = 10_000_000
 
@@ -228,7 +228,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 2 * request}, prober)
 
-      assert prober.prober_status == :maintain_estimation
+      assert prober.prober_status == :maintain_allocation
       assert_receive %AllocationGrantedNotification{allocation: ^request}
     end
 

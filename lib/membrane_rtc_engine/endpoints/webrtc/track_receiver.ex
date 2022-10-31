@@ -147,8 +147,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
     actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
-    Process.send_after(self(), :change_to_adaptive, 100)
     {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_start_of_stream(:input, _ctx, state) do
+    Process.send_after(self(), :change_to_adaptive, 100)
+    {:ok, state}
   end
 
   @impl true
@@ -233,6 +238,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       """)
     end
 
+    Membrane.Logger.debug("Setting target variant #{variant}")
+
     {selector, selector_action} = VariantSelector.set_target_variant(state.selector, variant)
     actions = handle_selector_action(selector_action)
     {{:ok, actions}, %{state | selector: selector}}
@@ -256,7 +263,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_other(:send_padding_packet, _ctx, state) do
-    Process.send_after(self(), :send_padding_packet, 10)
+    Process.send_after(self(), :send_padding_packet, 100)
     {:ok, state}
   end
 
