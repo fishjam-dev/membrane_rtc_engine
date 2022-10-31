@@ -4,9 +4,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.AudioMixerConfig do
   """
 
   @typedoc """
-  * `channels` - number of channels inside a frame.
-  * `sample_rate` - sample rate of the audio.
-  * `sample_format` - format of samples.
+  * `channels` - number of channels inside a frame. Default value is 1.
+  * `sample_rate` - sample rate of the audio. Default value is 48_000.
+  * `sample_format` - format of samples. Default value is `:s16le`.
   """
 
   alias Membrane.RawAudio
