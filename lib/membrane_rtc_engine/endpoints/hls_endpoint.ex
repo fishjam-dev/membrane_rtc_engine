@@ -409,7 +409,7 @@ if Enum.all?(
       }
 
       {frames_per_second, 1} = state.compositor_config.output_framerate
-      seconds_number = div(state.target_segment_duration, Membrane.Time.seconds(1))
+      seconds_number = Membrane.Time.as_seconds(state.targetsegment_duration)
 
       %ParentSpec{
         children: %{
