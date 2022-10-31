@@ -4,11 +4,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.AudioMixerConfig do
   """
 
   @typedoc """
-  * `output_framerate` - framerate of the output video, `{24, 1}` by default.
-  * `output_width` - resolution width of the output video, `1280` by default.
-  * `output_height` - resolution height of the output video, `720` by default.
-  * `ffmpeg_filter` - defines the filter building function that positions input video,
-                       Defaults to `default_ffmpeg_filter`
+  * `channels` - Amount of channels inside a frame.
+  * `sample_rate` - Sample rate of the audio.
+  * `sample_format` - Format of samples.
   """
 
   alias Membrane.RawAudio

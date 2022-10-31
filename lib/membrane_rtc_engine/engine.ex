@@ -229,7 +229,8 @@ defmodule Membrane.RTC.Engine do
           id: String.t(),
           trace_ctx: map(),
           telemetry_label: Membrane.TelemetryMetrics.label(),
-          display_manager?: boolean()
+          display_manager?: boolean(),
+          toilet_capacity: integer() | nil
         ]
 
   @typedoc """
@@ -495,7 +496,8 @@ defmodule Membrane.RTC.Engine do
        pending_subscriptions: [],
        filters: %{},
        subscriptions: %{},
-       display_manager: display_manager
+       display_manager: display_manager,
+       toilet_capacity: options[:toilet_capacity] || 200
      }}
   end
 
@@ -1159,7 +1161,7 @@ defmodule Membrane.RTC.Engine do
     |> via_out(Pad.ref(:output, {track.id, rid}))
     |> then(fn link ->
       if is_simulcast? do
-        options = [telemetry_label: telemetry_label]
+        options = [telemetry_label: telemetry_label, toilet_capacity: state.toilet_capacity]
         via_in(link, Pad.ref(:input, {track.id, rid}), options: options)
       else
         link
@@ -1330,7 +1332,7 @@ defmodule Membrane.RTC.Engine do
         via_out(link, Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
       end
     end)
-    |> via_in(Pad.ref(:input, subscription.track_id), toilet_capacity: 1_000)
+    |> via_in(Pad.ref(:input, subscription.track_id), toilet_capacity: state.toilet_capacity)
     |> to({:endpoint, subscription.endpoint_id})
   end
 

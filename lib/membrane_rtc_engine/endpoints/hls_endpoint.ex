@@ -42,7 +42,7 @@ if Enum.all?(
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig}
 
-    @opus_deps [Membrane.Opus.Decoder, Membrane.AAC.Parser, Membrane.AAC.FDK.Encoder]
+    @opus_deps [Membrane.Opus.Decoder]
     @compositor_deps [
       Membrane.H264.FFmpeg.Decoder,
       Membrane.H264.FFmpeg.Encoder,
@@ -51,7 +51,9 @@ if Enum.all?(
       Membrane.VideoMixer
     ]
     @audio_mixer_deps [
-      Membrane.AudioMixer
+      Membrane.AudioMixer,
+      Membrane.AAC.Parser,
+      Membrane.AAC.FDK.Encoder
     ]
 
     def_input_pad(:input,
@@ -219,7 +221,7 @@ if Enum.all?(
 
     @impl true
     def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
-      children_to_remove =
+      track_children =
         [
           :opus_decoder,
           :aac_encoder,
@@ -235,25 +237,21 @@ if Enum.all?(
       {_removed_track, tracks} = Map.pop!(state.tracks, track_id)
       state = %{state | tracks: tracks}
 
-      children_to_remove = get_children_to_remove_if_no_track_left(children_to_remove, tracks)
+      children_to_remove = track_children ++ if tracks == %{}, do: get_common_children(), else: []
 
       {{:ok, remove_child: children_to_remove}, state}
     end
 
-    defp get_children_to_remove_if_no_track_left(children, tracks) when map_size(tracks) == 0,
-      do:
-        children ++
-          [
-            :compositor,
-            :encoder,
-            :video_parser_out,
-            :hls_sink_bin,
-            :audio_mixer,
-            :aac_encoder,
-            :aac_parser
-          ]
-
-    defp get_children_to_remove_if_no_track_left(children, _tracks), do: children
+    defp get_common_children(),
+      do: [
+        :compositor,
+        :encoder,
+        :video_parser_out,
+        :hls_sink_bin,
+        :audio_mixer,
+        :aac_encoder,
+        :aac_parser
+      ]
 
     @impl true
     def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
@@ -324,7 +322,7 @@ if Enum.all?(
       defp hls_links_and_children(_link_builder, %{encoding: :OPUS}, _state, _ctx) do
         raise """
         Cannot find one of the modules required to support Opus audio input.
-        Ensure `:membrane_opus_plugin`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
+        Ensure `:membrane_opus_plugin` is added to the deps.
         """
       end
     end
@@ -463,7 +461,7 @@ if Enum.all?(
       defp generate_audio_mixer(_state, _ctx) do
         raise """
         Cannot find one of the modules required to support audio mixer.
-        Ensure `:membrane_audio_mixer` are added to the deps.
+        Ensure `:membrane_audio_mixer`, `:membrane_aac_plugin` and `:membrane_aac_fdk_plugin` are added to the deps.
         """
       end
     end
