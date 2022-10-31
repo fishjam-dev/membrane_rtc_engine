@@ -6,7 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TestConnectionAllocator do
   def start_link(), do: {:ok, self()}
 
   @impl true
-  def register_track_receiver(allocator, bandwidth, track) do
+  def register_track_receiver(allocator, bandwidth, track, _options \\ []) do
     send(allocator, {:register_tr, self(), bandwidth, track})
     :ok
   end
@@ -30,5 +30,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TestConnectionAllocator do
   @impl true
   def probe_sent(_allocator) do
     :ok
+  end
+
+  @impl true
+  def set_negotiability_status(_allocator, _value) do
+    raise "unimplemented!"
   end
 end

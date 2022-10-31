@@ -157,7 +157,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         )
 
       {:noreply, prober} =
-        RTPConnectionAllocator.handle_cast({:hello, self(), 10_000, track}, prober)
+        RTPConnectionAllocator.handle_cast(
+          {:register_track_receiver, self(), 10_000, track, []},
+          prober
+        )
 
       [prober: prober]
     end
@@ -184,7 +187,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       # Get to allowed overuse
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
-          {:hello, self(), 100_000_000, %{track | variants: [:high]}},
+          {:register_track_receiver, self(), 100_000_000, %{track | variants: [:high]}, []},
           prober
         )
 
@@ -198,7 +201,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       # Get to allowed overuse
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
-          {:hello, self(), 100_000_000, %{track | variants: [:high]}},
+          {:register_track_receiver, self(), 100_000_000, %{track | variants: [:high]}, []},
           prober
         )
 
@@ -243,7 +246,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       prober: prober
     } do
       {:noreply, prober} =
-        RTPConnectionAllocator.handle_cast({:hello, self(), 1_000_000, track}, prober)
+        RTPConnectionAllocator.handle_cast(
+          {:register_track_receiver, self(), 1_000_000, track, []},
+          prober
+        )
 
       assert prober.prober_status == :allowed_overuse
     end

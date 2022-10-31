@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator do
   def start_link(), do: {:ok, nil}
 
   @impl true
-  def register_track_receiver(_manager, _bandwidth, _track), do: :ok
+  def register_track_receiver(_manager, _bandwidth, _track, _options \\ []), do: :ok
 
   @impl true
   def update_bandwidth_estimation(_manager, _estimation), do: :ok
@@ -28,4 +28,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator do
     send(self(), %AllocationGrantedNotification{allocation: requested_allocation})
     :ok
   end
+
+  @impl true
+  def set_negotiability_status(_manager, _value), do: :ok
 end

@@ -70,8 +70,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   ## Public API
 
   @impl true
-  def register_track_receiver(prober, bandwidth, track),
-    do: GenServer.cast(prober, {:hello, self(), bandwidth, track})
+  def register_track_receiver(prober, bandwidth, track, options \\ []),
+    do: GenServer.cast(prober, {:register_track_receiver, self(), bandwidth, track, options})
 
   @impl true
   def request_allocation(bitrate_manager, desired_allocation),
@@ -88,6 +88,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @impl true
   def probe_sent(prober),
     do: GenServer.cast(prober, {:bits_sent, @padding_packet_size})
+
+  @impl true
+  def set_negotiability_status(allocator, value),
+    do: GenServer.cast(allocator, {:set_negotiability_status, self(), value})
 
   @impl true
   def init(_opts) do
@@ -125,18 +129,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   @impl true
-  def handle_cast({:hello, pid, bandwidth, track}, state) do
+  def handle_cast({:register_track_receiver, pid, bandwidth, track, options}, state) do
     # This is the very first call that we're getting from the Track Receiver
     # It is already sending some variant, so whatever bandwidth they are using will be initially allocated
     # without question
 
     Process.monitor(pid)
 
+    negotiable? =
+      if Keyword.has_key?(options, :negotiable?),
+        do: options[:negotiable?],
+        else: length(track.variants) > 1
+
     receiver = %{
       pid: pid,
       current_allocation: bandwidth,
       target_allocation: nil,
-      negotiable?: length(track.variants) > 1
+      negotiable?: negotiable?
     }
 
     state =
@@ -151,6 +160,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       |> put_in([:track_receivers, pid], receiver)
       |> Map.update!(:allocated_bandwidth, &(&1 + bandwidth))
       |> update_status(overuse_allowed?: true)
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:set_negotiability_status, pid, value}, state) do
+    state
+    |> put_in([:track_receivers, pid, :negotiable?], value)
+    # FIXME: this true isn't really accurate :(
+    |> maybe_change_overuse_status(true)
+    |> update_allocations()
+    |> maybe_change_probing_status()
 
     {:noreply, state}
   end
