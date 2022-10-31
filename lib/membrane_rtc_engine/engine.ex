@@ -223,6 +223,7 @@ defmodule Membrane.RTC.Engine do
   * `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
   Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
   * `display_manager?` - set to `true` if you want to limit number of tracks sent from `#{inspect(__MODULE__)}.Endpoint.WebRTC` to a browser.
+  * `toilet_capacity` - declare capacity of buffer between endpoints and tee. If not provided it will be set to 200.
   """
 
   @type options_t() :: [

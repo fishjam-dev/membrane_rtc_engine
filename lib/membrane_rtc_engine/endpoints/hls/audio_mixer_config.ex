@@ -4,9 +4,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.AudioMixerConfig do
   """
 
   @typedoc """
-  * `channels` - Amount of channels inside a frame.
-  * `sample_rate` - Sample rate of the audio.
-  * `sample_format` - Format of samples.
+  * `channels` - number of channels inside a frame.
+  * `sample_rate` - sample rate of the audio.
+  * `sample_format` - format of samples.
   """
 
   alias Membrane.RawAudio
@@ -14,7 +14,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.AudioMixerConfig do
   @type t() :: %__MODULE__{
           channels: RawAudio.channels_t(),
           sample_rate: RawAudio.sample_rate_t(),
-          sample_format: SampleFormat.t()
+          sample_format: RawAudio.SampleFormat.t()
         }
   defstruct channels: 1,
             sample_rate: 48_000,
