@@ -224,8 +224,6 @@ if Enum.all?(
       track_children =
         [
           :opus_decoder,
-          :aac_encoder,
-          :aac_parser,
           :keyframe_requester,
           :video_parser,
           :decoder,
