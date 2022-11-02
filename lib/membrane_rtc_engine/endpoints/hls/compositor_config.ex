@@ -13,6 +13,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
   * `output_height` - resolution height of the output video, `720` by default.
   * `ffmpeg_filter` - defines the filter building function that positions input video,
                        Defaults to `default_ffmpeg_filter`
+  * `output_directory` - name of the directory in which hls stream will be saved.
   """
 
   alias Membrane.RTC.Engine.Endpoint.HLS.FFmpegFilter
@@ -21,10 +22,12 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
           output_framerate: {integer(), integer()},
           output_width: integer(),
           output_height: integer(),
-          ffmpeg_filter: fun()
+          ffmpeg_filter: fun(),
+          output_directory: String.t() | nil
         }
   defstruct output_framerate: {24, 1},
             output_width: 1280,
             output_height: 720,
-            ffmpeg_filter: &FFmpegFilter.default_ffmpeg_filter/3
+            ffmpeg_filter: &FFmpegFilter.default_ffmpeg_filter/3,
+            output_directory: nil
 end
