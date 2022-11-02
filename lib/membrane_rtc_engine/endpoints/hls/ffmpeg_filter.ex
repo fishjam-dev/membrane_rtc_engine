@@ -1,4 +1,7 @@
-defmodule MembraneRtcEngine.Endpoints.Hls.FfmpegFilter do
+defmodule Membrane.RTC.Engine.Endpoint.HLS.FFmpegFilter do
+  @moduledoc false
+
+  @spec default_ffmpeg_filter(integer(), integer(), integer()) :: binary()
   def default_ffmpeg_filter(width, height, 1) do
     "[0:v]scale=#{width}:#{height}:force_original_aspect_ratio=decrease,setsar=1/1,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2"
   end
@@ -88,7 +91,7 @@ defmodule MembraneRtcEngine.Endpoints.Hls.FfmpegFilter do
     |> Kernel.<>("[top][bottom]vstack=inputs=2")
   end
 
-  def default_ffmpeg_filter(_, _, n) do
+  def default_ffmpeg_filter(_width, _height, n) do
     raise("No matching filter found for #{n} input(s)")
   end
 end
