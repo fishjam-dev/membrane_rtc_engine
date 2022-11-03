@@ -112,7 +112,7 @@ if Enum.all?(
         spec: %{audio: AudioMixerConfig.t(), video: CompositorConfig.t()} | nil,
         default: nil,
         description: """
-        Audio and video mixer configuration.
+        Audio and video mixer configuration. If you don't want to use compositor pass nil.
         """
       ]
     )
@@ -169,18 +169,21 @@ if Enum.all?(
 
     def handle_notification(
           {:track_playable, content_type},
-          children,
+          :hls_sink_bin,
           _ctx,
           state
         ) do
-      case {children, content_type} do
-        {:hls_sink_bin, _} ->
-          send(state.owner, {:playlist_playable, content_type, ""})
+      send(state.owner, {:playlist_playable, content_type, ""})
+      {:ok, state}
+    end
 
-        {{:hls_sink_bin, stream_id}, {type, _}} ->
-          send(state.owner, {:playlist_playable, type, stream_id})
-      end
-
+    def handle_notification(
+          {:track_playable, {content_type, _track_id}},
+          {:hls_sink_bin, stream_id},
+          _ctx,
+          state
+        ) do
+      send(state.owner, {:playlist_playable, content_type, stream_id})
       {:ok, state}
     end
 
@@ -216,10 +219,7 @@ if Enum.all?(
           :aac_parser,
           :keyframe_requester,
           :video_parser,
-          :video_parser_out,
           :decoder,
-          :encoder,
-          :resolution_scaler,
           :framerate_converter
         ]
         |> Enum.map(&{&1, track_id})
@@ -228,19 +228,24 @@ if Enum.all?(
       {removed_track, tracks} = Map.pop!(state.tracks, track_id)
       state = %{state | tracks: tracks}
 
-      children_to_remove =
-        if is_nil(state.mixer_config) do
-          sink_bin_used? =
-            Enum.any?(tracks, fn {_id, track} ->
-              track.stream_id == removed_track.stream_id
-            end)
+      sink_bin_used? =
+        Enum.any?(tracks, fn {_id, track} ->
+          track.stream_id == removed_track.stream_id
+        end)
 
-          if sink_bin_used?,
-            do: track_children,
-            else: [{:hls_sink_bin, removed_track.stream_id} | track_children]
-        else
-          track_children ++ if tracks == %{}, do: get_common_children(), else: []
+      children_to_remove =
+        cond do
+          is_nil(state.mixer_config) and not sink_bin_used? ->
+            [{:hls_sink_bin, removed_track.stream_id}]
+
+          not is_nil(state.mixer_config) and tracks == %{} ->
+            get_common_children()
+
+          true ->
+            []
         end
+
+      children_to_remove = track_children ++ children_to_remove
 
       {{:ok, remove_child: children_to_remove}, state}
     end
@@ -253,7 +258,7 @@ if Enum.all?(
       spec = hls_links_and_children(link_builder, track, state, ctx)
 
       {spec, state} =
-        if (Map.has_key?(ctx.children, :hls_sink_bin) && !is_nil(state.mixer_config)) ||
+        if (Map.has_key?(ctx.children, :hls_sink_bin) and !is_nil(state.mixer_config)) or
              Map.has_key?(ctx.children, {:hls_sink_bin, track.stream_id}) do
           {spec, state}
         else
@@ -269,8 +274,8 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp create_hls_sink(directory, state),
-      do: %Membrane.HTTPAdaptiveStream.SinkBin{
+    defp choose_hls_sink_spec(state, track, directory) do
+      hls_sink = %Membrane.HTTPAdaptiveStream.SinkBin{
         manifest_module: Membrane.HTTPAdaptiveStream.HLS,
         target_window_duration: state.target_window_duration,
         target_segment_duration: state.target_segment_duration,
@@ -282,27 +287,20 @@ if Enum.all?(
         hls_mode: state.hls_mode
       }
 
-    defp choose_hls_sink_spec(%{mixer_config: nil} = state, track, directory),
-      do: %ParentSpec{
+      parent_spec_key =
+        if is_nil(state.mixer_config), do: {:hls_sink_bin, track.stream_id}, else: :hls_sink_bin
+
+      %ParentSpec{
         children: %{
-          {:hls_sink_bin, track.stream_id} => create_hls_sink(directory, state)
+          parent_spec_key => hls_sink
         }
       }
-
-    defp choose_hls_sink_spec(state, _track, directory),
-      do: %ParentSpec{
-        children: %{
-          hls_sink_bin: create_hls_sink(directory, state)
-        }
-      }
-
-    defp choose_hls_stream_directory(state, track) do
-      if is_nil(state.mixer_config) do
-        Path.join(state.output_directory, track.stream_id)
-      else
-        state.output_directory
-      end
     end
+
+    defp choose_hls_stream_directory(%{mixer_config: nil} = state, track),
+      do: Path.join(state.output_directory, track.stream_id)
+
+    defp choose_hls_stream_directory(state, _track), do: state.output_directory
 
     defp merge_parent_specs(spec1, spec2) do
       %ParentSpec{
@@ -350,24 +348,24 @@ if Enum.all?(
       }
     end
 
-    defp hls_links_and_children(link_builder, %{encoding: :OPUS} = track, state, ctx) do
-      parent_spec = %ParentSpec{
-        children: %{
-          {:opus_decoder, track.id} => Membrane.Opus.Decoder
-        },
-        links: [
-          link_builder
-          |> to({:opus_decoder, track.id})
-          |> to(:audio_mixer)
-        ]
-      }
-
-      state
-      |> generate_audio_mixer(ctx)
-      |> merge_parent_specs(parent_spec)
-    end
-
     if Enum.all?(@audio_mixer_deps, &Code.ensure_loaded?/1) do
+      defp hls_links_and_children(link_builder, %{encoding: :OPUS} = track, state, ctx) do
+        parent_spec = %ParentSpec{
+          children: %{
+            {:opus_decoder, track.id} => Membrane.Opus.Decoder
+          },
+          links: [
+            link_builder
+            |> to({:opus_decoder, track.id})
+            |> to(:audio_mixer)
+          ]
+        }
+
+        state
+        |> generate_audio_mixer(ctx)
+        |> merge_parent_specs(parent_spec)
+      end
+
       defp hls_links_and_children(link_builder, %{encoding: :AAC}, state, ctx) do
         parent_spec = %ParentSpec{
           links: [
@@ -381,7 +379,8 @@ if Enum.all?(
         |> merge_parent_specs(parent_spec)
       end
     else
-      defp hls_links_and_children(link_builder, %{encoding: :AAC}, state, ctx) do
+      defp hls_links_and_children(link_builder, %{encoding: encoding}, state, ctx)
+           when encoding == :AAC or encoding == :OPUS do
         raise """
         Cannot find some of the modules required to use the audio mixer.
         Ensure that the following dependencies are added to the deps.
