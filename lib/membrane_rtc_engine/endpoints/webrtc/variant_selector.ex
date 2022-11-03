@@ -248,7 +248,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       It will be requested once it becomes active or we have enough bandwidth
       """)
 
-      {selector, :noop}
+      manage_allocation({selector, :noop})
     end
   end
 
