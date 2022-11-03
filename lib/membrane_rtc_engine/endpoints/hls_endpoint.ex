@@ -169,45 +169,35 @@ if Enum.all?(
 
     def handle_notification(
           {:track_playable, content_type},
-          :hls_sink_bin,
+          children,
           _ctx,
           state
         ) do
-      send(
-        state.owner,
-        {:playlist_playable, content_type, state.mixer_config.video.output_directory}
-      )
+      case {children, content_type} do
+        {:hls_sink_bin, _} ->
+          send(state.owner, {:playlist_playable, content_type, ""})
 
-      {:ok, state}
-    end
+        {{:hls_sink_bin, stream_id}, {type, _}} ->
+          send(state.owner, {:playlist_playable, type, stream_id})
+      end
 
-    def handle_notification(
-          {:track_playable, {content_type, _track_id}},
-          {:hls_sink_bin, stream_id},
-          _ctx,
-          state
-        ) do
-      send(state.owner, {:playlist_playable, content_type, stream_id})
       {:ok, state}
     end
 
     def handle_notification(
           {:cleanup, clean_function},
-          :hls_sink_bin,
+          children,
           _ctx,
           state
         ) do
-      send(state.owner, {:cleanup, clean_function, state.mixer_config.video.output_directory})
-      {:ok, state}
-    end
+      case children do
+        :hls_sink_bin ->
+          send(state.owner, {:cleanup, clean_function, ""})
 
-    def handle_notification(
-          {:cleanup, clean_function},
-          {:hls_sink_bin, stream_id},
-          _ctx,
-          state
-        ) do
-      send(state.owner, {:cleanup, clean_function, stream_id})
+        {:hls_sink_bin, stream_id} ->
+          send(state.owner, {:cleanup, clean_function, stream_id})
+      end
+
       {:ok, state}
     end
 
@@ -254,17 +244,6 @@ if Enum.all?(
 
       {{:ok, remove_child: children_to_remove}, state}
     end
-
-    defp get_common_children(),
-      do: [
-        :compositor,
-        :encoder,
-        :video_parser_out,
-        :hls_sink_bin,
-        :audio_mixer,
-        :aac_encoder,
-        :aac_parser
-      ]
 
     @impl true
     def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
@@ -318,10 +297,10 @@ if Enum.all?(
       }
 
     defp choose_hls_stream_directory(state, track) do
-      if !is_nil(state.mixer_config) && !is_nil(state.mixer_config.video.output_directory) do
-        Path.join(state.output_directory, state.mixer_config.video.output_directory)
-      else
+      if is_nil(state.mixer_config) do
         Path.join(state.output_directory, track.stream_id)
+      else
+        state.output_directory
       end
     end
 
@@ -427,7 +406,6 @@ if Enum.all?(
           },
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
-            # jest jakis powod dla ktorego zrezygnowalismy z framerate'u
             attach_nalus?: true
           }
         },
@@ -557,5 +535,16 @@ if Enum.all?(
         ]
       }
     end
+
+    defp get_common_children(),
+      do: [
+        :compositor,
+        :encoder,
+        :video_parser_out,
+        :hls_sink_bin,
+        :audio_mixer,
+        :aac_encoder,
+        :aac_parser
+      ]
   end
 end

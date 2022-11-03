@@ -22,12 +22,10 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
           output_framerate: {integer(), integer()},
           output_width: integer(),
           output_height: integer(),
-          ffmpeg_filter: fun(),
-          output_directory: String.t() | nil
+          ffmpeg_filter: fun()
         }
   defstruct output_framerate: {24, 1},
             output_width: 1280,
             output_height: 720,
-            ffmpeg_filter: &FFmpegFilter.default_ffmpeg_filter/3,
-            output_directory: nil
+            ffmpeg_filter: &FFmpegFilter.default_ffmpeg_filter/3
 end
