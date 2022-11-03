@@ -23,17 +23,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   # - `:increase_estimation` - actively probing slightly over current estimation in order to increase it
   # - `:maintain_estmation` - only sending enough probes to make sure that the estimation doesn't fall
   #   below the level of allocated bandwidth
-  # - `:allowed_bandwidth_deficiency` - we have allocated more bandwidth than the estimation, but the estimation
+  #
+  # - `:allowed_overuse` - we have allocated more bandwidth than the estimation, but the estimation
   #  is increasing. It's only possible to reach this state though allocations from non-negotiable Track
-  #  Receivers and through new Track Receiver registering
-  # - `:disallowed_bandwidth_deficiency` - we have allocated more bandwidth than estimated. This state can be reached
-  #  when we're in `:allowed_bandwidth_deficiency` and estimation decreased, or if the estimation decreases below
-  #  the level of total allocation
+  #  Receivers and through new Track Receiver registering. All allocations will be frozen when
+  #  RTPConnectionAllocator is in this state.
+  # - `:disallowed_overuse` - we have allocated more bandwidth than estimated. This state can be reached
+  #  when we're in `:allowed_overuse` and estimation decreased, or if the estimation decreases below
+  #  the level of total allocation. We will aim to lower total allocation when operating in this state.
+  #
+  # `:increase estimation` and `:maintain_estimation` will be reffered to as "probing statuses",
+  # while `:allowed_overuse` and `:disallowed_overuse`, as "overuse statuses"
   @typep prober_status_t() ::
            :increase_estimation
            | :maintain_estimation
-           | :allowed_bandwidth_deficiency
-           | :disallowed_bandwidth_deficiency
+           | :allowed_overuse
+           | :disallowed_overuse
 
   @opaque t() :: %__MODULE__{
             track_receivers: %{pid() => track_receiver_metadata()},
@@ -97,9 +102,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     state =
       state
       |> Map.put(:available_bandwidth, estimation)
-      |> update_deficiency_statuses(estimation_increasing?)
+      # Allowed overuse status freezes all allocations
+      # Check if we can change it before updating allocations
+      # This function call also implements changing from :allowed_overuse
+      # to :disallowed_overuse when estimation isn't increasing
+      |> maybe_change_overuse_status(estimation_increasing?)
       |> update_allocations()
-      |> update_probing_statuses()
+      # After updating the allocations, check probing statuses to check if
+      # we're still deficient or in one of the overuse statuses
+      |> maybe_change_probing_status()
+      # Restart probing timer regardless - we have changed the probing target
       |> stop_probing_timer()
       |> start_probing_timer()
 
@@ -136,7 +148,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       state
       |> put_in([:track_receivers, pid], receiver)
       |> Map.update!(:allocated_bandwidth, &(&1 + bandwidth))
-      |> update_prober_status(deficiency_allowed?: true)
+      |> update_status(overuse_allowed?: true)
 
     {:noreply, state}
   end
@@ -164,14 +176,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           })
           |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
           |> update_allocations()
-          |> update_prober_status(deficiency_allowed?: not receiver.negotiable?)
+          |> update_status(overuse_allowed?: not receiver.negotiable?)
 
         true ->
           # Receiver raises its allocation. This might not be instantly granted
           state
           |> put_in([:track_receivers, pid], %{receiver | target_allocation: target})
           |> update_allocations()
-          |> update_prober_status()
+          |> update_status()
       end
 
     {:noreply, state}
@@ -191,8 +203,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       case state.prober_status do
         :maintain_estimation -> state.allocated_bandwidth
         :increase_estimation -> state.available_bandwidth + 200_000
-        :allowed_bandwidth_deficiency -> state.allocated_bandwidth
-        :disallowed_bandwidth_deficiency -> state.allocated_bandwidth
+        :allowed_overuse -> state.allocated_bandwidth
+        :disallowed_overuse -> state.allocated_bandwidth
       end
 
     now = get_timestamp()
@@ -233,9 +245,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     %{state | bitrate_timer: timer, estimation_timestamp: get_timestamp(), bits_sent: 0}
   end
 
-  defp update_probing_statuses(state) do
+  # Checks and updates probing statuses
+  defp maybe_change_probing_status(state) do
     cond do
-      not is_deficient?(state) and state.prober_status == :increase_estimation ->
+      # Overuse states take priority over probing states
+      state.prober_status in [:allowed_overuse, :disallowed_overuse] ->
+        state
+
+      not is_deficient?(state) and state.prober_status != :maintain_estimation ->
         Logger.debug("Switching probing target to maintain estimation")
 
         state
@@ -243,7 +260,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         |> stop_probing_timer()
         |> start_probing_timer()
 
-      state.prober_status == :maintain_estimation and is_deficient?(state) ->
+      is_deficient?(state) and state.prober_status != :increase_estimation ->
         Logger.debug("Switching probing target to increase estimation")
 
         state
@@ -256,28 +273,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     end
   end
 
-  defp update_deficiency_statuses(state, deficiency_allowed?) do
-    deficiency_status =
-      if deficiency_allowed?,
-        do: :allowed_bandwidth_deficiency,
-        else: :disallowed_bandwidth_deficiency
+  # Checks and updates overuse statuses
+  defp maybe_change_overuse_status(state, overuse_allowed?) do
+    overuse_status =
+      if overuse_allowed?,
+        do: :allowed_overuse,
+        else: :disallowed_overuse
 
     cond do
-      state.prober_status != deficiency_status and
+      state.prober_status != overuse_status and
           state.allocated_bandwidth > state.available_bandwidth ->
-        Logger.debug("Switching prober state to #{deficiency_status}")
+        Logger.debug("Switching prober state to #{overuse_status}")
 
         state
-        |> Map.put(:prober_status, deficiency_status)
+        |> Map.put(:prober_status, overuse_status)
         |> stop_probing_timer()
         |> start_probing_timer()
 
-      state.prober_status in [:allowed_bandwidth_deficiency, :disallowed_bandwidth_deficiency] and
+      state.prober_status in [:allowed_overuse, :disallowed_overuse] and
           state.allocated_bandwidth <= state.available_bandwidth ->
         new_status = if is_deficient?(state), do: :increase_estimation, else: :maintain_estimation
 
         Logger.debug(
-          "Switching probing target to #{new_status} after being in the state of allowed deficiency"
+          "Switching prober state to #{new_status} after being in the state of #{state.prober_status}"
         )
 
         state
@@ -290,12 +308,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     end
   end
 
-  defp update_prober_status(state, options \\ []) do
-    deficiency_allowed? = Keyword.get(options, :deficiency_allowed?, false)
+  defp update_status(state, options \\ []) do
+    overuse_allowed? = Keyword.get(options, :overuse_allowed?, false)
 
     state
-    |> update_deficiency_statuses(deficiency_allowed?)
-    |> update_probing_statuses()
+    |> maybe_change_overuse_status(overuse_allowed?)
+    |> maybe_change_probing_status()
   end
 
   defp is_deficient?(state),
@@ -323,7 +341,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     end
   end
 
-  defp update_allocations(%__MODULE__{prober_status: :allowed_bandwidth_deficiency} = state),
+  defp update_allocations(%__MODULE__{prober_status: :allowed_overuse} = state),
     do: state
 
   defp update_allocations(%__MODULE__{available_bandwidth: :unknown} = state), do: state

@@ -99,10 +99,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         # our initial allocation and we were not sending
         # anything except audio. As a result our bandwidth
         # estimation was starting from ~50kbps
-        #
-        # the solution to chose 2*variant_bitrates[:high]
-        # should allow us to send anything at start;
-        # we will adjust quality after next bwe
         :video -> 1.1 * variant_bitrates[:high]
       end
 
@@ -135,7 +131,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     |> perform_automatic_variant_selection()
   end
 
-  # TODO: doc
+  @doc """
+  Function called by TrackReceiver upon receiving `t:Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.decrease_allocation_request/0`
+  from the ConnectionAllocator
+  """
   @spec decrease_allocation(t()) :: {t(), selector_action_t()}
   def decrease_allocation(%__MODULE__{} = selector) do
     reply = &send(selector.connection_allocator, {self(), {:decrease_allocation_request, &1}})

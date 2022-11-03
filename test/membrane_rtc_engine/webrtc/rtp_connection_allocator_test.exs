@@ -162,44 +162,47 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       [prober: prober]
     end
 
-    test "switches to disallowed deficiency when bandwidth estimation lowers below allocated bandwidth",
+    test "switches to disallowed_overuse when bandwidth estimation lowers below allocated bandwidth",
          %{prober: prober} do
-      send(self(), {self(), {:decrease_allocation_request, :accept}})
-      {:noreply, prober} = RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 0}, prober)
-      assert prober.prober_status == :disallowed_bandwidth_deficiency
+      assert {:noreply, prober} =
+               RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 0}, prober)
+
+      assert prober.prober_status == :disallowed_overuse
       assert_receive :decrease_your_allocation, 0
 
-      {:noreply, prober} =
-        RTPConnectionAllocator.handle_cast({:request_allocation, self(), 0}, prober)
+      send(self(), {self(), {:decrease_allocation_request, :accept}})
+
+      assert {:noreply, prober} =
+               RTPConnectionAllocator.handle_cast({:request_allocation, self(), 0}, prober)
 
       assert prober.prober_status == :maintain_estimation
       refute_receive :decrease_your_allocation, 0
     end
 
-    test "switches to disallowed deficiency from allowed deficiency when bandwidth allocation decreases",
+    test "switches to disallowed_overuse from allowed_overuse when bandwidth allocation decreases",
          %{prober: prober, track: track} do
-      # Get to allowed deficiency
+      # Get to allowed overuse
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
           {:hello, self(), 100_000_000, %{track | variants: [:high]}},
           prober
         )
 
-      assert prober.prober_status == :allowed_bandwidth_deficiency
+      assert prober.prober_status == :allowed_overuse
 
       {:noreply, prober} = RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 0}, prober)
-      assert prober.prober_status == :disallowed_bandwidth_deficiency
+      assert prober.prober_status == :disallowed_overuse
     end
 
-    test "stays in allowed deficiency if estimation increases", %{track: track, prober: prober} do
-      # Get to allowed deficiency
+    test "stays in allowed overuse if estimation increases", %{track: track, prober: prober} do
+      # Get to allowed overuse
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
           {:hello, self(), 100_000_000, %{track | variants: [:high]}},
           prober
         )
 
-      assert prober.prober_status == :allowed_bandwidth_deficiency
+      assert prober.prober_status == :allowed_overuse
 
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
@@ -207,7 +210,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
           prober
         )
 
-      assert prober.prober_status == :allowed_bandwidth_deficiency
+      assert prober.prober_status == :allowed_overuse
     end
 
     test "switches to :increase_estimation upon allocation request and reverts back to :maintain_estimation after granting allocation",
@@ -227,22 +230,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
     end
 
     @tag negotiable?: false
-    test "switches to allowed deficiency non-negotiable track raises allocation over available bandwidth",
+    test "switches to allowed overuse non-negotiable track raises allocation over available bandwidth",
          %{prober: prober} do
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast({:request_allocation, self(), 1_000_000_000}, prober)
 
-      assert prober.prober_status == :allowed_bandwidth_deficiency
+      assert prober.prober_status == :allowed_overuse
     end
 
-    test "switches to allowed deficiency mode when new track receiver shows up", %{
+    test "switches to allowed overuse mode when new track receiver shows up", %{
       track: track,
       prober: prober
     } do
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast({:hello, self(), 1_000_000, track}, prober)
 
-      assert prober.prober_status == :allowed_bandwidth_deficiency
+      assert prober.prober_status == :allowed_overuse
     end
   end
 
