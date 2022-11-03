@@ -1,5 +1,5 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTrackerTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
 

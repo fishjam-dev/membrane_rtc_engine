@@ -90,7 +90,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     initial_allocation =
       case track.type do
-        :audio -> variant_bitrates[:high]
+        :audio -> variant_bitrates[:high] * 1.1
         # FIXME revisit initial video allocation
         # in the previous version where we had
         # variant_bitrates[:low] it could happen that
@@ -99,11 +99,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         # our initial allocation and we were not sending
         # anything except audio. As a result our bandwidth
         # estimation was starting from ~50kbps
-        #
-        # the solution to chose 2*variant_bitrates[:high]
-        # should allow us to send anything at start;
-        # we will adjust quality after next bwe
-        :video -> 2 * variant_bitrates[:high]
+        :video -> 1.1 * variant_bitrates[:high]
       end
 
     connection_allocator_module.register_track_receiver(
@@ -125,10 +121,36 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   Updates the bandwidth allocated to the selector.
   """
   @spec set_bandwidth_allocation(t(), bitrates_t()) :: {t(), selector_action_t()}
+  def set_bandwidth_allocation(%__MODULE__{current_allocation: allocation} = selector, allocation) do
+    {selector, :noop}
+  end
+
   def set_bandwidth_allocation(%__MODULE__{} = selector, allocation) do
     selector
     |> Map.put(:current_allocation, allocation)
     |> perform_automatic_variant_selection()
+  end
+
+  @doc """
+  Function called by TrackReceiver upon receiving `t:Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.decrease_allocation_request/0`
+  from the ConnectionAllocator
+  """
+  @spec decrease_allocation(t()) :: {t(), selector_action_t()}
+  def decrease_allocation(%__MODULE__{} = selector) do
+    reply = &send(selector.connection_allocator, {self(), {:decrease_allocation_request, &1}})
+
+    case next_lower_variant(selector) do
+      {:ok, next_variant} when next_variant != :no_variant ->
+        reply.(:accept)
+
+        selector
+        |> select_variant(next_variant)
+        |> manage_allocation()
+
+      _otherwise ->
+        reply.(:reject)
+        {selector, :noop}
+    end
   end
 
   @doc """
@@ -176,7 +198,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       selector.target_variant == variant and fits_in_allocation?(selector, variant) ->
         selector
         |> select_variant(variant)
-        |> tap(&manage_allocation/1)
+        |> manage_allocation()
 
       # we're waiting for target, automatically select a variant
       true ->
@@ -199,12 +221,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   @spec set_current_variant(t(), Track.variant()) :: t()
   def set_current_variant(%__MODULE__{queued_variant: variant} = selector, variant) do
     %__MODULE__{selector | current_variant: variant, queued_variant: :no_variant}
-    |> tap(&manage_allocation/1)
+    |> manage_allocation()
   end
 
   def set_current_variant(%__MODULE__{} = selector, variant) do
     %__MODULE__{selector | current_variant: variant}
-    |> tap(&manage_allocation/1)
+    |> manage_allocation()
   end
 
   @doc """
@@ -219,7 +241,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     if variant in selector.active_variants and fits_in_allocation?(selector, variant) do
       selector
       |> select_variant(variant)
-      |> tap(&manage_allocation/1)
+      |> manage_allocation()
     else
       Membrane.Logger.debug("""
       Requested variant #{inspect(variant)} is either inactive, or we don't have enough bandwidth to use it. Saving it as target.
@@ -261,6 +283,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     {selector, :noop}
   end
 
+  defp select_variant(%__MODULE__{queued_variant: variant} = selector, variant) do
+    Membrane.Logger.debug(" Requested the variant that has already been queued. Ignoring")
+    {selector, :noop}
+  end
+
   defp select_variant(selector, variant) do
     Membrane.Logger.debug("Enqueuing variant #{inspect(variant)}.")
     selector = %__MODULE__{selector | queued_variant: variant}
@@ -273,6 +300,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     |> Enum.filter(&fits_in_allocation?(selector, &1))
     |> List.first()
     |> then(&(&1 || :no_variant))
+  end
+
+  defp next_lower_variant(
+         %__MODULE__{current_variant: current_variant, queued_variant: queued_variant} = selector
+       ) do
+    pivot = if queued_variant != :no_variant, do: queued_variant, else: current_variant
+
+    selector.active_variants
+    |> MapSet.put(:no_variant)
+    |> sort_variants()
+    |> Enum.drop_while(&(&1 != pivot))
+    |> case do
+      [^pivot, next_variant | _rest] -> {:ok, next_variant}
+      _otherwise -> {:error, :doesnt_exist}
+    end
   end
 
   # This function clause makes sure that we're no longer looking for a better variant
@@ -312,10 +354,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   defp perform_automatic_variant_selection(%__MODULE__{} = selector) do
     selector
     |> select_variant()
-    |> tap(&manage_allocation/1)
+    |> manage_allocation()
   end
 
-  defp manage_allocation({selector, _variant}), do: manage_allocation(selector)
+  defp manage_allocation({selector, variant}), do: {manage_allocation(selector), variant}
 
   defp manage_allocation(%__MODULE__{} = selector) do
     current_variant_bitrate = selector.variant_bitrates[selector.current_variant]
@@ -344,6 +386,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           required_bitrate * 1.1
         )
 
+        selector
+
       required_bitrate * 1.2 < selector.current_allocation ->
         Membrane.Logger.debug(
           "Requesting #{required_bitrate / 1024 * 1.1} kbps from connection prober to free unused bitrate"
@@ -353,6 +397,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           selector.connection_allocator,
           required_bitrate * 1.1
         )
+
+        %{selector | current_allocation: required_bitrate * 1.1}
 
       # If there is a next variant that we want, let's try to request an allocation for it
       # We also don't want another
@@ -369,8 +415,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           bitrate
         )
 
+        selector
+
       true ->
-        :ok
+        selector
     end
   end
 

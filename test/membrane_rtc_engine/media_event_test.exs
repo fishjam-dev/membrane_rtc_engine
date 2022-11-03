@@ -1,5 +1,5 @@
 defmodule Membrane.RTC.Engine.MediaEventTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias Membrane.RTC.Engine.MediaEvent
 
