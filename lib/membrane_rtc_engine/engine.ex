@@ -1038,7 +1038,7 @@ defmodule Membrane.RTC.Engine do
     link({:endpoint, endpoint_id})
     |> via_out(Pad.ref(:output, {track.id, variant}))
     |> via_in(Pad.ref(:input, {track.id, variant}),
-      options: [toilet_capacity: state.toilet_capacity]
+      toilet_capacity: state.toilet_capacity
     )
     |> then(fn link ->
       if Map.has_key?(ctx.children, tee_name) do
@@ -1122,7 +1122,7 @@ defmodule Membrane.RTC.Engine do
     link({:tee, subscription.track_id})
     |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
     |> via_in(Pad.ref(:input, subscription.track_id),
-      options: [toilet_capacity: state.toilet_capacity]
+      toilet_capacity: state.toilet_capacity
     )
     |> to({:endpoint, subscription.endpoint_id})
   end
