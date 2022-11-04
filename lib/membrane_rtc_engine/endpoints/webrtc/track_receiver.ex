@@ -233,7 +233,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_other(:send_padding_packet, ctx, state)
-      when not ctx.pads.output.end_of_stream? do
+      when not ctx.pads.output.end_of_stream? and ctx.playback == :playing do
     {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
 
     actions =
