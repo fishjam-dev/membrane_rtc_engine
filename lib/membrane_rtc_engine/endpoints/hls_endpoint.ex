@@ -42,10 +42,12 @@ if Enum.all?(
 
     require Membrane.Logger
 
+    alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig}
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
+    alias Membrane.Time
 
     @compositor_deps [
       Membrane.H264.FFmpeg.Decoder,
@@ -104,10 +106,9 @@ if Enum.all?(
         Max duration of stream that will be stored. Segments that are older than window duration will be removed.
         """
       ],
-      target_segment_duration: [
-        type: :time,
-        spec: Membrane.Time.t(),
-        default: Membrane.Time.seconds(5),
+      segment_duration: [
+        spec: SegmentDuration.t(),
+        default: SegmentDuration.new(Time.seconds(5), Time.seconds(5)),
         description: """
         Expected length of each segment. Setting it is not necessary, but
         may help players achieve better UX.
@@ -118,6 +119,14 @@ if Enum.all?(
         default: nil,
         description: """
         Audio and video mixer configuration. If you don't want to use compositor pass nil.
+        """
+      ],
+      sink_mode: [
+        spec: :live | :vod,
+        default: :live,
+        description: """
+        Tells if the session is live or a VOD type of broadcast. It can influence type of metadata
+        inserted into the playlist's manifest.
         """
       ]
     )
@@ -132,8 +141,9 @@ if Enum.all?(
         owner: opts.owner,
         hls_mode: opts.hls_mode,
         target_window_duration: opts.target_window_duration,
-        target_segment_duration: opts.target_segment_duration,
-        mixer_config: opts.mixer_config
+        segment_duration: opts.segment_duration,
+        mixer_config: opts.mixer_config,
+        sink_mode: opts.sink_mode
       }
 
       {:ok, state}
@@ -283,13 +293,13 @@ if Enum.all?(
       hls_sink = %Membrane.HTTPAdaptiveStream.SinkBin{
         manifest_module: Membrane.HTTPAdaptiveStream.HLS,
         target_window_duration: state.target_window_duration,
-        target_segment_duration: state.target_segment_duration,
-        muxer_segment_duration: state.target_segment_duration - Membrane.Time.seconds(1),
         persist?: false,
         storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
           directory: directory
         },
-        hls_mode: state.hls_mode
+        hls_mode: state.hls_mode,
+        mode: state.sink_mode,
+        mp4_parameters_in_band?: state.mixer_config == nil
       }
 
       parent_spec_key =
@@ -317,7 +327,7 @@ if Enum.all?(
     defp hls_links_and_children(
            link_builder,
            %{encoding: :OPUS} = track,
-           %{mixer_config: nil},
+           %{mixer_config: nil} = state,
            _ctx
          ) do
       %ParentSpec{
@@ -338,7 +348,9 @@ if Enum.all?(
           |> to({:opus_decoder, track.id})
           |> to({:aac_encoder, track.id})
           |> to({:aac_parser, track.id})
-          |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
+          |> via_in(Pad.ref(:input, {:audio, track.id}),
+            options: [encoding: :AAC, segment_duration: state.segment_duration]
+          )
           |> to({:hls_sink_bin, track.stream_id})
         ]
       }
@@ -392,7 +404,7 @@ if Enum.all?(
           {:track_receiver, track.id} => %TrackReceiver{
             track: track,
             initial_target_variant: :high,
-            keyframe_request_interval: state.target_segment_duration
+            keyframe_request_interval: state.segment_duration.target
           },
           {:depayloader, track.id} => get_depayloader(track),
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
@@ -405,7 +417,9 @@ if Enum.all?(
           |> to({:track_receiver, track.id})
           |> to({:depayloader, track.id})
           |> to({:video_parser, track.id})
-          |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
+          |> via_in(Pad.ref(:input, {:video, track.id}),
+            options: [encoding: :H264, segment_duration: state.segment_duration]
+          )
           |> to({:hls_sink_bin, track.stream_id})
         ]
       }
@@ -418,7 +432,7 @@ if Enum.all?(
             {:track_receiver, track.id} => %TrackReceiver{
               track: track,
               initial_target_variant: :high,
-              keyframe_request_interval: state.target_segment_duration
+              keyframe_request_interval: state.segment_duration.target
             },
             {:depayloader, track.id} => get_depayloader(track),
             {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
@@ -484,7 +498,7 @@ if Enum.all?(
       }
 
       {frames_per_second, 1} = state.mixer_config.video.output_framerate
-      seconds_number = Membrane.Time.as_seconds(state.target_segment_duration)
+      seconds_number = Membrane.Time.as_seconds(state.segment_duration.target)
 
       %ParentSpec{
         children: %{
@@ -498,7 +512,9 @@ if Enum.all?(
             gop_size: frames_per_second * seconds_number
           })
           |> to(:video_parser_out)
-          |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
+          |> via_in(Pad.ref(:input, :video),
+            options: [encoding: :H264, segment_duration: state.segment_duration]
+          )
           |> to(:hls_sink_bin)
         ]
       }
@@ -526,7 +542,9 @@ if Enum.all?(
           link(:audio_mixer)
           |> to(:aac_encoder)
           |> to(:aac_parser)
-          |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
+          |> via_in(Pad.ref(:input, :audio),
+            options: [encoding: :AAC, segment_duration: state.segment_duration]
+          )
           |> to(:hls_sink_bin)
         ]
       }
