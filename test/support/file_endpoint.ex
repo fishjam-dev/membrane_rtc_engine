@@ -26,11 +26,6 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
                 spec: Engine.Track.t(),
                 description: "Track to publish"
               ],
-              framerate: [
-                spec: {frames :: pos_integer, seconds :: pos_integer} | nil,
-                default: nil,
-                description: "Framerate in case of video track"
-              ],
               ssrc: [
                 spec: RTP.ssrc_t(),
                 description: "SSRC of RTP packets"
@@ -38,6 +33,11 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
               payload_type: [
                 spec: RTP.payload_type_t(),
                 description: "Payload type of RTP packets"
+              ],
+              parser_interceptor: [
+                spec:
+                  (Membrane.ParentSpec.link_builder_t() -> Membrane.ParentSpec.link_builder_t()),
+                description: "Function which link source with processing children"
               ]
 
   def_output_pad :output,
@@ -47,8 +47,8 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   @impl true
   def handle_init(opts) do
-    if opts.track.encoding != :H264 do
-      raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codec is :H264."
+    if opts.track.encoding != :H264 and opts.track.encoding != :OPUS do
+      raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codecs are :H264 and :OPUS."
     end
 
     {:ok, Map.from_struct(opts)}
@@ -75,13 +75,12 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
         source: %Membrane.File.Source{
           location: state.file_path
         },
-        parser: %Membrane.H264.FFmpeg.Parser{framerate: state.framerate, alignment: :nal},
         payloader: payloader_bin,
         track_sender: %StaticTrackSender{track: state.track}
       },
       links: [
         link(:source)
-        |> to(:parser)
+        |> then(state.parser_interceptor)
         |> to(:payloader)
         |> to(:track_sender)
         |> to_bin_output(pad)
