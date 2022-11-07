@@ -398,7 +398,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           required_bitrate * 1.1
         )
 
-        %{selector | current_allocation: required_bitrate * 1.1}
+        manage_allocation(%{selector | current_allocation: required_bitrate * 1.1})
 
       # If there is a next variant that we want, let's try to request an allocation for it
       # We also don't want another
