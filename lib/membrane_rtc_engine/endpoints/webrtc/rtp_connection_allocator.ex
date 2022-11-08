@@ -193,12 +193,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def handle_info({:DOWN, _monitor, :process, pid, _reason}, state) do
-    # Track Receiver has been terminated
+    # Track Receiver has been terminated or died
+    # Regardless of the reason, let's free its allocation
 
     {tr_metadata, state} = pop_in(state, [:track_receivers, pid])
 
     Logger.debug(
-      "Track Receiver #{inspect(pid)} has been removed. Freeing allocation its allocation: #{tr_metadata.current_allocation / 1024} kbps"
+      "Track Receiver #{inspect(pid)} has been removed. Freeing its allocation of #{tr_metadata.current_allocation / 1024} kbps"
     )
 
     state =

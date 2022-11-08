@@ -807,13 +807,13 @@ defmodule Membrane.RTC.Engine do
     track_tees = tracks |> Enum.map(&get_track_tee(&1.id, ctx)) |> Enum.reject(&is_nil(&1))
 
     subscriptions =
-      Map.new(state.subscriptions, fn {key, subscriptions} ->
+      Map.new(state.subscriptions, fn {endpoint_id, subscriptions} ->
         subscriptions =
           subscriptions
           |> Enum.reject(fn {track_id, _data} -> Enum.member?(track_ids, track_id) end)
           |> Map.new()
 
-        {key, subscriptions}
+        {endpoint_id, subscriptions}
       end)
 
     {{:ok, tracks_msgs ++ [remove_child: track_tees]}, %{state | subscriptions: subscriptions}}
