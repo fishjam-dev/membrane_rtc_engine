@@ -45,6 +45,7 @@ if Enum.all?(
     alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig}
+    alias Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
     alias Membrane.Time
@@ -233,7 +234,8 @@ if Enum.all?(
           :decoder,
           :framerate_converter,
           :track_receiver,
-          :depayloader
+          :depayloader,
+          :track_sync
         ]
         |> Enum.map(&{&1, track_id})
         |> Enum.filter(&Map.has_key?(ctx.children, &1))
@@ -264,85 +266,140 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
+    def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, %{hls_mode: :separate_av} = state) do
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
       directory = get_hls_stream_directory(state, track)
-      spec = hls_links_and_children(link_builder, track, state, ctx)
+
+      spec =
+        get_initial_spec(link_builder, track, state)
+        |> merge_parent_specs(hls_links_and_children(track, state, ctx))
 
       {spec, state} =
         if hls_sink_bin_exists?(track, ctx, state) do
           {spec, state}
         else
-          # remove directory if it already exists
-          File.rm_rf(directory)
-          File.mkdir_p!(directory)
+          new_spec = maybe_add_hls_sink_bin(directory, spec, track, ctx, state)
 
-          hls_sink_spec = get_hls_sink_spec(state, track, directory)
-
-          {merge_parent_specs(spec, hls_sink_spec), state}
+          {new_spec, state}
         end
 
       {{:ok, spec: spec}, state}
     end
 
-    defp get_hls_sink_spec(state, track, directory) do
-      hls_sink = %Membrane.HTTPAdaptiveStream.SinkBin{
-        manifest_module: Membrane.HTTPAdaptiveStream.HLS,
-        target_window_duration: state.target_window_duration,
-        persist?: false,
-        storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
-          directory: directory
-        },
-        hls_mode: state.hls_mode,
-        mode: state.broadcast_mode,
-        mp4_parameters_in_band?: is_nil(state.mixer_config)
-      }
+    @impl true
+    def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, %{hls_mode: :muxed_av} = state) do
+      link_builder = link_bin_input(pad)
+      track = Map.get(state.tracks, track_id)
+      directory = get_hls_stream_directory(state, track)
 
-      parent_spec_key =
-        if is_nil(state.mixer_config), do: {:hls_sink_bin, track.stream_id}, else: :hls_sink_bin
+      initial_spec = get_initial_spec(link_builder, track, state)
+
+      {spec, state} =
+        if MapSet.member?(state.stream_ids, track.stream_id) do
+          initial_spec = maybe_add_hls_sink_bin(directory, initial_spec, track, ctx, state)
+          {hls_link_both_tracks(initial_spec, track, ctx, state), state}
+        else
+          spec = %ParentSpec{
+            children: %{
+              {:track_sync, track.stream_id} => TrackSynchronizer
+            },
+            links: []
+          }
+
+          spec = merge_parent_specs(initial_spec, spec)
+          {spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
+        end
+
+      {{:ok, spec: spec}, state}
+    end
+
+    defp get_initial_spec(link_builder, track, state) do
+      link =
+        case {track.type, state.hls_mode} do
+          {_, :muxed_av} ->
+            [
+              link({:depayloader, track.id})
+              |> via_in(Pad.ref(:input, track.type))
+              |> to({:track_sync, track.stream_id})
+            ]
+
+          {:audio, _} ->
+            [
+              link({:depayloader, track.id})
+              |> to({:opus_decoder, track.id})
+            ]
+
+          {:video, _} ->
+            [
+              link({:depayloader, track.id})
+              |> to({:video_parser, track.id})
+            ]
+        end
 
       %ParentSpec{
         children: %{
-          parent_spec_key => hls_sink
-        }
+          {:track_receiver, track.id} => %TrackReceiver{
+            track: track,
+            initial_target_variant: :high,
+            keyframe_request_interval: state.segment_duration.target
+          },
+          {:depayloader, track.id} => get_depayloader(track)
+        },
+        links:
+          [
+            link_builder
+            |> to({:track_receiver, track.id})
+            |> to({:depayloader, track.id})
+          ] ++ link
       }
     end
 
-    defp get_hls_stream_directory(%{mixer_config: nil} = state, track),
-      do: Path.join(state.output_directory, track.stream_id)
+    if Enum.all?(@audio_mixer_deps, &Code.ensure_loaded?/1) and
+         Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
+      defp hls_link_both_tracks(initial_spec, track, ctx, state) do
+        {audio_track, video_track} = get_audio_video_tracks(track, state)
+        audio_spec = hls_links_and_children(audio_track, state, ctx)
+        video_spec = hls_links_and_children(video_track, state, ctx)
+        mixer_spec = merge_parent_specs(audio_spec, video_spec)
 
-    defp get_hls_stream_directory(state, _track), do: state.output_directory
+        sync_spec = %ParentSpec{
+          links: [
+            link({:track_sync, track.stream_id})
+            |> via_out(Pad.ref(:output, :audio))
+            |> to({:opus_decoder, audio_track.id}),
+            link({:track_sync, track.stream_id})
+            |> via_out(Pad.ref(:output, :video))
+            |> to({:video_parser, video_track.id})
+          ]
+        }
 
-    defp merge_parent_specs(spec1, spec2) do
-      %ParentSpec{
-        children: Map.merge(spec1.children, spec2.children),
-        links: spec1.links ++ spec2.links
-      }
+        merge_parent_specs(initial_spec, sync_spec)
+        |> merge_parent_specs(mixer_spec)
+      end
+    else
+      defp hls_link_both_tracks(initial_spec, track, ctx, state) do
+        raise """
+        Cannot find some of the modules required to use the audio and video mixer.
+        Ensure that the following dependencies are added to the deps.
+        #{merge_strings(@audio_mixer_deps)}, #{merge_strings(@compositor_deps)}
+        """
+      end
     end
 
     defp hls_links_and_children(
-           link_builder,
            %{encoding: :OPUS} = track,
            %{mixer_config: nil} = state,
            _ctx
          ) do
       %ParentSpec{
         children: %{
-          {:track_receiver, track.id} => %TrackReceiver{
-            track: track,
-            initial_target_variant: :high
-          },
-          {:depayloader, track.id} => get_depayloader(track),
           {:opus_decoder, track.id} => Membrane.Opus.Decoder,
           {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
           {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
         },
         links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
-          |> to({:opus_decoder, track.id})
+          link({:opus_decoder, track.id})
           |> to({:aac_encoder, track.id})
           |> to({:aac_parser, track.id})
           |> via_in(Pad.ref(:input, {:audio, track.id}),
@@ -354,21 +411,13 @@ if Enum.all?(
     end
 
     if Enum.all?(@audio_mixer_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, %{encoding: :OPUS} = track, state, ctx) do
+      defp hls_links_and_children(%{encoding: :OPUS} = track, state, ctx) do
         parent_spec = %ParentSpec{
           children: %{
-            {:track_receiver, track.id} => %TrackReceiver{
-              track: track,
-              initial_target_variant: :high
-            },
-            {:depayloader, track.id} => get_depayloader(track),
             {:opus_decoder, track.id} => Membrane.Opus.Decoder
           },
           links: [
-            link_builder
-            |> to({:track_receiver, track.id})
-            |> to({:depayloader, track.id})
-            |> to({:opus_decoder, track.id})
+            link({:opus_decoder, track.id})
             |> to(:audio_mixer)
           ]
         }
@@ -378,7 +427,7 @@ if Enum.all?(
         |> merge_parent_specs(parent_spec)
       end
     else
-      defp hls_links_and_children(link_builder, %{encoding: :OPUS}, state, ctx) do
+      defp hls_links_and_children(%{encoding: :OPUS}, state, ctx) do
         raise """
         Cannot find some of the modules required to use the audio mixer.
         Ensure that the following dependencies are added to the deps.
@@ -388,29 +437,19 @@ if Enum.all?(
     end
 
     defp hls_links_and_children(
-           link_builder,
            %{encoding: :H264} = track,
            %{mixer_config: nil} = state,
            _ctx
          ) do
       %ParentSpec{
         children: %{
-          {:track_receiver, track.id} => %TrackReceiver{
-            track: track,
-            initial_target_variant: :high,
-            keyframe_request_interval: state.segment_duration.target
-          },
-          {:depayloader, track.id} => get_depayloader(track),
           {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
             alignment: :au,
             attach_nalus?: true
           }
         },
         links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
-          |> to({:video_parser, track.id})
+          link({:video_parser, track.id})
           |> via_in(Pad.ref(:input, {:video, track.id}),
             options: [encoding: :H264, segment_duration: state.segment_duration]
           )
@@ -420,15 +459,9 @@ if Enum.all?(
     end
 
     if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, %{encoding: :H264} = track, state, ctx) do
+      defp hls_links_and_children(%{encoding: :H264} = track, state, ctx) do
         parent_spec = %ParentSpec{
           children: %{
-            {:track_receiver, track.id} => %TrackReceiver{
-              track: track,
-              initial_target_variant: :high,
-              keyframe_request_interval: state.segment_duration.target
-            },
-            {:depayloader, track.id} => get_depayloader(track),
             {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
               alignment: :au,
               attach_nalus?: true
@@ -438,10 +471,7 @@ if Enum.all?(
             }
           },
           links: [
-            link_builder
-            |> to({:track_receiver, track.id})
-            |> to({:depayloader, track.id})
-            |> to({:video_parser, track.id})
+            link({:video_parser, track.id})
             |> to({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
             |> to({:framerate_converter, track.id})
             |> to(:compositor)
@@ -465,6 +495,35 @@ if Enum.all?(
         #{merge_strings(@compositor_deps)}
         """
       end
+    end
+
+    defp maybe_add_hls_sink_bin(_directory, initial_spec, _track, ctx, state)
+         when is_map_key(ctx.children, :hls_sink_bin) and not is_nil(state.mixer_config),
+         do: initial_spec
+
+    defp maybe_add_hls_sink_bin(directory, initial_spec, track, _ctx, state) do
+      # remove directory if it already exists
+      File.rm_rf(directory)
+      File.mkdir_p!(directory)
+
+      hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
+        manifest_module: Membrane.HTTPAdaptiveStream.HLS,
+        target_window_duration: state.target_window_duration,
+        persist?: false,
+        storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
+          directory: directory
+        },
+        hls_mode: state.hls_mode,
+        mode: state.broadcast_mode,
+        mp4_parameters_in_band?: is_nil(state.mixer_config)
+      }
+
+      children =
+        if is_nil(state.mixer_config),
+          do: %{{:hls_sink_bin, track.stream_id} => hls_sink_bin},
+          else: %{hls_sink_bin: hls_sink_bin}
+
+      merge_parent_specs(initial_spec, %ParentSpec{children: children})
     end
 
     defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor),
@@ -538,6 +597,27 @@ if Enum.all?(
           )
           |> to(:hls_sink_bin)
         ]
+      }
+    end
+
+    defp get_audio_video_tracks(curr_track, state) do
+      {_track_id, track} =
+        Enum.find(state.tracks, fn {_track_id, track} ->
+          track.stream_id == curr_track.stream_id && track.type != curr_track.type
+        end)
+
+      if curr_track.type == :audio, do: {curr_track, track}, else: {track, curr_track}
+    end
+
+    defp get_hls_stream_directory(%{mixer_config: nil} = state, track),
+      do: Path.join(state.output_directory, track.stream_id)
+
+    defp get_hls_stream_directory(state, _track), do: state.output_directory
+
+    defp merge_parent_specs(spec1, spec2) do
+      %ParentSpec{
+        children: Map.merge(spec1.children, spec2.children),
+        links: spec1.links ++ spec2.links
       }
     end
 
