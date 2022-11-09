@@ -33,11 +33,6 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
               payload_type: [
                 spec: RTP.payload_type_t(),
                 description: "Payload type of RTP packets"
-              ],
-              parser_interceptor: [
-                spec:
-                  (Membrane.ParentSpec.link_builder_t() -> Membrane.ParentSpec.link_builder_t()),
-                description: "Function which link source with processing children"
               ]
 
   def_output_pad :output,
@@ -70,6 +65,8 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       clock_rate: state.track.clock_rate
     }
 
+    parser = parser_interceptor(state.track.encoding)
+
     spec = %ParentSpec{
       children: %{
         source: %Membrane.File.Source{
@@ -80,7 +77,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       },
       links: [
         link(:source)
-        |> then(state.parser_interceptor)
+        |> then(parser)
         |> to(:payloader)
         |> to(:track_sender)
         |> to_bin_output(pad)
@@ -104,5 +101,24 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   def handle_other(:start, _ctx, state) do
     track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
     {{:ok, notify: track_ready}, state}
+  end
+
+  defp parser_interceptor(:OPUS) do
+    fn link_builder ->
+      Membrane.ParentSpec.to(link_builder, :decoder, Membrane.AAC.FDK.Decoder)
+      |> Membrane.ParentSpec.to(:encoder, %Membrane.Opus.Encoder{
+        input_caps: %Membrane.RawAudio{channels: 1, sample_rate: 48_000, sample_format: :s16le}
+      })
+      |> Membrane.ParentSpec.to(:parser, %Membrane.Opus.Parser{})
+    end
+  end
+
+  defp parser_interceptor(:H264) do
+    fn link_builder ->
+      Membrane.ParentSpec.to(link_builder, :parser, %Membrane.H264.FFmpeg.Parser{
+        framerate: {60, 1},
+        alignment: :nal
+      })
+    end
   end
 end
