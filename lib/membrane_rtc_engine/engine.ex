@@ -184,7 +184,7 @@ defmodule Membrane.RTC.Engine do
           trace_ctx: map(),
           telemetry_label: Membrane.TelemetryMetrics.label(),
           display_manager?: boolean(),
-          toilet_capacity: integer() | nil
+          toilet_capacity: pos_integer() | nil
         ]
 
   @typedoc """
@@ -393,6 +393,12 @@ defmodule Membrane.RTC.Engine do
     after
       5_000 -> {:error, :timeout}
     end
+  end
+
+  @impl true
+  def handle_init(options)
+      when not is_nil(options.toilet_capacity) and options.toilet_capacity < 0 do
+    raise("Option toilet_capacity has to be a positive integer.")
   end
 
   @impl true

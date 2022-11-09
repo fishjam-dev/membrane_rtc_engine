@@ -68,68 +68,66 @@ if Enum.all?(
       availability: :on_request
     )
 
-    def_options(
-      rtc_engine: [
-        spec: pid(),
-        description: "Pid of parent Engine"
-      ],
-      output_directory: [
-        spec: Path.t(),
-        description: "Path to directory under which HLS output will be saved",
-        default: "hls_output"
-      ],
-      owner: [
-        spec: pid(),
-        description: """
-        Pid of parent all notifications will be send to.
+    def_options rtc_engine: [
+                  spec: pid(),
+                  description: "Pid of parent Engine"
+                ],
+                output_directory: [
+                  spec: Path.t(),
+                  description: "Path to directory under which HLS output will be saved",
+                  default: "hls_output"
+                ],
+                owner: [
+                  spec: pid(),
+                  description: """
+                  Pid of parent all notifications will be send to.
 
-        These notifications are:
-          * `{:playlist_playable, content_type}`
-          * `{:cleanup, clean_function}`
-        """
-      ],
-      hls_mode: [
-        spec: :separate_av | :muxed_av,
-        default: :separate_av,
-        description: """
-        Defines output mode for `Membrane.HTTPAdaptiveStream.SinkBin`.
+                  These notifications are:
+                    * `{:playlist_playable, content_type}`
+                    * `{:cleanup, clean_function}`
+                  """
+                ],
+                hls_mode: [
+                  spec: :separate_av | :muxed_av,
+                  default: :separate_av,
+                  description: """
+                  Defines output mode for `Membrane.HTTPAdaptiveStream.SinkBin`.
 
-        - `:separate_av` - audio and video tracks will be separated
-        - `:muxed_av` - audio will be attached to every video track
-        """
-      ],
-      target_window_duration: [
-        type: :time,
-        spec: Membrane.Time.t() | :infinity,
-        default: Membrane.Time.seconds(20),
-        description: """
-        Max duration of stream that will be stored. Segments that are older than window duration will be removed.
-        """
-      ],
-      segment_duration: [
-        spec: SegmentDuration.t(),
-        default: SegmentDuration.new(Time.seconds(5), Time.seconds(5)),
-        description: """
-        Expected length of each segment. Setting it is not necessary, but
-        may help players achieve better UX.
-        """
-      ],
-      mixer_config: [
-        spec: %{audio: AudioMixerConfig.t(), video: CompositorConfig.t()} | nil,
-        default: nil,
-        description: """
-        Audio and video mixer configuration. If you don't want to use compositor pass nil.
-        """
-      ],
-      sink_mode: [
-        spec: :live | :vod,
-        default: :live,
-        description: """
-        Tells if the session is live or a VOD type of broadcast. It can influence type of metadata
-        inserted into the playlist's manifest.
-        """
-      ]
-    )
+                  - `:separate_av` - audio and video tracks will be separated
+                  - `:muxed_av` - audio will be attached to every video track
+                  """
+                ],
+                target_window_duration: [
+                  type: :time,
+                  spec: Membrane.Time.t() | :infinity,
+                  default: Membrane.Time.seconds(20),
+                  description: """
+                  Max duration of stream that will be stored. Segments that are older than window duration will be removed.
+                  """
+                ],
+                segment_duration: [
+                  spec: SegmentDuration.t(),
+                  default: SegmentDuration.new(Time.seconds(5), Time.seconds(5)),
+                  description: """
+                  Expected length of each segment. Setting it is not necessary, but
+                  may help players achieve better UX.
+                  """
+                ],
+                mixer_config: [
+                  spec: %{audio: AudioMixerConfig.t(), video: CompositorConfig.t()} | nil,
+                  default: nil,
+                  description: """
+                  Audio and video mixer configuration. If you don't want to use compositor pass nil.
+                  """
+                ],
+                broadcast_mode: [
+                  spec: :live | :vod,
+                  default: :live,
+                  description: """
+                  Tells if the session is live or a VOD type of broadcast. It can influence type of metadata
+                  inserted into the playlist's manifest.
+                  """
+                ]
 
     @impl true
     def handle_init(opts) do
@@ -143,7 +141,7 @@ if Enum.all?(
         target_window_duration: opts.target_window_duration,
         segment_duration: opts.segment_duration,
         mixer_config: opts.mixer_config,
-        sink_mode: opts.sink_mode
+        broadcast_mode: opts.broadcast_mode
       }
 
       {:ok, state}
@@ -269,19 +267,18 @@ if Enum.all?(
     def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
-      directory = choose_hls_stream_directory(state, track)
+      directory = get_hls_stream_directory(state, track)
       spec = hls_links_and_children(link_builder, track, state, ctx)
 
       {spec, state} =
-        if (Map.has_key?(ctx.children, :hls_sink_bin) and !is_nil(state.mixer_config)) or
-             Map.has_key?(ctx.children, {:hls_sink_bin, track.stream_id}) do
+        if hls_sink_bin_exists?(track, ctx, state) do
           {spec, state}
         else
           # remove directory if it already exists
           File.rm_rf(directory)
           File.mkdir_p!(directory)
 
-          hls_sink_spec = choose_hls_sink_spec(state, track, directory)
+          hls_sink_spec = get_hls_sink_spec(state, track, directory)
 
           {merge_parent_specs(spec, hls_sink_spec), state}
         end
@@ -289,7 +286,7 @@ if Enum.all?(
       {{:ok, spec: spec}, state}
     end
 
-    defp choose_hls_sink_spec(state, track, directory) do
+    defp get_hls_sink_spec(state, track, directory) do
       hls_sink = %Membrane.HTTPAdaptiveStream.SinkBin{
         manifest_module: Membrane.HTTPAdaptiveStream.HLS,
         target_window_duration: state.target_window_duration,
@@ -298,8 +295,8 @@ if Enum.all?(
           directory: directory
         },
         hls_mode: state.hls_mode,
-        mode: state.sink_mode,
-        mp4_parameters_in_band?: state.mixer_config == nil
+        mode: state.broadcast_mode,
+        mp4_parameters_in_band?: is_nil(state.mixer_config)
       }
 
       parent_spec_key =
@@ -312,10 +309,10 @@ if Enum.all?(
       }
     end
 
-    defp choose_hls_stream_directory(%{mixer_config: nil} = state, track),
+    defp get_hls_stream_directory(%{mixer_config: nil} = state, track),
       do: Path.join(state.output_directory, track.stream_id)
 
-    defp choose_hls_stream_directory(state, _track), do: state.output_directory
+    defp get_hls_stream_directory(state, _track), do: state.output_directory
 
     defp merge_parent_specs(spec1, spec2) do
       %ParentSpec{
@@ -388,9 +385,6 @@ if Enum.all?(
         #{merge_strings(@audio_mixer_deps)}
         """
       end
-
-      defp merge_strings(strings),
-        do: strings |> Enum.map(String.replace_suffix("", " ")) |> Enum.reduce(Kernel.<>())
     end
 
     defp hls_links_and_children(
@@ -471,9 +465,6 @@ if Enum.all?(
         #{merge_strings(@compositor_deps)}
         """
       end
-
-      defp merge_strings(strings),
-        do: strings |> Enum.map(String.replace_suffix("", " ")) |> Enum.reduce(Kernel.<>())
     end
 
     defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor),
@@ -550,6 +541,11 @@ if Enum.all?(
       }
     end
 
+    defp hls_sink_bin_exists?(track, ctx, %{mixer_config: nil}),
+      do: Map.has_key?(ctx.children, {:hls_sink_bin, track.stream_id})
+
+    defp hls_sink_bin_exists?(_track, ctx, _state), do: Map.has_key?(ctx.children, :hls_sink_bin)
+
     defp get_depayloader(track) do
       track
       |> Track.get_depayloader()
@@ -568,6 +564,14 @@ if Enum.all?(
       ]
 
       Enum.filter(children, &Map.has_key?(ctx.children, &1))
+    end
+
+    if not Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do
+      defp merge_strings(strings),
+        do:
+          strings
+          |> Enum.map(&String.replace_suffix(&1, "", " "))
+          |> Enum.reduce(&Kernel.<>(&1, &2))
     end
   end
 end
