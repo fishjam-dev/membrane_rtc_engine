@@ -172,16 +172,34 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def handle_cast({:set_negotiability_status, pid, value}, state) do
-    Logger.debug(
-      "Track Receiver #{inspect(pid)} requested to set its negotiability status to #{value}"
-    )
+    state =
+      case state.track_receivers[pid] do
+        nil ->
+          Logger.error(
+            "Attempted to change negotiability status of a Track Receiver that doesn't exist. Ignoring"
+          )
 
-    state
-    |> put_in([:track_receivers, pid, :negotiable?], value)
-    # We shouldn't go into allowed_overuse mode, but we also shouldn't swap disallowed_overuse for allowed_overuse
-    |> maybe_change_overuse_status(state.prober_status != :disallowed_overuse)
-    |> update_allocations()
-    |> maybe_change_probing_status()
+          state
+
+        %{negotiable?: ^value} ->
+          Logger.debug(
+            "Attempted to change negotiability status #{value}, but it is already in this state"
+          )
+
+          state
+
+        _track_receiver ->
+          Logger.debug(
+            "Track Receiver #{inspect(pid)} requested to set its negotiability status to #{value}"
+          )
+
+          state
+          |> put_in([:track_receivers, pid, :negotiable?], value)
+          # We shouldn't go into allowed_overuse mode, but we also shouldn't swap disallowed_overuse for allowed_overuse
+          |> maybe_change_overuse_status(state.prober_status != :disallowed_overuse)
+          |> update_allocations()
+          |> maybe_change_probing_status()
+      end
 
     {:noreply, state}
   end

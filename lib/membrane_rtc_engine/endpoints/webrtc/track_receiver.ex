@@ -14,7 +14,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   To control TrackReceiver behavior see `t:control_messages/0`.
 
-  TrackReceiver also emits some notificaitons. They are defined
+  TrackReceiver also emits some notifications. They are defined
   in `t:notifications/0`.
   """
   use Membrane.Filter
@@ -101,6 +101,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 description: """
                 PID of the instance of the ConnectionAllocator that should be used by the TrackReceiver
                 """
+              ],
+              allocation_negotiable?: [
+                spec: boolean(),
+                default: false,
+                description: """
+                Option defining whether allocation for this Track Receiver should be negotiable.
+
+                Trying to enable negotiability for tracks that are inherently non-negotiable, also
+                known as non-simulcast tracks, will result in a crash.
+
+                This value can later be changed by sending a `{:set_negotiable?, boolean()}` message to this Element.
+                """
               ]
 
   def_input_pad :input,
@@ -119,7 +131,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         track: track,
         initial_target_variant: initial_target_variant,
         keyframe_request_interval: keyframe_request_interval,
-        connection_allocator_module: connection_allocator_module
+        connection_allocator_module: connection_allocator_module,
+        allocation_negotiable?: allocation_negotiable?
       }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
 
@@ -128,7 +141,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         track,
         connection_allocator_module,
         connection_allocator,
-        initial_target_variant
+        initial_target_variant: initial_target_variant,
+        negotiable?: allocation_negotiable?
       )
 
     state = %{
@@ -152,7 +166,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_start_of_stream(:input, _ctx, state) do
-    Process.send_after(self(), :change_to_adaptive, 100)
     {:ok, state}
   end
 
@@ -225,8 +238,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_other(:change_to_adaptive, _ctx, state) do
-    VariantSelector.set_negotiable(state.selector, true)
+  def handle_other({:set_negotiable, negotiable?}, _ctx, state) do
+    VariantSelector.set_negotiable(state.selector, negotiable?)
     {:ok, state}
   end
 

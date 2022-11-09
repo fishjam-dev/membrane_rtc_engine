@@ -44,7 +44,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   """
   @type noop_t() :: :noop
 
+  @typedoc """
+  Type describing options that can be passed to `#{inspect(__MODULE__)}.new/4`
+
+  - `:initial_target_variant` - defines a target variant. Target variant will be prioritized over other variants. Default: `:high`
+  - `negotiable?` - determines if the variant selector will have a negotiable bandwidth allocation. Default: `false`
+  """
+  @type option_t() :: {:initial_target_variant, Track.variant()} | {:negotiable?, boolean()}
+
   @opaque t() :: %__MODULE__{
+            track: Track.t(),
             target_variant: Track.variant(),
             current_variant: Track.variant() | :no_variant,
             queued_variant: Track.variant() | :no_variant,
@@ -56,6 +65,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           }
 
   @enforce_keys [
+    :track,
     :current_allocation,
     :connection_allocator,
     :connection_allocator_module,
@@ -71,17 +81,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   @doc """
   Creates new variant selector.
-
-  * `initial_target_variant` - variant to prioritize. It will be
-  chosen whenever it is active. Can be changed with `set_target_variant/2`.
   """
-  @spec new(Track.t(), module(), pid(), Track.variant()) :: t()
+  @spec new(Track.t(), module(), pid(), [option_t()]) :: t()
   def new(
         track,
         connection_allocator_module,
         connection_allocator,
-        initial_target_variant \\ :high
+        options \\ []
       ) do
+    initial_target_variant = Keyword.get(options, :initial_target_variant, :high)
+    negotiable? = Keyword.get(options, :negotiable?, true)
+
+    negotiable? =
+      if negotiable? and length(track.variants) < 2 do
+        Membrane.Logger.warn(
+          "Attempted to enable negotiability on non-negotiable track. Disabling."
+        )
+
+        false
+      else
+        negotiable?
+      end
+
     variant_bitrates =
       case track.type do
         :audio -> @default_bitrates_audio
@@ -106,10 +127,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       connection_allocator,
       initial_allocation,
       track,
-      negotiable?: false
+      negotiable?: negotiable?
     )
 
     %__MODULE__{
+      track: track,
       target_variant: initial_target_variant,
       connection_allocator: connection_allocator,
       variant_bitrates: variant_bitrates,
@@ -132,13 +154,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     |> perform_automatic_variant_selection()
   end
 
-  # TODO: doc
+  @doc """
+  Updates the negotiability status of the Track Receiver.
+
+  Attempting to enable negotiability of a track that has less than 2 variants will result in `RuntimeError`.
+  """
   @spec set_negotiable(t(), boolean()) :: :ok
   def set_negotiable(%__MODULE__{} = selector, negotiable?) do
-    selector.connection_allocator_module.set_negotiability_status(
-      selector.connection_allocator,
-      negotiable?
-    )
+    if negotiable? and length(selector.track.variants) < 2 do
+      raise "Cannot enable negotiability on a track that has less than 2 variants."
+    else
+      selector.connection_allocator_module.set_negotiability_status(
+        selector.connection_allocator,
+        negotiable?
+      )
+    end
   end
 
   @doc """

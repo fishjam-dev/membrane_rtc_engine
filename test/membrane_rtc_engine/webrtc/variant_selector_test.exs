@@ -65,10 +65,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
       [
         selector:
           VariantSelector.new(
-            %{type: :video},
+            %{type: :video, variants: [:low, :medium, :high]},
             Membrane.RTC.Engine.Endpoint.WebRTC.TestConnectionAllocator,
             self(),
-            :high
+            initial_target_variant: :high
           )
       ]
     end
@@ -165,7 +165,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   end
 
   defp create_selector() do
-    selector = VariantSelector.new(%{type: :video}, NoOpConnectionAllocator, self(), :high)
+    selector =
+      VariantSelector.new(
+        %{type: :video, variants: [:low, :medium, :high]},
+        NoOpConnectionAllocator,
+        self(),
+        initial_target_variant: :high
+      )
+
     selector = %{selector | current_allocation: 9_999_999_999_999}
 
     assert {selector, {:request, :high}} = VariantSelector.variant_active(selector, :high)
