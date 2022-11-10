@@ -130,6 +130,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     # It is already sending some variant, so whatever bandwidth they are using will be initially allocated
     # without question
 
+    Process.monitor(pid)
+
     receiver = %{
       pid: pid,
       current_allocation: bandwidth,
@@ -190,6 +192,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   @impl true
+  def handle_info({:DOWN, _monitor, :process, pid, _reason}, state) do
+    # Track Receiver has been terminated or died
+    # Regardless of the reason, let's free its allocation
+
+    {tr_metadata, state} = pop_in(state, [:track_receivers, pid])
+
+    Logger.debug(
+      "Track Receiver #{inspect(pid)} has been removed. Freeing its allocation of #{tr_metadata.current_allocation / 1024} kbps"
+    )
+
+    state =
+      state
+      |> Map.update!(:allocated_bandwidth, &(&1 - tr_metadata.current_allocation))
+      |> update_allocations()
+      |> update_status()
+
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info(:check_bits_sent, state) do
     # This callback implements probing to target.
     # It works in a very simple way. Periodically check the amount of data
@@ -226,6 +248,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         state
       end
 
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({_pid, {:decrease_allocation_request, _response}}, state) do
     {:noreply, state}
   end
 

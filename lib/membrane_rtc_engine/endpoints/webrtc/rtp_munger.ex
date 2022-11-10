@@ -107,7 +107,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           payload_type: track.payload_type,
           marker: false,
           sequence_number: calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger),
-          timestamp: rtp_munger.last_timestamp
+          timestamp: rem(rtp_munger.last_timestamp + (1 <<< 32) - 100_000, 1 <<< 32)
         }
       }
     }

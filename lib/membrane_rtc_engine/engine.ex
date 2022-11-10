@@ -805,7 +805,18 @@ defmodule Membrane.RTC.Engine do
     track_ids = Enum.map(tracks, & &1.id)
     broadcast(MediaEvent.tracks_removed(endpoint_id, track_ids))
     track_tees = tracks |> Enum.map(&get_track_tee(&1.id, ctx)) |> Enum.reject(&is_nil(&1))
-    {{:ok, tracks_msgs ++ [remove_child: track_tees]}, state}
+
+    subscriptions =
+      Map.new(state.subscriptions, fn {endpoint_id, subscriptions} ->
+        subscriptions =
+          subscriptions
+          |> Enum.reject(fn {track_id, _data} -> Enum.member?(track_ids, track_id) end)
+          |> Map.new()
+
+        {endpoint_id, subscriptions}
+      end)
+
+    {{:ok, tracks_msgs ++ [remove_child: track_tees]}, %{state | subscriptions: subscriptions}}
   end
 
   defp handle_endpoint_notification({:custom_media_event, data}, peer_id, _ctx, state) do
