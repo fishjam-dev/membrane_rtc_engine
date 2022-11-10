@@ -54,7 +54,9 @@ if Enum.all?(
       Membrane.H264.FFmpeg.Encoder,
       Membrane.FFmpeg.SWScale.Scaler,
       Membrane.FramerateConverter,
-      Membrane.VideoMixer
+      Membrane.VideoMixer.MasterMixer,
+      Membrane.BlankVideoGenerator,
+      Membrane.Realtimer
     ]
     @audio_mixer_deps [
       Membrane.AudioMixer,
@@ -353,38 +355,28 @@ if Enum.all?(
       }
     end
 
-    if Enum.all?(@audio_mixer_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, %{encoding: :OPUS} = track, state, ctx) do
-        parent_spec = %ParentSpec{
-          children: %{
-            {:track_receiver, track.id} => %TrackReceiver{
-              track: track,
-              initial_target_variant: :high
-            },
-            {:depayloader, track.id} => get_depayloader(track),
-            {:opus_decoder, track.id} => Membrane.Opus.Decoder
+    defp hls_links_and_children(link_builder, %{encoding: :OPUS} = track, state, ctx) do
+      parent_spec = %ParentSpec{
+        children: %{
+          {:track_receiver, track.id} => %TrackReceiver{
+            track: track,
+            initial_target_variant: :high
           },
-          links: [
-            link_builder
-            |> to({:track_receiver, track.id})
-            |> to({:depayloader, track.id})
-            |> to({:opus_decoder, track.id})
-            |> to(:audio_mixer)
-          ]
-        }
+          {:depayloader, track.id} => get_depayloader(track),
+          {:opus_decoder, track.id} => Membrane.Opus.Decoder
+        },
+        links: [
+          link_builder
+          |> to({:track_receiver, track.id})
+          |> to({:depayloader, track.id})
+          |> to({:opus_decoder, track.id})
+          |> to(:audio_mixer)
+        ]
+      }
 
-        state
-        |> generate_audio_mixer(ctx)
-        |> merge_parent_specs(parent_spec)
-      end
-    else
-      defp hls_links_and_children(link_builder, %{encoding: :OPUS}, state, ctx) do
-        raise """
-        Cannot find some of the modules required to use the audio mixer.
-        Ensure that the following dependencies are added to the deps.
-        #{merge_strings(@audio_mixer_deps)}
-        """
-      end
+      state
+      |> generate_audio_mixer(ctx)
+      |> merge_parent_specs(parent_spec)
     end
 
     defp hls_links_and_children(
@@ -419,46 +411,94 @@ if Enum.all?(
       }
     end
 
-    if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
-      defp hls_links_and_children(link_builder, %{encoding: :H264} = track, state, ctx) do
-        parent_spec = %ParentSpec{
-          children: %{
-            {:track_receiver, track.id} => %TrackReceiver{
-              track: track,
-              initial_target_variant: :high,
-              keyframe_request_interval: state.segment_duration.target
-            },
-            {:depayloader, track.id} => get_depayloader(track),
-            {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
-              alignment: :au,
-              attach_nalus?: true
-            },
-            {:framerate_converter, track.id} => %Membrane.FramerateConverter{
-              framerate: state.mixer_config.video.output_framerate
-            }
+    defp hls_links_and_children(link_builder, %{encoding: :H264} = track, state, ctx) do
+      parent_spec = %ParentSpec{
+        children: %{
+          {:track_receiver, track.id} => %TrackReceiver{
+            track: track,
+            initial_target_variant: :high,
+            keyframe_request_interval: state.segment_duration.target
           },
-          links: [
-            link_builder
-            |> to({:track_receiver, track.id})
-            |> to({:depayloader, track.id})
-            |> to({:video_parser, track.id})
-            |> to({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
-            |> to({:framerate_converter, track.id})
-            |> to(:compositor)
-          ]
+          {:depayloader, track.id} => get_depayloader(track),
+          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+            alignment: :au,
+            attach_nalus?: true
+          },
+          {:framerate_converter, track.id} => %Membrane.FramerateConverter{
+            framerate: state.mixer_config.video.output_framerate
+          }
+        },
+        links: [
+          link_builder
+          |> to({:track_receiver, track.id})
+          |> to({:depayloader, track.id})
+          |> to({:video_parser, track.id})
+          |> to({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
+          |> to({:framerate_converter, track.id})
+          |> via_in(Pad.ref(:extra, track.id))
+          |> to(:compositor)
+        ]
+      }
+
+      state
+      |> generate_compositor(ctx)
+      |> merge_parent_specs(parent_spec)
+    end
+
+    if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
+      defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor),
+        do: %ParentSpec{children: %{}, links: []}
+
+      defp generate_compositor(state, _ctx) do
+        compositor = %Membrane.VideoMixer.MasterMixer{
+          filter_graph_builder: state.mixer_config.video.ffmpeg_filter
         }
 
-        state
-        |> generate_compositor(ctx)
-        |> merge_parent_specs(parent_spec)
+        video_parser_out = %Membrane.H264.FFmpeg.Parser{
+          alignment: :au,
+          attach_nalus?: true,
+          framerate: state.mixer_config.video.output_framerate
+        }
+
+        {frames_per_second, 1} = state.mixer_config.video.output_framerate
+        seconds_number = Membrane.Time.as_seconds(state.segment_duration.target)
+
+        %ParentSpec{
+          children: %{
+            compositor: compositor,
+            video_parser_out: video_parser_out,
+            fake_source: %Membrane.BlankVideoGenerator{
+              caps: %Membrane.RawVideo{
+                width: state.mixer_config.video.output_width,
+                height: state.mixer_config.video.output_height,
+                pixel_format: :I420,
+                framerate: state.mixer_config.video.output_framerate,
+                aligned: true
+              },
+              duration: :infinity
+            },
+            realtimer: Membrane.Realtimer
+          },
+          links: [
+            link(:fake_source)
+            |> to(:realtimer)
+            |> via_in(:master)
+            |> to(:compositor),
+            link(:compositor)
+            |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
+              profile: :baseline,
+              gop_size: frames_per_second * seconds_number
+            })
+            |> to(:video_parser_out)
+            |> via_in(Pad.ref(:input, :video),
+              options: [encoding: :H264, segment_duration: state.segment_duration]
+            )
+            |> to(:hls_sink_bin)
+          ]
+        }
       end
     else
-      defp hls_links_and_children(
-             _link_builder,
-             %{encoding: :H264} = track,
-             _segment_duration,
-             _framerate
-           ) do
+      defp generate_compositor(_state, _ctx) do
         raise """
         Cannot find some of the modules required to use the video composer.
         Ensure that the following dependencies are added to the deps.
@@ -467,78 +507,44 @@ if Enum.all?(
       end
     end
 
-    defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor),
-      do: %ParentSpec{children: %{}, links: []}
+    if Enum.all?(@audio_mixer_deps, &Code.ensure_loaded?/1) do
+      defp generate_audio_mixer(_state, ctx) when is_map_key(ctx.children, :audio_mixer),
+        do: %ParentSpec{children: %{}, links: []}
 
-    defp generate_compositor(state, _ctx) do
-      compositor = %Membrane.VideoMixer{
-        output_caps: %Membrane.RawVideo{
-          width: state.mixer_config.video.output_width,
-          height: state.mixer_config.video.output_height,
-          pixel_format: :I420,
-          framerate: state.mixer_config.video.output_framerate,
-          aligned: true
-        },
-        filters: state.mixer_config.video.ffmpeg_filter
-      }
-
-      video_parser_out = %Membrane.H264.FFmpeg.Parser{
-        alignment: :au,
-        attach_nalus?: true,
-        framerate: state.mixer_config.video.output_framerate
-      }
-
-      {frames_per_second, 1} = state.mixer_config.video.output_framerate
-      seconds_number = Membrane.Time.as_seconds(state.segment_duration.target)
-
-      %ParentSpec{
-        children: %{
-          compositor: compositor,
-          video_parser_out: video_parser_out
-        },
-        links: [
-          link(:compositor)
-          |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
-            profile: :baseline,
-            gop_size: frames_per_second * seconds_number
-          })
-          |> to(:video_parser_out)
-          |> via_in(Pad.ref(:input, :video),
-            options: [encoding: :H264, segment_duration: state.segment_duration]
-          )
-          |> to(:hls_sink_bin)
-        ]
-      }
-    end
-
-    defp generate_audio_mixer(_state, ctx) when is_map_key(ctx.children, :audio_mixer),
-      do: %ParentSpec{children: %{}, links: []}
-
-    defp generate_audio_mixer(state, _ctx) do
-      audio_mixer = %Membrane.AudioMixer{
-        caps: %Membrane.RawAudio{
-          channels: state.mixer_config.audio.channels,
-          sample_rate: state.mixer_config.audio.sample_rate,
-          sample_format: state.mixer_config.audio.sample_format
+      defp generate_audio_mixer(state, _ctx) do
+        audio_mixer = %Membrane.AudioMixer{
+          caps: %Membrane.RawAudio{
+            channels: state.mixer_config.audio.channels,
+            sample_rate: state.mixer_config.audio.sample_rate,
+            sample_format: state.mixer_config.audio.sample_format
+          }
         }
-      }
 
-      %ParentSpec{
-        children: %{
-          audio_mixer: audio_mixer,
-          aac_encoder: Membrane.AAC.FDK.Encoder,
-          aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none}
-        },
-        links: [
-          link(:audio_mixer)
-          |> to(:aac_encoder)
-          |> to(:aac_parser)
-          |> via_in(Pad.ref(:input, :audio),
-            options: [encoding: :AAC, segment_duration: state.segment_duration]
-          )
-          |> to(:hls_sink_bin)
-        ]
-      }
+        %ParentSpec{
+          children: %{
+            audio_mixer: audio_mixer,
+            aac_encoder: Membrane.AAC.FDK.Encoder,
+            aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none}
+          },
+          links: [
+            link(:audio_mixer)
+            |> to(:aac_encoder)
+            |> to(:aac_parser)
+            |> via_in(Pad.ref(:input, :audio),
+              options: [encoding: :AAC, segment_duration: state.segment_duration]
+            )
+            |> to(:hls_sink_bin)
+          ]
+        }
+      end
+    else
+      defp generate_audio_mixer(_state, _ctx) do
+        raise """
+        Cannot find some of the modules required to use the audio mixer.
+        Ensure that the following dependencies are added to the deps.
+        #{merge_strings(@audio_mixer_deps)}
+        """
+      end
     end
 
     defp hls_sink_bin_exists?(track, ctx, %{mixer_config: nil}),
@@ -566,7 +572,7 @@ if Enum.all?(
       Enum.filter(children, &Map.has_key?(ctx.children, &1))
     end
 
-    if not Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
+    unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
       do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
   end
 end
