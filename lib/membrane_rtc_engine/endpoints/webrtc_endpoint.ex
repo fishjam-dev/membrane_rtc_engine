@@ -532,9 +532,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     if length(track.variants) > 1 do
       # Allocation negotiability is only applicable to simulcast tracks
-      # We wait 100ms to enable it to enable reaching a target variant at the beginning of the stream
+      # We wait 500ms to enable it to enable reaching a target variant at the beginning of the stream
       # for better user experience.
-      Process.send_after(self(), {:enable_negotiability, track_id}, 100)
+      Process.send_after(self(), {:enable_negotiability, track_id}, 500)
     end
 
     {{:ok, spec: %ParentSpec{log_metadata: state.log_metadata, links: links}}, state}
