@@ -22,7 +22,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer do
 
   @impl true
   def handle_init(_opts) do
-    {:ok, %{caps: %{}, video_first_pts: nil, input_pads_counter: 0}}
+    {:ok, %{caps: %{}, video_first_pts: nil, input_pads_counter: 0, first_keyframe?: false}}
   end
 
   @impl true
@@ -57,7 +57,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer do
         Pad.ref(:input, :audio) = _pad,
         %Membrane.Buffer{} = buffer,
         _ctx,
-        %{input_pads_counter: 2} = state
+        %{input_pads_counter: 2, first_keyframe?: true} = state
       ) do
     {{:ok, buffer: {Pad.ref(:output, :audio), buffer}}, state}
   end
@@ -67,14 +67,31 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer do
         Pad.ref(:input, :video) = _pad,
         %Membrane.Buffer{} = buffer,
         _ctx,
-        %{input_pads_counter: 2} = state
+        %{input_pads_counter: 2, first_keyframe?: true} = state
       ) do
-    state =
-      if state.video_first_pts, do: state, else: Map.put(state, :video_first_pts, buffer.pts)
-
     synchronized_pts = Ratio.sub(buffer.pts, state.video_first_pts)
     buffer = %Buffer{buffer | pts: synchronized_pts}
     {{:ok, buffer: {Pad.ref(:output, :video), buffer}}, state}
+  end
+
+  # first video buffer that we forward has to be a keyframe
+  @impl true
+  def handle_process(
+        Pad.ref(:input, :video) = _pad,
+        %Membrane.Buffer{} = buffer,
+        _ctx,
+        %{input_pads_counter: 2} = state
+      ) do
+    case buffer.metadata do
+      %{is_keyframe: true} ->
+        state = Map.put(state, :video_first_pts, buffer.pts) |> Map.put(:first_keyframe?, true)
+        synchronized_pts = Ratio.sub(buffer.pts, state.video_first_pts)
+        buffer = %Buffer{buffer | pts: synchronized_pts}
+        {{:ok, buffer: {Pad.ref(:output, :video), buffer}}, state}
+
+      _not_keyframe ->
+        {:ok, state}
+    end
   end
 
   @impl true
