@@ -124,8 +124,8 @@ if Enum.all?(
                   spec: :live | :vod,
                   default: :live,
                   description: """
-                  Tells if the session is live or a VOD type of broadcast. It can influence type of metadata
-                  inserted into the playlist's manifest.
+                  Tells if the session is live or a vod type of broadcast. Use live when you generate HLS stream from real-time data.
+                  Use vod when generating HLS from file.
                   """
                 ]
 

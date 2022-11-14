@@ -105,17 +105,17 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   defp parser_interceptor(:OPUS) do
     fn link_builder ->
-      Membrane.ParentSpec.to(link_builder, :decoder, Membrane.AAC.FDK.Decoder)
-      |> Membrane.ParentSpec.to(:encoder, %Membrane.Opus.Encoder{
+      to(link_builder, :decoder, Membrane.AAC.FDK.Decoder)
+      |> to(:encoder, %Membrane.Opus.Encoder{
         input_caps: %Membrane.RawAudio{channels: 1, sample_rate: 48_000, sample_format: :s16le}
       })
-      |> Membrane.ParentSpec.to(:parser, %Membrane.Opus.Parser{})
+      |> to(:parser, %Membrane.Opus.Parser{})
     end
   end
 
   defp parser_interceptor(:H264) do
     fn link_builder ->
-      Membrane.ParentSpec.to(link_builder, :parser, %Membrane.H264.FFmpeg.Parser{
+      to(link_builder, :parser, %Membrane.H264.FFmpeg.Parser{
         framerate: {60, 1},
         alignment: :nal
       })
