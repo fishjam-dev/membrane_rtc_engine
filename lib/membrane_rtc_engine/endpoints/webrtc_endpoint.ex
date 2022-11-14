@@ -583,6 +583,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_element_start_of_stream(_element, _ctx, state) do
+    {:ok, state}
+  end
+
+  @impl true
   def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
     {{:ok, remove_child: {:track_receiver, track_id}}, state}
   end
