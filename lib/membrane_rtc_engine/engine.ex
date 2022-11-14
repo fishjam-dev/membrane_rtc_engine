@@ -396,12 +396,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_init(options)
-      when not is_nil(options.toilet_capacity) and options.toilet_capacity < 0 do
-    raise("Option toilet_capacity has to be a positive integer.")
-  end
-
-  @impl true
   def handle_init(options) do
     Logger.metadata(rtc_engine: options[:id])
 
@@ -426,6 +420,9 @@ defmodule Membrane.RTC.Engine do
 
     telemetry_label = (options[:telemetry_label] || []) ++ [room_id: options[:id]]
 
+    toilet_capacity = options[:toilet_capacity] || 200
+    if toilet_capacity < 0, do: raise("toilet_capacity has to be a positive integer")
+
     {{:ok, playback: :playing},
      %{
        id: options[:id],
@@ -438,7 +435,7 @@ defmodule Membrane.RTC.Engine do
        filters: %{},
        subscriptions: %{},
        display_manager: display_manager,
-       toilet_capacity: options[:toilet_capacity] || 200
+       toilet_capacity: toilet_capacity
      }}
   end
 
