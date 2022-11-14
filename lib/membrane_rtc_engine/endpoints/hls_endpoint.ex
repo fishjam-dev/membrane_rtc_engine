@@ -63,6 +63,17 @@ if Enum.all?(
       Membrane.AAC.FDK.Encoder
     ]
 
+    @common_track_children [
+      :opus_decoder,
+      :aac_encoder,
+      :aac_parser,
+      :video_parser,
+      :decoder,
+      :framerate_converter,
+      :track_receiver,
+      :depayloader
+    ]
+
     def_input_pad(:input,
       demand_unit: :buffers,
       caps: :any,
@@ -224,24 +235,9 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
-      track_children =
-        [
-          :opus_decoder,
-          :aac_encoder,
-          :aac_parser,
-          :video_parser,
-          :decoder,
-          :framerate_converter,
-          :track_receiver,
-          :depayloader,
-          :track_sync
-        ]
-        |> Enum.map(&{&1, track_id})
-        |> Enum.filter(&Map.has_key?(ctx.children, &1))
-
+    def handle_pad_removed(Pad.ref(:input, track_id), ctx, %{hls_mode: :separate_av} = state) do
       {removed_track, tracks} = Map.pop!(state.tracks, track_id)
-      state = %{state | tracks: tracks}
+      track_children = get_tracks_children(removed_track, ctx, state)
 
       sink_bin_used? =
         Enum.any?(tracks, fn {_id, track} ->
@@ -253,8 +249,9 @@ if Enum.all?(
           is_nil(state.mixer_config) and not sink_bin_used? ->
             [{:hls_sink_bin, removed_track.stream_id}]
 
-          not is_nil(state.mixer_config) and tracks == %{} ->
-            get_common_children(ctx)
+          not is_nil(state.mixer_config) ->
+            Enum.filter(tracks, fn {_key, track} -> track.type == removed_track.type end)
+            |> get_mixer_children(removed_track, ctx)
 
           true ->
             []
@@ -262,7 +259,34 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      {{:ok, remove_child: children_to_remove}, state}
+      children_to_remove =
+        if tracks == %{}, do: children_to_remove ++ [:hls_sink_bin], else: children_to_remove
+
+      {{:ok, remove_child: children_to_remove}, %{state | tracks: tracks}}
+    end
+
+    @impl true
+    def handle_pad_removed(Pad.ref(:input, track_id), ctx, %{hls_mode: :muxed_av} = state) do
+      {removed_track, tracks} = Map.pop!(state.tracks, track_id)
+      tracks_children = get_tracks_children(removed_track, ctx, state)
+
+      children_to_remove =
+        cond do
+          is_nil(state.mixer_config) and tracks_children == [] ->
+            [{:hls_sink_bin, removed_track.stream_id}]
+
+          not is_nil(state.mixer_config) and map_size(tracks) == 1 ->
+            get_common_children(ctx)
+
+          not (tracks_children != []) ->
+            [{:track_sync, removed_track.stream_id}]
+
+          true ->
+            []
+        end
+
+      children_to_remove = tracks_children ++ children_to_remove
+      {{:ok, remove_child: children_to_remove}, %{state | tracks: tracks}}
     end
 
     @impl true
@@ -355,8 +379,7 @@ if Enum.all?(
       }
     end
 
-    if Enum.all?(@audio_mixer_deps, &Code.ensure_loaded?/1) and
-         Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
+    if Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do
       defp hls_link_both_tracks(initial_spec, track, ctx, state) do
         {audio_track, video_track} = get_audio_video_tracks(track, state)
         audio_spec = hls_links_and_children(audio_track, state, ctx)
@@ -632,8 +655,59 @@ if Enum.all?(
       |> tap(&unless &1, do: raise("Couldn't find depayloader for track #{inspect(track)}"))
     end
 
+    defp get_tracks_children(removed_track, ctx, %{hls_mode: :separate_av}) do
+      @common_track_children
+      |> Enum.map(&{&1, removed_track.id})
+      |> Enum.filter(&Map.has_key?(ctx.children, &1))
+    end
+
+    defp get_tracks_children(removed_track, ctx, %{hls_mode: :muxed_av} = state) do
+      stream_tracks =
+        Enum.filter(state.tracks, fn {_key, track} ->
+          track.stream_id == removed_track.stream_id
+        end)
+
+      case length(stream_tracks) do
+        1 ->
+          []
+
+        2 ->
+          Enum.map(stream_tracks, fn {_key, track} ->
+            @common_track_children
+            |> Enum.map(&{&1, track.id})
+            |> Enum.filter(&Map.has_key?(ctx.children, &1))
+          end)
+          |> Enum.reduce([], fn x, acc -> x ++ acc end)
+
+        _else ->
+          raise "Cannot remove pad, wrong number of tracks associated with this stream: #{removed_track.stream_id}"
+      end
+    end
+
+    defp get_mixer_children(tracks, _removed_track, _ctx) when length(tracks) > 0, do: []
+
+    defp get_mixer_children(_tracks, %{type: :video}, ctx) do
+      [
+        :compositor,
+        :encoder,
+        :video_parser_out,
+        :hls_sink_bin
+      ]
+      |> Enum.filter(&Map.has_key?(ctx.children, &1))
+    end
+
+    defp get_mixer_children(_tracks, %{type: :audio}, ctx) do
+      [
+        :hls_sink_bin,
+        :audio_mixer,
+        :aac_encoder,
+        :aac_parser
+      ]
+      |> Enum.filter(&Map.has_key?(ctx.children, &1))
+    end
+
     defp get_common_children(ctx) do
-      children = [
+      [
         :compositor,
         :encoder,
         :video_parser_out,
@@ -642,8 +716,7 @@ if Enum.all?(
         :aac_encoder,
         :aac_parser
       ]
-
-      Enum.filter(children, &Map.has_key?(ctx.children, &1))
+      |> Enum.filter(&Map.has_key?(ctx.children, &1))
     end
 
     if not Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do

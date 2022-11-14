@@ -171,6 +171,91 @@ defmodule Membrane.RTC.HLSEndpointTest do
       refute_received({:cleanup, _cleanup_function, ^stream_id})
     end
 
+    test "creates correct hls stream with muxed_av option",
+         %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+      video_file_endpoint_id = "video-file-endpoint"
+      audio_file_endpoint_id = "audio-file-endpoint"
+
+      video_file_name = "one_second.h264"
+      video_file_path = Path.join(@fixtures_dir, video_file_name)
+
+      hls_endpoint_id = "hls-endpoint"
+
+      video_track_id = "test-video-track"
+      audio_track_id = "test-audio-track"
+      stream_id = "test-stream"
+      reference_id = "muxed_av"
+
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, true)
+
+      audio_file_endpoint =
+        create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
+
+      video_file_endpoint =
+        create_video_file_endpoint(
+          rtc_engine,
+          video_file_path,
+          stream_id,
+          video_file_endpoint_id,
+          video_track_id
+        )
+
+      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
+
+      :ok =
+        Engine.add_endpoint(rtc_engine, video_file_endpoint, endpoint_id: video_file_endpoint_id)
+
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+      assert %{
+               "type" => "tracksAdded",
+               "data" => %{
+                 "trackIdToMetadata" => %{video_track_id => nil},
+                 "peerId" => video_file_endpoint_id
+               }
+             } == Jason.decode!(data)
+
+      :ok =
+        Engine.add_endpoint(rtc_engine, audio_file_endpoint, endpoint_id: audio_file_endpoint_id)
+
+      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+
+      assert %{
+               "type" => "tracksAdded",
+               "data" => %{
+                 "trackIdToMetadata" => %{audio_track_id => nil},
+                 "peerId" => audio_file_endpoint_id
+               }
+             } == Jason.decode!(data)
+
+      Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
+      Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
+
+      assert_receive({:playlist_playable, :video, ^stream_id}, 5_000)
+
+      Process.sleep(2_000)
+
+      output_dir = Path.join([tmp_dir, stream_id])
+      reference_dir = Path.join([@reference_dir, reference_id])
+
+      output_files = output_dir |> File.ls!() |> Enum.sort()
+      reference_files = reference_dir |> File.ls!() |> Enum.sort()
+
+      assert output_files == reference_files
+
+      for output_file <- output_files do
+        output_path = Path.join(output_dir, output_file)
+        %{size: size} = File.stat!(output_path)
+        assert size > 0
+      end
+
+      Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
+      Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
+
+      assert_receive({:cleanup, _cleanup_function, ^stream_id})
+      refute_received({:cleanup, _cleanup_function, ^stream_id})
+    end
+
     test "video mixer works properly", %{
       rtc_engine: rtc_engine,
       tmp_dir: tmp_dir
@@ -328,17 +413,18 @@ defmodule Membrane.RTC.HLSEndpointTest do
     end
   end
 
-  defp create_hls_endpoint(rtc_engine, output_dir, _transcoding?) do
+  defp create_hls_endpoint(rtc_engine, output_dir, muxed_av?) do
     %HLS{
       rtc_engine: rtc_engine,
       owner: self(),
       output_directory: output_dir,
       target_window_duration: :infinity,
-      broadcast_mode: :vod
+      broadcast_mode: :vod,
+      hls_mode: if(muxed_av?, do: :muxed_av, else: :separate_av)
     }
   end
 
-  defp create_hls_endpoint_with_mixer(rtc_engine, output_dir, _transcoding?) do
+  defp create_hls_endpoint_with_mixer(rtc_engine, output_dir, _muxed_av?) do
     %HLS{
       rtc_engine: rtc_engine,
       owner: self(),

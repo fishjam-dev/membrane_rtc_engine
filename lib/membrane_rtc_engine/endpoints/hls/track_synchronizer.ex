@@ -26,7 +26,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer do
   end
 
   @impl true
-  def handle_caps(Pad.ref(:input, type) = _pad, caps, ctx, state) do
+  def handle_caps(Pad.ref(:input, type), caps, ctx, state) do
     if Map.has_key?(ctx.pads, Pad.ref(:output, type)) do
       {{:ok, caps: {Pad.ref(:output, type), caps}}, state}
     else
@@ -36,9 +36,15 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:input, _type) = _pad, _context, state) do
-    {:ok, %{state | input_pads_counter: state.input_pads_counter + 1}}
-  end
+  def handle_pad_removed(Pad.ref(:input, _type), _ctx, state),
+    do: {:ok, %{state | input_pads_counter: state.input_pads_counter - 1}}
+
+  @impl true
+  def handle_pad_removed(Pad.ref(:output, _type), _ctx, state), do: {:ok, state}
+
+  @impl true
+  def handle_pad_added(Pad.ref(:input, _type), _context, state),
+    do: {:ok, %{state | input_pads_counter: state.input_pads_counter + 1}}
 
   @impl true
   def handle_pad_added(Pad.ref(:output, type) = pad, _ctx, state)
@@ -48,9 +54,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, _type) = _pad, _ctx, state) do
-    {:ok, state}
-  end
+  def handle_pad_added(Pad.ref(:output, _type) = _pad, _ctx, state), do: {:ok, state}
 
   @impl true
   def handle_process(
@@ -95,12 +99,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.TrackSynchronizer do
   end
 
   @impl true
-  def handle_process(_pad, _buffer, _ctx, state) do
-    {:ok, state}
-  end
+  def handle_process(_pad, _buffer, _ctx, state), do: {:ok, state}
 
   @impl true
-  def handle_end_of_stream(Pad.ref(:input, type) = _pad, _ctx, state) do
-    {{:ok, end_of_stream: Pad.ref(:output, type)}, state}
-  end
+  def handle_end_of_stream(Pad.ref(:input, type) = _pad, _ctx, state),
+    do: {{:ok, end_of_stream: Pad.ref(:output, type)}, state}
 end
