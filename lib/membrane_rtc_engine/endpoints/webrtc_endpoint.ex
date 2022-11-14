@@ -529,13 +529,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> to(:endpoint_bin)
     ]
 
-    if length(track.variants) > 1 do
-      # Allocation negotiability is only applicable to simulcast tracks
-      # We wait 500ms to enable it to enable reaching a target variant at the beginning of the stream
-      # for better user experience.
-      Process.send_after(self(), {:enable_negotiability, track_id}, 500)
-    end
-
     {{:ok, spec: %ParentSpec{log_metadata: state.log_metadata, links: links}}, state}
   end
 
@@ -571,6 +564,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     }
 
     {{:ok, spec: spec}, state}
+  end
+
+  @impl true
+  def handle_element_start_of_stream({{:track_receiver, track_id}, _pad}, _ctx, state) do
+    track = Map.fetch!(state.outbound_tracks, track_id)
+
+    if length(track.variants) > 1 do
+      # Allocation negotiability is only applicable to simulcast tracks
+      # We wait 500ms to enable it to enable reaching a target variant at the beginning of the stream
+      # for better user experience.
+      # We're starting the timer in `handle_element_start_of_stream` to facilitate
+      # clients that don't send media right after SDP negotiation
+      Process.send_after(self(), {:enable_negotiability, track_id}, 500)
+    end
+
+    {:ok, state}
   end
 
   @impl true
