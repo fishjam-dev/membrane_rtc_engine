@@ -137,9 +137,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     # This is the very first call that we're getting from the Track Receiver
     # It is already sending some variant, so whatever bandwidth they are using will be initially allocated
     # without question
-
-    Logger.warn("New Track Receiver: #{inspect(pid)}")
-
     Process.monitor(pid)
 
     negotiable? =
