@@ -102,7 +102,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   def handle_cast({:bandwidth_estimation, estimation}, state) do
     Logger.info("Received bandwidth estimation of #{estimation / 1024} kbps")
 
-    estimation_increasing? = state.available_bandwidth == :unknown or estimation >= state.available_bandwidth
+    estimation_increasing? =
+      state.available_bandwidth == :unknown or estimation >= state.available_bandwidth
 
     state =
       state

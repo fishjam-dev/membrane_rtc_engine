@@ -43,7 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @typedoc """
   Messages that can be sent to TrackReceiver to control its behavior.
   """
-  @type control_messages() :: set_target_variant()
+  @type control_messages() :: set_target_variant() | set_negotiable?()
 
   @typedoc """
   Changes target track variant.
@@ -52,6 +52,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   whenever it is active.
   """
   @type set_target_variant() :: {:set_target_variant, Track.variant()}
+
+  @typedoc """
+  Changes negotiability status of the TrackReceiver.
+
+  Negotiability refers to the setting in `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator`
+  that determines if the allocation for the TrackReceiver can be negotiated.
+  """
+  @type set_negotiable?() :: {:set_negotiable?, boolean()}
 
   @typedoc """
   Notifications that TrackReceiver emits.
@@ -111,7 +119,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 Trying to enable negotiability for tracks that are inherently non-negotiable, also
                 known as non-simulcast tracks, will result in a crash.
 
-                This value can later be changed by sending a `{:set_negotiable?, boolean()}` message to this Element.
+                This value can later be changed by sending a `set_negotiable?/0` control message to this Element.
                 """
               ]
 
@@ -162,11 +170,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
     actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
     {{:ok, actions}, state}
-  end
-
-  @impl true
-  def handle_start_of_stream(:input, _ctx, state) do
-    {:ok, state}
   end
 
   @impl true

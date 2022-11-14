@@ -523,8 +523,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         track: track,
         initial_target_variant: initial_target_variant,
         connection_allocator: state.connection_prober,
-        connection_allocator_module: @connection_prober,
-        allocation_negotiable?: false
+        connection_allocator_module: @connection_prober
       })
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)

@@ -87,7 +87,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   @callback request_allocation(pid(), number()) :: :ok
 
   @doc """
-  A function used by VariantSelector to change it's negotiability status.
+  Function used to change the negotiability status of the TrackReceiver.
 
   TrackReceiver is considered negotiable if it is both capable of decreasing its bandwidth usage and, in principal, allowed to do so.
   """
