@@ -264,9 +264,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_end_of_stream(input_pad, _ctx, state) do
+  def handle_end_of_stream(input_pad, ctx, state) do
     output_pad = to_output_pad(input_pad)
-    {{:ok, end_of_stream: output_pad}, state}
+
+    if Map.has_key?(ctx.pads, output_pad) do
+      {{:ok, end_of_stream: output_pad}, state}
+    else
+      {:ok, state}
+    end
   end
 
   defp check_variant_status(variant, tracker, state) do
