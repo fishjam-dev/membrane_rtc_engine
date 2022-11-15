@@ -135,7 +135,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       refute_receive %AllocationGrantedNotification{allocation: ^allocation}
     end
 
-    test "reallocates bandwidth of dieing TrackReceiver", %{track: track, prober: prober} do
+    test "reallocates bandwidth of terminating TrackReceiver", %{track: track, prober: prober} do
       RTPConnectionAllocator.update_bandwidth_estimation(prober, 1000)
 
       tr1 = mock_track_receiver(prober, 500, track)
