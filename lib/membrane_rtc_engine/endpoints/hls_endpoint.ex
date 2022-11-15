@@ -566,12 +566,7 @@ if Enum.all?(
       Enum.filter(children, &Map.has_key?(ctx.children, &1))
     end
 
-    if not Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do
-      defp merge_strings(strings),
-        do:
-          strings
-          |> Enum.map(&String.replace_suffix(&1, "", " "))
-          |> Enum.reduce(&Kernel.<>(&1, &2))
-    end
+    if not Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
+      do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
   end
 end
