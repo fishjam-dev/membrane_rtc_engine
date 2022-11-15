@@ -261,9 +261,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {{:ok, actions}, %{state | selector: selector}}
   end
 
+  # FIXME
+  # this guard is too compilcated and might mean
+  # we are doing something incorrectly
   @impl true
   def handle_other(:send_padding_packet, ctx, state)
-      when not ctx.pads.output.end_of_stream? and ctx.playback_state == :playing do
+      when not ctx.pads.output.end_of_stream? and ctx.playback_state == :playing and
+             ctx.pads.output.caps != nil do
     {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
 
     actions =
