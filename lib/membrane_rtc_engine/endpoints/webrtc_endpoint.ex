@@ -287,12 +287,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:removed_tracks, tracks}, :endpoint_bin, _ctx, state) do
+  def handle_notification({:removed_tracks, tracks}, :endpoint_bin, ctx, state) do
     tracks = Enum.map(tracks, &to_rtc_track(&1, Map.get(state.inbound_tracks, &1.id)))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
-    {{:ok, notify: {:publish, {:removed_tracks, tracks}}},
-     %{state | inbound_tracks: inbound_tracks}}
+    track_senders =
+      tracks
+      |> Enum.map(&{:track_sender, &1.id})
+      |> Enum.filter(&Map.has_key?(ctx.children, &1))
+
+    actions = [
+      remove_child: track_senders,
+      notify: {:publish, {:removed_tracks, tracks}}
+    ]
+
+    {{:ok, actions}, %{state | inbound_tracks: inbound_tracks}}
   end
 
   @impl true
@@ -593,18 +602,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:output, {track_id, _variant}), ctx, state) do
-    # check if there are any variants that are still linked
-    track_linked? =
-      ctx.pads
-      |> Map.keys()
-      |> Enum.any?(&match?(Pad.ref(:output, {^track_id, _variant}), &1))
-
-    if track_linked? do
-      {:ok, state}
-    else
-      {{:ok, remove_child: {:track_sender, track_id}}, state}
-    end
+  def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
+    {:ok, state}
   end
 
   defp handle_custom_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
