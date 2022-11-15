@@ -148,8 +148,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
     test "reallocates bandwidth of dieing TrackReceiver", %{track: track, prober: prober} do
       RTPConnectionAllocator.update_bandwidth_estimation(prober, 1000)
 
-      tr1 = mock_track_receiver(self(), prober, 500, track)
-      tr2 = mock_track_receiver(self(), prober, 500, track)
+      tr1 = mock_track_receiver(prober, 500, track)
+      tr2 = mock_track_receiver(prober, 500, track)
       Process.monitor(tr1)
 
       expected_allocation = 1000
@@ -161,6 +161,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
       assert_receive {:received, ^tr2,
                       %AllocationGrantedNotification{allocation: ^expected_allocation}}
+    end
+
+    test "reallocates bandwidth that was freed by another TrackReceiver", %{
+      prober: prober,
+      track: track
+    } do
+      RTPConnectionAllocator.update_bandwidth_estimation(prober, 1000)
+
+      tr1 = mock_track_receiver(prober, 500, track)
+      tr2 = mock_track_receiver(prober, 500, track)
+
+      send(tr1, {:request, 1000})
+      refute_received {:received, ^tr1, %AllocationGrantedNotification{}}
+
+      send(tr2, {:request, 0})
+      assert_receive {:received, ^tr2, %AllocationGrantedNotification{allocation: 0}}
+
+      assert_receive {:received, ^tr1, %AllocationGrantedNotification{allocation: 1000}}
     end
   end
 
@@ -273,15 +291,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
     end
   end
 
-  defp mock_track_receiver(owner, prober, initial_allocation, track, negotiable? \\ true) do
-    spawn(fn ->
-      :ok =
-        RTPConnectionAllocator.register_track_receiver(prober, initial_allocation, track,
-          negotiable?: negotiable?
-        )
+  defp mock_track_receiver(prober, initial_allocation, track, negotiable? \\ true) do
+    owner = self()
 
-      do_mock_track_receiver(owner, prober)
-    end)
+    pid =
+      spawn(fn ->
+        :ok =
+          RTPConnectionAllocator.register_track_receiver(prober, initial_allocation, track,
+            negotiable?: negotiable?
+          )
+
+        send(owner, {:ready, self()})
+        do_mock_track_receiver(owner, prober)
+      end)
+
+    receive do
+      {:ready, ^pid} -> pid
+    after
+      100 -> raise "Mocking track receiver timed out"
+    end
   end
 
   defp do_mock_track_receiver(owner, prober) do
