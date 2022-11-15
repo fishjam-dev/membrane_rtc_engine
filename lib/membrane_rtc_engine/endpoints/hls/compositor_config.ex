@@ -21,7 +21,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
           output_framerate: {integer(), integer()},
           output_width: integer(),
           output_height: integer(),
-          ffmpeg_filter: (integer(), integer(), integer() -> binary())
+          ffmpeg_filter:
+            (width :: integer(), height :: integer(), inputs_num :: integer() ->
+               ffmpeg_filtergraph_command :: binary())
         }
   defstruct output_framerate: {24, 1},
             output_width: 1280,
