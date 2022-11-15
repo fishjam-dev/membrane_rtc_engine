@@ -249,8 +249,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     state =
       state
       |> Map.update!(:allocated_bandwidth, &(&1 - tr_metadata.current_allocation))
+      |> maybe_change_overuse_status(state.prober_status == :allowed_overuse)
       |> update_allocations()
-      |> update_status()
+      |> maybe_change_probing_status()
 
     {:noreply, state}
   end
