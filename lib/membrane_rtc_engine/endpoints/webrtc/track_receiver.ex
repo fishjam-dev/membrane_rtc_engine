@@ -14,7 +14,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   To control TrackReceiver behavior see `t:control_messages/0`.
 
-  TrackReceiver also emits some notificaitons. They are defined
+  TrackReceiver also emits some notifications. They are defined
   in `t:notifications/0`.
   """
   use Membrane.Filter
@@ -43,7 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @typedoc """
   Messages that can be sent to TrackReceiver to control its behavior.
   """
-  @type control_messages() :: set_target_variant()
+  @type control_messages() :: set_target_variant() | set_negotiable?()
 
   @typedoc """
   Changes target track variant.
@@ -52,6 +52,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   whenever it is active.
   """
   @type set_target_variant() :: {:set_target_variant, Track.variant()}
+
+  @typedoc """
+  Changes negotiability status of the TrackReceiver.
+
+  Negotiability refers to the setting in `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator`
+  that determines if the allocation for the TrackReceiver can be negotiated.
+  """
+  @type set_negotiable?() :: {:set_negotiable?, boolean()}
 
   @typedoc """
   Notifications that TrackReceiver emits.
@@ -101,6 +109,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
                 description: """
                 PID of the instance of the ConnectionAllocator that should be used by the TrackReceiver
                 """
+              ],
+              allocation_negotiable?: [
+                spec: boolean(),
+                default: false,
+                description: """
+                Option defining whether allocation for this Track Receiver should be negotiable.
+
+                Trying to enable negotiability for tracks that are inherently non-negotiable, also
+                known as non-simulcast tracks, will result in a crash.
+
+                This value can later be changed by sending a `set_negotiable?/0` control message to this Element.
+                """
               ]
 
   def_input_pad :input,
@@ -119,7 +139,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         track: track,
         initial_target_variant: initial_target_variant,
         keyframe_request_interval: keyframe_request_interval,
-        connection_allocator_module: connection_allocator_module
+        connection_allocator_module: connection_allocator_module,
+        allocation_negotiable?: allocation_negotiable?
       }) do
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
 
@@ -128,7 +149,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         track,
         connection_allocator_module,
         connection_allocator,
-        initial_target_variant
+        initial_target_variant: initial_target_variant,
+        negotiable?: allocation_negotiable?
       )
 
     state = %{
@@ -219,12 +241,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
+  def handle_other({:set_negotiable, negotiable?}, _ctx, state) do
+    VariantSelector.set_negotiable(state.selector, negotiable?)
+    {:ok, state}
+  end
+
+  @impl true
   def handle_other({:set_target_variant, variant}, _ctx, state) do
     if variant not in state.track.variants do
       raise("""
       Tried to set invalid target variant: #{inspect(variant)} for track: #{inspect(state.track)}.
       """)
     end
+
+    Membrane.Logger.debug("Setting target variant #{variant}")
 
     {selector, selector_action} = VariantSelector.set_target_variant(state.selector, variant)
     actions = handle_selector_action(selector_action)
@@ -249,7 +279,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_other(:send_padding_packet, _ctx, state) do
-    Process.send_after(self(), :send_padding_packet, 10)
+    Process.send_after(self(), :send_padding_packet, 100)
     {:ok, state}
   end
 

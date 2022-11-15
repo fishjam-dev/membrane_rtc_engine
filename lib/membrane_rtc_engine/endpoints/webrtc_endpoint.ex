@@ -434,6 +434,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_other({:enable_negotiability, track_id}, ctx, state) do
+    track_receiver = {:track_receiver, track_id}
+
+    forward_actions =
+      if Map.has_key?(ctx.children, track_receiver),
+        do: [forward: {track_receiver, {:set_negotiable, true}}],
+        else: []
+
+    {{:ok, forward_actions}, state}
+  end
+
+  @impl true
   def handle_other(
         %TrackNotification{
           track_id: track_id,
@@ -552,6 +564,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     }
 
     {{:ok, spec: spec}, state}
+  end
+
+  @impl true
+  def handle_element_start_of_stream({{:track_receiver, track_id}, _pad}, _ctx, state) do
+    track = Map.fetch!(state.outbound_tracks, track_id)
+
+    if length(track.variants) > 1 do
+      # Allocation negotiability is only applicable to simulcast tracks
+      # We wait 500ms to enable it to enable reaching a target variant at the beginning of the stream
+      # for better user experience.
+      # We're starting the timer in `handle_element_start_of_stream` to facilitate
+      # clients that don't send media right after SDP negotiation
+      Process.send_after(self(), {:enable_negotiability, track_id}, 500)
+    end
+
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_element_start_of_stream(_element, _ctx, state) do
+    {:ok, state}
   end
 
   @impl true

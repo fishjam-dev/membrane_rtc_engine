@@ -32,11 +32,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   #  when we're in `:allowed_overuse` and estimation decreased, or if the estimation decreases below
   #  the level of total allocation. We will aim to lower total allocation when operating in this state.
   #
-  # `:increase estimation` and `:maintain_estimation` will be reffered to as "probing statuses",
+  # `:increase estimation` and `:maintain_allocation` will be reffered to as "probing statuses",
   # while `:allowed_overuse` and `:disallowed_overuse`, as "overuse statuses"
   @typep prober_status_t() ::
            :increase_estimation
-           | :maintain_estimation
+           | :maintain_allocation
            | :allowed_overuse
            | :disallowed_overuse
 
@@ -54,7 +54,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   defstruct [
     :bitrate_timer,
     available_bandwidth: :unknown,
-    prober_status: :increase_estimation,
+    prober_status: :allowed_overuse,
     track_receivers: %{},
     allocated_bandwidth: 0,
     estimation_timestamp: 0,
@@ -70,8 +70,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   ## Public API
 
   @impl true
-  def register_track_receiver(prober, bandwidth, track),
-    do: GenServer.cast(prober, {:hello, self(), bandwidth, track})
+  def register_track_receiver(prober, bandwidth, track, options \\ []),
+    do: GenServer.cast(prober, {:register_track_receiver, self(), bandwidth, track, options})
 
   @impl true
   def request_allocation(bitrate_manager, desired_allocation),
@@ -90,6 +90,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     do: GenServer.cast(prober, {:bits_sent, @padding_packet_size})
 
   @impl true
+  def set_negotiability_status(allocator, value),
+    do: GenServer.cast(allocator, {:set_negotiability_status, self(), value})
+
+  @impl true
   def init(_opts) do
     {:ok, %__MODULE__{}}
   end
@@ -97,7 +101,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @impl true
   def handle_cast({:bandwidth_estimation, estimation}, state) do
     Logger.info("Received bandwidth estimation of #{estimation / 1024} kbps")
-    estimation_increasing? = estimation >= state.available_bandwidth
+
+    estimation_increasing? =
+      state.available_bandwidth == :unknown or estimation >= state.available_bandwidth
 
     state =
       state
@@ -125,18 +131,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   @impl true
-  def handle_cast({:hello, pid, bandwidth, track}, state) do
+  def handle_cast({:register_track_receiver, pid, bandwidth, track, options}, state) do
     # This is the very first call that we're getting from the Track Receiver
     # It is already sending some variant, so whatever bandwidth they are using will be initially allocated
     # without question
-
     Process.monitor(pid)
+
+    negotiable? =
+      if Keyword.has_key?(options, :negotiable?),
+        do: options[:negotiable?],
+        else: length(track.variants) > 1
 
     receiver = %{
       pid: pid,
       current_allocation: bandwidth,
       target_allocation: nil,
-      negotiable?: length(track.variants) > 1
+      negotiable?: negotiable?
     }
 
     state =
@@ -151,6 +161,40 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       |> put_in([:track_receivers, pid], receiver)
       |> Map.update!(:allocated_bandwidth, &(&1 + bandwidth))
       |> update_status(overuse_allowed?: true)
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:set_negotiability_status, pid, value}, state) do
+    state =
+      case state.track_receivers[pid] do
+        nil ->
+          Logger.error(
+            "Attempted to change negotiability status of a Track Receiver that doesn't exist. Ignoring"
+          )
+
+          state
+
+        %{negotiable?: ^value} ->
+          Logger.debug(
+            "Attempted to change negotiability status #{value}, but it is already in this state"
+          )
+
+          state
+
+        _track_receiver ->
+          Logger.debug(
+            "Track Receiver #{inspect(pid)} requested to set its negotiability status to #{value}"
+          )
+
+          state
+          |> put_in([:track_receivers, pid, :negotiable?], value)
+          # We shouldn't go into allowed_overuse mode, but we also shouldn't swap disallowed_overuse for allowed_overuse
+          |> maybe_change_overuse_status(state.prober_status != :disallowed_overuse)
+          |> update_allocations()
+          |> maybe_change_probing_status()
+      end
 
     {:noreply, state}
   end
@@ -223,7 +267,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
     probing_target =
       case state.prober_status do
-        :maintain_estimation -> state.allocated_bandwidth
+        :maintain_allocation -> state.allocated_bandwidth
         :increase_estimation -> state.available_bandwidth + 200_000
         :allowed_overuse -> state.allocated_bandwidth
         :disallowed_overuse -> state.allocated_bandwidth
@@ -275,20 +319,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   # Checks and updates probing statuses
   defp maybe_change_probing_status(state) do
     cond do
+      state.available_bandwidth == :unknown ->
+        state
+
       # Overuse states take priority over probing states
       state.prober_status in [:allowed_overuse, :disallowed_overuse] ->
         state
 
-      not is_deficient?(state) and state.prober_status != :maintain_estimation ->
-        Logger.debug("Switching probing target to maintain estimation")
+      not is_deficient?(state) and state.prober_status != :maintain_allocation ->
+        Logger.debug("Switching prober state to maintain estimation")
 
         state
-        |> Map.put(:prober_status, :maintain_estimation)
+        |> Map.put(:prober_status, :maintain_allocation)
         |> stop_probing_timer()
         |> start_probing_timer()
 
       is_deficient?(state) and state.prober_status != :increase_estimation ->
-        Logger.debug("Switching probing target to increase estimation")
+        Logger.debug("Switching prober state to increase estimation")
 
         state
         |> Map.put(:prober_status, :increase_estimation)
@@ -308,6 +355,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         else: :disallowed_overuse
 
     cond do
+      state.available_bandwidth == :unknown ->
+        state
+
       state.prober_status != overuse_status and
           state.allocated_bandwidth > state.available_bandwidth ->
         Logger.debug("Switching prober state to #{overuse_status}")
@@ -319,7 +369,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
       state.prober_status in [:allowed_overuse, :disallowed_overuse] and
           state.allocated_bandwidth <= state.available_bandwidth ->
-        new_status = if is_deficient?(state), do: :increase_estimation, else: :maintain_estimation
+        new_status = if is_deficient?(state), do: :increase_estimation, else: :maintain_allocation
 
         Logger.debug(
           "Switching prober state to #{new_status} after being in the state of #{state.prober_status}"

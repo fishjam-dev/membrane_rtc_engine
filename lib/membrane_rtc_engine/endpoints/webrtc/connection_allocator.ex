@@ -71,7 +71,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   @doc """
   Function called by the TrackReceiver to register itself in the allocator
   """
-  @callback register_track_receiver(pid(), number(), Track.t()) :: :ok
+  @callback register_track_receiver(pid(), number(), Track.t(), Keyword.t()) :: :ok
 
   @doc """
   A function called by the endpoint, to update the bandwidth estimation in the allocator
@@ -85,4 +85,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   to the track receiver that gets new allocation.
   """
   @callback request_allocation(pid(), number()) :: :ok
+
+  @doc """
+  Function used to change the negotiability status of the TrackReceiver.
+
+  TrackReceiver is considered negotiable if it is both capable of decreasing its bandwidth usage and, in principal, allowed to do so.
+  """
+  @callback set_negotiability_status(pid(), boolean()) :: :ok
 end
