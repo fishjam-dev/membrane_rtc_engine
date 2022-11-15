@@ -144,6 +144,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       RTPConnectionAllocator.request_allocation(prober, allocation)
       refute_receive %AllocationGrantedNotification{allocation: ^allocation}
     end
+
+    test "reallocates bandwidth of dieing TrackReceiver", %{track: track, prober: prober} do
+      RTPConnectionAllocator.update_bandwidth_estimation(prober, 1000)
+
+      tr1 = mock_track_receiver(self(), prober, 500, track)
+      tr2 = mock_track_receiver(self(), prober, 500, track)
+      Process.monitor(tr1)
+
+      expected_allocation = 1000
+      send(tr2, {:request, expected_allocation})
+      refute_received {:received, ^tr2, %AllocationGrantedNotification{}}
+
+      send(tr1, :terminate)
+      assert_receive {:DOWN, _monitor, :process, ^tr1, _reason}
+
+      assert_receive {:received, ^tr2,
+                      %AllocationGrantedNotification{allocation: ^expected_allocation}}
+    end
   end
 
   describe "RTPConnectionAllocator prober state" do
@@ -252,6 +270,36 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         )
 
       assert prober.prober_status == :allowed_overuse
+    end
+  end
+
+  defp mock_track_receiver(owner, prober, initial_allocation, track, negotiable? \\ true) do
+    spawn(fn ->
+      :ok =
+        RTPConnectionAllocator.register_track_receiver(prober, initial_allocation, track,
+          negotiable?: negotiable?
+        )
+
+      do_mock_track_receiver(owner, prober)
+    end)
+  end
+
+  defp do_mock_track_receiver(owner, prober) do
+    receive do
+      :terminate ->
+        :ok
+
+      {:request, amount} ->
+        RTPConnectionAllocator.request_allocation(prober, amount)
+        do_mock_track_receiver(owner, prober)
+
+      %AllocationGrantedNotification{} = msg ->
+        send(owner, {:received, self(), msg})
+        do_mock_track_receiver(owner, prober)
+
+      :decrease_allocation_request = msg ->
+        send(owner, {:received, self(), msg})
+        do_mock_track_receiver(owner, prober)
     end
   end
 
