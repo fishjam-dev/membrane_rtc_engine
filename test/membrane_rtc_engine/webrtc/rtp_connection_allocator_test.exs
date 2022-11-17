@@ -5,8 +5,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator
   alias Membrane.Time
 
-  @initial_bandwidth_estimation 10_000
+  @initial_bandwidth_estimation 100_000
   @padding_packet_size 8 * 256
+
+  # Type describing probing scenario, to be used in `test_probing/1`
+  @typep scenario_t() :: %{
+           duration: Time.t(),
+           expected_probing_rate: non_neg_integer(),
+           on_start: (pid() -> :ok)
+         }
 
   setup context do
     track = %{
@@ -30,96 +37,41 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       [prober: prober]
     end
 
-    # This test is a little flaky
-    test "correctly probes the connection in :maintain_allocation state", %{
+    test "correctly probes the connection in :maintain_estimation state, new version", %{
       prober: prober,
       track: track
     } do
-      requested_bandwidth = @initial_bandwidth_estimation
+      scenario = [
+        %{
+          duration: Time.seconds(5),
+          on_start: fn task ->
+            send(task, {:request, @initial_bandwidth_estimation})
 
-      # Create the task, request bandwdith and wait for allocation to be granted
-      task = mock_track_receiver(prober, 0, track, true, true)
-      send(task, {:request, requested_bandwidth})
+            assert_receive {:received, ^task,
+                            %AllocationGrantedNotification{
+                              allocation: @initial_bandwidth_estimation
+                            }}
+          end,
+          expected_probing_rate: @initial_bandwidth_estimation
+        }
+      ]
 
-      assert_receive {:received, ^task,
-                      %AllocationGrantedNotification{allocation: ^requested_bandwidth}}
-
-      # Collect start time, wait 5 seconds and terminate this party
-      start_time = Time.monotonic_time()
-      Process.sleep(5_000)
-      send(task, {:request, 0})
-      send(task, :terminate)
-
-      # Calculate duration and expected amount of paddings based on duration
-      duration = Time.monotonic_time() - start_time
-      duration_in_s = Ratio.to_float(Time.as_seconds(duration))
-
-      expected_amount_of_paddings =
-        Ratio.new(requested_bandwidth * duration_in_s, @padding_packet_size)
-        |> Ratio.to_float()
-        |> floor()
-        |> tap(&assert &1 > 1)
-
-      # due to the somewhat random nature of the algoritm, we're accepting +/- 1 packet error
-      for i <- 1..(expected_amount_of_paddings - 1) do
-        assert_receive {:probe_sent, ^task},
-                       0,
-                       "Only received #{i - 1}/#{expected_amount_of_paddings}"
-
-        :ok
-      end
-
-      for _i <- 1..2 do
-        receive do
-          {:probe_sent, ^task} -> :ok
-        after
-          0 -> :ok
-        end
-      end
-
-      refute_receive {:probe_sent, ^task}, 0
+      test_probing(prober, track, scenario)
     end
 
-    test "correctly probes the connection in :increase_allocation state", %{
+    test "correctly probes the connection in :increase_estimation state", %{
       prober: prober,
       track: track
     } do
-      expected_probing_rate = @initial_bandwidth_estimation + 200_000
+      scenario = [
+        %{
+          duration: Time.seconds(5),
+          on_start: fn task -> send(task, {:request, 999_999_999_999_999_999}) end,
+          expected_probing_rate: @initial_bandwidth_estimation + 200_000
+        }
+      ]
 
-      task = mock_track_receiver(prober, 0, track, true, true)
-      send(task, {:request, 999_999_999_999_999_999})
-
-      start_time = Time.monotonic_time()
-      Process.sleep(5_000)
-      send(task, {:request, 0})
-      send(task, :terminate)
-
-      duration = Time.monotonic_time() - start_time
-      duration_in_s = Ratio.to_float(Time.as_seconds(duration))
-
-      expected_amount_of_paddings =
-        Ratio.new(expected_probing_rate * duration_in_s, @padding_packet_size)
-        |> Ratio.to_float()
-        |> floor()
-        |> tap(&assert &1 > 1)
-
-      for i <- 1..(expected_amount_of_paddings - 1) do
-        assert_receive {:probe_sent, ^task},
-                       0,
-                       "Only received #{i - 1}/#{expected_amount_of_paddings}"
-
-        :ok
-      end
-
-      for _i <- 1..2 do
-        receive do
-          {:probe_sent, ^task} -> :ok
-        after
-          0 -> :ok
-        end
-      end
-
-      refute_receive {:probe_sent, ^task}, 0
+      test_probing(prober, track, scenario)
     end
 
     test "Grants allocations if it has bandwidth for it", %{prober: prober, track: track} do
@@ -133,7 +85,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       prober: prober,
       track: track
     } do
-      allocation = 9_999_999_999_999_999
+      allocation = @initial_bandwidth_estimation * 2
       RTPConnectionAllocator.register_track_receiver(prober, 0, track)
       RTPConnectionAllocator.request_allocation(prober, allocation)
       refute_receive %AllocationGrantedNotification{allocation: ^allocation}
@@ -334,5 +286,58 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         send(owner, {:probe_sent, self()})
         do_mock_track_receiver(owner, prober, probing?)
     end
+  end
+
+  @spec test_probing(pid(), Track.t(), [scenario_t()]) :: :ok
+  defp test_probing(connection_allocator, track, scenarios) do
+    task = mock_track_receiver(connection_allocator, 0, track, true, true)
+    task_monitor = Process.monitor(task)
+
+    epochs =
+      for scenario <- scenarios do
+        scenario.on_start.(task)
+        start = Time.monotonic_time()
+
+        scenario.duration
+        |> Time.as_milliseconds()
+        |> Ratio.floor()
+        |> Process.sleep()
+
+        duration = Time.monotonic_time() - start
+        {duration, scenario.expected_probing_rate}
+      end
+
+    send(task, {:request, 0})
+    send(task, :terminate)
+    assert_receive {:DOWN, ^task_monitor, :process, _pid, _reason}
+
+    expected_amount_of_paddings =
+      epochs
+      |> Enum.reduce(0, fn {duration, rate}, acc ->
+        duration
+        |> Time.as_seconds()
+        |> Ratio.mult(rate)
+        |> Ratio.add(acc)
+      end)
+      |> Ratio.div(@padding_packet_size)
+      |> Ratio.floor()
+
+    if expected_amount_of_paddings > 1 do
+      for i <- 1..(expected_amount_of_paddings - 1) do
+        assert_receive {:probe_sent, ^task},
+                       0,
+                       "Only received #{i - 1}/#{expected_amount_of_paddings} paddings"
+      end
+    end
+
+    for _i <- 1..2 do
+      receive do
+        {:probe_sent, ^task} -> :ok
+      after
+        0 -> :ok
+      end
+    end
+
+    refute_receive {:probe_sent, ^task}, 0, "Received too many paddings!"
   end
 end
