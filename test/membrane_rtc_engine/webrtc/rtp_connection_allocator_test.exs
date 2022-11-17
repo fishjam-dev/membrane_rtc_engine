@@ -37,17 +37,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
     } do
       requested_bandwidth = @initial_bandwidth_estimation
 
+      # Create the task, request bandwdith and wait for allocation to be granted
       task = mock_track_receiver(prober, 0, track, true, true)
       send(task, {:request, requested_bandwidth})
 
-      Process.sleep(100)
-      clear_inbox()
+      assert_receive {:received, ^task,
+                      %AllocationGrantedNotification{allocation: ^requested_bandwidth}}
 
+      # Collect start time, wait 5 seconds and terminate this party
       start_time = Time.monotonic_time()
       Process.sleep(5_000)
       send(task, {:request, 0})
       send(task, :terminate)
 
+      # Calculate duration and expected amount of paddings based on duration
       duration = Time.monotonic_time() - start_time
       duration_in_s = Ratio.to_float(Time.as_seconds(duration))
 
@@ -57,7 +60,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         |> floor()
         |> tap(&assert &1 > 1)
 
-      for i <- 1..expected_amount_of_paddings do
+      # due to the somewhat random nature of the algoritm, we're accepting +/- 1 packet error
+      for i <- 1..(expected_amount_of_paddings - 1) do
         assert_receive {:probe_sent, ^task},
                        0,
                        "Only received #{i - 1}/#{expected_amount_of_paddings}"
@@ -65,16 +69,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         :ok
       end
 
-      receive do
-        {:probe_sent, ^task} -> :ok
-      after
-        0 -> :ok
+      for _i <- 1..2 do
+        receive do
+          {:probe_sent, ^task} -> :ok
+        after
+          0 -> :ok
+        end
       end
 
       refute_receive {:probe_sent, ^task}, 0
     end
 
-    # this test is a little flaky
     test "correctly probes the connection in :increase_allocation state", %{
       prober: prober,
       track: track
@@ -83,9 +88,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
       task = mock_track_receiver(prober, 0, track, true, true)
       send(task, {:request, 999_999_999_999_999_999})
-
-      Process.sleep(100)
-      clear_inbox()
 
       start_time = Time.monotonic_time()
       Process.sleep(5_000)
@@ -101,7 +103,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         |> floor()
         |> tap(&assert &1 > 1)
 
-      for i <- 1..expected_amount_of_paddings do
+      for i <- 1..(expected_amount_of_paddings - 1) do
         assert_receive {:probe_sent, ^task},
                        0,
                        "Only received #{i - 1}/#{expected_amount_of_paddings}"
@@ -109,10 +111,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         :ok
       end
 
-      receive do
-        {:probe_sent, ^task} -> :ok
-      after
-        0 -> :ok
+      for _i <- 1..2 do
+        receive do
+          {:probe_sent, ^task} -> :ok
+        after
+          0 -> :ok
+        end
       end
 
       refute_receive {:probe_sent, ^task}, 0
@@ -267,7 +271,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       assert prober.prober_status == :allowed_overuse
     end
 
-    test "switches to allowed overuse mode when new track receiver shows up", %{
+    test "switches to allowed overuse mode when new track receiver registers", %{
       track: track,
       prober: prober
     } do
@@ -329,16 +333,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         RTPConnectionAllocator.probe_sent(prober)
         send(owner, {:probe_sent, self()})
         do_mock_track_receiver(owner, prober, probing?)
-    end
-  end
-
-  defp clear_inbox(acc \\ 0) do
-    receive do
-      _message ->
-        clear_inbox(acc + 1)
-    after
-      0 ->
-        acc
     end
   end
 end
