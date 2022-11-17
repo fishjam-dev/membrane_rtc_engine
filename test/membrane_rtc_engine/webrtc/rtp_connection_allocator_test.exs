@@ -41,18 +41,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       prober: prober,
       track: track
     } do
+      allocation1 = div(@initial_bandwidth_estimation, 2)
+      allocation2 = @initial_bandwidth_estimation
+
       scenario = [
         %{
           duration: Time.seconds(5),
           on_start: fn task ->
-            send(task, {:request, @initial_bandwidth_estimation})
+            send(task, {:request, allocation1})
 
             assert_receive {:received, ^task,
                             %AllocationGrantedNotification{
-                              allocation: @initial_bandwidth_estimation
+                              allocation: ^allocation1
                             }}
           end,
-          expected_probing_rate: @initial_bandwidth_estimation
+          expected_probing_rate: allocation1
+        },
+        %{
+          duration: Time.seconds(5),
+          on_start: fn task ->
+            send(task, {:request, allocation2})
+
+            assert_receive {:received, ^task,
+                            %AllocationGrantedNotification{
+                              allocation: ^allocation2
+                            }}
+          end,
+          expected_probing_rate: allocation2
         }
       ]
 
@@ -68,6 +83,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
           duration: Time.seconds(5),
           on_start: fn task -> send(task, {:request, 999_999_999_999_999_999}) end,
           expected_probing_rate: @initial_bandwidth_estimation + 200_000
+        },
+        %{
+          duration: Time.seconds(5),
+          on_start: fn _task ->
+            RTPConnectionAllocator.update_bandwidth_estimation(
+              prober,
+              @initial_bandwidth_estimation + 100_000
+            )
+          end,
+          expected_probing_rate: @initial_bandwidth_estimation + 300_000
         }
       ]
 
