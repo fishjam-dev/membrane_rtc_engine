@@ -37,10 +37,35 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       [prober: prober]
     end
 
-    test "correctly probes the connection in :maintain_estimation state, new version", %{
+    test "correctly probes the connection in :maintain_estimation state", %{
       prober: prober,
       track: track
     } do
+      allocation = div(@initial_bandwidth_estimation, 2)
+
+      scenario = [
+        %{
+          duration: Time.seconds(5),
+          on_start: fn task ->
+            send(task, {:request, allocation})
+
+            assert_receive {:received, ^task,
+                            %AllocationGrantedNotification{
+                              allocation: ^allocation
+                            }}
+          end,
+          expected_probing_rate: allocation
+        }
+      ]
+
+      test_probing(prober, track, scenario)
+    end
+
+    test "correctly probes the connection in :maintain_estimation state, with probing target change",
+         %{
+           prober: prober,
+           track: track
+         } do
       allocation1 = div(@initial_bandwidth_estimation, 2)
       allocation2 = @initial_bandwidth_estimation
 
@@ -74,10 +99,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       test_probing(prober, track, scenario)
     end
 
-    test "correctly probes the connection in :increase_estimation state", %{
-      prober: prober,
-      track: track
-    } do
+    test "correctly probes the connection in :increase_estimation state, with probing target change",
+         %{
+           prober: prober,
+           track: track
+         } do
       scenario = [
         %{
           duration: Time.seconds(5),
