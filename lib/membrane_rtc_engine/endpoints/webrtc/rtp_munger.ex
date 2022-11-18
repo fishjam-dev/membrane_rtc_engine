@@ -142,7 +142,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
 
     seq_num_diff = buffer.metadata.rtp.sequence_number - rtp_munger.highest_incoming_seq_num
 
-    if seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 do
+    if seq_num_diff > -(1 <<< 15) and seq_num_diff <= 0 do
       # out-of-order - update its sequence number
       # and timestamp without updating munger
       # 1 <<< 15 represents half of maximal sequence number

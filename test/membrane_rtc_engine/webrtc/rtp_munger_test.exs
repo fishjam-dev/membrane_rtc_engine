@@ -295,23 +295,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
   end
 
   test "RTP Munger drops out of order packets" do
-    encoding = generate_encoding_from_sequence(0,0,[1,2,2,3,2])
+    encoding = generate_encoding_from_sequence(0, 0, [1, 2, 2, 3, 2])
 
     rtp_munger =
       RTPMunger.new(90_000)
       |> RTPMunger.init(hd(encoding))
-    
+
     {_rtp_munger, munged_encoding} =
       Enum.reduce(encoding, {rtp_munger, []}, fn buffer, {rtp_munger, munged_encoding} ->
         {rtp_munger, munged_buffer} = RTPMunger.munge(rtp_munger, buffer)
         {rtp_munger, munged_encoding ++ [munged_buffer]}
       end)
 
-
     munged_encoding
     |> Enum.reject(&is_nil/1)
     |> Enum.map(& &1.metadata.rtp.sequence_number)
-    |> then(&assert &1 == [1,2,3])
+    |> then(&assert &1 == [1, 2, 3])
   end
 
   defp generate_encoding(seq_num_base, timestamp_base, packets_num) do
