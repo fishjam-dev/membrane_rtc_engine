@@ -313,8 +313,8 @@ Messages used by any RTC Engine plugin
 
 ### `sdpOffer`
 
-* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, and a mapping from `mid` to `track_id`.
-  Both maps contains information only about tracks send by peer associated with this endpoint.
+* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, and a mapping between `mid` and `track_id`.
+  Both maps contain only information about current peer `sendonly` tracks.
 
   ```json
   {
@@ -381,7 +381,7 @@ Messages used by any RTC Engine plugin
 
 ### `sdpAnswer`
 
-* Contains an SDP answer and mapping from mid to `track_id`
+* Contains an SDP answer and mapping between `mid` and `track_id` for all tracks (active, inactive, inbound and outbound)
 
   ```json
   {
