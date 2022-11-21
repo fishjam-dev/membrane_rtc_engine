@@ -294,7 +294,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
     assert length(rest_munged_l_encoding) == 8
   end
 
-  test "RTP Munger drops out of order packets" do
+  test "RTP Munger drops duplicated packets" do
     encoding = generate_encoding_from_sequence(0, 0, [1, 2, 2, 3, 2, 5, 4, 4])
 
     rtp_munger =

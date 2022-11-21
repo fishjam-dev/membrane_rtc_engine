@@ -39,22 +39,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
     end
   end
 
-  @spec get(t(), non_neg_integer()) :: {:ok, non_neg_integer()} | {:error, :not_found}
-  def get(%__MODULE__{cache: cache}, from) do
-    cache
-    |> Enum.find(fn
-      {^from, _to} -> true
-      _otherwise -> false
-    end)
-    |> case do
-      nil ->
-        {:error, :not_found}
-
-      {^from, to} ->
-        {:ok, to}
-    end
-  end
-
   @spec get_and_remove(t(), non_neg_integer()) ::
           {:ok, non_neg_integer(), t()} | {:error, :not_found}
   def get_and_remove(%__MODULE__{} = state, from) do
