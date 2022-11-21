@@ -142,55 +142,62 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
 
     seq_num_diff = buffer.metadata.rtp.sequence_number - rtp_munger.highest_incoming_seq_num
 
-    if seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 do
-      # out-of-order - update its sequence number
-      # and timestamp without updating munger
-      # 1 <<< 15 represents half of maximal sequence number
-      # so we detect out-of-order packet when the difference is
-      # high enough (-32 768; 0)
-      #
-      # to understand this more consider sequence number rollover
-      # scenario in which the difference between subsequent sequence numbers
-      # is equal to 0 - 65 536 = -65 536 - such packet cannot be
-      # considered as out-of-order
-      case Cache.get(rtp_munger.cache, buffer.metadata.rtp.sequence_number) do
-        {:ok, seq_num} ->
-          metadata =
-            buffer.metadata
-            |> update_in([:rtp, :timestamp], &calculate_timestamp(&1, rtp_munger))
-            |> put_in([:rtp, :sequence_number], seq_num)
+    cond do
+      seq_num_diff == 0 ->
+        {rtp_munger, nil}
 
-          {rtp_munger, %{buffer | metadata: metadata}}
+      seq_num_diff > -(1 <<< 15) and seq_num_diff < 0 ->
+        # out-of-order - update its sequence number
+        # and timestamp without updating munger
+        # 1 <<< 15 represents half of maximal sequence number
+        # so we detect out-of-order packet when the difference is
+        # high enough (-32 768; 0)
+        #
+        # to understand this more consider sequence number rollover
+        # scenario in which the difference between subsequent sequence numbers
+        # is equal to 0 - 65 536 = -65 536 - such packet cannot be
+        # considered as out-of-order
+        case Cache.get_and_remove(rtp_munger.cache, buffer.metadata.rtp.sequence_number) do
+          {:ok, seq_num, cache} ->
+            rtp_munger = %{rtp_munger | cache: cache}
 
-        {:error, :not_found} ->
-          {rtp_munger, nil}
-      end
-    else
-      # in order but not necessarily contiguous packet
-      highest_incoming_seq_num = buffer.metadata.rtp.sequence_number
-      buffer = update_sn_ts.(buffer)
+            metadata =
+              buffer.metadata
+              |> update_in([:rtp, :timestamp], &calculate_timestamp(&1, rtp_munger))
+              |> put_in([:rtp, :sequence_number], seq_num)
 
-      cache =
-        if seq_num_diff > 1 do
-          (rtp_munger.highest_incoming_seq_num + 1)..(highest_incoming_seq_num - 1)
-          |> Enum.reduce(rtp_munger.cache, fn seq_num, cache ->
-            Cache.push(cache, seq_num, calculate_seq_num(seq_num, rtp_munger))
-          end)
-        else
-          Cache.remove_outdated_entries(rtp_munger.cache, buffer.metadata.rtp.sequence_number)
+            {rtp_munger, %{buffer | metadata: metadata}}
+
+          {:error, :not_found} ->
+            {rtp_munger, nil}
         end
 
-      rtp_munger = %__MODULE__{
-        rtp_munger
-        | highest_incoming_seq_num: highest_incoming_seq_num,
-          last_seq_num: buffer.metadata.rtp.sequence_number,
-          last_timestamp: buffer.metadata.rtp.timestamp,
-          last_marker: buffer.metadata.rtp.marker,
-          last_packet_arrival: packet_arrival,
-          cache: cache
-      }
+      true ->
+        # in order but not necessarily contiguous packet
+        highest_incoming_seq_num = buffer.metadata.rtp.sequence_number
+        buffer = update_sn_ts.(buffer)
 
-      {rtp_munger, buffer}
+        cache =
+          if seq_num_diff > 1 do
+            (rtp_munger.highest_incoming_seq_num + 1)..(highest_incoming_seq_num - 1)
+            |> Enum.reduce(rtp_munger.cache, fn seq_num, cache ->
+              Cache.push(cache, seq_num, calculate_seq_num(seq_num, rtp_munger))
+            end)
+          else
+            Cache.remove_outdated_entries(rtp_munger.cache, buffer.metadata.rtp.sequence_number)
+          end
+
+        rtp_munger = %__MODULE__{
+          rtp_munger
+          | highest_incoming_seq_num: highest_incoming_seq_num,
+            last_seq_num: buffer.metadata.rtp.sequence_number,
+            last_timestamp: buffer.metadata.rtp.timestamp,
+            last_marker: buffer.metadata.rtp.marker,
+            last_packet_arrival: packet_arrival,
+            cache: cache
+        }
+
+        {rtp_munger, buffer}
     end
   end
 

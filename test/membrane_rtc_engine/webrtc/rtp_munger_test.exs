@@ -294,8 +294,31 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
     assert length(rest_munged_l_encoding) == 8
   end
 
+  test "RTP Munger drops duplicated packets" do
+    encoding = generate_encoding_from_sequence(0, 0, [1, 2, 2, 3, 2, 5, 4, 4])
+
+    rtp_munger =
+      RTPMunger.new(90_000)
+      |> RTPMunger.init(hd(encoding))
+
+    {_rtp_munger, munged_encoding} =
+      Enum.reduce(encoding, {rtp_munger, []}, fn buffer, {rtp_munger, munged_encoding} ->
+        {rtp_munger, munged_buffer} = RTPMunger.munge(rtp_munger, buffer)
+        {rtp_munger, munged_encoding ++ [munged_buffer]}
+      end)
+
+    munged_encoding
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(& &1.metadata.rtp.sequence_number)
+    |> then(&assert &1 == [1, 2, 3, 5, 4])
+  end
+
   defp generate_encoding(seq_num_base, timestamp_base, packets_num) do
-    for i <- 0..(packets_num - 1), into: [] do
+    generate_encoding_from_sequence(seq_num_base, timestamp_base, 0..(packets_num - 1))
+  end
+
+  defp generate_encoding_from_sequence(seq_num_base, timestamp_base, sequence) do
+    Enum.map(sequence, fn i ->
       %Membrane.Buffer{
         payload: generate_random_payload(100),
         metadata: %{
@@ -306,7 +329,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMungerTest do
           }
         }
       }
-    end
+    end)
   end
 
   defp swap(list, index1, index2) do
