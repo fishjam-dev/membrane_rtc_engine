@@ -55,8 +55,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
     end
   end
 
+  @spec get_and_remove(t(), non_neg_integer()) ::
+          {:ok, non_neg_integer(), t()} | {:error, :not_found}
+  def get_and_remove(%__MODULE__{} = state, from) do
+    state.cache
+    |> Enum.split_while(fn {a, _b} -> a != from end)
+    |> case do
+      {head, [{^from, to} | rest]} ->
+        cache = Qex.new(head ++ rest)
+        state = Map.put(state, :cache, cache)
+        {:ok, to, state}
+
+      _otherwise ->
+        {:error, :not_found}
+    end
+  end
+
   @spec remove_outdated_entries(t(), non_neg_integer()) :: t()
-  def remove_outdated_entries(state, last_mapping) do
+  def remove_outdated_entries(%__MODULE__{} = state, last_mapping) do
     window_size = get_window_size(state, last_mapping)
 
     if window_size >= @history_size do
@@ -67,7 +83,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
     end
   end
 
-  defp get_window_size(%{cache: cache} = _state, last_mapping) do
+  defp get_window_size(%__MODULE__{cache: cache} = _state, last_mapping) do
     case Qex.first(cache) do
       {:value, {_first, first_mapping}} ->
         rem(last_mapping - first_mapping + @max_seq_num, @max_seq_num)

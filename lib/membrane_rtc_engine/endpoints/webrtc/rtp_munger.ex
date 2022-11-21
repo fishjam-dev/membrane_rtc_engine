@@ -153,8 +153,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       # scenario in which the difference between subsequent sequence numbers
       # is equal to 0 - 65 536 = -65 536 - such packet cannot be
       # considered as out-of-order
-      case Cache.get(rtp_munger.cache, buffer.metadata.rtp.sequence_number) do
-        {:ok, seq_num} ->
+      case Cache.get_and_remove(rtp_munger.cache, buffer.metadata.rtp.sequence_number) do
+        {:ok, seq_num, cache} ->
+          rtp_munger = %{rtp_munger | cache: cache}
+
           metadata =
             buffer.metadata
             |> update_in([:rtp, :timestamp], &calculate_timestamp(&1, rtp_munger))

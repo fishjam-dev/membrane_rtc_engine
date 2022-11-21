@@ -19,12 +19,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.CacheTest do
 
       Enum.each(entries, fn {a, b} ->
         assert Cache.get(cache, a) == {:ok, b}
+        assert {:ok, ^b, _cache} = Cache.get_and_remove(cache, a)
       end)
 
       assert {:error, :not_found} == Cache.get(cache, 123)
     end
 
-    test "adds entries after rollover if the aren't too old" do
+    test "adds entries after rollover if they aren't too old" do
       cache =
         Cache.new()
         |> Cache.push(@max_seq_num - 2, 0)
@@ -42,6 +43,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.CacheTest do
         |> Cache.push(1, 2)
 
       assert {:error, :not_found} = Cache.get(cache, too_old_seq_num)
+    end
+
+    test "get_and_remove removes entries" do
+      cache =
+        Cache.new()
+        |> Cache.push(1, 1)
+
+      assert {:ok, 1, cache} = Cache.get_and_remove(cache, 1)
+      assert {:error, :not_found} == Cache.get_and_remove(cache, 1)
     end
   end
 end
