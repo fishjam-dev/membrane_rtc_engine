@@ -3,7 +3,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TestConnectionAllocator do
   @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator
 
   @impl true
-  def start_link(), do: {:ok, self()}
+  def create(), do: {:ok, self()}
+
+  @impl true
+  def destroy(_pid), do: :ok
 
   @impl true
   def register_track_receiver(allocator, bandwidth, track, _options \\ []) do

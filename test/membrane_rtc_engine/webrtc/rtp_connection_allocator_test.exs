@@ -23,7 +23,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
   describe "RTPConnectionAllocator" do
     setup do
-      {:ok, prober} = RTPConnectionAllocator.start_link()
+      {:ok, prober} = RTPConnectionAllocator.create()
 
       RTPConnectionAllocator.update_bandwidth_estimation(prober, @initial_bandwidth_estimation)
 

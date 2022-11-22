@@ -65,7 +65,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @padding_packet_size 8 * 256
 
   @impl true
-  def start_link(), do: GenServer.start_link(__MODULE__, [], [])
+  def create(), do: GenServer.start_link(__MODULE__, [], [])
+
+  @impl true
+  def destroy(pid), do: GenServer.stop(pid)
 
   ## Public API
 
@@ -299,6 +302,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @impl true
   def handle_info({_pid, {:decrease_allocation_request, _response}}, state) do
     {:noreply, state}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    if state.bitrate_timer, do: :timer.cancel(state.bitrate_timer)
+
+    :ok
   end
 
   ## Helper functions
