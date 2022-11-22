@@ -263,7 +263,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_playing_to_prepared(_ctx, state) do
-    state.connection_allocator_module.stop(state.connection_prober)
+    state.connection_allocator_module.destroy(state.connection_prober)
 
     {:ok, state}
   end
