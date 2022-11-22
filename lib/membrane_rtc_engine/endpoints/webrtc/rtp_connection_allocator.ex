@@ -307,7 +307,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
     :ok
   end
-  
+
   ## Helper functions
   defp stop_probing_timer(%__MODULE__{bitrate_timer: nil} = state), do: state
 

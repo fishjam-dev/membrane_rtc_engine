@@ -263,7 +263,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_playing_to_prepared(_ctx, state) do
-    GenServer.stop(state.connection_allocator)
+    GenServer.stop(state.connection_prober)
 
     {:ok, state}
   end
