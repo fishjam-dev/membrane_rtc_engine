@@ -40,6 +40,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   alias Membrane.Buffer
   alias Membrane.RTC.Engine.Track
 
+  @type allocator_ref() :: any()
+
   @typedoc """
   Type describing a message sent by ConnectionAllocator to `Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver`
   to request that they lower their allocation.
@@ -53,30 +55,39 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   @type decrease_allocation_request_response() ::
           {:decrease_allocation_request, :accept | :reject}
 
+  # Lifecycle callbacks
+
   @doc """
   A function that should be used by the WebRTC Endpoint to create an instance of ConnectionAllocator
   """
-  @callback start_link() :: GenServer.on_start()
+  @callback create() :: {:ok, allocator_ref()} | {:error, reason :: any()}
+
+  @doc """
+  A function that should be used by the endpoint to destroy an instance of ConnectionAllocator
+  """
+  @callback destroy(allocator_ref()) :: :ok
+
+  # API
 
   @doc """
   Function invoked by the TrackReceiver whenever a buffer is sent
   """
-  @callback buffer_sent(pid(), Buffer.t()) :: :ok
+  @callback buffer_sent(allocator_ref(), Buffer.t()) :: :ok
 
   @doc """
   Function invoked by the TrackReceiver whenever a padding packet is sent
   """
-  @callback probe_sent(pid()) :: :ok
+  @callback probe_sent(allocator_ref()) :: :ok
 
   @doc """
   Function called by the TrackReceiver to register itself in the allocator
   """
-  @callback register_track_receiver(pid(), number(), Track.t(), Keyword.t()) :: :ok
+  @callback register_track_receiver(allocator_ref(), number(), Track.t(), Keyword.t()) :: :ok
 
   @doc """
   A function called by the endpoint, to update the bandwidth estimation in the allocator
   """
-  @callback update_bandwidth_estimation(pid(), number()) :: :ok
+  @callback update_bandwidth_estimation(allocator_ref(), number()) :: :ok
 
   @doc """
   A function used by the VariantSelector to request a different bandwidth allocation.
@@ -84,12 +95,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   In response, the Allocator sends `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification`
   to the track receiver that gets new allocation.
   """
-  @callback request_allocation(pid(), number()) :: :ok
+  @callback request_allocation(allocator_ref(), number()) :: :ok
 
   @doc """
   Function used to change the negotiability status of the TrackReceiver.
 
   TrackReceiver is considered negotiable if it is both capable of decreasing its bandwidth usage and, in principal, allowed to do so.
   """
-  @callback set_negotiability_status(pid(), boolean()) :: :ok
+  @callback set_negotiability_status(allocator_ref(), boolean()) :: :ok
 end

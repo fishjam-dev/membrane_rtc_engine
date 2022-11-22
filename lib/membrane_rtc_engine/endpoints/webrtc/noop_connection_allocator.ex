@@ -9,7 +9,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification
 
   @impl true
-  def start_link(), do: {:ok, nil}
+  def create(), do: {:ok, nil}
+
+  @impl true
+  def destroy(nil), do: :ok
 
   @impl true
   def register_track_receiver(_manager, _bandwidth, _track, _options \\ []), do: :ok

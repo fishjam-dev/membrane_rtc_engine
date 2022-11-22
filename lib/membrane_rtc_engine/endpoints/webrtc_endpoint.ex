@@ -230,7 +230,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_prepared_to_playing(ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
-    {:ok, connection_prober} = state.connection_allocator_module.start_link()
+    {:ok, connection_prober} = state.connection_allocator_module.create()
 
     log_metadata = state.log_metadata ++ [webrtc_endpoint: endpoint_id]
 
@@ -263,7 +263,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_playing_to_prepared(_ctx, state) do
-    GenServer.stop(state.connection_prober)
+    state.connection_allocator_module.stop(state.connection_prober)
 
     {:ok, state}
   end
