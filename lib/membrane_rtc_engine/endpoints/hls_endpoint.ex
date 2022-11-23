@@ -107,7 +107,7 @@ if Enum.all?(
                 ],
                 segment_duration: [
                   spec: SegmentDuration.t(),
-                  default: SegmentDuration.new(Time.seconds(5), Time.seconds(5)),
+                  default: SegmentDuration.new(Time.seconds(4), Time.seconds(5)),
                   description: """
                   Expected length of each segment. Setting it is not necessary, but
                   may help players achieve better UX.
