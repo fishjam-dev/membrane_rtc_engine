@@ -76,19 +76,17 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_aac_plugin, "~> 0.12.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.13.0", optional: true},
       {:membrane_opus_plugin, "~> 0.15.0", optional: true},
-      {:membrane_h264_ffmpeg_plugin,
-       github: "membraneframework/membrane_h264_ffmpeg_plugin",
-       branch: "add_gop_size_option",
-       optional: true,
-       override: true},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.23.0", optional: true, override: true},
       {:membrane_framerate_converter_plugin, "~> 0.5.0", optional: true},
       {:membrane_ffmpeg_swscale_plugin, "~> 0.10.0", optional: true},
-      {:membrane_video_mix_plugin, github: "pkrucz00/membrane_video_mix_plugin", optional: true},
+      {:membrane_video_mixer_plugin,
+       github: "kim-company/membrane_video_mixer_plugin", optional: true},
       {:membrane_audio_mix_plugin, "~> 0.10.0", optional: true},
+      {:membrane_generator_plugin, "~> 0.6.0", optional: true},
+      {:membrane_realtimer_plugin, "~> 0.5.0", optional: true},
 
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},
-      {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},

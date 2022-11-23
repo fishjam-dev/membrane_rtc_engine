@@ -229,7 +229,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      assert_receive({:playlist_playable, :video, _playlist_idl}, 5_000)
+      assert_receive({:playlist_playable, :video, _playlist_idl}, 10_000)
 
       Process.sleep(5_000)
 
