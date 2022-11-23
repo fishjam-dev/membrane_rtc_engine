@@ -254,7 +254,7 @@ if Enum.all?(
             [{:hls_sink_bin, removed_track.stream_id}]
 
           not is_nil(state.mixer_config) and tracks == %{} ->
-            get_common_children()
+            get_common_children(ctx)
 
           true ->
             []
@@ -556,8 +556,8 @@ if Enum.all?(
       |> tap(&unless &1, do: raise("Couldn't find depayloader for track #{inspect(track)}"))
     end
 
-    defp get_common_children(),
-      do: [
+    defp get_common_children(ctx) do
+      children = [
         :compositor,
         :encoder,
         :video_parser_out,
@@ -566,5 +566,8 @@ if Enum.all?(
         :aac_encoder,
         :aac_parser
       ]
+
+      Enum.filter(children, &Map.has_key?(ctx.children, &1))
+    end
   end
 end
