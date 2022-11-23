@@ -108,20 +108,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       state.available_bandwidth == :unknown or estimation >= state.available_bandwidth
 
     state =
-      update_state(state, fn state ->
-        state
-        |> Map.put(:available_bandwidth, estimation)
-        # Allowed overuse status freezes all allocations
-        # Check if we can change it before updating allocations
-        # This function call also implements changing from :allowed_overuse
-        # to :disallowed_overuse when estimation isn't increasing
-        |> maybe_change_overuse_status(estimation_increasing?)
-        |> update_allocations()
-        # After updating the allocations, check probing statuses to check if
-        # we're still deficient or in one of the overuse statuses
-        |> maybe_change_probing_status()
-        |> ensure_probing_timer_started()
-      end)
+      state
+      |> Map.put(:available_bandwidth, estimation)
+      # Allowed overuse status freezes all allocations
+      # Check if we can change it before updating allocations
+      # This function call also implements changing from :allowed_overuse
+      # to :disallowed_overuse when estimation isn't increasing
+      |> maybe_change_overuse_status(estimation_increasing?)
+      |> update_allocations()
+      # After updating the allocations, check probing statuses to check if
+      # we're still deficient or in one of the overuse statuses
+      |> maybe_change_probing_status()
+      |> ensure_probing_timer_started()
+      |> maybe_update_probing_target(state)
 
     {:noreply, state}
   end
@@ -152,19 +151,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     }
 
     state =
-      update_state(state, fn state ->
-        state =
-          if track.type == :video do
-            Map.update!(state, :probing_queue, &Qex.push(&1, pid))
-          else
-            state
-          end
-
+      if track.type == :video do
+        Map.update!(state, :probing_queue, &Qex.push(&1, pid))
+      else
         state
-        |> put_in([:track_receivers, pid], receiver)
-        |> Map.update!(:allocated_bandwidth, &(&1 + bandwidth))
-        |> update_status(overuse_allowed?: true)
-      end)
+      end
+      |> put_in([:track_receivers, pid], receiver)
+      |> Map.update!(:allocated_bandwidth, &(&1 + bandwidth))
+      |> update_status(overuse_allowed?: true)
+      |> maybe_update_probing_target(state)
 
     {:noreply, state}
   end
@@ -192,14 +187,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
             "Track Receiver #{inspect(pid)} requested to set its negotiability status to #{value}"
           )
 
-          update_state(state, fn state ->
-            state
-            |> put_in([:track_receivers, pid, :negotiable?], value)
-            # We shouldn't go into allowed_overuse mode, but we also shouldn't swap disallowed_overuse for allowed_overuse
-            |> maybe_change_overuse_status(state.prober_status != :disallowed_overuse)
-            |> update_allocations()
-            |> maybe_change_probing_status()
-          end)
+          state
+          |> put_in([:track_receivers, pid, :negotiable?], value)
+          # We shouldn't go into allowed_overuse mode, but we also shouldn't swap disallowed_overuse for allowed_overuse
+          |> maybe_change_overuse_status(state.prober_status != :disallowed_overuse)
+          |> update_allocations()
+          |> maybe_change_probing_status()
+          |> maybe_update_probing_target(state)
       end
 
     {:noreply, state}
@@ -211,34 +205,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     receiver = Map.fetch!(state.track_receivers, pid)
 
     state =
-      update_state(state, fn state ->
-        cond do
-          receiver.current_allocation == target ->
-            state
+      cond do
+        receiver.current_allocation == target ->
+          state
 
-          receiver.current_allocation > target or not receiver.negotiable? ->
-            # Receiver lowers its allocation or this TR has non-negotiable allocation. It is therefore always granted
+        receiver.current_allocation > target or not receiver.negotiable? ->
+          # Receiver lowers its allocation or this TR has non-negotiable allocation. It is therefore always granted
 
-            send(pid, %AllocationGrantedNotification{allocation: target})
+          send(pid, %AllocationGrantedNotification{allocation: target})
 
-            state
-            |> put_in([:track_receivers, pid], %{
-              receiver
-              | current_allocation: target,
-                target_allocation: nil
-            })
-            |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
-            |> update_allocations()
-            |> update_status(overuse_allowed?: not receiver.negotiable?)
+          state
+          |> put_in([:track_receivers, pid], %{
+            receiver
+            | current_allocation: target,
+              target_allocation: nil
+          })
+          |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
+          |> update_allocations()
+          |> update_status(overuse_allowed?: not receiver.negotiable?)
 
-          true ->
-            # Receiver raises its allocation. This might not be instantly granted
-            state
-            |> put_in([:track_receivers, pid], %{receiver | target_allocation: target})
-            |> update_allocations()
-            |> update_status()
-        end
-      end)
+        true ->
+          # Receiver raises its allocation. This might not be instantly granted
+          state
+          |> put_in([:track_receivers, pid], %{receiver | target_allocation: target})
+          |> update_allocations()
+          |> update_status()
+      end
+      |> maybe_update_probing_target(state)
 
     {:noreply, state}
   end
@@ -255,13 +248,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     )
 
     state =
-      update_state(state, fn state ->
-        state
-        |> Map.update!(:allocated_bandwidth, &(&1 - tr_metadata.current_allocation))
-        |> maybe_change_overuse_status(state.prober_status == :allowed_overuse)
-        |> update_allocations()
-        |> maybe_change_probing_status()
-      end)
+      state
+      |> Map.update!(:allocated_bandwidth, &(&1 - tr_metadata.current_allocation))
+      |> maybe_change_overuse_status(state.prober_status == :allowed_overuse)
+      |> update_allocations()
+      |> maybe_change_probing_status()
+      |> maybe_update_probing_target(state)
 
     {:noreply, state}
   end
@@ -513,10 +505,5 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     else
       new_state
     end
-  end
-
-  defp update_state(state, transform_fn) do
-    new_state = transform_fn.(state)
-    maybe_update_probing_target(new_state, state)
   end
 end
