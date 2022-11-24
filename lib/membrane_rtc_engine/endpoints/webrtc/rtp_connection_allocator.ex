@@ -46,20 +46,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
             prober_status: prober_status_t(),
             available_bandwidth: non_neg_integer() | :unknown,
             allocated_bandwidth: non_neg_integer(),
-            bitrate_timer: :timer.tref() | nil,
-            estimation_timestamp: integer(),
-            bits_sent: non_neg_integer()
+            probing_timer: :timer.tref() | nil,
+            probing_epoch_start: integer(),
+            bits_sent: non_neg_integer(),
+            prev_probing_epochs_overflow: integer()
           }
 
   defstruct [
-    :bitrate_timer,
+    :probing_timer,
     available_bandwidth: :unknown,
     prober_status: :allowed_overuse,
     track_receivers: %{},
     allocated_bandwidth: 0,
-    estimation_timestamp: 0,
+    probing_epoch_start: 0,
     bits_sent: 0,
-    probing_queue: Qex.new()
+    probing_queue: Qex.new(),
+    prev_probing_epochs_overflow: 0
   ]
 
   @padding_packet_size 8 * 256
@@ -120,9 +122,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       # After updating the allocations, check probing statuses to check if
       # we're still deficient or in one of the overuse statuses
       |> maybe_change_probing_status()
-      # Restart probing timer regardless - we have changed the probing target
-      |> stop_probing_timer()
-      |> start_probing_timer()
+      |> ensure_probing_timer_started()
+      |> maybe_update_probing_target(state)
 
     {:noreply, state}
   end
@@ -158,12 +159,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       else
         state
       end
-
-    state =
-      state
       |> put_in([:track_receivers, pid], receiver)
       |> Map.update!(:allocated_bandwidth, &(&1 + bandwidth))
       |> update_status(overuse_allowed?: true)
+      |> maybe_update_probing_target(state)
 
     {:noreply, state}
   end
@@ -197,6 +196,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           |> maybe_change_overuse_status(state.prober_status != :disallowed_overuse)
           |> update_allocations()
           |> maybe_change_probing_status()
+          |> maybe_update_probing_target(state)
       end
 
     {:noreply, state}
@@ -234,6 +234,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           |> update_allocations()
           |> update_status()
       end
+      |> maybe_update_probing_target(state)
 
     {:noreply, state}
   end
@@ -255,6 +256,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       |> maybe_change_overuse_status(state.prober_status == :allowed_overuse)
       |> update_allocations()
       |> maybe_change_probing_status()
+      |> maybe_update_probing_target(state)
 
     {:noreply, state}
   end
@@ -269,21 +271,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
     use Numbers, overload_operators: true
 
-    probing_target =
-      case state.prober_status do
-        :maintain_allocation -> state.allocated_bandwidth
-        :increase_estimation -> state.available_bandwidth + 200_000
-        :allowed_overuse -> state.allocated_bandwidth
-        :disallowed_overuse -> state.allocated_bandwidth
-      end
-
-    now = get_timestamp()
-    elapsed_time_in_s = Time.as_seconds(now - state.estimation_timestamp)
-    expected_bits = elapsed_time_in_s * probing_target
-    missing = expected_bits - state.bits_sent
+    missing = expected_bits(state) - state.bits_sent
 
     state =
-      if Ratio.to_float(missing) > 0 do
+      if missing > 0 do
         # Send paddings
 
         no_padding_packets =
@@ -312,19 +303,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   ## Helper functions
-  defp stop_probing_timer(%__MODULE__{bitrate_timer: nil} = state), do: state
+  defp ensure_probing_timer_started(%__MODULE__{probing_timer: probing_timer} = state)
+       when not is_nil(probing_timer),
+       do: state
 
-  defp stop_probing_timer(%__MODULE__{} = state) do
-    {:ok, :cancel} = :timer.cancel(state.bitrate_timer)
-    %{state | bitrate_timer: nil}
-  end
+  defp ensure_probing_timer_started(%__MODULE__{available_bandwidth: :unknown} = state), do: state
 
-  defp start_probing_timer(%__MODULE__{available_bandwidth: :unknown} = state), do: state
-
-  defp start_probing_timer(%__MODULE__{} = state) do
+  defp ensure_probing_timer_started(%__MODULE__{} = state) do
     # we're not probing if we estimate infinite bandwidth or when none of the tracks is deficient
     {:ok, timer} = :timer.send_interval(10, :check_bits_sent)
-    %{state | bitrate_timer: timer, estimation_timestamp: get_timestamp(), bits_sent: 0}
+    %{state | probing_timer: timer, probing_epoch_start: get_timestamp(), bits_sent: 0}
   end
 
   # Checks and updates probing statuses
@@ -340,18 +328,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       not is_deficient?(state) and state.prober_status != :maintain_allocation ->
         Logger.debug("Switching prober state to maintain estimation")
 
-        state
-        |> Map.put(:prober_status, :maintain_allocation)
-        |> stop_probing_timer()
-        |> start_probing_timer()
+        Map.put(state, :prober_status, :maintain_allocation)
 
       is_deficient?(state) and state.prober_status != :increase_estimation ->
         Logger.debug("Switching prober state to increase estimation")
 
-        state
-        |> Map.put(:prober_status, :increase_estimation)
-        |> stop_probing_timer()
-        |> start_probing_timer()
+        Map.put(state, :prober_status, :increase_estimation)
 
       true ->
         state
@@ -373,10 +355,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           state.allocated_bandwidth > state.available_bandwidth ->
         Logger.debug("Switching prober state to #{overuse_status}")
 
-        state
-        |> Map.put(:prober_status, overuse_status)
-        |> stop_probing_timer()
-        |> start_probing_timer()
+        Map.put(state, :prober_status, overuse_status)
 
       state.prober_status in [:allowed_overuse, :disallowed_overuse] and
           state.allocated_bandwidth <= state.available_bandwidth ->
@@ -386,10 +365,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           "Switching prober state to #{new_status} after being in the state of #{state.prober_status}"
         )
 
-        state
-        |> Map.put(:prober_status, new_status)
-        |> stop_probing_timer()
-        |> start_probing_timer()
+        Map.put(state, :prober_status, new_status)
 
       true ->
         state
@@ -502,6 +478,42 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           &(&1 + receiver.target_allocation - receiver.current_allocation)
         )
         |> update_allocations()
+    end
+  end
+
+  defp probing_target(state) do
+    case state.prober_status do
+      :maintain_allocation -> state.allocated_bandwidth
+      :increase_estimation -> state.available_bandwidth + 200_000
+      :allowed_overuse -> state.allocated_bandwidth
+      :disallowed_overuse -> state.allocated_bandwidth
+    end
+  end
+
+  defp expected_bits(state) do
+    probing_target = probing_target(state)
+
+    now = get_timestamp()
+    elapsed_time_in_s = Time.as_seconds(now - state.probing_epoch_start)
+
+    elapsed_time_in_s
+    |> Ratio.mult(probing_target)
+    |> Ratio.add(state.prev_probing_epochs_overflow)
+    |> Ratio.floor()
+  end
+
+  defp maybe_update_probing_target(new_state, old_state) do
+    target_updated? = probing_target(new_state) != probing_target(old_state)
+
+    if target_updated? do
+      %{
+        new_state
+        | prev_probing_epochs_overflow: expected_bits(old_state) - new_state.bits_sent,
+          bits_sent: 0,
+          probing_epoch_start: get_timestamp()
+      }
+    else
+      new_state
     end
   end
 end
