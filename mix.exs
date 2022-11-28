@@ -80,6 +80,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_ffmpeg_swscale_plugin, "~> 0.10.0", optional: true},
       {:membrane_video_mixer_plugin,
        github: "kim-company/membrane_video_mixer_plugin", optional: true},
+      {:membrane_video_compositor_plugin, github: "membraneframework-labs/membrane_video_compositor_plugin", optional: true},
       {:membrane_audio_mix_plugin, "~> 0.10.0", optional: true},
       {:membrane_generator_plugin, "~> 0.6.0", optional: true},
       {:membrane_realtimer_plugin, "~> 0.5.0", optional: true},
