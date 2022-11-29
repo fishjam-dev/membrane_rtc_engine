@@ -139,10 +139,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     {estimations, state} =
       state.bitrate_estimators
       |> Enum.reduce({%{}, state}, fn {variant, estimator}, {estimations, state} ->
-        {estimation, estimator} = BitrateEstimator.estimate(estimator)
+        case BitrateEstimator.estimate(estimator) do
+          {:ok, estimation, estimator} ->
+            {Map.put(estimations, variant, estimation),
+             put_in(state, [:bitrate_estimators, variant], estimator)}
 
-        {Map.put(estimations, variant, estimation),
-         put_in(state, [:bitrate_estimators, variant], estimator)}
+          {:error, :not_enough_data} ->
+            {estimations, state}
+        end
       end)
 
     {{:ok, notify: {:estimation, estimations}}, state}

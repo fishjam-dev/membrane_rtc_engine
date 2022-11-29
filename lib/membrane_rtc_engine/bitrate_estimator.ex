@@ -29,34 +29,37 @@ defmodule Membrane.RTC.Engine.BitrateEstimator do
     Map.update!(state, :sizes, &[entry | &1])
   end
 
-  @spec estimate(t()) :: {BitrateEstimation.t(), t()}
+  @spec estimate(t()) :: {:ok, BitrateEstimation.t(), t()} | {:error, :not_enough_data}
   def estimate(state) do
     start = state.last_estimation_time
     stop = get_timestamp()
     duration = Time.as_seconds(stop - start)
 
-    estimation =
-      case state.sizes do
-        [] ->
-          %BitrateEstimation{estimation: 0, error: 0}
+    cond do
+      duration == 0 ->
+        {:error, :not_enough_data}
 
-        sizes ->
-          %BitrateEstimation{
-            estimation:
-              sizes
-              |> Enum.sum()
-              |> Ratio.new(duration)
-              |> Ratio.to_float(),
-            error:
-              sizes
-              |> Statistics.stdev()
-              |> then(&(&1 * length(sizes)))
-              |> Ratio.new(duration)
-              |> Ratio.to_float()
-          }
-      end
+      state.sizes == [] ->
+        estimation = %BitrateEstimation{estimation: 0, error: 0}
+        {:ok, estimation, %{state | last_estimation_time: stop}}
 
-    {estimation, %{state | last_estimation_time: stop, sizes: []}}
+      true ->
+        estimation = %BitrateEstimation{
+          estimation:
+            state.sizes
+            |> Enum.sum()
+            |> Ratio.new(duration)
+            |> Ratio.to_float(),
+          error:
+            state.sizes
+            |> Statistics.stdev()
+            |> then(&(&1 * length(state.sizes)))
+            |> Ratio.new(duration)
+            |> Ratio.to_float()
+        }
+
+        {:ok, estimation, %{state | last_estimation_time: stop, sizes: []}}
+    end
   end
 
   defp get_timestamp(), do: :millisecond |> System.monotonic_time() |> Time.milliseconds()

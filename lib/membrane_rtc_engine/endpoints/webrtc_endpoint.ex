@@ -27,8 +27,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
-  # TODO: remove configuring via app env
-
   @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
   @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
 
@@ -203,6 +201,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       inspect(opts.peer_metadata)
     )
 
+    # TODO: remove configuring via app env
     connection_allocator_module =
       if opts.simulcast_config.enabled,
         do:
