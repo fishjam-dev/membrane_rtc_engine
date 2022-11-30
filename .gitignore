@@ -39,3 +39,4 @@ priv/static/*
 !priv/static/.gitkeep
 test/output
 test/hls_output
+tmp/

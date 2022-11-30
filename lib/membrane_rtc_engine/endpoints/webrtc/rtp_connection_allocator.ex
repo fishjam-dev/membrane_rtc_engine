@@ -297,7 +297,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def terminate(_reason, state) do
-    if state.bitrate_timer, do: :timer.cancel(state.bitrate_timer)
+    if state.probing_timer, do: :timer.cancel(state.probing_timer)
 
     :ok
   end
