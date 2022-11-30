@@ -220,7 +220,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         inbound_tracks: %{},
         display_manager: nil,
         connection_prober: nil,
-        connection_allocator_module: connection_allocator_module
+        connection_allocator_module: connection_allocator_module,
+        speaker_audio_track_id: nil
       })
 
     {:ok, state}
@@ -381,8 +382,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:vad, {_ssrc, value}}, :endpoint_bin, ctx, state) do
-    send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, value})
+  def handle_notification({:vad, {track_id, value}}, :endpoint_bin, ctx, state) do
+    if track_id == state.speaker_audio_track_id do
+      send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, value})
+      Membrane.Logger.debug("Speaker activity changed: #{inspect(value)}")
+    end
 
     {:ok, state}
   end
@@ -626,6 +630,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     mid_to_track_id =
       Map.new(data.tracks_description, fn {mid, %{track_id: track_id}} -> {mid, track_id} end)
+
+    state =
+      Enum.reduce(data.tracks_description, state, fn {_mid, track}, state ->
+        cond do
+          is_nil(state.speaker_audio_track_id) and track.active_speaker_detection? ->
+            %{state | speaker_audio_track_id: track.track_id}
+
+          track.active_speaker_detection? and state.speaker_audio_track_id != track.track_id ->
+            raise "Attempted to use two audio tracks as speaker audio"
+
+          true ->
+            state
+        end
+      end)
 
     state = Map.put(state, :track_id_to_metadata, track_id_to_track_metadata)
     msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, mid_to_track_id}}
