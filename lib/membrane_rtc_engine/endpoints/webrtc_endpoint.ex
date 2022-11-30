@@ -381,10 +381,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification({:vad, val}, :endpoint_bin, ctx, state) do
-    send(state.owner, {:vad_notification, val, ctx.name})
-
-    send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, val})
+  def handle_notification({:vad, {_ssrc, value}}, :endpoint_bin, ctx, state) do
+    send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, value})
 
     {:ok, state}
   end
@@ -623,8 +621,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_custom_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
-    state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
-    msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
+    track_id_to_track_metadata =
+      Map.new(data.tracks_description, fn {_mid, track} -> {track.track_id, track.metadata} end)
+
+    mid_to_track_id =
+      Map.new(data.tracks_description, fn {mid, %{track_id: track_id}} -> {mid, track_id} end)
+
+    state = Map.put(state, :track_id_to_metadata, track_id_to_track_metadata)
+    msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, mid_to_track_id}}
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
 
@@ -818,10 +822,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
             "type" => "offer",
             "sdp" => sdp
           },
-          "trackIdToTrackMetadata" => track_id_to_track_metadata,
-          "midToTrackId" => mid_to_track_id
+          "tracks_description" => description
         }
       } ->
+        description =
+          Map.new(description, fn {mid, track} ->
+            %{
+              "track_id" => track_id,
+              "active_speaker_detection" => active_speaker_detection,
+              "metadata" => metadata
+            } = track
+
+            {mid,
+             %{
+               track_id: track_id,
+               metadata: metadata,
+               active_speaker_detection?: active_speaker_detection
+             }}
+          end)
+
         {:ok,
          %{
            type: :sdp_offer,
@@ -830,8 +849,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                type: :offer,
                sdp: sdp
              },
-             track_id_to_track_metadata: track_id_to_track_metadata,
-             mid_to_track_id: mid_to_track_id
+             tracks_description: description
            }
          }}
 

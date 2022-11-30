@@ -313,8 +313,10 @@ Messages used by any RTC Engine plugin
 
 ### `sdpOffer`
 
-* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, and a mapping between `mid` and `track_id`.
-  Both maps contain only information about current peer `sendonly` tracks.
+* Contains an SDP offer and tracks description field.
+Tracks description field is a mapping between `mid` and track description.
+Track description contians information about the track, such as it's id, metadata and a flag that determines
+if the track will be used for active speaker detection
 
   ```json
   {
@@ -322,10 +324,14 @@ Messages used by any RTC Engine plugin
       type: "offer",
       sdp: sdp_offer
     },
-    trackIdToTrackMetadata: {
-      trackId: any
+    tracks_description: {
+      [mid: string] => {
+        track_id: string,
+        mid: string,
+        active_speaker_detection: boolean,
+        metadata: any,
+      }
     }
-    midToTrackId: mid_to_track_id
   }
   ```
 
