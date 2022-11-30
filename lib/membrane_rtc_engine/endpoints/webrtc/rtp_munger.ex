@@ -100,14 +100,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
       payload: <<>>,
       metadata: %{
         rtp: %{
-          is_padding?: true,
+          padding_size: 255,
           ssrc: "",
           extensions: [],
           csrcs: [],
           payload_type: track.payload_type,
           marker: false,
           sequence_number: calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger),
-          timestamp: rem(rtp_munger.last_timestamp + (1 <<< 32) - 100_000, 1 <<< 32)
+          timestamp: rtp_munger.last_timestamp
         }
       }
     }
