@@ -109,8 +109,7 @@ class Room {
       : this.webrtc.addTrack(
         track,
         this.localStream,
-        {},
-        { enabled: true, active_encodings: this.encodings })
+        {simulcast: { enabled: true, active_encodings: this.encodings }})
 
 
     if (track.kind == "audio") this.audioTrack = [trackId, track];

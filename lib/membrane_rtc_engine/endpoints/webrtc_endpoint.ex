@@ -304,6 +304,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     tracks = Enum.map(tracks, &to_rtc_track(&1, Map.get(state.inbound_tracks, &1.id)))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
+    state =
+      if Enum.any?(tracks, &(&1.id == state.speaker_audio_track_id)) do
+        %{state | speaker_audio_track_id: nil}
+      else
+        state
+      end
+
     track_senders =
       tracks
       |> Enum.map(&{:track_sender, &1.id})
