@@ -328,7 +328,7 @@ if the track will be used for active speaker detection
       [mid: string] => {
         track_id: string,
         mid: string,
-        active_speaker_detection: boolean,
+        vad: boolean,
         metadata: any,
       }
     }

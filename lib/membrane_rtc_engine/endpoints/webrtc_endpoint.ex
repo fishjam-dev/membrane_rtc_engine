@@ -641,10 +641,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     state =
       Enum.reduce(data.tracks_description, state, fn {_mid, track}, state ->
         cond do
-          is_nil(state.speaker_audio_track_id) and track.active_speaker_detection? ->
+          is_nil(state.speaker_audio_track_id) and track.vad? ->
             %{state | speaker_audio_track_id: track.track_id}
 
-          track.active_speaker_detection? and state.speaker_audio_track_id != track.track_id ->
+          track.vad? and state.speaker_audio_track_id != track.track_id ->
             raise "Attempted to use two audio tracks as speaker audio"
 
           true ->
@@ -854,7 +854,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
           Map.new(description, fn {mid, track} ->
             %{
               "track_id" => track_id,
-              "active_speaker_detection" => active_speaker_detection,
+              "vad" => vad,
               "metadata" => metadata
             } = track
 
@@ -862,7 +862,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
              %{
                track_id: track_id,
                metadata: metadata,
-               active_speaker_detection?: active_speaker_detection
+               vad?: vad
              }}
           end)
 
