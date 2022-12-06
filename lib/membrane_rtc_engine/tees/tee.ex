@@ -114,7 +114,7 @@ defmodule Membrane.RTC.Engine.Tee do
     {_track_id, variant} = id
     state = Map.update!(state, :inactive_variants, &MapSet.put(&1, variant))
 
-    # reset all target variants set to `variant`
+    # reset all target and current variants set to `variant`
     # when `variant` becomes active again
     # endpoints are expected to request it once again
     state =
