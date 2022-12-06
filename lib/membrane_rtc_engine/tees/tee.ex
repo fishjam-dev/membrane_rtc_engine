@@ -122,6 +122,9 @@ defmodule Membrane.RTC.Engine.Tee do
         {output_pad, %{target_variant: ^variant}}, state ->
           put_in(state, [:routes, output_pad, :target_variant], nil)
 
+        {output_pad, %{current_variant: ^variant}}, state ->
+          put_in(state, [:routes, output_pad, :current_variant], nil)
+
         _route, state ->
           state
       end)
@@ -175,17 +178,16 @@ defmodule Membrane.RTC.Engine.Tee do
         _ctx,
         state
       ) do
-    %{current_variant: variant} = state.routes[pad]
+    %{current_variant: current_variant} = state.routes[pad]
 
-    if Map.has_key?(state.inactive_variants, variant) do
-      Membrane.Logger.debug("""
-      Endpoint #{endpoint_id} requested keyframe for inactive track variant: #{variant}. \
-      Track #{inspect(state.track)}. Ignoring.
+    if current_variant do
+      Membrane.Logger.warn("""
+      Endpoint #{endpoint_id} requested keyframe but we don't send any variant to it. Ignoring.
       """)
 
-      {:ok, state}
+      {{:ok, event: {Pad.ref(:input, {state.track.id, current_variant}), event}}, state}
     else
-      {{:ok, event: {Pad.ref(:input, {state.track.id, variant}), event}}, state}
+      {:ok, state}
     end
   end
 
