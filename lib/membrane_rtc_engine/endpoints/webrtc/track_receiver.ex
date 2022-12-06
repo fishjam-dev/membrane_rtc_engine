@@ -21,6 +21,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
+  alias Membrane.EventProtocol.Membrane.RTC.Engine.Event.VoiceActivityChanged
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{
     ConnectionAllocator.AllocationGrantedNotification,
     Forwarder,
@@ -35,7 +36,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     RequestTrackVariant,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched
+    TrackVariantSwitched,
+    VoiceActivityChanged
   }
 
   alias Membrane.RTC.Engine.Track
@@ -175,6 +177,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_tick(:request_keyframe, _ctx, state) do
     {{:ok, maybe_request_keyframe(state.selector.current_variant)}, state}
+  end
+
+  @impl true
+  def handle_event(_pad, %VoiceActivityChanged{} = event, _ctx, state) do
+    {{:ok, notify: event}, state}
   end
 
   @impl true

@@ -8,7 +8,8 @@ defmodule Membrane.RTC.Engine.Tee do
     RequestTrackVariant,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched
+    TrackVariantSwitched,
+    VoiceActivityChanged
   }
 
   alias Membrane.RTC.Engine.Exception.{RequestTrackVariantError, TrackVariantStateError}
@@ -45,7 +46,8 @@ defmodule Membrane.RTC.Engine.Tee do
      %{
        track: opts.track,
        routes: %{},
-       inactive_variants: MapSet.new(opts.track.variants)
+       inactive_variants: MapSet.new(opts.track.variants),
+       vad: %{}
      }}
   end
 
@@ -105,6 +107,24 @@ defmodule Membrane.RTC.Engine.Tee do
       |> Enum.flat_map(fn {pad, _pad_data} ->
         [caps: {pad, %Membrane.RTP{}}]
       end)
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_event(
+        Pad.ref(:input, {_track_id, variant}) = pad,
+        %VoiceActivityChanged{} = vad,
+        _ctx,
+        state
+      ) do
+    state = put_in(state, [:vad, pad], vad)
+
+    # only forward to subscribed routes
+    actions =
+      state.routes
+      |> Enum.filter(fn {_pad, route} -> route.current_variant == variant end)
+      |> Enum.map(fn {pad, _route} -> {:event, {pad, vad}} end)
 
     {{:ok, actions}, state}
   end
@@ -231,7 +251,16 @@ defmodule Membrane.RTC.Engine.Tee do
   defp handle_track_variant_request(output_pad, event, state) do
     %RequestTrackVariant{variant: requested_variant} = event
     pad = Pad.ref(:input, {state.track.id, requested_variant})
-    actions = [event: {pad, %Membrane.KeyframeRequestEvent{}}]
+
+    actions =
+      Enum.concat([
+        [event: {pad, %Membrane.KeyframeRequestEvent{}}],
+        if(get_in(state, [:vad, pad, :voice_activity]) == :speech,
+          do: [event: {output_pad, %VoiceActivityChanged{voice_activity: :speech}}],
+          else: []
+        )
+      ])
+
     state = put_in(state, [:routes, output_pad, :target_variant], requested_variant)
     {{:ok, actions}, state}
   end
