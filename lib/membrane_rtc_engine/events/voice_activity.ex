@@ -5,6 +5,8 @@ defmodule Membrane.RTC.Engine.Event.VoiceActivityChanged do
   Endpoints should only emit those events when they implement voice activity detection.
   """
 
+  use Bunch.Access
+
   @derive Membrane.EventProtocol
   @enforce_keys [:voice_activity]
   defstruct @enforce_keys

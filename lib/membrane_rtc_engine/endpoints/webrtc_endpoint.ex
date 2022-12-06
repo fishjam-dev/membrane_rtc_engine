@@ -12,10 +12,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   require Membrane.OpenTelemetry
   require Membrane.TelemetryMetrics
 
-  alias Membrane.EventProtocol.Membrane.RTC.Engine.Event.VoiceActivityChanged
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
+
+  alias Membrane.RTC.Engine.Event.VoiceActivityChanged
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{
     SimulcastConfig,
@@ -269,8 +270,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_notification(%VoiceActivityChanged{voice_activity: vad}, {:track_sender, track_id}, _ctx, state) do
-    media_event = serialize({:signal, {:voice_activity, track_id, vad}})
+  def handle_notification(
+        %VoiceActivityChanged{voice_activity: vad},
+        {:track_receiver, track_id},
+        _ctx,
+        state
+      ) do
+    event = serialize({:signal, {:voice_activity, track_id, vad}})
     {{:ok, notify: {:custom_media_event, event}}, state}
   end
 
@@ -458,11 +464,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     )
 
     {:ok, state}
-  end
-
-  @impl true
-  def handle_notification(notification, _element, _ctx, state) do
-    {{:ok, notify: notification}, state}
   end
 
   @impl true
@@ -751,8 +752,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-  defp serialize({:signal, {:voice_activity, track_id, vad}}), do:
-    %{
+  defp serialize({:signal, {:voice_activity, track_id, vad}}),
+    do: %{
       type: "vadNotification",
       data: %{
         trackId: track_id,

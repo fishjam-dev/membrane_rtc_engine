@@ -22,6 +22,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   require Membrane.Logger
 
   alias Membrane.EventProtocol.Membrane.RTC.Engine.Event.VoiceActivityChanged
+
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{
     ConnectionAllocator.AllocationGrantedNotification,
     Forwarder,

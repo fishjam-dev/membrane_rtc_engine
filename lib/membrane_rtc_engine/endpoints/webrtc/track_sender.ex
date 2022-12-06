@@ -221,7 +221,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   @impl true
   def handle_event(
         Pad.ref(:input, {track_id, variant}),
-        %Membrane.RTP.VAD.Event{vad: vad},
+        %Membrane.RTP.VadEvent{vad: vad},
         _ctx,
         state
       ) do
