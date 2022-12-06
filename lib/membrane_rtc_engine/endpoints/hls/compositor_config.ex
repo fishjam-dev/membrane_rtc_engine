@@ -15,18 +15,16 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
                        Defaults to `default_ffmpeg_filter`
   """
 
-  alias Membrane.RTC.Engine.Endpoint.HLS.FFmpegFilter
-
   @type t() :: %__MODULE__{
-          output_framerate: {integer(), integer()},
-          output_width: integer(),
-          output_height: integer(),
-          ffmpeg_filter:
-            (width :: integer(), height :: integer(), inputs_num :: integer() ->
-               ffmpeg_filtergraph_command :: binary())
+          caps: RawVideo.t(),
+          real_time: boolean()
         }
-  defstruct output_framerate: {24, 1},
-            output_width: 1280,
-            output_height: 720,
-            ffmpeg_filter: &FFmpegFilter.default_ffmpeg_filter/3
+  defstruct caps: %Membrane.RawVideo{
+              width: 1280,
+              height: 720,
+              pixel_format: :I420,
+              framerate: {24, 1},
+              aligned: true
+            },
+            real_time: false
 end
