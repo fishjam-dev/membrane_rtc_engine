@@ -224,6 +224,43 @@ defmodule Membrane.RTC.Engine.TeeTest do
     assert_receive {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}}
   end
 
+  test "Tee ignores KeyframeRequestEvent when there is no variant being forwarded" do
+    track = build_h264_track()
+    pipeline = build_video_pipeline(track, [])
+
+    request_keyframe(pipeline)
+
+    refute_sink_event(pipeline, {:source, :high}, %Membrane.KeyframeRequestEvent{})
+    refute_sink_event(pipeline, {:source, :medium}, %Membrane.KeyframeRequestEvent{}, 0)
+    refute_sink_event(pipeline, {:source, :low}, %Membrane.KeyframeRequestEvent{}, 0)
+
+    Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  test "Tee forwards KeyframeRequestEvent when there is some variant being forwarded" do
+    track = build_h264_track()
+    pipeline = build_video_pipeline(track, [])
+
+    Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
+
+    Enum.each(track.variants, fn variant ->
+      assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^variant})
+    end)
+
+    request_track_variant(pipeline, :high)
+
+    buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
+    send_buffer(pipeline, :high, buffer)
+
+    request_keyframe(pipeline)
+
+    assert_sink_event(pipeline, {:source, :high}, %Membrane.KeyframeRequestEvent{})
+    refute_sink_event(pipeline, {:source, :medium}, %Membrane.KeyframeRequestEvent{})
+    refute_sink_event(pipeline, {:source, :low}, %Membrane.KeyframeRequestEvent{}, 0)
+
+    Pipeline.terminate(pipeline, blocking?: true)
+  end
+
   defp build_h264_track() do
     Track.new(:video, @stream_id, @track_origin, :H264, 90_000, nil,
       id: @track_id,
@@ -286,5 +323,10 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   defp activate_source(pipeline, variant) do
     Pipeline.execute_actions(pipeline, forward: {{:source, variant}, {:set_active, true}})
+  end
+
+  defp request_keyframe(pipeline) do
+    actions = [event: {:input, %Membrane.KeyframeRequestEvent{}}]
+    Pipeline.execute_actions(pipeline, forward: {:sink, {:execute_actions, actions}})
   end
 end
