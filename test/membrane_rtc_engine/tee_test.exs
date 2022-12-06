@@ -29,13 +29,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
-    Enum.each(track.variants, fn variant ->
-      actions = [event: {:output, %TrackVariantResumed{variant: variant}}]
-
-      Pipeline.execute_actions(pipeline,
-        forward: {{:source, variant}, {:execute_actions, actions}}
-      )
-    end)
+    Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
     Enum.each(track.variants, fn variant ->
       assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^variant})
@@ -73,15 +67,13 @@ defmodule Membrane.RTC.Engine.TeeTest do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
-    actions = [event: {:output, %TrackVariantPaused{variant: :high}}]
-    Pipeline.execute_actions(pipeline, forward: {{:source, :high}, {:execute_actions, actions}})
+    mark_variant_as_paused(pipeline, :high)
 
     assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
     refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :medium})
     refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :low}, 0)
 
-    actions = [event: {:output, %TrackVariantPaused{variant: :low}}]
-    Pipeline.execute_actions(pipeline, forward: {{:source, :low}, {:execute_actions, actions}})
+    mark_variant_as_paused(pipeline, :low)
 
     assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :low})
     refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
@@ -94,13 +86,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
-    Enum.each(track.variants, fn variant ->
-      actions = [event: {:output, %TrackVariantResumed{variant: variant}}]
-
-      Pipeline.execute_actions(pipeline,
-        forward: {{:source, variant}, {:execute_actions, actions}}
-      )
-    end)
+    Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
     # wait until TrackVariantResumed is received in tee
     # (we have to assert sink in fact)
@@ -108,8 +94,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
       assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^variant})
     end)
 
-    actions = [event: {:input, %RequestTrackVariant{variant: :high}}]
-    Pipeline.execute_actions(pipeline, forward: {:sink, {:execute_actions, actions}})
+    request_track_variant(pipeline, :high)
 
     assert_sink_event(pipeline, {:source, :high}, %Membrane.KeyframeRequestEvent{})
     # assert there is only one KeyframeRequestEvent for h
@@ -208,18 +193,13 @@ defmodule Membrane.RTC.Engine.TeeTest do
     track = build_h264_track()
     pipeline = build_video_pipeline(track, [])
 
-    actions = [event: {:output, %TrackVariantPaused{variant: :high}}]
-    Pipeline.execute_actions(pipeline, forward: {{:source, :high}, {:execute_actions, actions}})
-
+    mark_variant_as_paused(pipeline, :high)
     assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
 
     Process.monitor(pipeline)
 
-    actions = [
-      buffer: {:output, %Buffer{payload: <<1, 2, 3, 4, 5>>, metadata: %{is_keyframe: false}}}
-    ]
-
-    Pipeline.execute_actions(pipeline, forward: {{:source, :high}, {:execute_actions, actions}})
+    buffer = %Buffer{payload: <<1, 2, 3, 4, 5>>, metadata: %{is_keyframe: false}}
+    send_buffer(pipeline, :high, buffer)
 
     assert_receive {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}}
   end
