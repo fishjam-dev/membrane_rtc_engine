@@ -1,7 +1,7 @@
 {
     "license": "MIT",
     "dependencies": {
-        "@membraneframework/membrane-webrtc-js": "github:membraneframework/membrane-webrtc-js",
+        "@membraneframework/membrane-webrtc-js": "github:membraneframework/membrane-webrtc-js#RTC-39-add-vad-media-event",
         "phoenix": "file:../deps/phoenix",
         "playwright": "1.18.1"
     }
