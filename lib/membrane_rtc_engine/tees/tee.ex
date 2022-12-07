@@ -181,12 +181,12 @@ defmodule Membrane.RTC.Engine.Tee do
     %{current_variant: current_variant} = state.routes[pad]
 
     if current_variant do
+      {{:ok, event: {Pad.ref(:input, {state.track.id, current_variant}), event}}, state}
+    else
       Membrane.Logger.warn("""
       Endpoint #{endpoint_id} requested keyframe but we don't send any variant to it. Ignoring.
       """)
 
-      {{:ok, event: {Pad.ref(:input, {state.track.id, current_variant}), event}}, state}
-    else
       {:ok, state}
     end
   end
