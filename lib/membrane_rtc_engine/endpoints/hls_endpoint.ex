@@ -48,6 +48,7 @@ if Enum.all?(
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
     alias Membrane.Time
+    alias Membrane.VideoCompositor.RustStructs.VideoPlacement
 
     @compositor_deps [
       Membrane.H264.FFmpeg.Decoder,
@@ -411,6 +412,12 @@ if Enum.all?(
     end
 
     defp hls_links_and_children(offset, link_builder, %{encoding: :H264} = track, state, ctx) do
+      initial_placement = %VideoPlacement{
+        position: getposition(state.video_stream),
+        display_size: {640, 310},
+        z_value: 0.1
+      }
+
       parent_spec = %ParentSpec{
         children: %{
           {:track_receiver, track.id} => %TrackReceiver{
@@ -435,7 +442,7 @@ if Enum.all?(
           |> to({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
           |> to({:framerate_converter, track.id})
           |> via_in(Pad.ref(:input, track.id),
-            options: [position: getposition(state.video_stream), timestamp_offset: offset]
+            options: [initial_placement: initial_placement, timestamp_offset: offset]
           )
           |> to(:compositor)
         ]
@@ -466,6 +473,11 @@ if Enum.all?(
         {frames_per_second, 1} = state.mixer_config.video.caps.framerate
         seconds_number = Membrane.Time.as_seconds(state.segment_duration.target)
 
+        initial_placement = %VideoPlacement{
+          position: getposition(state.video_stream),
+          display_size: {640, 310}
+        }
+
         %ParentSpec{
           children: %{
             compositor: compositor,
@@ -485,7 +497,7 @@ if Enum.all?(
           links: [
             link(:fake_source)
             |> to(:realtimer)
-            |> via_in(:input, options: [position: {400, 400}])
+            |> via_in(:input, options: [initial_placement: initial_placement])
             |> to(:compositor),
             link(:compositor)
             |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
@@ -520,7 +532,8 @@ if Enum.all?(
             channels: state.mixer_config.audio.channels,
             sample_rate: state.mixer_config.audio.sample_rate,
             sample_format: state.mixer_config.audio.sample_format
-          }
+          },
+          synchronize_buffers?: true
         }
 
         silence_generator = %Membrane.SilenceGenerator{
