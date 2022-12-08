@@ -12,7 +12,9 @@ defmodule Membrane.RTC.Engine.TeeTest do
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
     TrackVariantPaused,
-    TrackVariantResumed
+    TrackVariantResumed,
+    TrackVariantSwitched,
+    VoiceActivityChanged
   }
 
   alias Membrane.RTC.Engine.Support.{TestSink, TestSource, Utils}
@@ -237,6 +239,52 @@ defmodule Membrane.RTC.Engine.TeeTest do
     assert_sink_event(pipeline, {:source, :high}, %Membrane.KeyframeRequestEvent{})
     refute_sink_event(pipeline, {:source, :medium}, %Membrane.KeyframeRequestEvent{})
     refute_sink_event(pipeline, {:source, :low}, %Membrane.KeyframeRequestEvent{}, 0)
+
+    Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  test "forwards VoiceActivityChanged" do
+    track = build_h264_track()
+    pipeline = build_video_pipeline(track, [])
+
+    Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
+
+    Enum.each(track.variants, fn variant ->
+      assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^variant})
+    end)
+
+    request_track_variant(pipeline, :high)
+
+    buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
+    send_buffer(pipeline, :high, buffer)
+
+    # Send vad events on :high and low
+    event = %VoiceActivityChanged{voice_activity: :speech}
+
+    Pipeline.execute_actions(pipeline,
+      forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
+    )
+
+    Pipeline.execute_actions(pipeline,
+      forward: {{:source, :low}, {:execute_actions, event: {:output, event}}}
+    )
+
+    # We're already on high, so we expect the event to be forwarded
+    assert_sink_event(pipeline, :sink, ^event)
+
+    # Request low
+    request_track_variant(pipeline, :low)
+
+    # Before we switch, we shouldn't be getting any events
+    refute_sink_event(pipeline, :sink, %VoiceActivityChanged{})
+
+    buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
+    send_buffer(pipeline, :low, buffer)
+
+    # After we switch, we expect a VoiceActivityChanged event event
+    # even though it was emitted a while ago
+    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :low})
+    assert_sink_event(pipeline, :sink, ^event)
 
     Pipeline.terminate(pipeline, blocking?: true)
   end
