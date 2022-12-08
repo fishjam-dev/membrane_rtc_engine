@@ -1,5 +1,8 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
-  @moduledoc false
+  @moduledoc """
+  Implementation of `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator` that probes the connection
+  with RTP padding packets and grants allocations based on GCC estimates.
+  """
 
   @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator
 
