@@ -16,8 +16,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
 
-  alias Membrane.RTC.Engine.Event.VoiceActivityChanged
-
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{
     SimulcastConfig,
     TrackReceiver,
@@ -271,7 +269,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification(
-        %VoiceActivityChanged{voice_activity: vad},
+        {:voice_activity_changed, vad},
         {:track_receiver, track_id},
         _ctx,
         state

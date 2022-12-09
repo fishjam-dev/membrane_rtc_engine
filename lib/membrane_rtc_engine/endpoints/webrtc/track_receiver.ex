@@ -21,8 +21,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.EventProtocol.Membrane.RTC.Engine.Event.VoiceActivityChanged
-
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{
     ConnectionAllocator.AllocationGrantedNotification,
     Forwarder,
@@ -67,12 +65,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @typedoc """
   Notifications that TrackReceiver emits.
   """
-  @type notifications() :: variant_switched()
+  @type notifications() :: variant_switched() | voice_activity_changed()
 
   @typedoc """
   Notification emitted whenever TrackReceiver starts receiving a new track variant.
   """
   @type variant_switched() :: {:variant_switched, Track.variant()}
+
+  @typedoc """
+  Notfication emitted when TrackReceiver receives an update on voice activity
+  """
+  @type voice_activity_changed() :: {:voice_activity_changed, :silence | :speech}
 
   def_options track: [
                 type: :struct,
@@ -181,8 +184,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(_pad, %VoiceActivityChanged{} = event, _ctx, state) do
-    {{:ok, notify: event}, state}
+  def handle_event(_pad, %VoiceActivityChanged{voice_activity: vad}, _ctx, state) do
+    {{:ok, notify: {:voice_activity_changed, vad}}, state}
   end
 
   @impl true
