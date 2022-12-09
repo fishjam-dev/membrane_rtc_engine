@@ -265,28 +265,42 @@ defmodule Membrane.RTC.Engine.TeeTest do
       forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
     )
 
-    Pipeline.execute_actions(pipeline,
-      forward: {{:source, :low}, {:execute_actions, event: {:output, event}}}
-    )
-
     # We're already on high, so we expect the event to be forwarded
     assert_sink_event(pipeline, :sink, ^event)
 
-    # Request low
-    request_track_variant(pipeline, :low)
-
-    # Before we switch, we shouldn't be getting any events
-    refute_sink_event(pipeline, :sink, %VoiceActivityChanged{})
-
-    buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
-    send_buffer(pipeline, :low, buffer)
-
-    # After we switch, we expect a VoiceActivityChanged event event
-    # even though it was emitted a while ago
-    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :low})
-    assert_sink_event(pipeline, :sink, ^event)
-
     Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  test "forwards VoiceActivityChanged after TrackVariantSwitched" do
+    track = build_h264_track()
+    pipeline = build_video_pipeline(track, [])
+
+    Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
+
+    Enum.each(track.variants, fn variant ->
+      assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^variant})
+    end)
+
+    event = %VoiceActivityChanged{voice_activity: :speech}
+
+    Pipeline.execute_actions(pipeline,
+      forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
+    )
+
+    request_track_variant(pipeline, :high)
+
+    # We shouldn'g be getting an event before the switch actually happens
+    refute_sink_event(pipeline, :sink, ^event)
+
+    # Send the keyframe to switch
+    buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
+    send_buffer(pipeline, :high, buffer)
+
+    # After we switch, we expect a VoiceActivityChanged event
+    # right after TrackVariantSwitched
+    # even though it was emitted a while ago
+    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high})
+    assert_sink_event(pipeline, :sink, ^event)
   end
 
   defp build_h264_track() do
