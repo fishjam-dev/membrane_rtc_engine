@@ -112,6 +112,11 @@ defmodule Membrane.RTC.Engine.Tee do
   end
 
   @impl true
+  def handle_event(Pad.ref(:input, {_track_id, _variant}), %VoiceActivityChanged{}, _ctx, state)
+      when state.track.type != :audio,
+      do: raise("VoiceActivityChanged event is not allowed on #{state.track.type} tracks")
+
+  @impl true
   def handle_event(
         Pad.ref(:input, {_track_id, variant}),
         %VoiceActivityChanged{voice_activity: vad} = event,

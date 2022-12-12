@@ -29,7 +29,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   test "Tee sends TrackVariantResumed after linking output pad" do
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    pipeline = build_pipeline(track, [])
 
     Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
@@ -67,7 +67,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   test "Tee forwards TrackVariantPaused" do
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    pipeline = build_pipeline(track, [])
 
     mark_variant_as_paused(pipeline, :high)
 
@@ -86,7 +86,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   test "Tee generates KeyframeRequestEvent on receiving RequestTrackVariant event" do
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    pipeline = build_pipeline(track, [])
 
     Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
@@ -109,7 +109,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   test "Tee raises on receiving invalid RequestTrackVariant event" do
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    pipeline = build_pipeline(track, [])
 
     Process.monitor(pipeline)
 
@@ -154,7 +154,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     end
 
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3, false)
+    pipeline = build_pipeline(track, {nil, &Utils.generator/2}, 3, false)
 
     Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
@@ -193,7 +193,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   test "Tee raises on receiving data from inactive track variant" do
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    pipeline = build_pipeline(track, [])
 
     mark_variant_as_paused(pipeline, :high)
     assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
@@ -208,7 +208,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   test "Tee ignores KeyframeRequestEvent when there is no variant being forwarded" do
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    pipeline = build_pipeline(track, [])
 
     request_keyframe(pipeline)
 
@@ -221,7 +221,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   test "Tee forwards KeyframeRequestEvent when there is some variant being forwarded" do
     track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    pipeline = build_pipeline(track, [])
 
     Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
@@ -244,8 +244,8 @@ defmodule Membrane.RTC.Engine.TeeTest do
   end
 
   test "forwards VoiceActivityChanged" do
-    track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    track = build_opus_track()
+    pipeline = build_pipeline(track, [])
 
     Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
@@ -258,7 +258,6 @@ defmodule Membrane.RTC.Engine.TeeTest do
     buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
     send_buffer(pipeline, :high, buffer)
 
-    # Send vad events on :high and low
     event = %VoiceActivityChanged{voice_activity: :speech}
 
     Pipeline.execute_actions(pipeline,
@@ -272,8 +271,8 @@ defmodule Membrane.RTC.Engine.TeeTest do
   end
 
   test "forwards VoiceActivityChanged after TrackVariantSwitched" do
-    track = build_h264_track()
-    pipeline = build_video_pipeline(track, [])
+    track = build_opus_track()
+    pipeline = build_pipeline(track, [])
 
     Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
@@ -289,7 +288,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
     request_track_variant(pipeline, :high)
 
-    # We shouldn'g be getting an event before the switch actually happens
+    # We shouldn't be getting an event before the switch actually happens
     refute_sink_event(pipeline, :sink, ^event)
 
     # Send the keyframe to switch
@@ -303,6 +302,19 @@ defmodule Membrane.RTC.Engine.TeeTest do
     assert_sink_event(pipeline, :sink, ^event)
   end
 
+  test "VoiceActivityChanged on video causes raise" do
+    track = build_h264_track()
+
+    assert_raise RuntimeError, fn ->
+      Membrane.RTC.Engine.Tee.handle_event(
+        Membrane.Pad.ref(:input, {0, :low}),
+        %VoiceActivityChanged{voice_activity: :speech},
+        nil,
+        %{track: track}
+      )
+    end
+  end
+
   defp build_h264_track() do
     Track.new(:video, @stream_id, @track_origin, :H264, 90_000, nil,
       id: @track_id,
@@ -310,7 +322,14 @@ defmodule Membrane.RTC.Engine.TeeTest do
     )
   end
 
-  defp build_video_pipeline(track, output, num_of_variants \\ 3, fast_start \\ true) do
+  defp build_opus_track() do
+    Track.new(:audio, @stream_id, @track_origin, :OPUS, 90_000, nil,
+      id: @track_id,
+      variants: @variants
+    )
+  end
+
+  defp build_pipeline(track, output, num_of_variants \\ 3, fast_start \\ true) do
     variants = Enum.take(track.variants, num_of_variants)
 
     # TODO start/start_link?
