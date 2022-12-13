@@ -250,19 +250,24 @@ if Enum.all?(
           track.stream_id == removed_track.stream_id
         end)
 
-      children_to_remove =
+      {state, children_to_remove} =
         cond do
           is_nil(state.mixer_config) and not sink_bin_used? ->
-            [{:hls_sink_bin, removed_track.stream_id}]
+            {state, [{:hls_sink_bin, removed_track.stream_id}]}
 
           not is_nil(state.mixer_config) and tracks == %{} ->
-            get_common_children(ctx)
+            {%{state | stream_beginning: nil}, get_common_children(ctx)}
 
           true ->
-            []
+            {state, []}
         end
 
       children_to_remove = track_children ++ children_to_remove
+
+      state =
+        if removed_track.encoding == :H264,
+          do: %{state | video_stream: state.video_stream - 1},
+          else: state
 
       {{:ok, remove_child: children_to_remove}, state}
     end
