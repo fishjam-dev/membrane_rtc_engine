@@ -13,9 +13,10 @@ defmodule Membrane.RTC.Engine.TeeTest do
     RequestTrackVariant,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched,
     VoiceActivityChanged
   }
+
+  alias Membrane.RTC.Engine.Exception.VoiceActivityError
 
   alias Membrane.RTC.Engine.Support.{TestSink, TestSource, Utils}
   alias Membrane.RTC.Engine.Track
@@ -270,44 +271,12 @@ defmodule Membrane.RTC.Engine.TeeTest do
     Pipeline.terminate(pipeline, blocking?: true)
   end
 
-  test "forwards VoiceActivityChanged after TrackVariantSwitched" do
-    track = build_opus_track()
-    pipeline = build_pipeline(track, [])
-
-    Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
-
-    Enum.each(track.variants, fn variant ->
-      assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^variant})
-    end)
-
-    event = %VoiceActivityChanged{voice_activity: :speech}
-
-    Pipeline.execute_actions(pipeline,
-      forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
-    )
-
-    request_track_variant(pipeline, :high)
-
-    # We shouldn't be getting an event before the switch actually happens
-    refute_sink_event(pipeline, :sink, ^event)
-
-    # Send the keyframe to switch
-    buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
-    send_buffer(pipeline, :high, buffer)
-
-    # After we switch, we expect a VoiceActivityChanged event
-    # right after TrackVariantSwitched
-    # even though it was emitted a while ago
-    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high})
-    assert_sink_event(pipeline, :sink, ^event)
-  end
-
-  test "VoiceActivityChanged on video causes raise" do
+  test "VoiceActivityError" do
     track = build_h264_track()
 
-    assert_raise RuntimeError, fn ->
+    assert_raise VoiceActivityError, fn ->
       Membrane.RTC.Engine.Tee.handle_event(
-        Membrane.Pad.ref(:input, {0, :low}),
+        Membrane.Pad.ref(:input, {0, :high}),
         %VoiceActivityChanged{voice_activity: :speech},
         nil,
         %{track: track}
@@ -323,9 +292,9 @@ defmodule Membrane.RTC.Engine.TeeTest do
   end
 
   defp build_opus_track() do
-    Track.new(:audio, @stream_id, @track_origin, :OPUS, 90_000, nil,
+    Track.new(:audio, @stream_id, @track_origin, :OPUS, 48_00, nil,
       id: @track_id,
-      variants: @variants
+      variants: [:high]
     )
   end
 

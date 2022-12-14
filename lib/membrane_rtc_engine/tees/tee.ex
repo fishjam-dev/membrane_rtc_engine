@@ -4,6 +4,8 @@ defmodule Membrane.RTC.Engine.Tee do
 
   require Membrane.Logger
 
+  alias Membrane.RTC.Engine.Exception.VoiceActivityError
+
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
     TrackVariantPaused,
@@ -114,7 +116,7 @@ defmodule Membrane.RTC.Engine.Tee do
   @impl true
   def handle_event(Pad.ref(:input, {_track_id, _variant}), %VoiceActivityChanged{}, _ctx, state)
       when state.track.type != :audio,
-      do: raise("VoiceActivityChanged event is not allowed on #{state.track.type} tracks")
+      do: raise(VoiceActivityError, track: state.track)
 
   @impl true
   def handle_event(
@@ -297,12 +299,7 @@ defmodule Membrane.RTC.Engine.Tee do
 
       event = %TrackVariantSwitched{new_variant: variant}
 
-      vad_event_action =
-        if Map.has_key?(state.vad, variant),
-          do: [event: {output_pad, %VoiceActivityChanged{voice_activity: state.vad[variant]}}],
-          else: []
-
-      actions = [event: {output_pad, event}] ++ vad_event_action ++ [buffer: {output_pad, buffer}]
+      actions = [event: {output_pad, event}, buffer: {output_pad, buffer}]
       {actions, state}
     else
       {[], state}
