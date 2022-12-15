@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
   @type generator ::
           (state :: any(), buffers_cnt :: pos_integer -> {[Action.t()], state :: any()})
 
-  def_output_pad :output, caps: :any
+  def_output_pad :output, accepted_format: _any
 
   def_options output: [
                 spec: {initial_state :: any(), generator} | Enum.t(),
@@ -47,53 +47,51 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
               ]
 
   @impl true
-  def handle_init(opts) do
+  def handle_init(_ctx, opts) do
     opts = Map.from_struct(opts)
 
     case opts.output do
       {initial_state, generator} when is_function(generator) ->
-        {:ok,
-         opts
-         |> Map.merge(%{
+        {[],
+         Map.merge(opts, %{
            generator_state: initial_state,
            output: generator,
            active?: opts.fast_start
          })}
 
       _enumerable_output ->
-        {:ok, opts}
+        {[], opts}
     end
   end
 
   @impl true
-  def handle_prepared_to_playing(_ctx, state) do
-    {{:ok, caps: {:output, state.caps}}, state}
+  def handle_playing(_ctx, state) do
+    {[stream_format: {:output, state.caps}], state}
   end
 
   @impl true
   def handle_demand(:output, size, :buffers, _ctx, %{active?: true} = state) do
-    {actions, state} = get_actions(state, size)
-    {{:ok, actions}, state}
+    get_actions(state, size)
   end
 
   @impl true
   def handle_demand(:output, _size, :buffers, _ctx, state) do
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
   def handle_event(:output, event, _ctx, state) do
-    {{:ok, notify: %Membrane.Testing.Notification{payload: {:event, event}}}, state}
+    {[notify: %Membrane.Testing.Notification{payload: {:event, event}}], state}
   end
 
   @impl true
-  def handle_other({:execute_actions, actions}, _ctx, state) do
-    {{:ok, actions}, state}
+  def handle_parent_notification({:execute_actions, actions}, _ctx, state) do
+    {actions, state}
   end
 
   @impl true
-  def handle_other({:set_active, active?}, _ctx, state) do
-    {{:ok, redemand: :output}, %{state | active?: active?}}
+  def handle_parent_notification({:set_active, active?}, _ctx, state) do
+    {[redemand: :output], %{state | active?: active?}}
   end
 
   @spec default_buf_gen(integer(), integer()) :: {[Action.t()], integer()}

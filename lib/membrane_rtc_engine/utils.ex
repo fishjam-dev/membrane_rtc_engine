@@ -50,7 +50,7 @@ defmodule Membrane.RTC.Utils do
     child = find_child(ctx, pattern: ^child_name)
 
     if child do
-      [forward: {child_name, msg}]
+      [notify_child: {child_name, msg}]
     else
       []
     end

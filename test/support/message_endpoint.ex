@@ -19,15 +19,14 @@ defmodule Membrane.RTC.Engine.Support.MessageEndpoint do
               ]
 
   @impl true
-  def handle_init(opts) do
+  def handle_init(_ctx, opts) do
     state = %{rtc_engine: opts.rtc_engine, owner: opts.owner}
-
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_other(message, _ctx, state) do
+  def handle_info(message, _ctx, state) do
     send(state.owner, message)
-    {:ok, state}
+    {[], state}
   end
 end

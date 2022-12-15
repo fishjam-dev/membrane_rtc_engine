@@ -394,7 +394,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_init(options) do
+  def handle_init(_ctx, options) do
     Logger.metadata(rtc_engine: options[:id])
 
     if Keyword.has_key?(options, :trace_ctx),
@@ -418,7 +418,7 @@ defmodule Membrane.RTC.Engine do
 
     telemetry_label = (options[:telemetry_label] || []) ++ [room_id: options[:id]]
 
-    {{:ok, playback: :playing},
+    {[playback: :playing],
      %{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
@@ -434,20 +434,17 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_playing_to_prepared(ctx, state) do
+  def handle_terminate_request(ctx, state) do
     {actions, state} =
-      state.peers
-      |> Map.keys()
-      |> Enum.reduce({[], state}, fn peer_id, {all_actions, state} ->
-        {actions, state} = handle_remove_peer(peer_id, "playback_finished", ctx, state)
-        {all_actions ++ actions, state}
+      Enum.flat_map_reduce(state.peers, state, fn {peer_id, _peer}, state ->
+        handle_remove_peer(peer_id, "playback_finished", ctx, state)
       end)
 
-    {{:ok, actions}, state}
+    {actions ++ [terminate: :normal], state}
   end
 
   @impl true
-  def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
+  def handle_info({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
     endpoint_id = opts[:endpoint_id] || opts[:peer_id]
 
@@ -471,76 +468,72 @@ defmodule Membrane.RTC.Engine do
           "Cannot add Endpoint with id #{inspect(endpoint_id)} as it already exists"
         )
 
-        {:ok, state}
+        {[], state}
 
       peer_id != nil and !Map.has_key?(state.peers, peer_id) ->
         Membrane.Logger.warn(
           "Cannot attach Endpoint to peer with id #{peer_id} as such peer does not exist"
         )
 
-        {:ok, state}
+        {[], state}
 
       true ->
-        {actions, state} = handle_add_endpoint(endpoint, opts, state)
-        {{:ok, actions}, state}
+        handle_add_endpoint(endpoint, opts, state)
     end
   end
 
   @impl true
-  def handle_other({:remove_endpoint, id}, ctx, state) do
+  def handle_info({:remove_endpoint, id}, ctx, state) do
     case handle_remove_endpoint(id, ctx, state) do
       {:absent, [], state} ->
         Membrane.Logger.info("Endpoint #{inspect(id)} already removed")
-        {:ok, state}
+        {[], state}
 
       {:present, actions, state} ->
-        {{:ok, actions}, state}
+        {actions, state}
     end
   end
 
   @impl true
-  def handle_other({:add_peer, peer}, _ctx, state) do
-    {actions, state} = handle_add_peer(peer, state)
-    {{:ok, actions}, state}
+  def handle_info({:add_peer, peer}, _ctx, state) do
+    handle_add_peer(peer, state)
   end
 
   @impl true
-  def handle_other({:remove_peer, id, reason}, ctx, state) do
-    {actions, state} = handle_remove_peer(id, reason, ctx, state)
-    {{:ok, actions}, state}
+  def handle_info({:remove_peer, id, reason}, ctx, state) do
+    handle_remove_peer(id, reason, ctx, state)
   end
 
   @impl true
-  def handle_other({:register, pid}, _ctx, state) do
+  def handle_info({:register, pid}, _ctx, state) do
     Registry.register(get_registry_name(), self(), pid)
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_other({:unregister, pid}, _ctx, state) do
+  def handle_info({:unregister, pid}, _ctx, state) do
     Registry.unregister_match(get_registry_name(), self(), pid)
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_other({:media_event, from, data}, ctx, state) do
+  def handle_info({:media_event, from, data}, ctx, state) do
     case MediaEvent.decode(data) do
       {:ok, event} ->
         if event.type == :join or Map.has_key?(state.peers, from) do
-          {actions, state} = handle_media_event(event.type, event[:data], from, ctx, state)
-          {{:ok, actions}, state}
+          handle_media_event(event.type, event[:data], from, ctx, state)
         else
           Membrane.Logger.warn("Received media event from unknown peer id: #{inspect(from)}")
-          {:ok, state}
+          {[], state}
         end
 
       {:error, :invalid_media_event} ->
         Membrane.Logger.warn("Invalid media event #{inspect(data)}")
-        {:ok, state}
+        {[], state}
     end
   end
 
-  def handle_other(
+  def handle_info(
         {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, opts},
         ctx,
         state
@@ -553,19 +546,18 @@ defmodule Membrane.RTC.Engine do
 
     case validate_subscription(subscription, state) do
       :ok ->
-        {links, state} = fulfill_or_postpone_subscription(subscription, ctx, state)
-        parent_spec = %ParentSpec{links: links, log_metadata: [rtc: state.id]}
+        {spec, state} = fulfill_or_postpone_subscription(subscription, ctx, state)
         send(endpoint_pid, {ref, :ok})
-        {{:ok, [spec: parent_spec]}, state}
+        {[spec: {spec, log_metadata: [rtc: state.id]}], state}
 
       {:error, _reason} = error ->
         send(endpoint_pid, {ref, error})
-        {:ok, state}
+        {[], state}
     end
   end
 
   @impl true
-  def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
+  def handle_info({:track_priorities, endpoint_to_tracks}, ctx, state) do
     for {{:endpoint, endpoint_id}, tracks} <- endpoint_to_tracks do
       dispatch(endpoint_id, MediaEvent.tracks_priority(tracks))
     end
@@ -573,27 +565,27 @@ defmodule Membrane.RTC.Engine do
     tee_actions =
       ctx
       |> filter_children(pattern: {:tee, _tee_name})
-      |> Enum.flat_map(&[forward: {&1, :track_priorities_updated}])
+      |> Enum.flat_map(&[notify_child: {&1, :track_priorities_updated}])
 
-    {{:ok, tee_actions}, state}
+    {tee_actions, state}
   end
 
   @impl true
-  def handle_other({:message_endpoint, endpoint, message}, ctx, state) do
+  def handle_info({:message_endpoint, endpoint, message}, ctx, state) do
     actions =
       if find_child(ctx, pattern: ^endpoint) != nil,
-        do: [forward: {endpoint, message}],
+        do: [notify_child: {endpoint, message}],
         else: []
 
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
-  def handle_notification(notification, {:endpoint, endpoint_id}, ctx, state) do
+  def handle_child_notification(notification, {:endpoint, endpoint_id}, ctx, state) do
     if Map.has_key?(state.endpoints, endpoint_id) do
       handle_endpoint_notification(notification, endpoint_id, ctx, state)
     else
-      {:ok, state}
+      {[], state}
     end
   end
 
@@ -605,7 +597,7 @@ defmodule Membrane.RTC.Engine do
 
     dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id})
     {_status, actions, state} = handle_remove_endpoint(endpoint_id, ctx, state)
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   #
@@ -705,10 +697,11 @@ defmodule Membrane.RTC.Engine do
       |> Enum.filter(&(&1.track_id == track_id))
       |> Enum.map(& &1.endpoint_id)
 
-    message_actions = Enum.map(subscribed_endpoints, &{:forward, {{:endpoint, &1}, notification}})
+    message_actions =
+      Enum.map(subscribed_endpoints, &{:notify_child, {{:endpoint, &1}, notification}})
 
     if Map.has_key?(state.endpoints[endpoint_id].inbound_tracks, track_id) do
-      {{:ok, message_actions}, state}
+      {message_actions, state}
     else
       Membrane.Logger.error("""
       Non-owner attempted to send a notification about the track. It is being ignored.
@@ -722,7 +715,7 @@ defmodule Membrane.RTC.Engine do
   defp handle_endpoint_notification(
          {:track_ready, track_id, variant, encoding},
          endpoint_id,
-         ctx,
+         _ctx,
          state
        ) do
     Membrane.Logger.info(
@@ -735,7 +728,7 @@ defmodule Membrane.RTC.Engine do
       raise TrackReadyError, track: track, variant: variant
     end
 
-    track_link = build_track_link(variant, track, endpoint_id, ctx, state)
+    track_link = build_track_link(variant, track, endpoint_id, state)
 
     # check if there are subscriptions for this track and fulfill them
     {subscriptions, pending_subscriptions} =
@@ -753,13 +746,8 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    spec = %ParentSpec{
-      links: links,
-      crash_group: {endpoint_id, :temporary},
-      log_metadata: [rtc_engine: state.id]
-    }
-
-    {{:ok, spec: spec}, state}
+    spec = {links, crash_group: {endpoint_id, :temporary}, log_metadata: [rtc_engine: state.id]}
+    {[spec: spec], state}
   end
 
   defp handle_endpoint_notification(
@@ -783,7 +771,7 @@ defmodule Membrane.RTC.Engine do
     endpoint = get_in(state, [:endpoints, endpoint_id])
     track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
     broadcast(MediaEvent.tracks_added(endpoint_id, track_id_to_track_metadata))
-    {{:ok, tracks_msgs}, state}
+    {tracks_msgs, state}
   end
 
   defp handle_endpoint_notification(
@@ -816,12 +804,12 @@ defmodule Membrane.RTC.Engine do
         {endpoint_id, subscriptions}
       end)
 
-    {{:ok, tracks_msgs ++ [remove_child: track_tees]}, %{state | subscriptions: subscriptions}}
+    {tracks_msgs ++ [remove_child: track_tees], %{state | subscriptions: subscriptions}}
   end
 
   defp handle_endpoint_notification({:custom_media_event, data}, peer_id, _ctx, state) do
     dispatch(peer_id, MediaEvent.custom(data))
-    {:ok, state}
+    {[], state}
   end
 
   defp validate_track(track) do
@@ -924,28 +912,20 @@ defmodule Membrane.RTC.Engine do
     endpoint_id = opts[:endpoint_id] || opts[:peer_id] || UUID.uuid4()
     endpoint_name = {:endpoint, endpoint_id}
 
-    spec = %ParentSpec{
+    spec = {
+      child(endpoint_name, endpoint_entry),
       node: opts[:node],
-      children: %{endpoint_name => endpoint_entry},
       crash_group: {endpoint_id, :temporary},
       log_metadata: [rtc_engine: state.id]
     }
 
-    display_manager_message =
-      if state.display_manager != nil,
-        do: {endpoint_name, {:display_manager, state.display_manager}},
-        else: nil
-
     actions =
-      [
-        spec: spec,
-        forward: display_manager_message,
-        forward: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}
-      ]
-      |> Keyword.filter(fn
-        {:forward, nil} -> false
-        _other -> true
-      end)
+      [spec: spec] ++
+        case state.display_manager do
+          nil -> []
+          display_manager -> [notify_child: {endpoint_name, {:display_manager, display_manager}}]
+        end ++
+        [notify_child: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}]
 
     state = put_in(state, [:subscriptions, endpoint_id], %{})
     state = put_in(state, [:endpoints, endpoint_id], Endpoint.new(endpoint_id, []))
@@ -1014,7 +994,7 @@ defmodule Membrane.RTC.Engine do
     Enum.flat_map(state.endpoints, fn
       {^endpoint_id, _endpoint} -> []
       {_, nil} -> []
-      {endpoint_id, _} -> [forward: {{:endpoint, endpoint_id}, {:new_tracks, tracks}}]
+      {endpoint_id, _} -> [notify_child: {{:endpoint, endpoint_id}, {:new_tracks, tracks}}]
     end)
   end
 
@@ -1025,34 +1005,28 @@ defmodule Membrane.RTC.Engine do
     |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
       subscriptions = state.subscriptions[endpoint_id]
       tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
-      [forward: {{:endpoint, endpoint_id}, {:remove_tracks, tracks}}]
+      [notify_child: {{:endpoint, endpoint_id}, {:remove_tracks, tracks}}]
     end)
   end
 
   #
   # Track Links
   #
-  # - build_track_link/5 - called when the track is ready, via notification from the WebRTC
+  # - build_track_link/4 - called when the track is ready, via notification from the WebRTC
   #   endpoint. Creates the link from the endpoint which published the track, and starts the
   #   underlying tee which is required to bring the content of the track to all subscribers.
   #
-  # - build_track_tee/4 - Called by build_track_link/5; builds the correct tee depending on
+  # - build_track_tee/4 - Called by build_track_link/4; builds the correct tee depending on
   #   display manager is turned on or off
   #
 
-  defp build_track_link(variant, track, endpoint_id, ctx, state) do
-    tee_name = {:tee, track.id}
-
-    link({:endpoint, endpoint_id})
+  defp build_track_link(variant, track, endpoint_id, state) do
+    get_child({:endpoint, endpoint_id})
     |> via_out(Pad.ref(:output, {track.id, variant}))
     |> via_in(Pad.ref(:input, {track.id, variant}))
-    |> then(fn link ->
-      if Map.has_key?(ctx.children, tee_name) do
-        to(link, tee_name)
-      else
-        to(link, tee_name, build_track_tee(track.id, variant, track, state))
-      end
-    end)
+    |> child({:tee, track.id}, build_track_tee(track.id, variant, track, state),
+      get_if_exists: true
+    )
   end
 
   defp build_track_tee(track_id, _variant, track, %{display_manager: dm} = state)
@@ -1073,7 +1047,7 @@ defmodule Membrane.RTC.Engine do
   # Track Subscriptions
   #
   # - validate_subscription/2: Validates proposed subscription, called when a new subscription
-  #   is to be added, via handle_other.
+  #   is to be added, via handle_info.
   #
   # - fulfill_or_postpone_subscription/3: Called immediately upon validation of subscription,
   #   optimistically links track's tee to the subscriber if the track is ready, otherwise adds the
@@ -1125,10 +1099,10 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp build_subscription_link(subscription) do
-    link({:tee, subscription.track_id})
+    get_child({:tee, subscription.track_id})
     |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
     |> via_in(Pad.ref(:input, subscription.track_id))
-    |> to({:endpoint, subscription.endpoint_id})
+    |> get_child({:endpoint, subscription.endpoint_id})
   end
 
   defp get_track(track_id, endpoints) do

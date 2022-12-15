@@ -126,15 +126,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def_input_pad :input,
     availability: :always,
     mode: :push,
-    caps: Membrane.RTP
+    accepted_format: Membrane.RTP
 
   def_output_pad :output,
     availability: :always,
     mode: :push,
-    caps: Membrane.RTP
+    accepted_format: Membrane.RTP
 
   @impl true
-  def handle_init(%__MODULE__{
+  def handle_init(_ctx, %__MODULE__{
         connection_allocator: connection_allocator,
         track: track,
         initial_target_variant: initial_target_variant,
@@ -163,27 +163,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       connection_allocator_module: connection_allocator_module
     }
 
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_prepared_to_playing(_ctx, %{keyframe_request_interval: interval} = state) do
+  def handle_playing(_ctx, %{keyframe_request_interval: interval} = state) do
     actions = if interval, do: [start_timer: {:request_keyframe, interval}], else: []
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
   def handle_tick(:request_keyframe, _ctx, state) do
-    {{:ok, maybe_request_keyframe(state.selector.current_variant)}, state}
+    {maybe_request_keyframe(state.selector.current_variant), state}
   end
 
   @impl true
   def handle_event(_pad, %TrackVariantSwitched{new_variant: new_variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
     selector = VariantSelector.set_current_variant(state.selector, new_variant)
-    actions = [notify: {:variant_switched, new_variant}]
+    actions = [notify_parent: {:variant_switched, new_variant}]
     state = %{state | selector: selector, needs_reconfiguration: true}
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
@@ -192,7 +192,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {selector, selector_action} = VariantSelector.variant_inactive(state.selector, variant)
     actions = handle_selector_action(selector_action)
     state = %{state | selector: selector}
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
@@ -201,12 +201,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {selector, selector_action} = VariantSelector.variant_active(state.selector, variant)
     actions = handle_selector_action(selector_action)
     state = %{state | selector: selector}
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
   def handle_event(_pad, %Membrane.KeyframeRequestEvent{}, _ctx, state) do
-    {{:ok, maybe_request_keyframe(state.selector.current_variant)}, state}
+    {maybe_request_keyframe(state.selector.current_variant), state}
   end
 
   @impl true
@@ -237,17 +237,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         []
       end
 
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
-  def handle_other({:set_negotiable, negotiable?}, _ctx, state) do
+  def handle_parent_notification({:set_negotiable, negotiable?}, _ctx, state) do
     VariantSelector.set_negotiable(state.selector, negotiable?)
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_other({:set_target_variant, variant}, _ctx, state) do
+  def handle_parent_notification({:set_target_variant, variant}, _ctx, state) do
     if variant not in state.track.variants do
       raise("""
       Tried to set invalid target variant: #{inspect(variant)} for track: #{inspect(state.track)}.
@@ -258,16 +258,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
     {selector, selector_action} = VariantSelector.set_target_variant(state.selector, variant)
     actions = handle_selector_action(selector_action)
-    {{:ok, actions}, %{state | selector: selector}}
+    {actions, %{state | selector: selector}}
   end
 
   # FIXME
-  # this guard is too compilcated and might mean
+  # this guard is too complicated and might mean
   # we are doing something incorrectly
   @impl true
-  def handle_other(:send_padding_packet, ctx, state)
-      when not ctx.pads.output.end_of_stream? and ctx.playback_state == :playing and
-             ctx.pads.output.caps != nil do
+  def handle_parent_notification(:send_padding_packet, ctx, state)
+      when not ctx.pads.output.end_of_stream? and ctx.playback == :playing and
+             ctx.pads.output.stream_format != nil do
     {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
 
     actions =
@@ -278,24 +278,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         []
       end
 
-    {{:ok, actions}, %{state | forwarder: forwarder}}
+    {actions, %{state | forwarder: forwarder}}
   end
 
   @impl true
-  def handle_other(:send_padding_packet, _ctx, state) do
+  def handle_parent_notification(:send_padding_packet, _ctx, state) do
     Process.send_after(self(), :send_padding_packet, 100)
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_other({:bitrate_estimation, _estimation}, _ctx, state) do
+  def handle_parent_notification({:bitrate_estimation, _estimation}, _ctx, state) do
     # Handle bitrate estimations of incoming variants
     # We're currently ignoring this information
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_other(
+  def handle_parent_notification(
         %AllocationGrantedNotification{allocation: allocation},
         _ctx,
         state
@@ -304,18 +304,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       VariantSelector.set_bandwidth_allocation(state.selector, allocation)
 
     actions = handle_selector_action(selector_action)
-    {{:ok, actions}, %{state | selector: selector}}
+    {actions, %{state | selector: selector}}
   end
 
   @impl true
-  def handle_other(:decrease_your_allocation, _ctx, state) do
+  def handle_parent_notification(:decrease_your_allocation, _ctx, state) do
     {selector, selector_action} = VariantSelector.decrease_allocation(state.selector)
     actions = handle_selector_action(selector_action)
-    {{:ok, actions}, %{state | selector: selector}}
+    {actions, %{state | selector: selector}}
   end
 
   @impl true
-  def handle_other(msg, ctx, state) do
+  def handle_parent_notification(msg, ctx, state) do
     super(msg, ctx, state)
   end
 
