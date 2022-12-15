@@ -299,7 +299,12 @@ defmodule Membrane.RTC.Engine.Tee do
 
       event = %TrackVariantSwitched{new_variant: variant}
 
-      actions = [event: {output_pad, event}, buffer: {output_pad, buffer}]
+      vad_event_action =
+        if Map.has_key?(state.vad, variant),
+          do: [event: {output_pad, %VoiceActivityChanged{voice_activity: state.vad[variant]}}],
+          else: []
+
+      actions = [event: {output_pad, event}] ++ vad_event_action ++ [buffer: {output_pad, buffer}]
       {actions, state}
     else
       {[], state}

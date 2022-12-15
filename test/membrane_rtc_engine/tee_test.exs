@@ -13,6 +13,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     RequestTrackVariant,
     TrackVariantPaused,
     TrackVariantResumed,
+    TrackVariantSwitched,
     VoiceActivityChanged
   }
 
@@ -259,6 +260,8 @@ defmodule Membrane.RTC.Engine.TeeTest do
     buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
     send_buffer(pipeline, :high, buffer)
 
+    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high})
+
     event = %VoiceActivityChanged{voice_activity: :speech}
 
     Pipeline.execute_actions(pipeline,
@@ -269,6 +272,38 @@ defmodule Membrane.RTC.Engine.TeeTest do
     assert_sink_event(pipeline, :sink, ^event)
 
     Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  test "forwards VoiceActivityChanged after TrackVariantSwitched" do
+    track = build_opus_track()
+    pipeline = build_pipeline(track, [])
+
+    Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
+
+    Enum.each(track.variants, fn variant ->
+      assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^variant})
+    end)
+
+    event = %VoiceActivityChanged{voice_activity: :speech}
+
+    Pipeline.execute_actions(pipeline,
+      forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
+    )
+
+    request_track_variant(pipeline, :high)
+
+    # We shouldn't be getting an event before the switch actually happens
+    refute_sink_event(pipeline, :sink, ^event)
+
+    # Send the keyframe to switch
+    buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
+    send_buffer(pipeline, :high, buffer)
+
+    # After we switch, we expect a VoiceActivityChanged event
+    # right after TrackVariantSwitched
+    # even though it was emitted a while ago
+    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high})
+    assert_sink_event(pipeline, :sink, ^event)
   end
 
   test "VoiceActivityError" do
