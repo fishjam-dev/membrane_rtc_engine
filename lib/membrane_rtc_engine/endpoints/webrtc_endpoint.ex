@@ -268,6 +268,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_notification(
+        {:voice_activity_changed, vad},
+        {:track_receiver, track_id},
+        _ctx,
+        state
+      ) do
+    event = serialize({:signal, {:voice_activity, track_id, vad}})
+    {{:ok, notify: {:custom_media_event, event}}, state}
+  end
+
+  @impl true
   def handle_notification({:estimation, estimations}, {:track_sender, track_id}, _ctx, state) do
     notification = %TrackNotification{
       track_id: track_id,
@@ -451,11 +462,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     )
 
     {:ok, state}
-  end
-
-  @impl true
-  def handle_notification(notification, _element, _ctx, state) do
-    {{:ok, notify: notification}, state}
   end
 
   @impl true
@@ -741,6 +747,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       data: %{
         type: "offer",
         sdp: offer
+      }
+    }
+
+  defp serialize({:signal, {:voice_activity, track_id, vad}}),
+    do: %{
+      type: "vadNotification",
+      data: %{
+        trackId: track_id,
+        status: vad
       }
     }
 

@@ -4,11 +4,14 @@ defmodule Membrane.RTC.Engine.Tee do
 
   require Membrane.Logger
 
+  alias Membrane.RTC.Engine.Exception.VoiceActivityError
+
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched
+    TrackVariantSwitched,
+    VoiceActivityChanged
   }
 
   alias Membrane.RTC.Engine.Exception.{RequestTrackVariantError, TrackVariantStateError}
@@ -45,7 +48,8 @@ defmodule Membrane.RTC.Engine.Tee do
      %{
        track: opts.track,
        routes: %{},
-       inactive_variants: MapSet.new(opts.track.variants)
+       inactive_variants: MapSet.new(opts.track.variants),
+       vad: %{}
      }}
   end
 
@@ -105,6 +109,29 @@ defmodule Membrane.RTC.Engine.Tee do
       |> Enum.flat_map(fn {pad, _pad_data} ->
         [caps: {pad, %Membrane.RTP{}}]
       end)
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
+  def handle_event(Pad.ref(:input, {_track_id, _variant}), %VoiceActivityChanged{}, _ctx, state)
+      when state.track.type != :audio,
+      do: raise(VoiceActivityError, track: state.track)
+
+  @impl true
+  def handle_event(
+        Pad.ref(:input, {_track_id, variant}),
+        %VoiceActivityChanged{voice_activity: vad} = event,
+        _ctx,
+        state
+      ) do
+    state = put_in(state, [:vad, variant], vad)
+
+    # only forward to subscribed routes
+    actions =
+      state.routes
+      |> Enum.filter(fn {_pad, config} -> config.current_variant == variant end)
+      |> Enum.map(fn {pad, _config} -> {:event, {pad, event}} end)
 
     {{:ok, actions}, state}
   end
@@ -231,7 +258,9 @@ defmodule Membrane.RTC.Engine.Tee do
   defp handle_track_variant_request(output_pad, event, state) do
     %RequestTrackVariant{variant: requested_variant} = event
     pad = Pad.ref(:input, {state.track.id, requested_variant})
+
     actions = [event: {pad, %Membrane.KeyframeRequestEvent{}}]
+
     state = put_in(state, [:routes, output_pad, :target_variant], requested_variant)
     {{:ok, actions}, state}
   end
@@ -246,7 +275,13 @@ defmodule Membrane.RTC.Engine.Tee do
 
         buffer.metadata.is_keyframe ->
           event = %TrackVariantSwitched{new_variant: variant}
-          [event: {output_pad, event}, buffer: {output_pad, buffer}]
+
+          vad_event_action =
+            if Map.has_key?(state.vad, variant),
+              do: [event: {output_pad, %VoiceActivityChanged{voice_activity: state.vad[variant]}}],
+              else: []
+
+          [event: {output_pad, event}] ++ vad_event_action ++ [buffer: {output_pad, buffer}]
 
         true ->
           []
@@ -263,7 +298,13 @@ defmodule Membrane.RTC.Engine.Tee do
         |> put_in([:routes, output_pad, :target_variant], nil)
 
       event = %TrackVariantSwitched{new_variant: variant}
-      actions = [event: {output_pad, event}, buffer: {output_pad, buffer}]
+
+      vad_event_action =
+        if Map.has_key?(state.vad, variant),
+          do: [event: {output_pad, %VoiceActivityChanged{voice_activity: state.vad[variant]}}],
+          else: []
+
+      actions = [event: {output_pad, event}] ++ vad_event_action ++ [buffer: {output_pad, buffer}]
       {actions, state}
     else
       {[], state}

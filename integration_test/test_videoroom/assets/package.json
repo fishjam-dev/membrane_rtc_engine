@@ -1,7 +1,7 @@
 {
     "license": "MIT",
     "dependencies": {
-        "@membraneframework/membrane-webrtc-js": "github:membraneframework/membrane-webrtc-js",
+        "@membraneframework/membrane-webrtc-js": "github:membraneframework/membrane-webrtc-js#master",
         "phoenix": "file:../deps/phoenix",
         "playwright": "1.18.1"
     }

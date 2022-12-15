@@ -53,7 +53,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_core, "~> 0.10.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin, "~> 0.10.0"},
+      {:membrane_webrtc_plugin, "~> 0.11.0"},
       {:membrane_rtp_format, "~> 0.5.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.6.0"},
       {:membrane_rtp_opus_plugin, "~> 0.6.0"},

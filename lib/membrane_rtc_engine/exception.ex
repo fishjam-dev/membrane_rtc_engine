@@ -73,4 +73,20 @@ defmodule Membrane.RTC.Engine.Exception do
       %__MODULE__{message: msg}
     end
   end
+
+  defmodule VoiceActivityError do
+    defexception [:message]
+
+    @impl true
+    def exception(opts) do
+      track = Keyword.fetch!(opts, :track)
+
+      msg = """
+      Endpoint: #{inspect(track.origin)} sent VoiceActivityChanged event for video track #{inspect(track.id)}. \
+      VoiceActivityChanged can only be sent for audio tracks.
+      """
+
+      %__MODULE__{message: msg}
+    end
+  end
 end

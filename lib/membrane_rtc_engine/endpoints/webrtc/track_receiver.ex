@@ -35,7 +35,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     RequestTrackVariant,
     TrackVariantPaused,
     TrackVariantResumed,
-    TrackVariantSwitched
+    TrackVariantSwitched,
+    VoiceActivityChanged
   }
 
   alias Membrane.RTC.Engine.Track
@@ -64,12 +65,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @typedoc """
   Notifications that TrackReceiver emits.
   """
-  @type notifications() :: variant_switched()
+  @type notifications() :: variant_switched() | voice_activity_changed()
 
   @typedoc """
   Notification emitted whenever TrackReceiver starts receiving a new track variant.
   """
   @type variant_switched() :: {:variant_switched, Track.variant()}
+
+  @typedoc """
+  Notfication emitted when TrackReceiver receives an update on voice activity
+  """
+  @type voice_activity_changed() :: {:voice_activity_changed, :silence | :speech}
 
   def_options track: [
                 type: :struct,
@@ -175,6 +181,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_tick(:request_keyframe, _ctx, state) do
     {{:ok, maybe_request_keyframe(state.selector.current_variant)}, state}
+  end
+
+  @impl true
+  def handle_event(_pad, %VoiceActivityChanged{voice_activity: vad}, _ctx, state) do
+    {{:ok, notify: {:voice_activity_changed, vad}}, state}
   end
 
   @impl true
