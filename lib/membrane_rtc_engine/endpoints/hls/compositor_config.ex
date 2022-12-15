@@ -20,8 +20,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
           real_time: boolean()
         }
   defstruct caps: %Membrane.RawVideo{
-              width: 1280,
-              height: 720,
+              width: 400,
+              height: 800,
               pixel_format: :I420,
               framerate: {24, 1},
               aligned: true

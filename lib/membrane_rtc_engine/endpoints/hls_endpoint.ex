@@ -269,7 +269,10 @@ if Enum.all?(
           do: %{state | video_stream: state.video_stream - 1},
           else: state
 
-      {{:ok, remove_child: children_to_remove}, state}
+      update_action =
+        if removed_track.type == :video, do: change_grid(state, removed_track), else: []
+
+      {{:ok, [remove_child: children_to_remove] ++ update_action}, state}
     end
 
     @impl true
@@ -417,11 +420,20 @@ if Enum.all?(
     end
 
     defp hls_links_and_children(offset, link_builder, %{encoding: :H264} = track, state, ctx) do
-      initial_placement = %VideoPlacement{
-        position: getposition(state.video_stream),
-        display_size: {640, 310},
-        z_value: 0.1
-      }
+      basic_track_number =
+        length(
+          Enum.filter(state.tracks, fn {_id, track} ->
+            track.type == :video and not track.metadata["mainPresenter"]
+          end)
+        ) - 1
+
+      {_pad, initial_placement} =
+        change_layout(
+          track,
+          basic_track_number,
+          state.mixer_config.video.caps,
+          track.metadata["mainPresenter"]
+        )
 
       parent_spec = %ParentSpec{
         children: %{
@@ -631,5 +643,51 @@ if Enum.all?(
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
       do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
+
+    defp change_grid(state, curr_track) do
+      placements =
+        state.tracks
+        |> Enum.filter(fn {id, track} ->
+          track.type == :video and id != curr_track.id and not track.metadata["mainPresenter"]
+        end)
+        |> Enum.with_index()
+        |> Enum.map(fn {{_id, track}, index} ->
+          change_layout(
+            track,
+            index,
+            state.mixer_config.video.caps,
+            track.metadata["mainPresenter"]
+          )
+        end)
+
+      if placements == [],
+        do: [],
+        else: [forward: {:compositor, {:update_placement, placements}}]
+    end
+
+    defp change_layout(nil, _index, _output_size, _track_type), do: []
+
+    defp change_layout(track, _index, %{width: width, height: height}, true) do
+      updated_placement = %VideoPlacement{
+        position: {0, 0},
+        display_size: {width, height},
+        z_value: 0.1
+      }
+
+      {Pad.ref(:input, track.id), updated_placement}
+    end
+
+    defp change_layout(track, index, %{width: width, height: height}, false) do
+      position = {round(index * 1 / 2 * width), height - round(1 / 4 * height)}
+      display_size = {round(1 / 2 * width), round(1 / 4 * height)}
+
+      updated_placement = %VideoPlacement{
+        position: position,
+        display_size: display_size,
+        z_value: 0.2
+      }
+
+      {Pad.ref(:input, track.id), updated_placement}
+    end
   end
 end
