@@ -44,11 +44,11 @@ if Enum.all?(
 
     alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
-    alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig}
+    alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig, VideoLayoutMaker}
+    alias Membrane.VideoCompositor.RustStructs.VideoPlacement
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
     alias Membrane.Time
-    alias Membrane.VideoCompositor.RustStructs.VideoPlacement
 
     @compositor_deps [
       Membrane.H264.FFmpeg.Decoder,
@@ -144,8 +144,7 @@ if Enum.all?(
         segment_duration: opts.segment_duration,
         mixer_config: opts.mixer_config,
         broadcast_mode: opts.broadcast_mode,
-        stream_beginning: nil,
-        video_stream: 0
+        stream_beginning: nil
       }
 
       {:ok, state}
@@ -237,7 +236,9 @@ if Enum.all?(
           :decoder,
           :framerate_converter,
           :track_receiver,
-          :depayloader
+          :depayloader,
+          :blank,
+          :realtimer
         ]
         |> Enum.map(&{&1, track_id})
         |> Enum.filter(&Map.has_key?(ctx.children, &1))
@@ -264,13 +265,10 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      state =
-        if removed_track.encoding == :H264,
-          do: %{state | video_stream: state.video_stream - 1},
-          else: state
-
       update_action =
-        if removed_track.type == :video, do: change_grid(state, removed_track), else: []
+        if removed_track.type == :video,
+          do: VideoLayoutMaker.update_layout(state, removed_track),
+          else: []
 
       {{:ok, [remove_child: children_to_remove] ++ update_action}, state}
     end
@@ -295,11 +293,6 @@ if Enum.all?(
 
           {merge_parent_specs(spec, hls_sink_spec), state}
         end
-
-      state =
-        if track.encoding == :H264,
-          do: %{state | video_stream: state.video_stream + 1},
-          else: state
 
       {{:ok, spec: spec}, state}
     end
@@ -420,19 +413,19 @@ if Enum.all?(
     end
 
     defp hls_links_and_children(offset, link_builder, %{encoding: :H264} = track, state, ctx) do
-      basic_track_number =
+      # TODO:
+      basic_tracks_number =
         length(
           Enum.filter(state.tracks, fn {_id, track} ->
             track.type == :video and not track.metadata["mainPresenter"]
           end)
         ) - 1
 
-      {_pad, initial_placement} =
-        change_layout(
-          track,
-          basic_track_number,
-          state.mixer_config.video.caps,
-          track.metadata["mainPresenter"]
+      initial_placement =
+        VideoLayoutMaker.get_track_layout(
+          track.metadata,
+          basic_tracks_number,
+          state.mixer_config.video.caps
         )
 
       parent_spec = %ParentSpec{
@@ -465,6 +458,46 @@ if Enum.all?(
         ]
       }
 
+      parent_spec =
+        if track.metadata["mainPresenter"] do
+          parent_spec
+        else
+          blank_placement =
+            VideoLayoutMaker.get_track_layout(
+              :blank,
+              basic_tracks_number,
+              state.mixer_config.video.caps
+            )
+
+          {width, height} = blank_placement.display_size
+
+          blank_spec = %ParentSpec{
+            children: %{
+              {:blank, track.id} => %Membrane.BlankVideoGenerator{
+                caps: %Membrane.RawVideo{
+                  width: width,
+                  height: height,
+                  pixel_format: :I420,
+                  framerate: state.mixer_config.video.caps.framerate,
+                  aligned: true
+                },
+                duration: :infinity
+              },
+              {:realtimer, track.id} => Membrane.Realtimer
+            },
+            links: [
+              link({:blank, track.id})
+              |> to({:realtimer, track.id})
+              |> via_in(Pad.ref(:input, {:blank, track.id}),
+                options: [initial_placement: blank_placement, timestamp_offset: offset]
+              )
+              |> to(:compositor)
+            ]
+          }
+
+          merge_parent_specs(parent_spec, blank_spec)
+        end
+
       state
       |> generate_audio_mixer(ctx)
       |> merge_parent_specs(generate_compositor(state, ctx))
@@ -491,8 +524,9 @@ if Enum.all?(
         seconds_number = Membrane.Time.as_seconds(state.segment_duration.target)
 
         initial_placement = %VideoPlacement{
-          position: getposition(state.video_stream),
-          display_size: {640, 310}
+          position: {0, 0},
+          display_size: {20, 20},
+          z_value: 0.0
         }
 
         %ParentSpec{
@@ -636,58 +670,7 @@ if Enum.all?(
       }
     end
 
-    defp getposition(0), do: {0, 0}
-    defp getposition(1), do: {640, 0}
-    defp getposition(2), do: {0, 310}
-    defp getposition(3), do: {640, 310}
-
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
       do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
-
-    defp change_grid(state, curr_track) do
-      placements =
-        state.tracks
-        |> Enum.filter(fn {id, track} ->
-          track.type == :video and id != curr_track.id and not track.metadata["mainPresenter"]
-        end)
-        |> Enum.with_index()
-        |> Enum.map(fn {{_id, track}, index} ->
-          change_layout(
-            track,
-            index,
-            state.mixer_config.video.caps,
-            track.metadata["mainPresenter"]
-          )
-        end)
-
-      if placements == [],
-        do: [],
-        else: [forward: {:compositor, {:update_placement, placements}}]
-    end
-
-    defp change_layout(nil, _index, _output_size, _track_type), do: []
-
-    defp change_layout(track, _index, %{width: width, height: height}, true) do
-      updated_placement = %VideoPlacement{
-        position: {0, 0},
-        display_size: {width, height},
-        z_value: 0.1
-      }
-
-      {Pad.ref(:input, track.id), updated_placement}
-    end
-
-    defp change_layout(track, index, %{width: width, height: height}, false) do
-      position = {round(index * 1 / 2 * width), height - round(1 / 4 * height)}
-      display_size = {round(1 / 2 * width), round(1 / 4 * height)}
-
-      updated_placement = %VideoPlacement{
-        position: position,
-        display_size: display_size,
-        z_value: 0.2
-      }
-
-      {Pad.ref(:input, track.id), updated_placement}
-    end
   end
 end
