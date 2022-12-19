@@ -183,9 +183,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       {:ok, next_variant} when next_variant != :no_variant ->
         reply.(:accept)
 
-        selector
-        |> select_variant(next_variant)
-        |> manage_allocation()
+        {selector, action} = select_variant(selector, next_variant)
+        selector = manage_allocation(selector)
+        {selector, action}
 
       _otherwise ->
         reply.(:reject)
@@ -236,9 +236,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       # make sure we're selecting a target variant if it becomes active
       # and we have the bandwidth
       selector.target_variant == variant and fits_in_allocation?(selector, variant) ->
-        selector
-        |> select_variant(variant)
-        |> manage_allocation()
+        {selector, action} = select_variant(selector, variant)
+        selector = manage_allocation(selector)
+        {selector, action}
 
       # we're waiting for target, automatically select a variant
       true ->
@@ -279,16 +279,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     selector = %__MODULE__{selector | target_variant: variant}
 
     if variant in selector.active_variants and fits_in_allocation?(selector, variant) do
-      selector
-      |> select_variant(variant)
-      |> manage_allocation()
+      {selector, action} = select_variant(selector, variant)
+      selector = manage_allocation(selector)
+      {selector, action}
     else
       Membrane.Logger.debug("""
       Requested variant #{inspect(variant)} is either inactive, or we don't have enough bandwidth to use it. Saving it as target.
       It will be requested once it becomes active or we have enough bandwidth
       """)
 
-      manage_allocation({selector, :noop})
+      {manage_allocation(selector), :noop}
     end
   end
 
@@ -392,12 +392,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   defp perform_automatic_variant_selection(%__MODULE__{} = selector) do
-    selector
-    |> select_variant()
-    |> manage_allocation()
+    {selector, action} = select_variant(selector)
+    selector = manage_allocation(selector)
+    {selector, action}
   end
-
-  defp manage_allocation({selector, variant}), do: {manage_allocation(selector), variant}
 
   defp manage_allocation(%__MODULE__{} = selector) do
     current_variant_bitrate = selector.variant_bitrates[selector.current_variant]
