@@ -14,8 +14,8 @@ To enable VAD you need to
 2. Enable VAD WebRTC extension
 
 In practice, ensure that:
-1. `Membrane.Webrtc.Extension.VAD` is present in the `extensions` key of your WebRTC Endpoint configuration
-2. The following is part of the `webrtc_extensions` key in your WebRTC Endpoint configuration
+1. `Membrane.Webrtc.Extension.VAD` is present in the `webrtc_extensions` key of your WebRTC Endpoint configuration
+2. The following is part of the `extensions` key in your WebRTC Endpoint configuration
 ```elixir
 %{
   opus: Membrane.RTP.VAD
