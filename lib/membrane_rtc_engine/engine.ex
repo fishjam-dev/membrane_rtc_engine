@@ -281,49 +281,31 @@ defmodule Membrane.RTC.Engine do
     :ok
   end
 
-  @doc """
-  Adds peer to the RTC Engine
-  """
+  @deprecated "Add an endpoint with `peer_id` option instead"
   @spec add_peer(pid :: pid(), peer :: Peer.t()) :: :ok
-  def add_peer(pid, peer) do
-    send(pid, {:add_peer, peer})
+  def add_peer(_pid, _peer) do
     :ok
   end
 
-  @doc """
-  Removes peer from RTC Engine.
-
-  If reason is other than `nil`, RTC Engine will inform client library about peer removal with passed reason.
-  """
+  @deprecated "Remove endpoint instead"
   @spec remove_peer(rtc_engine :: pid(), peer_id :: any(), reason :: String.t() | nil) :: :ok
-  def remove_peer(rtc_engine, peer_id, reason \\ nil) do
-    send(rtc_engine, {:remove_peer, peer_id, reason})
+  def remove_peer(_rtc_engine, _peer_id, _reason \\ nil) do
     :ok
   end
 
-  @doc """
-  Allows peer for joining to the RTC Engine
-  """
+  @deprecated "Engine no longer handles peer acceptance and rejection"
   @spec accept_peer(pid :: pid(), peer_id :: String.t()) :: :ok
-  def accept_peer(pid, peer_id) do
-    send(pid, {:accept_new_peer, peer_id})
+  def accept_peer(_pid, _peer_id) do
     :ok
   end
 
-  @doc """
-  Deny peer from joining to the RTC Engine.
-  """
+  @deprecated "Engine no longer handles peer acceptance and rejection"
   @spec deny_peer(pid :: pid(), peer_id :: String.t()) :: :ok
-  def deny_peer(pid, peer_id) do
-    send(pid, {:deny_new_peer, peer_id})
+  def deny_peer(_pid, _peer_id) do
     :ok
   end
 
-  @doc """
-  The same as `deny_peer/2` but allows for passing any data that will be returned to the client.
-
-  This can be used for passing reason of peer refusal.
-  """
+  @deprecated "Engine no longer handles peer acceptance and rejection"
   @spec deny_peer(pid :: pid(), peer_id :: String.t(), data: any()) :: :ok
   def deny_peer(pid, peer_id, data) do
     send(pid, {:deny_new_peer, peer_id, data})
@@ -465,24 +447,17 @@ defmodule Membrane.RTC.Engine do
           another_endpoint
       end
 
-    cond do
-      Map.has_key?(state.endpoints, endpoint_id) ->
-        Membrane.Logger.warn(
-          "Cannot add Endpoint with id #{inspect(endpoint_id)} as it already exists"
-        )
+    if Map.has_key?(state.endpoints, endpoint_id) do
+      Membrane.Logger.warn(
+        "Cannot add Endpoint with id #{inspect(endpoint_id)} as it already exists"
+      )
 
-        {:ok, state}
-
-      peer_id != nil and !Map.has_key?(state.peers, peer_id) ->
-        Membrane.Logger.warn(
-          "Cannot attach Endpoint to peer with id #{peer_id} as such peer does not exist"
-        )
-
-        {:ok, state}
-
-      true ->
-        {actions, state} = handle_add_endpoint(endpoint, opts, state)
-        {{:ok, actions}, state}
+      {:ok, state}
+    else
+      # TODO: add peer here
+      # state = put_in(state, [:peers, peer_id], %Peer{id: peer_id, metadata: nil})
+      {actions, state} = handle_add_endpoint(endpoint, opts, state)
+      {{:ok, actions}, state}
     end
   end
 
@@ -496,18 +471,6 @@ defmodule Membrane.RTC.Engine do
       {:present, actions, state} ->
         {{:ok, actions}, state}
     end
-  end
-
-  @impl true
-  def handle_other({:add_peer, peer}, _ctx, state) do
-    {actions, state} = handle_add_peer(peer, state)
-    {{:ok, actions}, state}
-  end
-
-  @impl true
-  def handle_other({:remove_peer, id, reason}, ctx, state) do
-    {actions, state} = handle_remove_peer(id, reason, ctx, state)
-    {{:ok, actions}, state}
   end
 
   @impl true
@@ -617,24 +580,7 @@ defmodule Membrane.RTC.Engine do
 
   defp handle_media_event(:join, data, peer_id, _ctx, state) do
     peer = Peer.new(peer_id, data.metadata || %{})
-    dispatch(%Message.NewPeer{rtc_engine: self(), peer: peer})
-
-    receive do
-      {:accept_new_peer, ^peer_id} ->
-        handle_add_peer(peer, state)
-
-      {:accept_new_peer, peer_id} ->
-        Membrane.Logger.warn("Unknown peer id passed for acceptance: #{inspect(peer_id)}")
-        {[], state}
-
-      {:deny_new_peer, peer_id} ->
-        dispatch(peer_id, MediaEvent.peer_denied())
-        {[], state}
-
-      {:deny_new_peer, peer_id, data: data} ->
-        dispatch(peer_id, MediaEvent.peer_denied(data))
-        {[], state}
-    end
+    handle_add_peer(peer, state)
   end
 
   defp handle_media_event(:custom, event, peer_id, ctx, state) do
@@ -643,7 +589,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_media_event(:leave, _event, peer_id, ctx, state) do
-    dispatch(%Message.PeerLeft{rtc_engine: self(), peer: state.peers[peer_id]})
     handle_remove_peer(peer_id, nil, ctx, state)
   end
 
@@ -1159,7 +1104,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp dispatch(to, data) when is_binary(data) do
-    dispatch(%Message.MediaEvent{rtc_engine: self(), to: to, data: data})
+    dispatch(%Message.EndpointMessage{endpoint_id: to, message: {:media_event, data}})
   end
 
   defp dispatch(to, data) when is_map(data) do

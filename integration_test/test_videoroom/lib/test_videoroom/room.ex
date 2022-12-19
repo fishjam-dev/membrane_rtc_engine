@@ -80,26 +80,7 @@ defmodule TestVideoroom.Room do
   def handle_call({:add_peer_channel, peer_channel_pid, peer_id}, _from, state) do
     state = put_in(state, [:peer_channels, peer_id], peer_channel_pid)
     Process.monitor(peer_channel_pid)
-    {:reply, :ok, state}
-  end
 
-  @impl true
-  def handle_info(%Message.MediaEvent{to: :broadcast, data: event}, state) do
-    for {_peer_id, pid} <- state.peer_channels, do: send(pid, {:media_event, event})
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info(%Message.MediaEvent{to: to, data: event}, state) do
-    if state.peer_channels[to] != nil do
-      send(state.peer_channels[to], {:media_event, event})
-    end
-
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info(%Message.NewPeer{rtc_engine: rtc_engine, peer: peer}, state) do
     handshake_opts =
       if state.network_options[:dtls_pkey] &&
            state.network_options[:dtls_cert] do
@@ -117,15 +98,15 @@ defmodule TestVideoroom.Room do
       end
 
     endpoint = %WebRTC{
-      rtc_engine: rtc_engine,
-      ice_name: peer.id,
+      rtc_engine: state.rtc_engine,
+      ice_name: peer_id,
       extensions: %{},
       owner: self(),
       integrated_turn_options: state.network_options[:integrated_turn_options],
       integrated_turn_domain: state.network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
-      log_metadata: [peer_id: peer.id],
-      telemetry_label: [room_id: state.room_id, peer_id: peer.id],
+      log_metadata: [peer_id: peer_id],
+      telemetry_label: [room_id: state.room_id, peer_id: peer_id],
       webrtc_extensions: [Mid, Rid, TWCC],
       simulcast_config: %SimulcastConfig{
         enabled: true,
@@ -133,19 +114,27 @@ defmodule TestVideoroom.Room do
       }
     }
 
-    Engine.accept_peer(rtc_engine, peer.id)
-
-    :ok = Engine.add_endpoint(rtc_engine, endpoint, peer_id: peer.id)
+    :ok = Engine.add_endpoint(state.rtc_engine, endpoint, peer_id: peer_id)
 
     for listener <- state.listeners do
       send(listener, {:room, :new_peer})
     end
 
+    {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_info(%Message.EndpointMessage{endpoint_id: :broadcast, message: {:media_event, data}}, state) do
+    for {_peer_id, pid} <- state.peer_channels, do: send(pid, {:media_event, data})
     {:noreply, state}
   end
 
   @impl true
-  def handle_info(%Message.PeerLeft{peer: _peer}, state) do
+  def handle_info(%Message.EndpointMessage{endpoint_id: to, message: {:media_event, data}}, state) do
+    if state.peer_channels[to] != nil do
+      send(state.peer_channels[to], {:media_event, data})
+    end
+
     {:noreply, state}
   end
 
@@ -157,7 +146,7 @@ defmodule TestVideoroom.Room do
 
   @impl true
   def handle_info({:DOWN, _ref, :process, sfu_pid, _reason}, %{sfu_engine: sfu_pid} = state) do
-    {:stop, "sfu engine down", state}
+    {:stop, "rtc engine down", state}
   end
 
   @impl true
