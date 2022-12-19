@@ -21,34 +21,6 @@ defmodule Membrane.RTC.EngineTest do
     [rtc_engine: pid]
   end
 
-  describe "joining to a room" do
-    test "triggers :new_peer notification when media event is valid", %{rtc_engine: rtc_engine} do
-      peer_id = "sample_id"
-
-      metadata = %{
-        "displayName" => "Bob"
-      }
-
-      media_event =
-        %{
-          "type" => "join",
-          "data" => %{
-            "receiveMedia" => true,
-            "metadata" => metadata
-          }
-        }
-        |> Jason.encode!()
-
-      peer = %Peer{
-        id: peer_id,
-        metadata: metadata
-      }
-
-      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-      assert_receive %Message.NewPeer{rtc_engine: ^rtc_engine, peer: ^peer}
-    end
-  end
-
   @tag :skip
   describe "updating track metadata" do
     test "triggers trackUpdated event", %{rtc_engine: rtc_engine} do
@@ -76,7 +48,10 @@ defmodule Membrane.RTC.EngineTest do
 
       :ok = Engine.add_endpoint(rtc_engine, endpoint, peer_id: peer_id)
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: :broadcast,
+        message: {:media_event, data}
+      }
 
       assert %{
                "type" => "tracksAdded",
@@ -97,7 +72,10 @@ defmodule Membrane.RTC.EngineTest do
 
       :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: :broadcast,
+        message: {:media_event, data}
+      }
 
       assert %{
                "type" => "trackUpdated",

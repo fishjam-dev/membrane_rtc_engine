@@ -155,7 +155,7 @@ defmodule TestVideoroom.Room do
       state.peer_channels
       |> Enum.find(fn {_peer_id, peer_channel_pid} -> peer_channel_pid == pid end)
 
-    Engine.remove_peer(state.rtc_engine, peer_id)
+    Engine.remove_endpoint(state.rtc_engine, peer_id)
     {_elem, state} = pop_in(state, [:peer_channels, peer_id])
     {:noreply, state}
   end

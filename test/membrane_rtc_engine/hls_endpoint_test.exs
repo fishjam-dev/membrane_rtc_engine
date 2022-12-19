@@ -50,7 +50,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: :broadcast,
+        message: {:media_event, data}
+      }
 
       assert %{
                "type" => "tracksAdded",
@@ -124,7 +127,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok =
         Engine.add_endpoint(rtc_engine, audio_file_endpoint, endpoint_id: audio_file_endpoint_id)
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: :broadcast,
+        message: {:media_event, data}
+      }
 
       assert %{
                "type" => "tracksAdded",
@@ -134,7 +140,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
                }
              } == Jason.decode!(data)
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: :broadcast,
+        message: {:media_event, data}
+      }
 
       assert %{
                "type" => "tracksAdded",
@@ -196,7 +205,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: :broadcast,
+        message: {:media_event, data}
+      }
 
       assert %{
                "type" => "tracksAdded",

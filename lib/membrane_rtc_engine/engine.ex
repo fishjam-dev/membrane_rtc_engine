@@ -490,7 +490,7 @@ defmodule Membrane.RTC.Engine do
     case MediaEvent.decode(data) do
       {:ok, event} ->
         if event.type == :join or Map.has_key?(state.peers, from) do
-          {actions, state} = handle_media_event(event.type, event[:data], from, ctx, state)
+          {actions, state} = handle_media_event(event, from, ctx, state)
           {{:ok, actions}, state}
         else
           Membrane.Logger.warn("Received media event from unknown peer id: #{inspect(from)}")
@@ -578,36 +578,59 @@ defmodule Membrane.RTC.Engine do
   #   update_peer_metadata, update_track_metadata, select_encoding
   #
 
-  defp handle_media_event(:join, data, peer_id, _ctx, state) do
+  defp handle_media_event(%{type: :join, data: data}, peer_id, _ctx, state) do
     peer = Peer.new(peer_id, data.metadata || %{})
     handle_add_peer(peer, state)
   end
 
-  defp handle_media_event(:custom, event, peer_id, ctx, state) do
-    actions = forward({:endpoint, peer_id}, {:custom_media_event, event}, ctx)
-    {actions, state}
-  end
-
-  defp handle_media_event(:leave, _event, peer_id, ctx, state) do
+  defp handle_media_event(%{type: :leave}, peer_id, ctx, state) do
     handle_remove_peer(peer_id, nil, ctx, state)
   end
 
-  defp handle_media_event(:update_peer_metadata, %{metadata: metadata}, peer_id, _ctx, state) do
+  defp handle_media_event(event, peer_id, ctx, state) do
+    event =
+      case event.type do
+        :custom -> event.data
+        _otherwise -> event
+      end
+
+    actions = forward({:endpoint, peer_id}, {:media_event, event}, ctx)
+    {actions, state}
+  end
+
+  #
+  # Endpoint Notifications
+  #
+  # - handle_endpoint_notification/4: Handles incoming notifications from an Endpoint, usually
+  #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
+  #   removed tracks. Also forwards custom media events.
+  #
+
+  defp handle_endpoint_notification({:forward_to_parent, message}, endpoint_id, _ctx, state) do
+    dispatch(%Message.EndpointMessage{endpoint_id: endpoint_id, message: message})
+    {:noreply, state}
+  end
+
+  defp handle_endpoint_notification({:update_peer_metadata, metadata}, peer_id, _ctx, state) do
     peer = Map.get(state.peers, peer_id)
 
     if peer.metadata != metadata do
       updated_peer = %{peer | metadata: metadata}
       state = put_in(state, [:peers, peer_id], updated_peer)
-      broadcast(MediaEvent.peer_updated(updated_peer))
-      {[], state}
+
+      actions =
+        state.peers
+        |> Map.keys()
+        |> Enum.map(&{:forward, {{:endpoint, &1}, {:peer_metadata_updated, updated_peer}}})
+
+      {actions, state}
     else
       {[], state}
     end
   end
 
-  defp handle_media_event(
-         :update_track_metadata,
-         %{track_id: track_id, track_metadata: track_metadata},
+  defp handle_endpoint_notification(
+         {:update_track_metadata, track_id, track_metadata},
          endpoint_id,
          _ctx,
          state
@@ -619,8 +642,20 @@ defmodule Membrane.RTC.Engine do
       if track != nil and track.metadata != track_metadata do
         endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
         state = put_in(state, [:endpoints, endpoint_id], endpoint)
-        broadcast(MediaEvent.track_updated(endpoint_id, track_id, track_metadata))
-        {[], state}
+
+        actions =
+          state.subscriptions
+          |> Map.values()
+          |> Enum.flat_map(&Map.values/1)
+          |> Enum.filter(&(&1.track_id == track_id))
+          |> Enum.map(& &1.endpoint_id)
+          |> Enum.map(
+            &{:forward,
+             {{:endpoint, &1},
+              {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}}}
+          )
+
+        {actions, state}
       else
         {[], state}
       end
@@ -628,14 +663,6 @@ defmodule Membrane.RTC.Engine do
       {[], state}
     end
   end
-
-  #
-  # Endpoint Notifications
-  #
-  # - handle_endpoint_notification/4: Handles incoming notifications from an Endpoint, usually
-  #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
-  #   removed tracks. Also forwards custom media events.
-  #
 
   defp handle_endpoint_notification(
          {:publish, %TrackNotification{track_id: track_id} = notification},
