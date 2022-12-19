@@ -30,7 +30,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
   end
 
   def get_track_layout(:blank, index, %{width: width, height: height}) do
-    position = {round(index * 1 / 2 * width), height - round(1 / 4 * height)}
+    position = {round(index / 2 * width), height - round(1 / 4 * height)}
     display_size = {round(1 / 2 * width), round(1 / 4 * height)}
 
     %VideoPlacement{
@@ -48,7 +48,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
     }
 
   def get_track_layout(_track, index, %{width: width, height: height}) do
-    position = {round(index * 1 / 2 * width) + 5, height - round(1 / 4 * height) + 5}
+    position = {round(index / 2 * width) + 5, height - round(1 / 4 * height) + 5}
     display_size = {round(1 / 2 * width) - 10, round(1 / 4 * height) - 10}
 
     %VideoPlacement{
