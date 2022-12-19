@@ -4,9 +4,13 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
   """
   require Membrane.Pad
 
-  alias Membrane.VideoCompositor.RustStructs.VideoPlacement
   alias Membrane.Pad
+  alias Membrane.RTC.Engine.Track
+  alias Membrane.VideoCompositor.RustStructs.VideoPlacement
 
+  @spec update_layout(%{:tracks => map(), optional(any()) => any()}, Track.t()) :: [
+          {:forward, {:compositor, {:update_placement, list({Pad.ref_t(), VideoPlacement.t()})}}}
+        ]
   def update_layout(state, curr_track) do
     placements =
       state.tracks
@@ -29,6 +33,11 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
       else: [forward: {:compositor, {:update_placement, placements}}]
   end
 
+  @spec get_track_layout(Track.t() | :blank, integer(), %{
+          :height => integer(),
+          :width => integer(),
+          optional(any()) => any()
+        }) :: VideoPlacement.t()
   def get_track_layout(:blank, index, %{width: width, height: height}) do
     position = {round(index / 2 * width), height - round(1 / 4 * height)}
     display_size = {round(1 / 2 * width), round(1 / 4 * height)}

@@ -45,10 +45,10 @@ if Enum.all?(
     alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig, VideoLayoutMaker}
-    alias Membrane.VideoCompositor.RustStructs.VideoPlacement
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
     alias Membrane.Time
+    alias Membrane.VideoCompositor.RustStructs.VideoPlacement
 
     @compositor_deps [
       Membrane.H264.FFmpeg.Decoder,
