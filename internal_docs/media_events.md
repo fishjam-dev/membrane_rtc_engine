@@ -400,7 +400,8 @@ Messages used by any RTC Engine plugin
   {
     peerId: peer_id,
     trackId: track_id,
-    encoding: encoding
+    encoding: encoding,
+    reason: "target" | "good_bandwidth" | "low_bandwidth" | "other"
   }
   ```
 

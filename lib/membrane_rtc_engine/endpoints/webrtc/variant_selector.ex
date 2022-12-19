@@ -3,6 +3,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   # module responsible for choosing track variant
   require Membrane.Logger
 
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
   @default_bitrates_video %{
@@ -26,7 +27,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   Action returned by the VariantSelector to express desire to
   switch to the given variant
   """
-  @type variant_request_action_t() :: {:request, Track.variant()}
+  @type variant_request_action_t() ::
+          {:request, Track.variant(), TrackReceiver.variant_switch_reason()}
 
   @typedoc """
   Action returned by the VariantSelector when, for any reason,
@@ -149,9 +151,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   def set_bandwidth_allocation(%__MODULE__{} = selector, allocation) do
-    selector
-    |> Map.put(:current_allocation, allocation)
-    |> perform_automatic_variant_selection()
+    {selector, action} =
+      selector
+      |> Map.put(:current_allocation, allocation)
+      |> perform_automatic_variant_selection()
+
+    action = add_reason(action, :good_bandwidth)
+    {selector, action}
   end
 
   @doc """
@@ -184,6 +190,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         reply.(:accept)
 
         {selector, action} = select_variant(selector, next_variant)
+        action = add_reason(action, :low_bandwidth)
         selector = manage_allocation(selector)
         {selector, action}
 
@@ -203,20 +210,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       | active_variants: MapSet.delete(selector.active_variants, variant)
     }
 
-    case selector do
-      %{current_variant: ^variant} ->
-        %__MODULE__{selector | current_variant: :no_variant}
+    {selector, action} =
+      case selector do
+        %{current_variant: ^variant} ->
+          %__MODULE__{selector | current_variant: :no_variant}
 
-      %{queued_variant: ^variant, current_variant: :no_variant} ->
-        %__MODULE__{selector | queued_variant: :no_variant}
+        %{queued_variant: ^variant, current_variant: :no_variant} ->
+          %__MODULE__{selector | queued_variant: :no_variant}
 
-      %{queued_variant: ^variant} ->
-        %__MODULE__{selector | queued_variant: :no_variant}
+        %{queued_variant: ^variant} ->
+          %__MODULE__{selector | queued_variant: :no_variant}
 
-      _else ->
-        selector
-    end
-    |> perform_automatic_variant_selection()
+        _else ->
+          selector
+      end
+      |> perform_automatic_variant_selection()
+
+    action = add_reason(action, :other)
+    {selector, action}
   end
 
   @doc """
@@ -237,6 +248,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       # and we have the bandwidth
       selector.target_variant == variant and fits_in_allocation?(selector, variant) ->
         {selector, action} = select_variant(selector, variant)
+        action = add_reason(action, :other)
         selector = manage_allocation(selector)
         {selector, action}
 
@@ -247,7 +259,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         |> case do
           # TODO: don't ignore stop action when RTC Engine supports it
           {selector, :stop} -> {selector, :noop}
-          {selector, action} -> {selector, action}
+          {selector, action} -> {selector, add_reason(action, :other)}
         end
     end
   end
@@ -280,6 +292,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     if variant in selector.active_variants and fits_in_allocation?(selector, variant) do
       {selector, action} = select_variant(selector, variant)
+      action = add_reason(action, :target)
       selector = manage_allocation(selector)
       {selector, action}
     else
@@ -462,4 +475,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   defp fits_in_allocation?(selector, variant) do
     selector.variant_bitrates[variant] * 1.1 <= selector.current_allocation
   end
+
+  defp add_reason({:request, variant}, reason), do: {:request, variant, reason}
+  defp add_reason(action, _reason), do: action
 end

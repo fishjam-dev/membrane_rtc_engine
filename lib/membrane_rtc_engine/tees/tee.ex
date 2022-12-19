@@ -256,48 +256,32 @@ defmodule Membrane.RTC.Engine.Tee do
   end
 
   defp handle_track_variant_request(output_pad, event, state) do
-    %RequestTrackVariant{variant: requested_variant} = event
+    %RequestTrackVariant{variant: requested_variant, reason: reason} = event
     pad = Pad.ref(:input, {state.track.id, requested_variant})
 
     actions = [event: {pad, %Membrane.KeyframeRequestEvent{}}]
 
-    state = put_in(state, [:routes, output_pad, :target_variant], requested_variant)
+    state =
+      state
+      |> put_in([:routes, output_pad, :target_variant], requested_variant)
+      |> put_in([:routes, output_pad, :reason], reason)
+
     {{:ok, actions}, state}
   end
 
-  defp handle_route(buffer, variant, {output_pad, %{current_variant: variant}}, ctx, state) do
-    started? = ctx.pads[output_pad].start_of_stream?
-
-    actions =
-      cond do
-        started? ->
-          [buffer: {output_pad, buffer}]
-
-        buffer.metadata.is_keyframe ->
-          event = %TrackVariantSwitched{new_variant: variant}
-
-          vad_event_action =
-            if Map.has_key?(state.vad, variant),
-              do: [event: {output_pad, %VoiceActivityChanged{voice_activity: state.vad[variant]}}],
-              else: []
-
-          [event: {output_pad, event}] ++ vad_event_action ++ [buffer: {output_pad, buffer}]
-
-        true ->
-          []
-      end
-
-    {actions, state}
+  defp handle_route(buffer, variant, {output_pad, %{current_variant: variant}}, _ctx, state) do
+    {[buffer: {output_pad, buffer}], state}
   end
 
   defp handle_route(buffer, variant, {output_pad, %{target_variant: variant}}, _ctx, state) do
     if buffer.metadata.is_keyframe do
+      event = %TrackVariantSwitched{new_variant: variant, reason: state.routes[output_pad].reason}
+
       state =
         state
         |> put_in([:routes, output_pad, :current_variant], variant)
         |> put_in([:routes, output_pad, :target_variant], nil)
-
-      event = %TrackVariantSwitched{new_variant: variant}
+        |> put_in([:routes, output_pad, :reason], nil)
 
       vad_event_action =
         if Map.has_key?(state.vad, variant),
