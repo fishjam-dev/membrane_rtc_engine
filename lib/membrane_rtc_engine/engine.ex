@@ -608,7 +608,7 @@ defmodule Membrane.RTC.Engine do
 
   defp handle_endpoint_notification({:forward_to_parent, message}, endpoint_id, _ctx, state) do
     dispatch(%Message.EndpointMessage{endpoint_id: endpoint_id, message: message})
-    {:noreply, state}
+    {:ok, state}
   end
 
   defp handle_endpoint_notification({:update_peer_metadata, metadata}, peer_id, _ctx, state) do
@@ -619,9 +619,9 @@ defmodule Membrane.RTC.Engine do
       state = put_in(state, [:peers, peer_id], updated_peer)
 
       actions =
-        state.peers
+        state.endpoints
         |> Map.keys()
-        |> Enum.map(&{:forward, {{:endpoint, &1}, {:peer_metadata_updated, updated_peer}}})
+        |> Enum.map(&{:forward, {{:endpoint, &1.id}, {:peer_metadata_updated, updated_peer}}})
 
       {actions, state}
     else
@@ -836,9 +836,14 @@ defmodule Membrane.RTC.Engine do
       )
 
       dispatch(peer.id, MediaEvent.peer_accepted(peer.id, state.peers, state.endpoints))
-      broadcast(MediaEvent.peer_joined(peer))
+
+      actions =
+        state.endpoints
+        |> Map.values()
+        |> Enum.map(&{:forward, {{:endpoint, &1.id}, {:new_peer, peer}}})
+
       state = put_in(state, [:peers, peer.id], peer)
-      {[], state}
+      {actions, state}
     end
   end
 
@@ -854,9 +859,14 @@ defmodule Membrane.RTC.Engine do
           reason: inspect(reason)
         )
 
-        broadcast(MediaEvent.peer_left(peer_id))
         send_if_not_nil(state.display_manager, {:unregister_endpoint, {:endpoint, peer_id}})
-        {actions, state}
+
+        broadcast_actions =
+          state.endpoints
+          |> Map.values()
+          |> Enum.map(&{:forward, {{:endpoint, &1.id}, {:peer_left, peer_id}}})
+
+        {actions ++ broadcast_actions, state}
     end
   end
 

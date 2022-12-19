@@ -462,6 +462,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_other({:new_peer, peer}, _ctx, state) do
+    event = MediaEvent.peer_joined(peer)
+    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+  end
+
+  @impl true
+  def handle_other({:peer_left, peer_id}, _ctx, state) do
+    event = MediaEvent.peer_left(peer_id)
+    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+  end
+
+  @impl true
   def handle_other({:update_track_metadata, track}, _ctx, state) do
     event = MediaEvent.track_updated(track.origin, track.id, track.metadata)
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
