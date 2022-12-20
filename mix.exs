@@ -160,6 +160,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       "guides/logs.md",
       "guides/metrics.md",
       "guides/traces.md",
+      "guides/vad.md",
 
       # internal docs
       "internal_docs/media_events.md",
