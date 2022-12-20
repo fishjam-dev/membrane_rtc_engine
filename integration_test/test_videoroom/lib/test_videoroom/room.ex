@@ -139,8 +139,8 @@ defmodule TestVideoroom.Room do
   end
 
   @impl true
-  def handle_info({:media_event, _from, _event} = msg, state) do
-    Engine.receive_media_event(state.rtc_engine, msg)
+  def handle_info({:media_event, from, event}, state) do
+    Engine.message_endpoint(state.rtc_engine, from, {:media_event, event})
     {:noreply, state}
   end
 

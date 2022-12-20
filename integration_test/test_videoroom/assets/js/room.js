@@ -22,8 +22,6 @@ function setErrorMessage(error) {
 }
 
 class Room {
-
-
   constructor(localStream, simulcast) {
     this.localStream = localStream;
     this.peers = [];

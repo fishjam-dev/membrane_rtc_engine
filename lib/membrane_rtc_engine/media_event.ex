@@ -1,18 +1,12 @@
 defmodule Membrane.RTC.Engine.MediaEvent do
   @moduledoc false
 
-  alias Membrane.RTC.Engine.{Endpoint, Peer, Track}
+  alias Membrane.RTC.Engine.{Peer, Track}
 
   @type t() :: map()
 
-  @spec peer_accepted(Peer.id(), map(), [Endpoint.t()]) :: t()
-  def peer_accepted(peer_id, peers, endpoints) do
-    peers =
-      Enum.map(peers, fn {id, peer} ->
-        track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoints[id])
-        %{id: id, metadata: peer.metadata, trackIdToMetadata: track_id_to_track_metadata}
-      end)
-
+  @spec peer_accepted(Peer.id(), list()) :: t()
+  def peer_accepted(peer_id, peers) do
     %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers}}
   end
 

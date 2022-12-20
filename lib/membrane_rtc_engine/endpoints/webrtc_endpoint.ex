@@ -220,7 +220,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         inbound_tracks: %{},
         display_manager: nil,
         connection_prober: nil,
-        connection_allocator_module: connection_allocator_module
+        connection_allocator_module: connection_allocator_module,
+        other_peers: %{}
       })
 
     {:ok, state}
@@ -275,7 +276,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         state
       ) do
     event = serialize({:voice_activity, track_id, vad})
-    {{:ok, notify: {:custom_media_event, event}}, state}
+    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
   @impl true
@@ -405,7 +406,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       event: inspect(media_event)
     )
 
-    {{:ok, notify: {:custom_media_event, media_event}}, state}
+    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
   end
 
   @impl true
@@ -421,7 +422,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       event: inspect(media_event)
     )
 
-    {{:ok, notify: {:custom_media_event, media_event}}, state}
+    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
   end
 
   @impl true
@@ -442,7 +443,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-    {{:ok, notify: {:custom_media_event, media_event}}, state}
+    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
   end
 
   @impl true
@@ -463,25 +464,38 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_other({:new_peer, peer}, _ctx, state) do
-    event = MediaEvent.peer_joined(peer)
+    peer_info =
+      peer
+      |> Map.from_struct()
+      |> Map.put(:trackIdToMetadata, %{})
+
+    state = put_in(state, [:other_peers, peer.id], peer_info)
+
+    event = MediaEvent.peer_joined(peer) |> MediaEvent.encode()
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
   @impl true
   def handle_other({:peer_left, peer_id}, _ctx, state) do
-    event = MediaEvent.peer_left(peer_id)
+    {_peer, state} = pop_in(state, [:other_peers, peer_id])
+    event = MediaEvent.peer_left(peer_id) |> MediaEvent.encode()
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
   @impl true
   def handle_other({:update_track_metadata, track}, _ctx, state) do
-    event = MediaEvent.track_updated(track.origin, track.id, track.metadata)
+    event =
+      MediaEvent.track_updated(track.origin, track.id, track.metadata) |> MediaEvent.encode()
+
+    # TODO :update metadata in the state
+
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
   @impl true
   def handle_other({:update_peer_metadata, peer}, _ctx, state) do
-    event = MediaEvent.peer_updated(peer)
+    event = MediaEvent.peer_updated(peer) |> MediaEvent.encode()
+    # TODO: update metadata in the state
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
@@ -521,6 +535,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         tracks,
         &to_webrtc_track(&1)
       )
+
+    state =
+      Enum.reduce(tracks, state, fn track, state ->
+        put_in(state, [:other_peers, track.origin, :trackIdToMetadata, track.id], track.metadata)
+      end)
 
     outbound_tracks = update_tracks(tracks, state.outbound_tracks)
 
@@ -649,6 +668,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:ok, state}
   end
 
+  defp handle_media_event(%{type: :join, data: %{metadata: metadata}}, ctx, state) do
+    {:endpoint, peer_id} = ctx.name
+
+    event =
+      MediaEvent.peer_accepted(peer_id, Map.values(state.other_peers)) |> MediaEvent.encode()
+
+    {{:ok, notify: {:ready, metadata}, notify: {:forward_to_parent, {:media_event, event}}},
+     state}
+  end
+
+  defp handle_media_event(%{type: :leave}, _ctx, state) do
+    {:ok, state}
+  end
+
   defp handle_media_event(
          %{type: :update_track_metadata, track_id: track_id, metadata: metadata},
          _ctx,
@@ -727,7 +760,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         Map.put(acc, track.id, track)
       end)
 
-  defp serialize({:signal, {:sdp_answer, answer, mid_to_track_id}}),
+  defp serialize(event) do
+    MediaEvent.encode(%{
+      type: "custom",
+      data: do_serialize(event)
+    })
+  end
+
+  defp do_serialize({:signal, {:sdp_answer, answer, mid_to_track_id}}),
     do: %{
       type: "sdpAnswer",
       data: %{
@@ -737,7 +777,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-  defp serialize({:signal, {:offer_data, tracks_types, turns}}) do
+  defp do_serialize({:signal, {:offer_data, tracks_types, turns}}) do
     integrated_turn_servers =
       Enum.map(turns, fn turn ->
         addr =
@@ -763,7 +803,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     }
   end
 
-  defp serialize({:signal, {:candidate, candidate, sdp_m_line_index}}),
+  defp do_serialize({:signal, {:candidate, candidate, sdp_m_line_index}}),
     do: %{
       type: "candidate",
       data: %{
@@ -774,7 +814,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-  defp serialize({:signal, {:sdp_offer, offer}}),
+  defp do_serialize({:signal, {:sdp_offer, offer}}),
     do: %{
       type: "sdpOffer",
       data: %{
@@ -783,7 +823,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-  defp serialize({:voice_activity, track_id, vad}),
+  defp do_serialize({:voice_activity, track_id, vad}),
     do: %{
       type: "vadNotification",
       data: %{
@@ -792,13 +832,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       }
     }
 
-  defp serialize({:bandwidth_estimation, estimation}),
+  defp do_serialize({:bandwidth_estimation, estimation}),
     do: %{
       type: "bandwidthEstimation",
       data: %{
         estimation: estimation
       }
     }
+
+  defp deserialize(string) when is_binary(string) do
+    with {:ok, event} <- MediaEvent.decode(string) do
+      deserialize(event)
+    end
+  end
+
+  defp deserialize(%{type: :custom, data: data}), do: deserialize(data)
 
   # TODO: this clause should not be necessary
   defp deserialize(%{type: _type} = event), do: {:ok, event}

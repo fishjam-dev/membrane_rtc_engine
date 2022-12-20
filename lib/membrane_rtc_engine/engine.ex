@@ -333,10 +333,11 @@ defmodule Membrane.RTC.Engine do
   @doc """
   Sends Media Event to RTC Engine.
   """
-  @spec receive_media_event(rtc_engine :: pid(), media_event :: {:media_event, pid(), any()}) ::
+  @deprecated "Use message endpoint instead"
+  @spec receive_media_event(rtc_engine :: pid(), media_event :: {:media_event, String.t(), any()}) ::
           :ok
-  def receive_media_event(rtc_engine, media_event) do
-    send(rtc_engine, media_event)
+  def receive_media_event(rtc_engine, {:media_event, from, event}) do
+    message_endpoint(rtc_engine, from, {:media_event, event})
     :ok
   end
 
@@ -606,6 +607,23 @@ defmodule Membrane.RTC.Engine do
   #   removed tracks. Also forwards custom media events.
   #
 
+  defp handle_endpoint_notification({:ready, metadata}, endpoint_id, _ctx, state) do
+    if endpoint_id in Map.keys(state.peers) do
+      state = put_in(state, [:peers, endpoint_id, :metadata], metadata)
+      peer = Map.fetch!(state.peers, endpoint_id)
+
+      actions =
+        state.endpoints
+        |> Map.delete(endpoint_id)
+        |> Map.keys()
+        |> Enum.map(&{:forward, {{:endpoint, &1}, {:new_peer, peer}}})
+
+      {{:ok, actions}, state}
+    else
+      {:ok, state}
+    end
+  end
+
   defp handle_endpoint_notification({:forward_to_parent, message}, endpoint_id, _ctx, state) do
     dispatch(%Message.EndpointMessage{endpoint_id: endpoint_id, message: message})
     {:ok, state}
@@ -752,9 +770,9 @@ defmodule Membrane.RTC.Engine do
       )
 
     tracks_msgs = build_track_added_actions(tracks, endpoint_id, state)
-    endpoint = get_in(state, [:endpoints, endpoint_id])
-    track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
-    broadcast(MediaEvent.tracks_added(endpoint_id, track_id_to_track_metadata))
+    # endpoint = get_in(state, [:endpoints, endpoint_id])
+    # track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
+    # broadcast(MediaEvent.tracks_added(endpoint_id, track_id_to_track_metadata))
     {{:ok, tracks_msgs}, state}
   end
 
@@ -834,8 +852,6 @@ defmodule Membrane.RTC.Engine do
         peer_id: peer.id,
         peer_metadata: inspect(peer.metadata)
       )
-
-      dispatch(peer.id, MediaEvent.peer_accepted(peer.id, state.peers, state.endpoints))
 
       actions =
         state.endpoints
@@ -918,19 +934,38 @@ defmodule Membrane.RTC.Engine do
         do: {endpoint_name, {:display_manager, state.display_manager}},
         else: nil
 
+    peers_actions =
+      state.peers
+      |> Map.delete(endpoint_id)
+      |> Map.values()
+      |> Enum.map(&{:forward, {endpoint_name, {:new_peer, &1}}})
+
     actions =
-      [
-        spec: spec,
-        forward: display_manager_message,
-        forward: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}
-      ]
+      ([
+         spec: spec
+       ] ++
+         peers_actions ++
+         [
+           forward: display_manager_message,
+           forward: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}
+         ])
       |> Keyword.filter(fn
         {:forward, nil} -> false
         _other -> true
       end)
 
-    state = put_in(state, [:subscriptions, endpoint_id], %{})
-    state = put_in(state, [:endpoints, endpoint_id], Endpoint.new(endpoint_id, []))
+    state =
+      state
+      |> put_in([:subscriptions, endpoint_id], %{})
+      |> put_in([:endpoints, endpoint_id], Endpoint.new(endpoint_id, []))
+
+    state =
+      if Keyword.has_key?(opts, :peer_id) do
+        put_in(state, [:peers, opts[:peer_id]], %Peer{id: endpoint_id, metadata: nil})
+      else
+        state
+      end
+
     {actions, state}
   end
 
