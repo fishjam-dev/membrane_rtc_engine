@@ -415,3 +415,15 @@ Messages used by any RTC Engine plugin
   status: "silence" | "speech"
 }
 ```
+
+### `bandwidthEstimation`
+* Informs about client's available incoming bitrate (a.k.a. download) estimated by the server.
+  It is measured in bits per second.
+* For this notification to work, the server must be configured to use TWCC extension
+  and the sender must support it.
+
+```json
+{
+  estimation: estimation,
+}
+```
