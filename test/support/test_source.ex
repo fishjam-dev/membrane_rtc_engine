@@ -29,11 +29,11 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
                 used for the next call.
                 """
               ],
-              caps: [
+              stream_format: [
                 spec: struct(),
                 default: %Membrane.RemoteStream{},
                 description: """
-                Caps to be sent before the `output`.
+                stream_format to be sent before the `output`.
                 """
               ],
               fast_start: [
@@ -66,7 +66,7 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
 
   @impl true
   def handle_playing(_ctx, state) do
-    {[stream_format: {:output, state.caps}], state}
+    {[notify_parent: :playing, stream_format: {:output, state.stream_format}], state}
   end
 
   @impl true
@@ -81,7 +81,7 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
 
   @impl true
   def handle_event(:output, event, _ctx, state) do
-    {[notify: %Membrane.Testing.Notification{payload: {:event, event}}], state}
+    {[notify_parent: %Membrane.Testing.Notification{payload: {:event, event}}], state}
   end
 
   @impl true

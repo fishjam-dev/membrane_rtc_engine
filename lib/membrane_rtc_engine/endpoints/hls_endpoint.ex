@@ -56,7 +56,7 @@ if Enum.all?(
 
     def_input_pad :input,
       demand_unit: :buffers,
-      caps: :any,
+      stream_format: :any,
       availability: :on_request
 
     def_options rtc_engine: [
@@ -281,7 +281,7 @@ if Enum.all?(
           {:depayloader, track.id} => get_depayloader(track),
           {:opus_decoder, track.id} => Membrane.Opus.Decoder,
           {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_enstream_formatulation: :none}
         },
         links: [
           link_builder

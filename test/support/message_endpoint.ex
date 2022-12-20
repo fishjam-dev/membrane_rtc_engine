@@ -25,7 +25,7 @@ defmodule Membrane.RTC.Engine.Support.MessageEndpoint do
   end
 
   @impl true
-  def handle_info(message, _ctx, state) do
+  def handle_parent_notification(message, _ctx, state) do
     send(state.owner, message)
     {[], state}
   end

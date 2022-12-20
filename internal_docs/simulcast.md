@@ -24,7 +24,7 @@ In other case video will freeze for a while after switching encodings.
 
 ## Forwarder
 It is responsible for forwarding proper encoding.
-It encapsulates mungers (described below).
+It enstream_formatulates mungers (described below).
 
 ## Mungers
 

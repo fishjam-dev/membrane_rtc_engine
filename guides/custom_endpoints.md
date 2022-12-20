@@ -36,12 +36,12 @@ Pads should be in the following form
 ```elixir
 def_input_pad :input,
     demand_unit: :buffers,
-    caps: Membrane.RTP,
+    stream_format: Membrane.RTP,
     availability: :on_request
 
 def_output_pad :output,
     demand_unit: :buffers,
-    caps: Membrane.RTP,
+    stream_format: Membrane.RTP,
     availability: :on_request
 ```
 
@@ -73,7 +73,7 @@ defmodule RecordingEndpoint do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    caps: :any,
+    stream_format: :any,
     availability: :on_request
 
   @impl true
@@ -169,7 +169,7 @@ The endpoint will be also notified when some tracks it subscribed for are remove
 > Engine <--- RequestTrackVariant (:low)    ---- Endpoint
 > ```
 >
-> Because this logic must be duplicated in each endpoint we encapsulated 
+> Because this logic must be duplicated in each endpoint we enstream_formatulated 
 > it into `TrackReceiver` that can easily be plugged in before the actual
 > Membrane element.
 >
@@ -201,7 +201,7 @@ defmodule RecordingEndpoint do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    caps: :any,
+    stream_format: :any,
     availability: :on_request
 
   @impl true

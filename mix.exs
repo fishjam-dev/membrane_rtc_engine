@@ -58,8 +58,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_rtp_format, "~> 0.6.0"},
       # FIXME: remove
       {:membrane_rtp_plugin, github: "membraneframework/membrane_rtp_plugin", override: true},
-      {:membrane_rtp_vp8_plugin,
-       github: "membraneframework/membrane_rtp_vp8_plugin", branch: "core-v0.11"},
+      {:membrane_rtp_vp8_plugin, "~> 0.7.0"},
       # {:membrane_rtp_opus_plugin, "~> 0.6.0"},
       {:membrane_rtp_h264_plugin, "~> 0.14.0"},
       {:membrane_tee_plugin, "~> 0.10.0"},
@@ -70,7 +69,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.28.3", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
-      # {:statistics, "~> 0.6"}
+      {:statistics, "~> 0.6.0"},
 
       # Optional deps for HLS endpoint
       # {:membrane_http_adaptive_stream_plugin, "~> 0.8.1", optional: true},
@@ -83,7 +82,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # {:membrane_ffmpeg_swscale_plugin, "~> 0.10.0", optional: true},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.13.0"},
+      {:membrane_file_plugin, "~> 0.13.0"}
       # {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
 
       # Otel
