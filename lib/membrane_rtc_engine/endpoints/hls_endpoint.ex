@@ -44,7 +44,7 @@ if Enum.all?(
 
     alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
-    alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig, VideoLayoutMaker}
+    alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig}
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
     alias Membrane.Time
@@ -129,6 +129,14 @@ if Enum.all?(
                   Tells if the session is live or a vod type of broadcast. Use live when you generate HLS stream from real-time data.
                   Use vod when generating HLS from file.
                   """
+                ],
+                video_layout_module: [
+                  spec: module(),
+                  default: Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker,
+                  description: """
+                  Module implementing `Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker` behavior
+                  that should be used by the HLS endpoint.
+                  """
                 ]
 
     @impl true
@@ -144,8 +152,18 @@ if Enum.all?(
         segment_duration: opts.segment_duration,
         mixer_config: opts.mixer_config,
         broadcast_mode: opts.broadcast_mode,
+        video_layout_module: opts.video_layout_module,
+        video_layout: nil,
         stream_beginning: nil
       }
+
+      state =
+        if is_nil(opts.mixer_config),
+          do: state,
+          else: %{
+            state
+            | video_layout: state.video_layout_module.init(opts.mixer_config.video.caps)
+          }
 
       {:ok, state}
     end
@@ -265,10 +283,16 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      update_action =
-        if removed_track.type == :video,
-          do: VideoLayoutMaker.update_layout(state, removed_track),
-          else: []
+      {update_action, state} =
+        if removed_track.type == :audio or is_nil(state.mixer_config) do
+          {[], state}
+        else
+          {placements, video_layout} =
+            state.video_layout_module.track_removed(state.video_layout, removed_track)
+
+          update_action = [forward: {:compositor, {:update_placement, placements}}]
+          {update_action, %{state | video_layout: video_layout}}
+        end
 
       {{:ok, [remove_child: children_to_remove] ++ update_action}, state}
     end
@@ -279,7 +303,32 @@ if Enum.all?(
       link_builder = link_bin_input(pad)
       track = Map.get(state.tracks, track_id)
       directory = get_hls_stream_directory(state, track)
-      spec = hls_links_and_children(offset, link_builder, track, state, ctx)
+
+      {placements, video_layout} =
+        if is_nil(state.mixer_config) or track.type == :audio,
+          do: {[], state.video_layout},
+          else: state.video_layout_module.track_added(state.video_layout, track)
+
+      state = %{state | video_layout: video_layout}
+
+      initial_placements =
+        placements
+        |> Enum.filter(fn {Pad.ref(_type, id), _placement} ->
+          id == track.id or id == {:blank, track.id}
+        end)
+        |> Enum.map(fn
+          {Pad.ref(:input, {:blank, _id}), placement} -> {:blank, placement}
+          {Pad.ref(:input, _id), placement} -> {:input, placement}
+        end)
+        |> Map.new()
+
+      placements =
+        placements
+        |> Enum.filter(fn {Pad.ref(_type, id), _placement} ->
+          id != track.id and id != {:blank, track.id}
+        end)
+
+      spec = hls_links_and_children(initial_placements, offset, link_builder, track, state, ctx)
 
       {spec, state} =
         if hls_sink_bin_exists?(track, ctx, state) do
@@ -294,7 +343,12 @@ if Enum.all?(
           {merge_parent_specs(spec, hls_sink_spec), state}
         end
 
-      {{:ok, spec: spec}, state}
+      update_action =
+        if is_nil(state.mixer_config) or track.type == :audio,
+          do: [],
+          else: [forward: {:compositor, {:update_placement, placements}}]
+
+      {{:ok, [spec: spec] ++ update_action}, state}
     end
 
     defp get_hls_sink_spec(state, track, directory) do
@@ -321,6 +375,7 @@ if Enum.all?(
     end
 
     defp hls_links_and_children(
+           _initial_placement,
            _offset,
            link_builder,
            %{encoding: :OPUS} = track,
@@ -353,7 +408,14 @@ if Enum.all?(
       }
     end
 
-    defp hls_links_and_children(offset, link_builder, %{encoding: :OPUS} = track, state, ctx) do
+    defp hls_links_and_children(
+           _initital_placement,
+           offset,
+           link_builder,
+           %{encoding: :OPUS} = track,
+           state,
+           ctx
+         ) do
       parent_spec = %ParentSpec{
         children: %{
           {:track_receiver, track.id} => %TrackReceiver{
@@ -380,6 +442,7 @@ if Enum.all?(
     end
 
     defp hls_links_and_children(
+           _initial_placement,
            _offset,
            link_builder,
            %{encoding: :H264} = track,
@@ -412,22 +475,14 @@ if Enum.all?(
       }
     end
 
-    defp hls_links_and_children(offset, link_builder, %{encoding: :H264} = track, state, ctx) do
-      # TODO:
-      basic_tracks_number =
-        length(
-          Enum.filter(state.tracks, fn {_id, track} ->
-            track.type == :video and not track.metadata["mainPresenter"]
-          end)
-        ) - 1
-
-      initial_placement =
-        VideoLayoutMaker.get_track_layout(
-          track.metadata,
-          basic_tracks_number,
-          state.mixer_config.video.caps
-        )
-
+    defp hls_links_and_children(
+           initial_placement,
+           offset,
+           link_builder,
+           %{encoding: :H264} = track,
+           state,
+           ctx
+         ) do
       parent_spec = %ParentSpec{
         children: %{
           {:track_receiver, track.id} => %TrackReceiver{
@@ -452,7 +507,7 @@ if Enum.all?(
           |> to({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
           |> to({:framerate_converter, track.id})
           |> via_in(Pad.ref(:input, track.id),
-            options: [initial_placement: initial_placement, timestamp_offset: offset]
+            options: [initial_placement: initial_placement.input, timestamp_offset: offset]
           )
           |> to(:compositor)
         ]
@@ -462,14 +517,7 @@ if Enum.all?(
         if track.metadata["mainPresenter"] do
           parent_spec
         else
-          blank_placement =
-            VideoLayoutMaker.get_track_layout(
-              :blank,
-              basic_tracks_number,
-              state.mixer_config.video.caps
-            )
-
-          {width, height} = blank_placement.display_size
+          {width, height} = initial_placement.blank.display_size
 
           blank_spec = %ParentSpec{
             children: %{
@@ -489,7 +537,7 @@ if Enum.all?(
               link({:blank, track.id})
               |> to({:realtimer, track.id})
               |> via_in(Pad.ref(:input, {:blank, track.id}),
-                options: [initial_placement: blank_placement, timestamp_offset: offset]
+                options: [initial_placement: initial_placement.blank, timestamp_offset: offset]
               )
               |> to(:compositor)
             ]
@@ -511,21 +559,22 @@ if Enum.all?(
       defp generate_compositor(state, _ctx) do
         compositor = %Membrane.VideoCompositor{
           caps: state.mixer_config.video.caps,
-          real_time: state.mixer_config.video.real_time
+          real_time: false
         }
 
         video_parser_out = %Membrane.H264.FFmpeg.Parser{
           alignment: :au,
           attach_nalus?: true
-          # framerate: state.mixer_config.video.output_framerate
         }
 
         {frames_per_second, 1} = state.mixer_config.video.caps.framerate
         seconds_number = Membrane.Time.as_seconds(state.segment_duration.target)
 
+        video_caps = state.mixer_config.video.caps
+
         initial_placement = %VideoPlacement{
           position: {0, 0},
-          display_size: {20, 20},
+          display_size: {video_caps.width, video_caps.height},
           z_value: 0.0
         }
 
@@ -535,10 +584,10 @@ if Enum.all?(
             video_parser_out: video_parser_out,
             fake_source: %Membrane.BlankVideoGenerator{
               caps: %Membrane.RawVideo{
-                width: 20,
-                height: 20,
+                width: video_caps.width,
+                height: video_caps.height,
                 pixel_format: :I420,
-                framerate: state.mixer_config.video.caps.framerate,
+                framerate: video_caps.framerate,
                 aligned: true
               },
               duration: :infinity
