@@ -220,8 +220,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         inbound_tracks: %{},
         display_manager: nil,
         connection_prober: nil,
-        connection_allocator_module: connection_allocator_module,
-        other_peers: %{}
+        connection_allocator_module: connection_allocator_module
       })
 
     {:ok, state}
@@ -434,14 +433,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       ) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
-    media_event = %{
-      type: "encodingSwitched",
-      data: %{
-        peerId: track.origin,
-        trackId: track_id,
-        encoding: to_rid(new_variant)
-      }
-    }
+    media_event =
+      MediaEvent.custom(%{
+        type: "encodingSwitched",
+        data: %{
+          peerId: track.origin,
+          trackId: track_id,
+          encoding: to_rid(new_variant)
+        }
+      })
+      |> MediaEvent.encode()
 
     {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
   end
@@ -463,37 +464,41 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_other({:ready, _peers_in_room}, ctx, state) do
+    # We've received confirmation from the RTC Engine that our peer is ready
+    # alongside information about peers and tracks present in the room.
+    # Forward this information to the client
+
+    # FIXME: I don't think we actually need information about tracks in this media event
+    {:endpoint, peer_id} = ctx.name
+    event = MediaEvent.peer_accepted(peer_id, []) |> MediaEvent.encode()
+
+    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+  end
+
+  @impl true
   def handle_other({:new_peer, peer}, _ctx, state) do
-    peer_info =
-      peer
-      |> Map.from_struct()
-      |> Map.put(:trackIdToMetadata, %{})
-
-    state = put_in(state, [:other_peers, peer.id], peer_info)
-
     event = MediaEvent.peer_joined(peer) |> MediaEvent.encode()
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
   @impl true
   def handle_other({:peer_left, peer_id}, _ctx, state) do
-    {_peer, state} = pop_in(state, [:other_peers, peer_id])
     event = MediaEvent.peer_left(peer_id) |> MediaEvent.encode()
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
   @impl true
-  def handle_other({:update_track_metadata, track}, _ctx, state) do
+  def handle_other({:track_metadata_updated, track}, _ctx, state) do
     event =
-      MediaEvent.track_updated(track.origin, track.id, track.metadata) |> MediaEvent.encode()
-
-    # TODO :update metadata in the state
+      MediaEvent.track_updated(track.origin, track.id, track.metadata)
+      |> MediaEvent.encode()
 
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
   @impl true
-  def handle_other({:update_peer_metadata, peer}, _ctx, state) do
+  def handle_other({:peer_metadata_updated, peer}, _ctx, state) do
     event = MediaEvent.peer_updated(peer) |> MediaEvent.encode()
     # TODO: update metadata in the state
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
@@ -536,14 +541,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         &to_webrtc_track(&1)
       )
 
-    state =
-      Enum.reduce(tracks, state, fn track, state ->
-        put_in(state, [:other_peers, track.origin, :trackIdToMetadata, track.id], track.metadata)
-      end)
+    track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
+
+    media_event_action =
+      case tracks do
+        [] ->
+          []
+
+        [%{origin: origin} | _rest] ->
+          media_event =
+            MediaEvent.tracks_added(origin, track_id_to_metadata) |> MediaEvent.encode()
+
+          [notify: {:forward_to_parent, {:media_event, media_event}}]
+      end
 
     outbound_tracks = update_tracks(tracks, state.outbound_tracks)
 
-    {{:ok, forward(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
+    {{:ok,
+      media_event_action ++
+        forward(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
      %{state | outbound_tracks: outbound_tracks}}
   end
 
@@ -668,14 +684,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:ok, state}
   end
 
-  defp handle_media_event(%{type: :join, data: %{metadata: metadata}}, ctx, state) do
-    {:endpoint, peer_id} = ctx.name
-
-    event =
-      MediaEvent.peer_accepted(peer_id, Map.values(state.other_peers)) |> MediaEvent.encode()
-
-    {{:ok, notify: {:ready, metadata}, notify: {:forward_to_parent, {:media_event, event}}},
-     state}
+  defp handle_media_event(%{type: :join, data: %{metadata: metadata}}, _ctx, state) do
+    {{:ok, notify: {:ready, metadata}}, state}
   end
 
   defp handle_media_event(%{type: :leave}, _ctx, state) do
@@ -683,14 +693,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(
-         %{type: :update_track_metadata, track_id: track_id, metadata: metadata},
+         %{type: :update_track_metadata, data: %{track_id: track_id, track_metadata: metadata}},
          _ctx,
          state
        ) do
     {{:ok, notify: {:update_track_metadata, track_id, metadata}}, state}
   end
 
-  defp handle_media_event(%{type: :update_peer_metadata, metadata: metadata}, _ctx, state) do
+  defp handle_media_event(
+         %{type: :update_peer_metadata, data: %{metadata: metadata}},
+         _ctx,
+         state
+       ) do
     {{:ok, notify: {:update_peer_metadata, metadata}}, state}
   end
 
