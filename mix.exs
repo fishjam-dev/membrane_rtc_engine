@@ -53,8 +53,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       # {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_core, "~> 0.11.2"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin,
-       github: "membraneframework/membrane_webrtc_plugin", branch: "core-v0.11"},
+      {:membrane_webrtc_plugin, path: "../membrane_webrtc_plugin"},
+      #  github: "membraneframework/membrane_webrtc_plugin", branch: "core-v0.11"},
       {:membrane_rtp_format, "~> 0.6.0"},
       # FIXME: remove
       {:membrane_rtp_plugin, github: "membraneframework/membrane_rtp_plugin", override: true},
@@ -71,6 +71,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:statistics, "~> 0.6.0"},
 
+      # FIXME: update HLS stuff
       # Optional deps for HLS endpoint
       # {:membrane_http_adaptive_stream_plugin, "~> 0.8.1", optional: true},
       # {:membrane_mp4_plugin, "~> 0.16.1", optional: true},
@@ -82,12 +83,13 @@ defmodule Membrane.RTC.Engine.MixProject do
       # {:membrane_ffmpeg_swscale_plugin, "~> 0.10.0", optional: true},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.13.0"}
+      {:membrane_file_plugin, "~> 0.13.0", only: :test},
+      # FIXME: put back for HLS tests
       # {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
 
       # Otel
-      # {:opentelemetry_api, "~> 1.0.0"},
-      # {:opentelemetry, "~> 1.0.0"}
+      {:opentelemetry_api, "~> 1.0.0"},
+      {:opentelemetry, "~> 1.0.0"}
     ]
   end
 
