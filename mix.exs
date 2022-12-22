@@ -50,16 +50,14 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      # {:membrane_opentelemetry, "~> 0.1.0"},
+      {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_core, "~> 0.11.2"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin, path: "../membrane_webrtc_plugin"},
-      #  github: "membraneframework/membrane_webrtc_plugin", branch: "core-v0.11"},
+      {:membrane_webrtc_plugin,
+       github: "membraneframework/membrane_webrtc_plugin", branch: "core-v0.11"},
       {:membrane_rtp_format, "~> 0.6.0"},
-      # FIXME: remove
-      {:membrane_rtp_plugin, github: "membraneframework/membrane_rtp_plugin", override: true},
       {:membrane_rtp_vp8_plugin, "~> 0.7.0"},
-      # {:membrane_rtp_opus_plugin, "~> 0.6.0"},
+      {:membrane_rtp_opus_plugin, "~> 0.7.0"},
       {:membrane_rtp_h264_plugin, "~> 0.14.0"},
       {:membrane_tee_plugin, "~> 0.10.0"},
       {:uuid, "~> 1.1"},
