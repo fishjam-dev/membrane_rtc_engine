@@ -1,5 +1,6 @@
 defmodule TestMustang do
   use Stampede.Mustang
+  require Logger
 
   @impl true
   def join(browser, options) do
@@ -23,11 +24,13 @@ defmodule TestMustang do
   @impl true
   def linger({_browser, page} = ctx, options) do
     Enum.each(options.actions, fn
-      {:click, button, timeout} ->
+      {:click, button, timeout} = action ->
+        Logger.info("mustang: #{options.id}, action: #{inspect(action)}")
         :ok = Playwright.Page.click(page, "[id=#{button}]")
         Process.sleep(timeout)
 
-      {:get_stats, button, repeats, timeout, tag: tag} ->
+      {:get_stats, button, repeats, timeout, tag: tag} = action ->
+        Logger.info("mustang: #{options.id}, action: #{inspect(action)}")
         timeouts = List.duplicate(timeout, repeats)
 
         for timeout <- timeouts do
@@ -35,7 +38,8 @@ defmodule TestMustang do
           Process.sleep(timeout)
         end
 
-      {:wait, timeout} ->
+      {:wait, timeout} = action ->
+        Logger.info("mustang: #{options.id}, action: #{inspect(action)}")
         Process.sleep(timeout)
     end)
 

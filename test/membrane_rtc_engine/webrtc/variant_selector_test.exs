@@ -81,7 +81,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
     end
 
     test "frees unused allocation", %{selector: selector} do
-      assert {_selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
+      assert {_selector, {:request, :slow}} = VariantSelector.variant_active(selector, :low)
       assert_allocation_requested(:low)
     end
 
@@ -94,6 +94,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
     test "doesn't select a higher variant right after lowering its allocation, before receiving confirmation from the Allocator",
          %{selector: selector} do
+      # TODO what this test checks?
       assert {selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
       assert_allocation_requested(:low)
       assert {_selector, :noop} = VariantSelector.variant_active(selector, :medium)
