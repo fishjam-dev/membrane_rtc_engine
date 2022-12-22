@@ -27,6 +27,7 @@ jobs:
       - run: mix format --check-formatted
       - run: mix compile --force --warnings-as-errors
       - run: mix credo
+      - run: mix dialyzer
       - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
 
   integration_test:
