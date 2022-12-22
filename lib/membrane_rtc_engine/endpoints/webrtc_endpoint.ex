@@ -460,7 +460,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       event: inspect(media_event)
     )
 
-    {{:ok, notify: {:custom_media_event, media_event}}, state}
+    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
   end
 
   @impl true
