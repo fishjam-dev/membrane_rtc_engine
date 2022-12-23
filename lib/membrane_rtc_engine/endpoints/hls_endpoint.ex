@@ -166,7 +166,7 @@ if Enum.all?(
 
     @impl true
     def handle_other(msg, _ctx, state) do
-      Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
+      Membrane.Logger.debug("Unexpected message: #{inspect(msg)}. Ignoring.")
       {:ok, state}
     end
 

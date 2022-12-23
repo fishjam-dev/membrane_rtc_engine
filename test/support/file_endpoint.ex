@@ -56,7 +56,9 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   @impl true
   def handle_prepared_to_playing(_ctx, state) do
-    {{:ok, notify: {:publish, {:new_tracks, [state.track]}}}, state}
+    {{:ok,
+      notify: {:publish, {:new_tracks, [state.track]}},
+      notify: {:forward_to_parent, :tracks_added}}, state}
   end
 
   @impl true

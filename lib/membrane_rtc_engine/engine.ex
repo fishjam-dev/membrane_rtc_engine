@@ -230,37 +230,6 @@ defmodule Membrane.RTC.Engine do
     :ok
   end
 
-  @deprecated "Add an endpoint with `peer_id` option instead"
-  @spec add_peer(pid :: pid(), peer :: Peer.t()) :: :ok
-  def add_peer(_pid, _peer) do
-    :ok
-  end
-
-  @deprecated "Remove endpoint instead"
-  @spec remove_peer(rtc_engine :: pid(), peer_id :: any(), reason :: String.t() | nil) :: :ok
-  def remove_peer(_rtc_engine, _peer_id, _reason \\ nil) do
-    :ok
-  end
-
-  @deprecated "Engine no longer handles peer acceptance and rejection"
-  @spec accept_peer(pid :: pid(), peer_id :: String.t()) :: :ok
-  def accept_peer(_pid, _peer_id) do
-    :ok
-  end
-
-  @deprecated "Engine no longer handles peer acceptance and rejection"
-  @spec deny_peer(pid :: pid(), peer_id :: String.t()) :: :ok
-  def deny_peer(_pid, _peer_id) do
-    :ok
-  end
-
-  @deprecated "Engine no longer handles peer acceptance and rejection"
-  @spec deny_peer(pid :: pid(), peer_id :: String.t(), data: any()) :: :ok
-  def deny_peer(pid, peer_id, data) do
-    send(pid, {:deny_new_peer, peer_id, data})
-    :ok
-  end
-
   @doc """
   Registers process with pid `who` for receiving messages from RTC Engine
   """
