@@ -129,14 +129,6 @@ if Enum.all?(
                   Tells if the session is live or a vod type of broadcast. Use live when you generate HLS stream from real-time data.
                   Use vod when generating HLS from file.
                   """
-                ],
-                video_layout_module: [
-                  spec: module(),
-                  default: Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker,
-                  description: """
-                  Module implementing `Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker` behavior
-                  that should be used by the HLS endpoint.
-                  """
                 ]
 
     @impl true
@@ -152,20 +144,16 @@ if Enum.all?(
         segment_duration: opts.segment_duration,
         mixer_config: opts.mixer_config,
         broadcast_mode: opts.broadcast_mode,
-        video_layout_module: opts.video_layout_module,
         video_layout: nil,
         stream_beginning: nil
       }
 
-      state =
+      video_layout =
         if is_nil(opts.mixer_config),
-          do: state,
-          else: %{
-            state
-            | video_layout: state.video_layout_module.init(opts.mixer_config.video.caps)
-          }
+          do: nil,
+          else: state.mixer_config.video.layout_module.init(opts.mixer_config.video.caps)
 
-      {:ok, state}
+      {:ok, %{state | video_layout: video_layout}}
     end
 
     @impl true
@@ -283,16 +271,7 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      {update_action, state} =
-        if removed_track.type == :audio or is_nil(state.mixer_config) do
-          {[], state}
-        else
-          {placements, video_layout} =
-            state.video_layout_module.track_removed(state.video_layout, removed_track)
-
-          update_action = [forward: {:compositor, {:update_placement, placements}}]
-          {update_action, %{state | video_layout: video_layout}}
-        end
+      {update_action, state} = update_layout_action(removed_track, :removed, state)
 
       {{:ok, [remove_child: children_to_remove] ++ update_action}, state}
     end
@@ -307,26 +286,20 @@ if Enum.all?(
       {placements, video_layout} =
         if is_nil(state.mixer_config) or track.type == :audio,
           do: {[], state.video_layout},
-          else: state.video_layout_module.track_added(state.video_layout, track)
+          else: state.mixer_config.video.layout_module.track_added(state.video_layout, track)
 
       state = %{state | video_layout: video_layout}
 
       initial_placements =
         placements
-        |> Enum.filter(fn {Pad.ref(_type, id), _placement} ->
-          id == track.id or id == {:blank, track.id}
-        end)
+        |> Enum.filter(&filter_placements(&1, track))
         |> Enum.map(fn
           {Pad.ref(:input, {:blank, _id}), placement} -> {:blank, placement}
           {Pad.ref(:input, _id), placement} -> {:input, placement}
         end)
         |> Map.new()
 
-      placements =
-        placements
-        |> Enum.filter(fn {Pad.ref(_type, id), _placement} ->
-          id != track.id and id != {:blank, track.id}
-        end)
+      placements = Enum.reject(placements, &filter_placements(&1, track))
 
       spec = hls_links_and_children(initial_placements, offset, link_builder, track, state, ctx)
 
@@ -343,10 +316,7 @@ if Enum.all?(
           {merge_parent_specs(spec, hls_sink_spec), state}
         end
 
-      update_action =
-        if is_nil(state.mixer_config) or track.type == :audio,
-          do: [],
-          else: [forward: {:compositor, {:update_placement, placements}}]
+      {update_action, _state} = update_layout_action(track, placements, state)
 
       {{:ok, [spec: spec] ++ update_action}, state}
     end
@@ -718,6 +688,25 @@ if Enum.all?(
         links: spec1.links ++ spec2.links
       }
     end
+
+    defp filter_placements({Pad.ref(_type, id), _placement}, track),
+      do: id == track.id or id == {:blank, track.id}
+
+    defp update_layout_action(_track, _video_layout, %{mixer_config: nil} = state),
+      do: {[], state}
+
+    defp update_layout_action(%{type: :audio}, _video_layout, state), do: {[], state}
+
+    defp update_layout_action(track, :removed, state) do
+      {placements, video_layout} =
+        state.mixer_config.video.layout_module.track_removed(state.video_layout, track)
+
+      update_action = [forward: {:compositor, {:update_placement, placements}}]
+      {update_action, %{state | video_layout: video_layout}}
+    end
+
+    defp update_layout_action(_track, placements, state),
+      do: {[forward: {:compositor, {:update_placement, placements}}], state}
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
       do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
