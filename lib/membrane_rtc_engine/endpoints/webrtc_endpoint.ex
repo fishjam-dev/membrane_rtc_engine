@@ -452,18 +452,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:enable_negotiability, track_id}, ctx, state) do
-    track_receiver = {:track_receiver, track_id}
-
-    forward_actions =
-      if Map.has_key?(ctx.children, track_receiver),
-        do: [notify_child: {track_receiver, {:set_negotiable, true}}],
-        else: []
-
-    {forward_actions, state}
-  end
-
-  @impl true
   def handle_parent_notification(
         %TrackNotification{
           track_id: track_id,
@@ -528,6 +516,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     )
 
     {[], %{state | display_manager: display_manager_pid}}
+  end
+
+  @impl true
+  def handle_info({:enable_negotiability, track_id}, ctx, state) do
+    track_receiver = {:track_receiver, track_id}
+
+    forward_actions =
+      if Map.has_key?(ctx.children, track_receiver),
+        do: [notify_child: {track_receiver, {:set_negotiable, true}}],
+        else: []
+
+    {forward_actions, state}
   end
 
   @impl true
