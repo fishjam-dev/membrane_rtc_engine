@@ -701,8 +701,8 @@ if Enum.all?(
       {placements, video_layout} =
         state.mixer_config.video.layout_module.track_removed(state.video_layout, track)
 
-      update_action = [forward: {:compositor, {:update_placement, placements}}]
-      {update_action, %{state | video_layout: video_layout}}
+      state = %{state | video_layout: video_layout}
+      update_layout_action(track, placements, state)
     end
 
     defp update_layout_action(_track, placements, state),
