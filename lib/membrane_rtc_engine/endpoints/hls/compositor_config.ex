@@ -3,9 +3,10 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
   Module representing compositor configuration for the HLS endpoint.
 
   Compositor is the element responsible for positioning input video streams
-  into one video output.\"""
+  into one video output.
+  """
 
-  @typedoc \"""
+  @typedoc """
   * `caps` - output video specification in Membrane.RawVideo format
   * `layoout_module` - Module implementing `Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker`
     behavior that should be used by the HLS endpoint.

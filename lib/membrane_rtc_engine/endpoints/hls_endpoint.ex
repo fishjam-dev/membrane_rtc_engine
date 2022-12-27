@@ -271,7 +271,18 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      {update_action, state} = update_layout_action(removed_track, :removed, state)
+      {placements, video_layout} =
+        if is_nil(state.mixer_config) or removed_track.type == :audio,
+          do: {[], state.video_layout},
+          else:
+            state.mixer_config.video.layout_module.track_removed(
+              state.video_layout,
+              removed_track
+            )
+
+      state = %{state | video_layout: video_layout}
+
+      update_action = update_layout_action(removed_track, placements, state)
 
       {{:ok, [remove_child: children_to_remove] ++ update_action}, state}
     end
@@ -316,7 +327,7 @@ if Enum.all?(
           {merge_parent_specs(spec, hls_sink_spec), state}
         end
 
-      {update_action, _state} = update_layout_action(track, placements, state)
+      update_action = update_layout_action(track, placements, state)
 
       {{:ok, [spec: spec] ++ update_action}, state}
     end
@@ -693,20 +704,12 @@ if Enum.all?(
       do: id == track.id or id == {:blank, track.id}
 
     defp update_layout_action(_track, _video_layout, %{mixer_config: nil} = state),
-      do: {[], state}
+      do: []
 
-    defp update_layout_action(%{type: :audio}, _video_layout, state), do: {[], state}
-
-    defp update_layout_action(track, :removed, state) do
-      {placements, video_layout} =
-        state.mixer_config.video.layout_module.track_removed(state.video_layout, track)
-
-      state = %{state | video_layout: video_layout}
-      update_layout_action(track, placements, state)
-    end
+    defp update_layout_action(%{type: :audio}, _video_layout, state), do: []
 
     defp update_layout_action(_track, placements, state),
-      do: {[forward: {:compositor, {:update_placement, placements}}], state}
+      do: [forward: {:compositor, {:update_placement, placements}}]
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
       do: defp(merge_strings(strings), do: Enum.join(strings, ", "))

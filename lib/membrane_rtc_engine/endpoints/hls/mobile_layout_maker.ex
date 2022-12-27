@@ -12,7 +12,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
 
   @impl true
   def init(output_caps), do: %{tracks: %{}, output_caps: output_caps}
-
   @impl true
   def track_added(state, %{metadata: %{"mainPresenter" => true}} = track) do
     new_state = put_in(state, [:tracks, track.id], track)
@@ -33,8 +32,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
     {update_layout(new_state), new_state}
   end
 
-  @spec update_layout(%{tracks: map(), output_caps: RawVideo.t()}) ::
-          list({Pad.ref_t(), VideoPlacement.t()})
   defp update_layout(%{tracks: tracks, output_caps: output_caps}) do
     tracks
     |> Enum.filter(fn {_id, track} ->
@@ -52,11 +49,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
     end)
   end
 
-  @spec get_track_layout(:basic | :blank | :main, integer(), %{
-          :height => integer(),
-          :width => integer(),
-          optional(any()) => any()
-        }) :: VideoPlacement.t()
   defp get_track_layout(:blank, index, %{width: width, height: height}) do
     position = {round(index / 2 * width), height - round(1 / 4 * height)}
     display_size = {round(1 / 2 * width), round(1 / 4 * height)}
