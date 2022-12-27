@@ -703,12 +703,12 @@ if Enum.all?(
     defp filter_placements({Pad.ref(_type, id), _placement}, track),
       do: id == track.id or id == {:blank, track.id}
 
-    defp update_layout_action(_track, _video_layout, %{mixer_config: nil} = state),
+    defp update_layout_action(_track, _video_layout, %{mixer_config: nil}),
       do: []
 
-    defp update_layout_action(%{type: :audio}, _video_layout, state), do: []
+    defp update_layout_action(%{type: :audio}, _video_layout, _state), do: []
 
-    defp update_layout_action(_track, placements, state),
+    defp update_layout_action(_track, placements, _state),
       do: [forward: {:compositor, {:update_placement, placements}}]
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),

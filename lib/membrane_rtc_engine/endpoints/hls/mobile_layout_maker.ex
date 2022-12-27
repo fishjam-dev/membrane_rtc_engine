@@ -7,7 +7,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
   require Membrane.Pad
 
   alias Membrane.Pad
-  alias Membrane.VideoCompositor.RustStructs.RawVideo
   alias Membrane.VideoCompositor.RustStructs.VideoPlacement
 
   @impl true
