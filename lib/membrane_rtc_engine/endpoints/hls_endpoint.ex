@@ -573,11 +573,11 @@ if Enum.all?(
               },
               duration: :infinity
             },
-            realtimer: Membrane.Realtimer
+            video_realtimer: Membrane.Realtimer
           },
           links: [
             link(:fake_source)
-            |> to(:realtimer)
+            |> to(:video_realtimer)
             |> via_in(:input, options: [initial_placement: initial_placement])
             |> to(:compositor),
             link(:compositor)
@@ -631,10 +631,12 @@ if Enum.all?(
             silence_generator: silence_generator,
             audio_mixer: audio_mixer,
             aac_encoder: Membrane.AAC.FDK.Encoder,
-            aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none}
+            aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none},
+            audio_realtimer: Membrane.Realtimer
           },
           links: [
             link(:silence_generator)
+            |> to(:audio_realtimer)
             |> to(:audio_mixer)
             |> to(:aac_encoder)
             |> to(:aac_parser)
@@ -680,7 +682,8 @@ if Enum.all?(
         :audio_mixer,
         :aac_encoder,
         :aac_parser,
-        :realtimer,
+        :video_realtimer,
+        :audio_realtimer,
         :fake_source,
         :silence_generator
       ]
