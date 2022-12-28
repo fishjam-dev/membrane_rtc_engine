@@ -3,30 +3,25 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
   Module representing compositor configuration for the HLS endpoint.
 
   Compositor is the element responsible for positioning input video streams
-  into one video output. It operates on raw frames and mixes given pads according
-  to the provided `ffmpeg_filter` parameter.
+  into one video output.
   """
 
   @typedoc """
-  * `output_framerate` - framerate of the output video, `{24, 1}` by default.
-  * `output_width` - resolution width of the output video, `1280` by default.
-  * `output_height` - resolution height of the output video, `720` by default.
-  * `ffmpeg_filter` - defines the filter building function that positions input video,
-                       Defaults to `default_ffmpeg_filter`
+  * `caps` - output video specification in Membrane.RawVideo format
+  * `layoout_module` - Module implementing `Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker`
+    behavior that should be used by the HLS endpoint.
   """
 
-  alias Membrane.RTC.Engine.Endpoint.HLS.FFmpegFilter
-
   @type t() :: %__MODULE__{
-          output_framerate: {integer(), integer()},
-          output_width: integer(),
-          output_height: integer(),
-          ffmpeg_filter:
-            (width :: integer(), height :: integer(), inputs_num :: integer() ->
-               ffmpeg_filtergraph_command :: binary())
+          caps: RawVideo.t(),
+          layout_module: module()
         }
-  defstruct output_framerate: {24, 1},
-            output_width: 1280,
-            output_height: 720,
-            ffmpeg_filter: &FFmpegFilter.default_ffmpeg_filter/3
+  defstruct caps: %Membrane.RawVideo{
+              width: 400,
+              height: 800,
+              pixel_format: :I420,
+              framerate: {24, 1},
+              aligned: true
+            },
+            layout_module: Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker
 end

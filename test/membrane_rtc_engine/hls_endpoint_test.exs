@@ -55,7 +55,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert %{
                "type" => "tracksAdded",
                "data" => %{
-                 "trackIdToMetadata" => %{track_id => nil},
+                 "trackIdToMetadata" => %{track_id => %{"mainPresenter" => false}},
                  "peerId" => file_endpoint_id
                }
              } == Jason.decode!(data)
@@ -124,7 +124,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert %{
                "type" => "tracksAdded",
                "data" => %{
-                 "trackIdToMetadata" => %{video_track_id => nil},
+                 "trackIdToMetadata" => %{video_track_id => %{"mainPresenter" => false}},
                  "peerId" => video_file_endpoint_id
                }
              } == Jason.decode!(data)
@@ -210,7 +210,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert %{
                "type" => "tracksAdded",
                "data" => %{
-                 "trackIdToMetadata" => %{track_id => nil},
+                 "trackIdToMetadata" => %{track_id => %{"mainPresenter" => false}},
                  "peerId" => file_endpoint_id
                }
              } == Jason.decode!(data)
@@ -221,7 +221,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert %{
                "type" => "tracksAdded",
                "data" => %{
-                 "trackIdToMetadata" => %{track_id_2 => nil},
+                 "trackIdToMetadata" => %{track_id_2 => %{"mainPresenter" => false}},
                  "peerId" => file_endpoint_id_2
                }
              } == Jason.decode!(data)
@@ -229,7 +229,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      assert_receive({:playlist_playable, :video, _playlist_idl}, 5_000)
+      assert_receive({:playlist_playable, :video, _playlist_idl}, 10_000)
 
       Process.sleep(5_000)
 
@@ -364,7 +364,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
         :H264,
         90_000,
         nil,
-        id: video_track_id
+        id: video_track_id,
+        metadata: %{"mainPresenter" => false}
       )
 
     %FileEndpoint{
