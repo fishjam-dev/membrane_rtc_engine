@@ -7,7 +7,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
   @doc """
   output format represents parameters of output video created by compositor.
   """
-  @callback init(RawVideo.t()) :: state()
+  @callback init(output_format()) :: state()
   @callback track_added(state, Track.t()) :: {[{Pad.ref_t(), VideoPlacement.t()}], state}
   @callback track_removed(state, Track.t()) :: {[{Pad.ref_t(), VideoPlacement.t()}], state}
 end
