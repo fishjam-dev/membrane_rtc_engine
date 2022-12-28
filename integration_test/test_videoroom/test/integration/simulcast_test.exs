@@ -23,11 +23,10 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @browser_options %{count: 1, delay: @peer_delay, headless: true}
   @test_duration 600_000
 
-  ##
-
   @stats_number 10
   @stats_interval 1_000
   @keyframe_request_time 2_000
+  # time needed to recognize variant as active
   @variant_activity_time 10_000
   @probe_times %{low_to_medium: 10_000, low_to_high: 40_000, nil_to_high: 60_000}
 
@@ -204,7 +203,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     end
   end
 
-  @tag :debug2
   @tag timeout: @test_duration
   test "disabling gradually all encodings and then gradually enabling them works correctly" do
     browsers_number = 2

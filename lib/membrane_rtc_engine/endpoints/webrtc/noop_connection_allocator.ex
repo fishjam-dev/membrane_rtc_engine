@@ -33,10 +33,5 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator do
   end
 
   @impl true
-  def release_bandwidth(_manager, _number) do
-    :ok
-  end
-
-  @impl true
   def set_negotiability_status(_manager, _value), do: :ok
 end

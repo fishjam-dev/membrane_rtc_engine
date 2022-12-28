@@ -86,10 +86,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     do: GenServer.cast(bitrate_manager, {:request_allocation, self(), desired_allocation})
 
   @impl true
-  def release_bandwidth(bitrate_manager, desired_allocation),
-    do: GenServer.cast(bitrate_manager, {:release_bandwidth, self(), desired_allocation})
-
-  @impl true
   def update_bandwidth_estimation(prober, estimation),
     do: GenServer.cast(prober, {:bandwidth_estimation, estimation})
 
@@ -241,31 +237,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           |> update_allocations()
           |> update_status()
       end
-      |> maybe_update_probing_target(state)
-
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast({:release_bandwidth, pid, target}, state) do
-    receiver = Map.fetch!(state.track_receivers, pid)
-
-    if target > receiver.current_allocation,
-      do:
-        raise(
-          "Tried to get higher allocation by releasing bandwidth. Current: #{inspect(receiver.current_allocation)}, requested: #{inspect(target)}"
-        )
-
-    state =
-      state
-      |> put_in([:track_receivers, pid], %{
-        receiver
-        | current_allocation: target,
-          target_allocation: nil
-      })
-      |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
-      |> update_allocations()
-      |> update_status(overuse_allowed?: not receiver.negotiable?)
       |> maybe_update_probing_target(state)
 
     {:noreply, state}

@@ -81,7 +81,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
     end
 
     test "frees unused allocation", %{selector: selector} do
-      assert {_selector, {:request, :slow}} = VariantSelector.variant_active(selector, :low)
+      assert {_selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
       assert_allocation_requested(:low)
     end
 

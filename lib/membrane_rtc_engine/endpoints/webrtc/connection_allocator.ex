@@ -97,8 +97,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   """
   @callback request_allocation(allocator_ref(), number()) :: :ok
 
-  @callback release_bandwidth(allocator_ref(), number()) :: :ok
-
   @doc """
   Function used to change the negotiability status of the TrackReceiver.
 
