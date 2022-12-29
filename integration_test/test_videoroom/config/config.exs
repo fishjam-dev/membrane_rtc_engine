@@ -25,13 +25,13 @@ config :logger, :console,
 
 config :logger,
   compile_time_purge_matching: [
-    # [level_lower_than: :info],
+    [level_lower_than: :info],
     # Silence irrelevant warnings caused by resending handshake events
     [module: Membrane.SRTP.Encryptor, function: "handle_event/4", level_lower_than: :error],
     [module: Membrane.ICE, level_lower_than: :error]
   ]
 
-config :logger, level: :debug
+config :logger, level: :info
 
 config :phoenix, :json_library, Jason
 
