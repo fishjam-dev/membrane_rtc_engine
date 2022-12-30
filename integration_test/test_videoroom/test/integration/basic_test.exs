@@ -3,10 +3,6 @@ defmodule TestVideoroom.Integration.BasicTest do
 
   import TestVideoroom.Integration.Utils
 
-  # in miliseconds
-  @peer_delay 500
-  # in miliseconds
-  @peer_duration 60_000
   @room_url "http://localhost:4001"
 
   # in miliseconds
@@ -17,9 +13,10 @@ defmodule TestVideoroom.Integration.BasicTest do
   @start_with_camera "start-camera-only"
   @start_with_nothing "start-none"
   @stats "stats"
-  @browser_options %{count: 1, delay: @peer_delay, headless: true}
+  @browser_options %{count: 1, headless: true}
   @actions [
-    {:get_stats, @stats, 1, @peer_duration, tag: :after_join},
+    {:get_stats, @stats, 1, 0, tag: :after_join},
+    {:wait, 60_000},
     {:get_stats, @stats, 1, 0, tag: :before_leave}
   ]
 
@@ -33,7 +30,6 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     mustang_options = %{
       target_url: @room_url,
-      linger: @peer_duration,
       join_interval: @join_interval,
       start_button: @start_with_all,
       actions: @actions,
@@ -88,7 +84,6 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     mustang_options = %{
       target_url: @room_url,
-      linger: @peer_duration,
       join_interval: @join_interval,
       start_button: @start_with_all,
       actions: @actions,
@@ -135,7 +130,6 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     mustang_options = %{
       target_url: @room_url,
-      linger: @peer_duration,
       join_interval: @join_interval,
       start_button: @start_with_all,
       actions: @actions,
@@ -171,7 +165,7 @@ defmodule TestVideoroom.Integration.BasicTest do
                   assert length(stats) == if(browser_id == 3, do: 3, else: 2)
                   {_value, new_buttons} = Map.pop(buttons_with_id, browser_id)
                   new_buttons = Map.values(new_buttons)
-                  assert which_streams_playing(stats, new_buttons)
+                  assert_streams_playing(stats, new_buttons)
                 end)
               end)
 
@@ -182,7 +176,7 @@ defmodule TestVideoroom.Integration.BasicTest do
     end
   end
 
-  defp which_streams_playing(stats, buttons) do
+  defp assert_streams_playing(stats, buttons) do
     for button <- buttons do
       case button do
         @start_with_all ->
@@ -198,8 +192,6 @@ defmodule TestVideoroom.Integration.BasicTest do
           assert Enum.any?(stats, &is_stream_playing(&1, %{audio: false, video: false}))
       end
     end
-
-    true
   end
 
   defp is_stream_playing(stats, expected \\ %{audio: true, video: true})

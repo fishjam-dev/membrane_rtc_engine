@@ -3,10 +3,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
   import TestVideoroom.Integration.Utils
 
-  # in miliseconds
-  @peer_delay 500
-  # in miliseconds
-  @peer_duration 60_000
   @room_url "http://localhost:4001"
 
   # in miliseconds
@@ -20,7 +16,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @set_peer_encoding_medium "simulcast-peer-medium-encoding"
   @simulcast_inbound_stats "simulcast-inbound-stats"
   @simulcast_outbound_stats "simulcast-outbound-stats"
-  @browser_options %{count: 1, delay: @peer_delay, headless: true}
+  @browser_options %{count: 1, headless: true}
   @test_duration 600_000
 
   @stats_number 10
@@ -50,7 +46,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     mustang_options = %{
       target_url: @room_url,
-      linger: @peer_duration,
       join_interval: @join_interval,
       start_button: @start_with_simulcast,
       receiver: receiver,
@@ -131,7 +126,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     mustang_options = %{
       target_url: @room_url,
-      linger: 40_000,
       join_interval: @join_interval,
       start_button: @start_with_simulcast,
       receiver: receiver,
@@ -211,7 +205,6 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     mustang_options = %{
       target_url: @room_url,
-      linger: @peer_duration,
       join_interval: @join_interval,
       start_button: @start_with_simulcast,
       receiver: receiver,
