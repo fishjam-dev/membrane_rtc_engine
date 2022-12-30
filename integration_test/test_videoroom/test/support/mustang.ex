@@ -7,9 +7,9 @@ defmodule TestMustang do
     page = browser |> Playwright.Browser.new_page()
     _response = Playwright.Page.goto(page, options.target_url)
 
-    Process.sleep(500)
-
-    :ok = Playwright.Page.click(page, "[id=#{options.start_button}]")
+    page
+    |> Playwright.Page.locator("[id=#{options.start_button}]")
+    |> Playwright.Locator.click()
 
     {browser, page}
   end
