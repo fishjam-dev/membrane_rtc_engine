@@ -28,7 +28,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @keyframe_request_time 2_000
   # time needed to recognize variant as active
   @variant_activity_time 10_000
-  @probe_times %{low_to_medium: 10_000, low_to_high: 40_000, nil_to_high: 60_000}
+  @probe_times %{low_to_medium: 15_000, low_to_high: 30_000, nil_to_high: 50_000}
 
   @tag :debug
   @tag timeout: @test_duration
