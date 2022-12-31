@@ -506,11 +506,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   defp maybe_update_probing_target(new_state, old_state) do
-    target_updated? = probing_target(new_state) != probing_target(old_state)
+    new_probing_target = probing_target(new_state)
+    old_probing_target = probing_target(old_state)
+    target_updated? = new_probing_target != old_probing_target
 
     if target_updated? do
-      require Membrane.Logger
-      Membrane.Logger.info("New probing target: #{inspect(probing_target(new_state))}")
+      Logger.info("New probing target: #{new_probing_target}")
 
       %{
         new_state

@@ -298,7 +298,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   defp select_variant(%__MODULE__{} = selector) do
     variant = best_active_variant(selector)
-    Membrane.Logger.debug("Best active variant: #{variant}")
+    Membrane.Logger.debug("Best active variant: #{inspect(variant)}")
 
     select_variant(selector, variant)
   end
@@ -420,7 +420,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     next_variant = next_desired_variant(selector)
 
-    Membrane.Logger.debug("Next desired variant #{next_variant}")
+    Membrane.Logger.debug("Next desired variant #{inspect(next_variant)}")
 
     cond do
       # If we're not having that much margin left in current allocation,
