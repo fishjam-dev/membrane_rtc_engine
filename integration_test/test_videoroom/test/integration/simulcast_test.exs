@@ -17,7 +17,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @simulcast_inbound_stats "simulcast-inbound-stats"
   @simulcast_outbound_stats "simulcast-outbound-stats"
   @browser_options %{count: 1, headless: true}
-  @test_duration 600_000
+  @max_test_duration 360_000
 
   # we want to get stats for at least 30 seconds
   # to ensure that the encoding won't switch
@@ -39,7 +39,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   # video high - 1500kbps
   @probe_times %{low_to_medium: 15_000, low_to_high: 30_000, nil_to_high: 50_000}
 
-  @tag timeout: @test_duration
+  @tag timeout: @max_test_duration
   test "disabling and enabling medium encoding again works correctly" do
     browsers_number = 2
 
@@ -119,7 +119,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     end
   end
 
-  @tag timeout: @test_duration
+  @tag timeout: @max_test_duration
   test "changing encoding to low and then returning to medium works correctly " do
     browsers_number = 2
 
@@ -198,7 +198,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     end
   end
 
-  @tag timeout: @test_duration
+  @tag timeout: @max_test_duration
   test "disabling gradually all encodings and then gradually enabling them works correctly" do
     browsers_number = 2
 
@@ -222,7 +222,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       {:click, @change_own_medium, @variant_inactivity_time + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
-      {:click, @change_own_low, @variant_inactivity_time + @probe_times[:low_to_high] + @variant_request_time},
+      {:click, @change_own_low,
+       @variant_inactivity_time + @probe_times[:low_to_high] + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_low_en},
       {:click, @change_own_high, 1_000},
