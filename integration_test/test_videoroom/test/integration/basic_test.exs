@@ -15,7 +15,7 @@ defmodule TestVideoroom.Integration.BasicTest do
   @stats "stats"
   @browser_options %{count: 1, headless: true}
   @actions [
-    {:get_stats, @stats, 1, 0, tag: :after_join},
+    {:get_stats, @stats, 1, 0, tag: :after_warmup},
     {:wait, 60_000},
     {:get_stats, @stats, 1, 0, tag: :before_leave}
   ]
@@ -54,7 +54,7 @@ defmodule TestVideoroom.Integration.BasicTest do
       acc ->
         for {stage, browsers} <- acc do
           case stage do
-            :after_join ->
+            :after_warmup ->
               Enum.all?(browsers, fn {browser_id, stats_list} ->
                 Enum.each(stats_list, fn stats ->
                   assert length(stats) == browser_id
@@ -105,7 +105,7 @@ defmodule TestVideoroom.Integration.BasicTest do
       acc ->
         Enum.all?(acc, fn {stage, browsers} ->
           case stage do
-            :after_join ->
+            :after_warmup ->
               Enum.all?(browsers, fn {_browser_id, stats_list} ->
                 Enum.each(stats_list, fn stats ->
                   assert length(stats) == browsers_number - 1
@@ -159,7 +159,7 @@ defmodule TestVideoroom.Integration.BasicTest do
       acc ->
         Enum.all?(acc, fn {stage, browsers} ->
           case stage do
-            :after_join ->
+            :after_warmup ->
               Enum.all?(browsers, fn {browser_id, stats_list} ->
                 Enum.each(stats_list, fn stats ->
                   assert length(stats) == if(browser_id == 3, do: 3, else: 2)
