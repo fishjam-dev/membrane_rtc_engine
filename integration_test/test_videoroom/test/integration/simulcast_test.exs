@@ -17,7 +17,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @simulcast_inbound_stats "simulcast-inbound-stats"
   @simulcast_outbound_stats "simulcast-outbound-stats"
   @browser_options %{count: 1, headless: true}
-  @max_test_duration 360_000
+  @max_test_duration 400_000
 
   # we want to get stats for at least 30 seconds
   # to ensure that the variant won't switch
