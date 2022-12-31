@@ -29,7 +29,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @stats_number 15
   @stats_interval 1_000
   # time needed to request and receive a variant
-  @variant_request_time 1_000
+  @variant_request_time 2_000
   # max time needed to recognize variant as inactive
   @variant_inactivity_time 2_000
   # max time needed to recognize variant as active
