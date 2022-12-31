@@ -26,8 +26,10 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @stats_interval 1_000
   # time needed to request and receive a variant
   @variant_request_time 1_000
-  # time needed to recognize variant as active
-  @variant_activity_time 10_000
+  # max time needed to recognize variant as inactive
+  @variant_inactivity_time 2_000
+  # max time needed to recognize variant as active
+  @variant_activity_time 11_000
   # times needed to probe from one resolution to another
   # assumes that audio is present
   # assumes the following max limits:
@@ -58,7 +60,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     sender_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:click, @change_own_medium, @variant_request_time},
+      {:click, @change_own_medium, @variant_inactivity_time + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
       {:click, @change_own_medium,
@@ -69,7 +71,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receiver_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:wait, @variant_request_time},
+      {:wait, @variant_inactivity_time + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
       {:wait, @variant_activity_time + @probe_times[:low_to_medium] + @variant_request_time},
@@ -217,10 +219,10 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     sender_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:click, @change_own_medium, @variant_request_time},
+      {:click, @change_own_medium, @variant_inactivity_time + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
-      {:click, @change_own_low, @probe_times[:low_to_high] + @variant_request_time},
+      {:click, @change_own_low, @variant_inactivity_time + @probe_times[:low_to_high] + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_low_en},
       {:click, @change_own_high, 1_000},
@@ -241,10 +243,10 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receiver_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:wait, @variant_request_time},
+      {:wait, @variant_inactivity_time + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
-      {:wait, @probe_times[:low_to_high] + @variant_request_time},
+      {:wait, @variant_inactivity_time + @probe_times[:low_to_high] + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_low_en},
       {:wait, 1_000},
