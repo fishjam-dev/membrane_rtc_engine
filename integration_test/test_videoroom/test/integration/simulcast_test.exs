@@ -20,9 +20,13 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @max_test_duration 360_000
 
   # we want to get stats for at least 30 seconds
-  # to ensure that the encoding won't switch
-  # just after being selected
-  @stats_number 30
+  # to ensure that the variant won't switch
+  # just after being selected;
+  # because gathering stats takes us 1 second
+  # (see get_stats in mustang.ex)
+  # we set stats_number to 15 and stats interval to 1s -
+  # we will fetch stats every 2 seconds
+  @stats_number 15
   @stats_interval 1_000
   # time needed to request and receive a variant
   @variant_request_time 1_000
