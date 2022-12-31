@@ -6,7 +6,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @room_url "http://localhost:4001"
 
   # in miliseconds
-  @join_interval 30_000
+  @warmup_time 30_000
 
   @start_with_simulcast "start-simulcast"
   @change_own_low "simulcast-local-low-encoding"
@@ -19,25 +19,26 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @browser_options %{count: 1, headless: true}
   @test_duration 600_000
 
-  @stats_number 10
+  # we want to get stats for at least 30 seconds
+  # to ensure that the encoding won't switch
+  # just after being selected
+  @stats_number 30
   @stats_interval 1_000
-  @keyframe_request_time 2_000
+  # time needed to request and receive a variant
+  @variant_request_time 1_000
   # time needed to recognize variant as active
   @variant_activity_time 10_000
+  # times needed to probe from one resolution to another
+  # assumes that audio is present
+  # assumes the following max limits:
+  # audio - 50kbps
+  # video low - 150kbps
+  # video medium - 500kbps
+  # video high - 1500kbps
   @probe_times %{low_to_medium: 15_000, low_to_high: 30_000, nil_to_high: 50_000}
 
   @tag timeout: @test_duration
   test "disabling and enabling medium encoding again works correctly" do
-    # wait 30 seconds
-    # check if target was reached
-    # send target for 1 minute
-    # assert that we are receiving target for 1 minute
-    # turn target off
-    # assert we switched to lower encoding
-    # wait for 1 minute
-    # turn target on
-    # assert we switched to target
-    # wait for 1 minute
     browsers_number = 2
 
     pid = self()
@@ -46,7 +47,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     mustang_options = %{
       target_url: @room_url,
-      join_interval: @join_interval,
+      warmup_time: @warmup_time,
       start_button: @start_with_simulcast,
       receiver: receiver,
       actions: [],
@@ -57,21 +58,21 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     sender_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:click, @change_own_medium, @keyframe_request_time},
+      {:click, @change_own_medium, @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
       {:click, @change_own_medium,
-       @variant_activity_time + @probe_times[:low_to_medium] + @keyframe_request_time},
+       @variant_activity_time + @probe_times[:low_to_medium] + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_enabling_medium_en}
     ]
 
     receiver_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:wait, @keyframe_request_time},
+      {:wait, @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
-      {:wait, @variant_activity_time + @probe_times[:low_to_medium] + @keyframe_request_time},
+      {:wait, @variant_activity_time + @probe_times[:low_to_medium] + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_enabling_medium_en}
     ]
@@ -126,7 +127,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     mustang_options = %{
       target_url: @room_url,
-      join_interval: @join_interval,
+      warmup_time: @warmup_time,
       start_button: @start_with_simulcast,
       receiver: receiver,
       actions: [],
@@ -137,20 +138,20 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     receiver_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:click, @set_peer_encoding_low, @keyframe_request_time},
+      {:click, @set_peer_encoding_low, @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_switching_to_low_en},
-      {:click, @set_peer_encoding_medium, @probe_times[:low_to_medium] + @keyframe_request_time},
+      {:click, @set_peer_encoding_medium, @probe_times[:low_to_medium] + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_switching_to_medium_en}
     ]
 
     sender_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:wait, @keyframe_request_time},
+      {:wait, @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_switching_to_low_en},
-      {:wait, @probe_times[:low_to_medium] + @keyframe_request_time},
+      {:wait, @probe_times[:low_to_medium] + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_switching_to_medium_en}
     ]
@@ -205,7 +206,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     mustang_options = %{
       target_url: @room_url,
-      join_interval: @join_interval,
+      warmup_time: @warmup_time,
       start_button: @start_with_simulcast,
       receiver: receiver,
       actions: [],
@@ -216,46 +217,46 @@ defmodule TestVideoroom.Integration.SimulcastTest do
 
     sender_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:click, @change_own_medium, @keyframe_request_time},
+      {:click, @change_own_medium, @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
-      {:click, @change_own_low, @probe_times[:low_to_high] + @keyframe_request_time},
+      {:click, @change_own_low, @probe_times[:low_to_high] + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_low_en},
       {:click, @change_own_high, 1_000},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_high_en},
       {:click, @change_own_high,
-       @variant_activity_time + @probe_times[:nil_to_high] + @keyframe_request_time},
+       @variant_activity_time + @probe_times[:nil_to_high] + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_enabling_high_en},
-      {:click, @change_own_low, @variant_activity_time + @keyframe_request_time},
+      {:click, @change_own_low, @variant_activity_time + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_enabling_low_en},
       {:click, @change_own_medium,
-       @variant_activity_time + @probe_times[:low_to_medium] + @keyframe_request_time},
+       @variant_activity_time + @probe_times[:low_to_medium] + @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_enabling_medium_en}
     ]
 
     receiver_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
-      {:wait, @keyframe_request_time},
+      {:wait, @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_medium_en},
-      {:wait, @probe_times[:low_to_high] + @keyframe_request_time},
+      {:wait, @probe_times[:low_to_high] + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_low_en},
       {:wait, 1_000},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_disabling_high_en},
-      {:wait, @variant_activity_time + @probe_times[:nil_to_high] + @keyframe_request_time},
+      {:wait, @variant_activity_time + @probe_times[:nil_to_high] + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_enabling_high_en},
-      {:wait, @variant_activity_time + @keyframe_request_time},
+      {:wait, @variant_activity_time + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_enabling_low_en},
-      {:wait, @variant_activity_time + @probe_times[:low_to_medium] + @keyframe_request_time},
+      {:wait, @variant_activity_time + @probe_times[:low_to_medium] + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
        tag: :after_enabling_medium_en}
     ]

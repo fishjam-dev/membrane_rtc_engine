@@ -16,7 +16,7 @@ defmodule TestMustang do
 
   @impl true
   def afterJoin({browser, page}, options) do
-    Process.sleep(options.join_interval)
+    Process.sleep(options.warmup_time)
 
     {browser, page}
   end

@@ -6,7 +6,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
   @room_url "http://localhost:4001"
 
   # in miliseconds
-  @join_interval 10_000
+  @warmup_time 10_000
 
   @start_all "start-all"
   @update_peer "metadata-update-peer"
@@ -25,7 +25,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
 
     mustang_options = %{
       target_url: @room_url,
-      join_interval: @join_interval,
+      warmup_time: @warmup_time,
       start_button: @start_all,
       receiver: receiver,
       actions: [],

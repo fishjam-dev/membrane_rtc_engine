@@ -6,7 +6,7 @@ defmodule TestVideoroom.Integration.BasicTest do
   @room_url "http://localhost:4001"
 
   # in miliseconds
-  @join_interval 6_000
+  @warmup_time 6_000
 
   @start_with_all "start-all"
   @start_with_mic "start-mic-only"
@@ -30,7 +30,7 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     mustang_options = %{
       target_url: @room_url,
-      join_interval: @join_interval,
+      warmup_time: @warmup_time,
       start_button: @start_with_all,
       actions: @actions,
       receiver: receiver,
@@ -84,7 +84,7 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     mustang_options = %{
       target_url: @room_url,
-      join_interval: @join_interval,
+      warmup_time: @warmup_time,
       start_button: @start_with_all,
       actions: @actions,
       receiver: receiver,
@@ -130,7 +130,7 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     mustang_options = %{
       target_url: @room_url,
-      join_interval: @join_interval,
+      warmup_time: @warmup_time,
       start_button: @start_with_all,
       actions: @actions,
       receiver: receiver,
