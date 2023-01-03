@@ -366,41 +366,35 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   # when we  are already using target variant
   defp next_desired_variant(%__MODULE__{target_variant: target_variant} = selector)
        when target_variant in [selector.current_variant, selector.queued_variant],
-       do: nil
+       do: {:error, :doesnt_exist}
 
   defp next_desired_variant(
-         %__MODULE__{
-           current_variant: current_variant,
-           queued_variant: queued_variant,
-           target_variant: target_variant
-         } = selector
+         %__MODULE__{current_variant: current_variant, queued_variant: queued_variant} = selector
        ) do
-    # split by target
-    # find maximum on the left
-    # find minimum on the right
-    # check if current or queued is equal to found variant
-    # if not, return found variant
-    # otherwise, there is no next desired variant
+    pivot = if queued_variant != :no_variant, do: queued_variant, else: current_variant
 
-    {lower, higher} =
-      Enum.split_with(selector.active_variants, &is_lower_or_eq_than(&1, target_variant))
-
-    max_lower = Enum.max_by(lower, &to_int(&1), fn -> nil end)
-    min_higher = Enum.min_by(higher, &to_int(&1), fn -> nil end)
-
-    next = max_lower || min_higher
-
-    if next in [current_variant, queued_variant], do: nil, else: next
+    MapSet.put(selector.active_variants, :no_variant)
+    |> sort_variants()
+    |> Enum.reverse()
+    |> Enum.drop_while(&(&1 != pivot))
+    |> case do
+      [^pivot] -> {:error, :doesnt_exist}
+      [^pivot | other] -> {:ok, List.first(other)}
+    end
   end
 
-  defp sort_variants(variants, order \\ :desc), do: Enum.sort_by(variants, &to_int(&1), order)
-
-  defp is_lower_or_eq_than(variant, target_variant), do: to_int(variant) <= to_int(target_variant)
-
-  defp to_int(:high), do: 3
-  defp to_int(:medium), do: 2
-  defp to_int(:low), do: 1
-  defp to_int(:no_variant), do: 0
+  defp sort_variants(variants) do
+    Enum.sort_by(
+      variants,
+      fn
+        :high -> 3
+        :medium -> 2
+        :low -> 1
+        :no_variant -> 0
+      end,
+      :desc
+    )
+  end
 
   defp perform_automatic_variant_selection(%__MODULE__{} = selector) do
     selector
@@ -451,12 +445,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
           required_bitrate * 1.1
         )
 
-        # TODO why do we need to call recursively?
         manage_allocation(%{selector | current_allocation: required_bitrate * 1.1})
 
       # If there is a next variant that we want, let's try to request an allocation for it
-      next_variant != nil ->
-        bitrate = selector.variant_bitrates[next_variant] * 1.1
+      match?({:ok, _variant}, next_variant) ->
+        {:ok, variant} = next_variant
+        bitrate = selector.variant_bitrates[variant] * 1.1
 
         Membrane.Logger.debug(
           "Requesting #{bitrate / 1024} kbps from connection prober to increase quality"
