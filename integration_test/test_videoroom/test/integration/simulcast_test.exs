@@ -86,6 +86,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     receiver_actions = [
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
       {:wait, @variant_inactivity_time + @variant_request_time},
+      # FIXME use @stats_number and @stats_interval
       {:get_stats, @simulcast_inbound_stats, 3, 1_000, tag: :after_disabling_medium_en},
       {:wait, @variant_activity_time + @probe_times[:low_to_medium] + @variant_request_time},
       {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
@@ -287,6 +288,11 @@ defmodule TestVideoroom.Integration.SimulcastTest do
       after_disabling_high_en: nil,
       after_enabling_high_en: "h",
       # FIXME uncomment this
+      # the idea of target variant is that we select
+      # the highest encoding lower than target or, if not present,
+      # the lowest encoding higher than target
+      # therefore, after enabling low with target set to medium
+      # we should switch to the low
       # after_enabling_low_en: "l",
       after_enabling_medium_en: "m"
     }
