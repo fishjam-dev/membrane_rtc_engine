@@ -376,7 +376,6 @@ defmodule Membrane.RTC.Engine do
 
       {:ok, state}
     else
-      # TODO: add peer here
       {actions, state} = handle_add_endpoint(endpoint, opts, state)
       {{:ok, actions}, state}
     end
@@ -431,15 +430,19 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_other({:track_priorities, _endpoint_to_tracks}, ctx, state) do
+  def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
     # FIXME: track priorities
+    endpoint_msg_actions =
+      for {endpoint, tracks} <- endpoint_to_tracks do
+        {:forward, {endpoint, {:tracks_priority, tracks}}}
+      end
 
     tee_actions =
       ctx
       |> filter_children(pattern: {:tee, _tee_name})
       |> Enum.flat_map(&[forward: {&1, :track_priorities_updated}])
 
-    {{:ok, tee_actions}, state}
+    {{:ok, endpoint_msg_actions ++ tee_actions}, state}
   end
 
   @impl true

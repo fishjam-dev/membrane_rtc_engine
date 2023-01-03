@@ -528,11 +528,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_other({:tracks_priority, tracks}, _ctx, state) do
+    media_event = MediaEvent.tracks_priority(tracks) |> MediaEvent.encode()
+    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
+  end
+
+  @impl true
   def handle_other({:new_tracks, tracks}, ctx, state) do
     # Don't subscribe to new tracks yet.
     # We will do this after ice restart is finished.
     # Notification :negotiation_done will inform us about it
-
+    #
     webrtc_tracks =
       Enum.map(
         tracks,
