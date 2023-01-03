@@ -139,6 +139,38 @@ defmodule Membrane.RTC.Engine do
           display_manager?: boolean()
         ]
 
+  defmodule State do
+    @moduledoc false
+
+    use Bunch.Access
+
+    @enforce_keys [:id, :component_path, :trace_context, :telemetry_label]
+    defstruct @enforce_keys ++
+                [
+                  peers: %{},
+                  endpoints: %{},
+                  pending_subscriptions: [],
+                  pending_peers: %{},
+                  filters: %{},
+                  subscriptions: %{},
+                  display_manager: nil
+                ]
+
+    @type t() :: %__MODULE__{
+            id: String.t(),
+            component_path: String.t(),
+            trace_context: map(),
+            telemetry_label: Membrane.TelemetryMetrics.label(),
+            display_manager: pid() | nil,
+            peers: %{Endpoint.id() => Peer.t()},
+            endpoints: %{Endpoint.id() => Endpoint.t()},
+            filters: map(),
+            subscriptions: %{Endpoint.id() => map()},
+            pending_subscriptions: list(),
+            pending_peers: %{Endpoint.id() => %{peer: Peer.t(), endpoint: Endpoint.t()}}
+          }
+  end
+
   @typedoc """
   Endpoint configuration options.
 
@@ -309,16 +341,11 @@ defmodule Membrane.RTC.Engine do
     telemetry_label = (options[:telemetry_label] || []) ++ [room_id: options[:id]]
 
     {{:ok, playback: :playing},
-     %{
+     %State{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
        trace_context: options[:trace_ctx],
        telemetry_label: telemetry_label,
-       peers: %{},
-       endpoints: %{},
-       pending_subscriptions: [],
-       filters: %{},
-       subscriptions: %{},
        display_manager: display_manager
      }}
   end
@@ -350,7 +377,6 @@ defmodule Membrane.RTC.Engine do
       {:ok, state}
     else
       # TODO: add peer here
-      # state = put_in(state, [:peers, peer_id], %Peer{id: peer_id, metadata: nil})
       {actions, state} = handle_add_endpoint(endpoint, opts, state)
       {{:ok, actions}, state}
     end
@@ -428,7 +454,8 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_notification(notification, {:endpoint, endpoint_id}, ctx, state) do
-    if Map.has_key?(state.endpoints, endpoint_id) do
+    if Map.has_key?(state.endpoints, endpoint_id) or
+         Map.has_key?(state.pending_peers, endpoint_id) do
       handle_endpoint_notification(notification, endpoint_id, ctx, state)
     else
       {:ok, state}
@@ -450,15 +477,13 @@ defmodule Membrane.RTC.Engine do
   #
 
   defp handle_endpoint_notification({:ready, metadata}, endpoint_id, _ctx, state) do
-    if endpoint_id in Map.keys(state.peers) do
-      state = put_in(state, [:peers, endpoint_id, :metadata], metadata)
-      peer = Map.fetch!(state.peers, endpoint_id)
+    if Map.has_key?(state.pending_peers, endpoint_id) do
+      {%{peer: peer, endpoint: endpoint}, state} = pop_in(state, [:pending_peers, endpoint_id])
+      peer = %{peer | metadata: metadata}
 
       peers_in_room =
         state.peers
-        |> Map.delete(endpoint_id)
         |> Map.values()
-        |> Enum.reject(&is_nil(&1.metadata))
         |> Enum.map(fn peer ->
           track_id_to_metadata = Endpoint.get_active_track_metadata(state.endpoints[peer.id])
 
@@ -469,21 +494,32 @@ defmodule Membrane.RTC.Engine do
 
       new_peer_notifications =
         state.endpoints
-        |> Map.delete(endpoint_id)
         |> Map.keys()
         |> Enum.map(&{:forward, {{:endpoint, &1}, {:new_peer, peer}}})
 
       actions =
         Enum.concat([
-          [forward: {{:endpoint, endpoint_id}, {:ready, peers_in_room}}],
+          [
+            forward: {{:endpoint, endpoint_id}, {:ready, peers_in_room}}
+          ],
           [
             forward: {{:endpoint, endpoint_id}, {:new_tracks, get_active_tracks(state.endpoints)}}
           ],
           new_peer_notifications
         ])
 
+      state =
+        state
+        |> put_in([:peers, endpoint_id], peer)
+        |> put_in([:endpoints, endpoint_id], endpoint)
+        |> put_in([:subscriptions, endpoint_id], %{})
+
       {{:ok, actions}, state}
     else
+      Membrane.Logger.warn(
+        "Endpoint #{endpoint_id} sent a `:ready` message even though it's not a peer endpoint"
+      )
+
       {:ok, state}
     end
   end
@@ -634,9 +670,6 @@ defmodule Membrane.RTC.Engine do
       )
 
     tracks_msgs = build_track_added_actions(tracks, endpoint_id, state)
-    # endpoint = get_in(state, [:endpoints, endpoint_id])
-    # track_id_to_track_metadata = Endpoint.get_active_track_metadata(endpoint)
-    # broadcast(MediaEvent.tracks_added(endpoint_id, track_id_to_track_metadata))
     {{:ok, tracks_msgs}, state}
   end
 
@@ -712,6 +745,7 @@ defmodule Membrane.RTC.Engine do
   defp handle_add_endpoint(endpoint_entry, opts, state) do
     endpoint_id = opts[:endpoint_id] || opts[:peer_id] || UUID.uuid4()
     endpoint_name = {:endpoint, endpoint_id}
+    is_peer? = Keyword.has_key?(opts, :peer_id)
 
     spec = %ParentSpec{
       node: opts[:node],
@@ -725,45 +759,33 @@ defmodule Membrane.RTC.Engine do
         do: {endpoint_name, {:display_manager, state.display_manager}},
         else: nil
 
-    peers_actions =
-      state.peers
-      |> Map.delete(endpoint_id)
-      |> Map.values()
-      |> Enum.reject(&is_nil(&1.metadata))
-      |> Enum.map(&{:forward, {endpoint_name, {:new_peer, &1}}})
-
+    # Only inform about the tracks if we're not taking about a peer
     tracks_actions =
-      if Keyword.has_key?(opts, :peer_id) do
+      if is_peer? do
         []
       else
         [forward: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}]
       end
 
     actions =
-      (([
-          spec: spec
-        ] ++
-          peers_actions ++
-          [
-            forward: display_manager_message
-          ]) ++
-         tracks_actions)
+      ([spec: spec] ++ [forward: display_manager_message] ++ tracks_actions)
       |> Keyword.filter(fn
         {:forward, nil} -> false
         _other -> true
       end)
 
-    state =
-      state
-      |> put_in([:subscriptions, endpoint_id], %{})
-      |> put_in([:endpoints, endpoint_id], Endpoint.new(endpoint_id, []))
-      |> update_in([:peers], &Map.delete(&1, endpoint_id))
+    endpoint = Endpoint.new(endpoint_id, [])
 
     state =
-      if Keyword.has_key?(opts, :peer_id) do
-        put_in(state, [:peers, opts[:peer_id]], %Peer{id: endpoint_id, metadata: nil})
+      if is_peer? do
+        put_in(state, [:pending_peers, endpoint_id], %{
+          peer: %Peer{id: endpoint_id, metadata: nil},
+          endpoint: endpoint
+        })
       else
         state
+        |> put_in([:subscriptions, endpoint_id], %{})
+        |> put_in([:endpoints, endpoint_id], endpoint)
       end
 
     {actions, state}
@@ -776,6 +798,7 @@ defmodule Membrane.RTC.Engine do
       end
 
       {endpoint, state} = pop_in(state, [:endpoints, endpoint_id])
+      {_, state} = pop_in(state, [:pending_peers, endpoint_id])
       {_, state} = pop_in(state, [:subscriptions, endpoint_id])
       state = update_in(state, [:pending_subscriptions], pending_subscriptions_fun)
 
@@ -791,6 +814,8 @@ defmodule Membrane.RTC.Engine do
         else
           []
         end
+
+      {_, state} = pop_in(state, [:peers, endpoint_id])
 
       if endpoint_bin == nil or endpoint_bin.terminating? do
         {:present, tracks_msgs ++ peer_left_msgs, state}
@@ -840,7 +865,6 @@ defmodule Membrane.RTC.Engine do
     state.endpoints
     |> Map.delete(endpoint_id)
     |> Map.keys()
-    |> Enum.reject(fn id -> Map.has_key?(state.peers, id) and is_nil(state.peers[id].metadata) end)
     |> Enum.flat_map(fn endpoint_id ->
       [forward: {{:endpoint, endpoint_id}, {:new_tracks, tracks}}]
     end)

@@ -462,14 +462,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_other({:ready, _peers_in_room}, ctx, state) do
+  def handle_other({:ready, peers_in_room}, ctx, state) do
     # We've received confirmation from the RTC Engine that our peer is ready
     # alongside information about peers and tracks present in the room.
     # Forward this information to the client
 
     # FIXME: I don't think we actually need information about tracks in this media event
     {:endpoint, peer_id} = ctx.name
-    event = MediaEvent.peer_accepted(peer_id, []) |> MediaEvent.encode()
+    event = MediaEvent.peer_accepted(peer_id, peers_in_room) |> MediaEvent.encode()
 
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
