@@ -16,14 +16,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{
+  alias __MODULE__.{
+    MediaEvent,
     SimulcastConfig,
     TrackReceiver,
     TrackSender
   }
 
   alias Membrane.RTC.Engine.Notifications.TrackNotification
-  alias Membrane.RTC.Engine.{MediaEvent, Track}
+  alias Membrane.RTC.Engine.Track
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
@@ -274,7 +275,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
-    event = serialize({:voice_activity, track_id, vad})
+    event = notification_to_media_event({:voice_activity, track_id, vad}) |> MediaEvent.encode()
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
@@ -399,7 +400,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         state
       ) do
     turns = get_turn_configs(turns, state)
-    media_event = serialize({:signal, {:offer_data, media_count, turns}})
+
+    media_event =
+      notification_to_media_event({:signal, {:offer_data, media_count, turns}})
+      |> MediaEvent.encode()
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
       event: inspect(media_event)
@@ -415,7 +419,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
-    media_event = serialize(media_event_data)
+    media_event = notification_to_media_event(media_event_data) |> MediaEvent.encode()
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
       event: inspect(media_event)
@@ -434,14 +438,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
     media_event =
-      MediaEvent.custom(%{
-        type: "encodingSwitched",
-        data: %{
-          peerId: track.origin,
-          trackId: track_id,
-          encoding: to_rid(new_variant)
-        }
-      })
+      track.origin
+      |> MediaEvent.encoding_switched(track_id, to_rid(new_variant))
       |> MediaEvent.encode()
 
     {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
@@ -454,7 +452,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       estimation
     )
 
-    media_event = serialize(msg)
+    media_event = notification_to_media_event(msg) |> MediaEvent.encode()
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
       event: inspect(media_event)
@@ -774,206 +772,30 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         Map.put(acc, track.id, track)
       end)
 
-  defp serialize(event) do
-    MediaEvent.encode(%{
-      type: "custom",
-      data: do_serialize(event)
-    })
-  end
+  defp notification_to_media_event({:signal, {:sdp_answer, answer, mid_to_track_id}}),
+    do: MediaEvent.sdp_answer(answer, mid_to_track_id)
 
-  defp do_serialize({:signal, {:sdp_answer, answer, mid_to_track_id}}),
-    do: %{
-      type: "sdpAnswer",
-      data: %{
-        type: "answer",
-        sdp: answer,
-        midToTrackId: mid_to_track_id
-      }
-    }
+  defp notification_to_media_event({:signal, {:offer_data, tracks_types, turns}}),
+    do: MediaEvent.offer_data(tracks_types, turns)
 
-  defp do_serialize({:signal, {:offer_data, tracks_types, turns}}) do
-    integrated_turn_servers =
-      Enum.map(turns, fn turn ->
-        addr =
-          if turn.relay_type == :tls and turn[:domain_name],
-            do: turn[:domain_name],
-            else: :inet.ntoa(turn.mocked_server_addr) |> to_string()
+  defp notification_to_media_event({:signal, {:candidate, candidate, sdp_m_line_index}}),
+    do: MediaEvent.candidate(candidate, sdp_m_line_index)
 
-        %{
-          serverAddr: addr,
-          serverPort: turn.server_port,
-          transport: turn.relay_type,
-          password: turn.password,
-          username: turn.username
-        }
-      end)
+  defp notification_to_media_event({:signal, {:sdp_offer, offer}}),
+    do: MediaEvent.sdp_offer(offer)
 
-    %{
-      type: "offerData",
-      data: %{
-        tracksTypes: tracks_types,
-        integratedTurnServers: integrated_turn_servers
-      }
-    }
-  end
+  defp notification_to_media_event({:voice_activity, track_id, vad}),
+    do: MediaEvent.voice_activity(track_id, vad)
 
-  defp do_serialize({:signal, {:candidate, candidate, sdp_m_line_index}}),
-    do: %{
-      type: "candidate",
-      data: %{
-        candidate: candidate,
-        sdpMLineIndex: sdp_m_line_index,
-        sdpMid: nil,
-        usernameFragment: nil
-      }
-    }
-
-  defp do_serialize({:signal, {:sdp_offer, offer}}),
-    do: %{
-      type: "sdpOffer",
-      data: %{
-        type: "offer",
-        sdp: offer
-      }
-    }
-
-  defp do_serialize({:voice_activity, track_id, vad}),
-    do: %{
-      type: "vadNotification",
-      data: %{
-        trackId: track_id,
-        status: vad
-      }
-    }
-
-  defp do_serialize({:bandwidth_estimation, estimation}),
-    do: %{
-      type: "bandwidthEstimation",
-      data: %{
-        estimation: estimation
-      }
-    }
+  defp notification_to_media_event({:bandwidth_estimation, estimation}),
+    do: MediaEvent.bandwidth_estimation(estimation)
 
   defp deserialize(string) when is_binary(string) do
     with {:ok, event} <- MediaEvent.decode(string) do
-      deserialize(event)
-    end
-  end
-
-  defp deserialize(%{type: :custom, data: data}), do: deserialize(data)
-
-  # TODO: this clause should not be necessary
-  defp deserialize(%{type: _type} = event), do: {:ok, event}
-
-  defp deserialize(%{"type" => "renegotiateTracks"}) do
-    {:ok, %{type: :renegotiate_tracks}}
-  end
-
-  defp deserialize(%{"type" => "prioritizeTrack"} = event) do
-    case event do
-      %{"type" => "prioritizeTrack", "data" => %{"trackId" => track_id}} ->
-        {:ok, %{type: :prioritize_track, data: %{track_id: track_id}}}
-    end
-  end
-
-  defp deserialize(%{"type" => "unprioritizeTrack"} = event) do
-    case event do
-      %{"type" => "unprioritizeTrack", "data" => %{"trackId" => track_id}} ->
-        {:ok, %{type: :unprioritize_track, data: %{track_id: track_id}}}
-    end
-  end
-
-  defp deserialize(%{"type" => "preferedVideoSizes"} = event) do
-    case event do
-      %{
-        "type" => "preferedVideoSizes",
-        "data" => %{
-          "bigScreens" => big_screens,
-          "mediumScreens" => medium_screens,
-          "smallScreens" => small_screens,
-          "allSameSize" => same_size?
-        }
-      } ->
-        {:ok,
-         %{
-           type: :prefered_video_sizes,
-           data: %{
-             big_screens: big_screens,
-             medium_screens: medium_screens,
-             small_screens: small_screens,
-             same_size?: same_size?
-           }
-         }}
-    end
-  end
-
-  defp deserialize(%{"type" => "candidate"} = event) do
-    case event do
-      %{
-        "type" => "candidate",
-        "data" => %{
-          "candidate" => candidate,
-          "sdpMLineIndex" => sdp_m_line_index
-        }
-      } ->
-        {:ok,
-         %{
-           type: :candidate,
-           data: %{
-             candidate: candidate,
-             sdp_m_line_index: sdp_m_line_index
-           }
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp deserialize(%{"type" => "sdpOffer"} = event) do
-    case event do
-      %{
-        "type" => "sdpOffer",
-        "data" => %{
-          "sdpOffer" => %{
-            "type" => "offer",
-            "sdp" => sdp
-          },
-          "trackIdToTrackMetadata" => track_id_to_track_metadata,
-          "midToTrackId" => mid_to_track_id
-        }
-      } ->
-        {:ok,
-         %{
-           type: :sdp_offer,
-           data: %{
-             sdp_offer: %{
-               type: :offer,
-               sdp: sdp
-             },
-             track_id_to_track_metadata: track_id_to_track_metadata,
-             mid_to_track_id: mid_to_track_id
-           }
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp deserialize(%{"type" => "setTargetTrackVariant"} = event) do
-    case event do
-      %{
-        "type" => "setTargetTrackVariant",
-        "data" => %{
-          "trackId" => tid,
-          "variant" => variant
-        }
-      } ->
-        {:ok, %{type: :set_target_track_variant, data: %{track_id: tid, variant: variant}}}
-
-      _other ->
-        {:error, :invalid_media_event}
+      case event do
+        %{type: :custom, data: data} -> {:ok, data}
+        e -> {:ok, e}
+      end
     end
   end
 
