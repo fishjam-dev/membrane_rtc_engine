@@ -52,25 +52,23 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     receive do
       acc ->
-        for {stage, browsers} <- acc do
-          case stage do
-            :after_warmup ->
-              Enum.all?(browsers, fn {browser_id, stats_list} ->
-                Enum.each(stats_list, fn stats ->
-                  assert length(stats) == browser_id
-                  assert Enum.all?(stats, &is_stream_playing(&1))
-                end)
+        Enum.each(acc, fn
+          {:after_warmup, browsers} ->
+            Enum.each(browsers, fn {browser_id, stats_list} ->
+              Enum.each(stats_list, fn stats ->
+                assert length(stats) == browser_id
+                assert Enum.all?(stats, &is_stream_playing(&1))
               end)
+            end)
 
-            :before_leave ->
-              Enum.all?(browsers, fn {browser_id, stats_list} ->
-                Enum.each(stats_list, fn stats ->
-                  assert length(stats) == browsers_number - browser_id - 1
-                  assert Enum.all?(stats, &is_stream_playing(&1))
-                end)
+          {:before_leave, browsers} ->
+            Enum.each(browsers, fn {browser_id, stats_list} ->
+              Enum.each(stats_list, fn stats ->
+                assert length(stats) == browsers_number - browser_id - 1
+                assert Enum.all?(stats, &is_stream_playing(&1))
               end)
-          end
-        end
+            end)
+        end)
     end
   end
 
@@ -103,19 +101,17 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     receive do
       acc ->
-        Enum.all?(acc, fn {stage, browsers} ->
-          case stage do
-            :after_warmup ->
-              Enum.all?(browsers, fn {_browser_id, stats_list} ->
-                Enum.each(stats_list, fn stats ->
-                  assert length(stats) == browsers_number - 1
-                  assert Enum.all?(stats, &is_stream_playing(&1))
-                end)
+        Enum.each(acc, fn
+          {:after_warmup, browsers} ->
+            Enum.each(browsers, fn {_browser_id, stats_list} ->
+              Enum.each(stats_list, fn stats ->
+                assert length(stats) == browsers_number - 1
+                assert Enum.all?(stats, &is_stream_playing(&1))
               end)
+            end)
 
-            :before_leave ->
-              true
-          end
+          {:before_leave, _browsers} ->
+            :ok
         end)
     end
   end
@@ -157,21 +153,19 @@ defmodule TestVideoroom.Integration.BasicTest do
 
     receive do
       acc ->
-        Enum.all?(acc, fn {stage, browsers} ->
-          case stage do
-            :after_warmup ->
-              Enum.all?(browsers, fn {browser_id, stats_list} ->
-                Enum.each(stats_list, fn stats ->
-                  assert length(stats) == if(browser_id == 3, do: 3, else: 2)
-                  {_value, new_buttons} = Map.pop(buttons_with_id, browser_id)
-                  new_buttons = Map.values(new_buttons)
-                  assert_streams_playing(stats, new_buttons)
-                end)
+        Enum.each(acc, fn
+          {:after_warmup, browsers} ->
+            Enum.each(browsers, fn {browser_id, stats_list} ->
+              Enum.each(stats_list, fn stats ->
+                assert length(stats) == if(browser_id == 3, do: 3, else: 2)
+                {_value, new_buttons} = Map.pop(buttons_with_id, browser_id)
+                new_buttons = Map.values(new_buttons)
+                assert_streams_playing(stats, new_buttons)
               end)
+            end)
 
-            :before_leave ->
-              true
-          end
+          {:before_leave, _browsers} ->
+            :ok
         end)
     end
   end
