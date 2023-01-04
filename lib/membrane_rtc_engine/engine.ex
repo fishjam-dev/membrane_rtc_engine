@@ -7,8 +7,7 @@ defmodule Membrane.RTC.Engine do
 
   ## Messages
 
-  The RTC Engine works by sending messages which notify user logic about important events like
-  "There is a new peer, would you like to to accept it?".
+  The RTC Engine works by sending messages which notify user logic about important events. 
   To receive RTC Engine messages you have to register your process so that RTC Engine will
   know where to send them.
   All messages RTC Engine can emit are described in `#{inspect(__MODULE__)}.Message` docs.
@@ -22,58 +21,61 @@ defmodule Membrane.RTC.Engine do
   ```
 
   This will register your process to receive RTC Engine messages.
-  If your process implements `GenServer` behavior then all messages can be handled
-  by `c:GenServer.handle_info/2`, e.g.
-
-  ```elixir
-  @impl true
-  def handle_info(%Message.NewPeer{rtc_engine: rtc_engine, peer: peer}, state) do
-    Engine.accept_peer(rtc_engine, peer.id)
-    {:noreply, state}
-  end
-  ```
-
   You can register multiple processes to receive messages from an RTC Engine instance.
   In such a case each message will be sent to each registered process.
 
-  ## Client Libraries
-
-  RTC Engine allows creating Client Libraries that can send and receive media tracks from it.
-  The current version of RTC Engine ships with WebRTC Client Library which connects to the RTC Engine
-  via WebRTC standard.
-  Communication with Client Libraries is done using `Media Events`.
-  Media Events are control messages which notify about e.g. new peer joining to the RTC Engine.
-  When Client Library receives Media Event it can invoke some callbacks.
-  In the case of WebRTC Client Library, these are e.g. `onPeerJoined` or `onTrackAdded`.
-  When RTC Engine receives Media Event it can emit some messages e.g. `t:#{inspect(__MODULE__)}.Message.NewPeer.t/0`.
-  More about Media Events can be read in subsequent sections.
-  Below there is a figure showing the architecture of the RTC Engine working in conjunction with some Client Library.
-
-  ```txt
-      +--------------------------------- media events -----------------------------+
-      |                                (signaling layer)                           |
-      |                                                                            |
-      |                                                                            |
-  +--------+                 +---------+             +--------+               +---------+
-  | user   | <-   media   -> | Client  |             |  RTC   | <- media   -> | user    |
-  | client |      events     | Library | <- media -> | Engine |    events     | backend |
-  | logic  | <- callbacks -  |         |             |        | - messages -> | logic   |
-  +--------+                 +---------+             +--------+               +---------+
-  ```
-
   ## Peers
 
+  > ### Deprecation notice {: .warning }
+  > 
+  > **Peers are deprecated as of version 0.9.0**
+  >
+  > While Peers are still present in the RTC Engine, it's not recommended to use
+  > this feature in new applications.
+  >
+  > Existing applications should take steps to move away from using built-in concept of peers.
+
   Each peer represents some user that can possess some metadata.
-  A Peer can be added in two ways:
-  * by sending proper Media Event from a Client Library
-  * using `add_peer/3`
+  In RTC Engine, each peer is represented by an endpoint and from the purposes of the Engine,
+  it is an enpdoint that we happen to store additional information about, metadata in particular.
+  The peer doesn't exist without their endpoint.
 
-  Adding a peer will cause RTC Engine to emit Media Event which will notify connected clients about new peer.
+  ### Adding a peer
+  The only way to add a peer to the RTC Engine is to assign it a `peer_id` to the endpoint representing it.
+  This is done when adding an endpoint to the Engine by passing a `peer_id` option.
 
-  ### Peer id
+  **Example**
+  ```elixir
+  :ok = Engine.add_endpoint(webrtc_endpoint, peer_id: "Peer1")
+  ```
 
-  Peer ids must be assigned by application code. This is not done by the RTC Engine or its client library.
-  Ids can be assigned when a peer initializes its signaling layer.
+  Each peer then needs to delcare itself as ready before being fully connected to RTC Engine.
+
+  ### Readiness state
+  Each peer endpoint is presumed to be initially inactive and has to delare itself ready to fully join the Engine.
+
+  Before it does, it:
+  * will not receive notifications about other peers and their metadata
+  * will not receive information about tracks
+  * will not be able to publish any tracks
+  * will not be able to update their metadata
+
+  When declaring itself as ready, the peer also has an opportunity to set their metadata.
+  To mark the peer as active, their endpoint has to send the `t:ready_action_t/0`.
+
+  **Example**
+  ```elixir
+  @impl true
+  def handle_other({:media_event, %{type: "join", metadata: metadata}}, _context, state) do
+    {{:ok, notify: {:ready, metadata}}, state}
+  end
+
+  @impl true
+  def handle_other(:ready, _context, state) do
+    Membrane.Logger.debug("Succesfully activated the peer")
+    {:ok, state}
+  end
+  ```
 
   ## Endpoints
 
@@ -196,6 +198,20 @@ defmodule Membrane.RTC.Engine do
   @type publish_action_t() :: {:notify, {:publish, publish_message_t()}}
 
   @typedoc """
+  Membrane action that will mark the peer endpoint as ready and set its metadata.
+  The Engine will respond with `{:ready, peer_in_room}` to acknowledge your transition to ready state.
+
+  This action can only be used once, any further calls by an endpoint will be ignored.
+  It will also be ignored for non-peer endpoints.
+  """
+  @type ready_action_t() :: {:notify, {:ready, metadata :: any()}}
+
+  @typedoc """
+  Membrane action that will cause RTC Engine to forward supplied message to the business logic.
+  """
+  @type forward_to_parent_action_t() :: {:notify, {:forward_to_parent, message :: any()}}
+
+  @typedoc """
   Membrane action that will inform RTC Engine about track readiness.
   """
   @type track_ready_action_t() ::
@@ -204,7 +220,16 @@ defmodule Membrane.RTC.Engine do
   @typedoc """
   Types of messages that can be published to other Endpoints.
   """
-  @type publish_message_t() :: {:new_tracks, [Track.t()]} | {:removed_tracks, [Track.t()]}
+  @type publish_message_t() ::
+          {:new_tracks, [Track.t()]}
+          | {:removed_tracks, [Track.t()]}
+          | {:ready, peers_in_room :: [map()]}
+          | {:new_peer, Peer.t()}
+          | {:peer_left, Peer.id()}
+          | {:track_metadata_updated, Track.t()}
+          | {:peer_metadata_updated, Peer.t()}
+          | {:tracks_priority, tracks :: list()}
+          | TrackNotification.t()
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
           GenServer.on_start()
@@ -431,7 +456,6 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_other({:track_priorities, endpoint_to_tracks}, ctx, state) do
-    # FIXME: track priorities
     endpoint_msg_actions =
       for {endpoint, tracks} <- endpoint_to_tracks do
         {:forward, {endpoint, {:tracks_priority, tracks}}}
