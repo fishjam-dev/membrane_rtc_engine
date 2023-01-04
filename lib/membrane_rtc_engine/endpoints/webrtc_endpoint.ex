@@ -3,6 +3,50 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   An Endpoint responsible for communicatiing with WebRTC peer.
 
   It is responsible for sending and receiving media tracks from other WebRTC peer (e.g. web browser).
+
+  ## Signalling
+  In order to operate correctly, this endpoint requires that the business logic implements
+  the signalling channel to the peer it represents. Implementation details are not important to
+  endpoint.
+
+  Signalling in WebRTC is used to eg. facilitate SDP negotiation or send notifications regarding the session.
+  This endpoint uses an abstraction of Media Events to achieve this.
+  A Media Event is a black box message sent between the Client Library and this endpoint.
+
+  The business logic will receive an encoded media event in binary form from both the endpoint and the client library.
+  It's only responsibility is to feed the binary to either the endpoint or the client library.
+
+  ### Message Protocol Definition
+  The business logic must receive `t:media_event_message_t/0` message from the endpoint and forward it to the client
+  over the implemented signalling channel. Mind you, this message will be wrapped with `t:Membrane.RTC.Engine.Message.EndpointMessage.t/0`
+
+  **Example**
+  ```elixir
+  @impl GenServer
+  def handle_info(%Membrane.RTC.Engine.Message.EndpointMessage{endpoint_id: endpoint, message: {:media_event, _event} = message}, state) do
+    send state.channels[endpoint], message
+    {:noreply, state}
+  end
+  ```
+
+  Simmilarily, it must forward all media events it receives over the signalling channel to the endpoint
+  by sending a `t:media_event_message_t/0` to it.
+
+  Example.
+  ```elixir
+  @impl GenServer
+  def handle_info({:media_event, origin, event}, state) do
+    endpoint_id = state.peer_channel_to_endpoint_id[origin]
+    Engine.message_endpoint(endpoint_id, {:media_event, event})
+    {:noreply, state}
+  end
+  ```
+
+  ### Client libraries
+  The following client libraries for handling signalling messages are available:
+  * [Typescript library intended for use in web browsers](https://github.com/membraneframework/membrane-webrtc-js)
+  * [Android native library](https://github.com/membraneframework/membrane-webrtc-android)
+  * [IOS native library](https://github.com/membraneframework/membrane-webrtc-ios)
   """
   use Membrane.Bin
 
@@ -38,6 +82,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @type encoding_t() :: String.t()
+
+  @typedoc """
+  Type describing message format used to send media events both to the business logic
+  and by the business logic to this endpoint.
+  """
+  @type media_event_message_t() :: {:media_event, binary()}
 
   def_options rtc_engine: [
                 spec: pid(),
