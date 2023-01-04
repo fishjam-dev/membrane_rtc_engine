@@ -542,6 +542,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       MediaEvent.track_updated(track.origin, track.id, track.metadata)
       |> MediaEvent.encode()
 
+    state = put_in(state, [:outbound_tracks, track.id, :metadata], track.metadata)
+
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
@@ -751,7 +753,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
          _ctx,
          state
        ) do
-    state = put_in(state, [:outbound_tracks, track_id, :metadata], metadata)
+    state = put_in(state, [:inbound_tracks, track_id, :metadata], metadata)
     {{:ok, notify: {:update_track_metadata, track_id, metadata}}, state}
   end
 
