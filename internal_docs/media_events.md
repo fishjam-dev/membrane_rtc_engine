@@ -395,13 +395,17 @@ Messages used by any RTC Engine plugin
 ### `encodingSwitched`
 
 * Informs that track with id `trackId` belonging to peer with id `peerId` will be sent in encoding `encoding` now.
+The meaning is as follows:
+* "low_bandwidth" - we no longer have enough bandwidth to maintain current track quality
+* "encoding_inactive" - encoding became inactive
+* "other" - it was hard to determine exact reason of encoding switch 
 
   ```json
   {
     peerId: peer_id,
     trackId: track_id,
     encoding: encoding,
-    reason: "target" | "good_bandwidth" | "low_bandwidth" | "other"
+    reason: "low_bandwidth" | "encoding_inactive" | "other"
   }
   ```
 

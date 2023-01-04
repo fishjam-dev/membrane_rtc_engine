@@ -442,6 +442,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       ) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
+    reason = if reason == :variant_inactive, do: :encoding_inactive, else: reason
+
     media_event = %{
       type: "encodingSwitched",
       data: %{

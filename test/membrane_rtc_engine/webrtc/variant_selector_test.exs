@@ -12,10 +12,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   test "VariantSelector selects another variant when currently used variant becomes inactive" do
     selector = create_selector()
 
-    assert {selector, {:request, :medium, :other}} =
+    assert {selector, {:request, :medium, :variant_inactive}} =
              VariantSelector.variant_inactive(selector, :high)
 
-    assert {_selector, {:request, :low, :other}} =
+    assert {_selector, {:request, :low, :variant_inactive}} =
              VariantSelector.variant_inactive(selector, :medium)
   end
 
@@ -28,7 +28,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   test "VariantSelector selects variant being used before it became inactive" do
     selector = create_selector()
 
-    assert {selector, {:request, :medium, :other}} =
+    assert {selector, {:request, :medium, :variant_inactive}} =
              VariantSelector.variant_inactive(selector, :high)
 
     selector = VariantSelector.set_current_variant(selector, :medium)
@@ -40,7 +40,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   test "target_variant/2 sets target variant and chooses it when it is active" do
     selector = create_selector()
 
-    assert {selector, {:request, :medium, :other}} =
+    assert {selector, {:request, :medium, :variant_inactive}} =
              VariantSelector.variant_inactive(selector, :high)
 
     assert {selector, :noop} = VariantSelector.set_target_variant(selector, :medium)
@@ -128,7 +128,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
         allocation = @variant_bitrates[variant] * 1.1
         assert_allocation_requested(variant)
 
-        assert {selector, {:request, ^variant, :good_bandwidth}} =
+        assert {selector, {:request, ^variant, :other}} =
                  VariantSelector.set_bandwidth_allocation(selector, allocation)
 
         selector
@@ -159,7 +159,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
       assert {selector, :noop} = VariantSelector.variant_active(selector, :medium)
       assert_allocation_requested(:medium)
 
-      assert {selector, {:request, :medium, :good_bandwidth}} =
+      assert {selector, {:request, :medium, :other}} =
                VariantSelector.set_bandwidth_allocation(
                  selector,
                  @variant_bitrates[:medium] * 1.1

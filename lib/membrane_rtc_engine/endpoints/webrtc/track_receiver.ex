@@ -44,12 +44,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @typedoc """
   Reason of track variant switch.
 
-  * `:target` - target variant has changed
-  * `:good_bandwidth` - bandwidth was good enough to move to the higher quality
-  * `:low_bandwidth` - bandwidth was too low to handle previous quality
+  * `:low_bandwidth` - bandwidth was too low to maintain current track quality
+  * `:variant_inactive` - variant became inactive
   * `:other` - it was hard to determine the exact reason
   """
-  @type variant_switch_reason() :: :target | :good_bandwidth | :low_bandwidth | :other
+  @type variant_switch_reason() :: :low_bandwidth | :variant_inactive | :other
 
   @typedoc """
   Messages that can be sent to TrackReceiver to control its behavior.

@@ -156,7 +156,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       |> Map.put(:current_allocation, allocation)
       |> perform_automatic_variant_selection()
 
-    action = add_reason(action, :good_bandwidth)
+    action = add_reason(action, :other)
     {selector, action}
   end
 
@@ -226,7 +226,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       end
       |> perform_automatic_variant_selection()
 
-    action = add_reason(action, :other)
+    action = add_reason(action, :variant_inactive)
     {selector, action}
   end
 
@@ -292,7 +292,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     if variant in selector.active_variants and fits_in_allocation?(selector, variant) do
       {selector, action} = select_variant(selector, variant)
-      action = add_reason(action, :target)
+      action = add_reason(action, :other)
       selector = manage_allocation(selector)
       {selector, action}
     else
