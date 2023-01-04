@@ -595,24 +595,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         &to_webrtc_track(&1)
       )
 
-    track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
-
-    media_event_action =
-      case tracks do
-        [] ->
-          []
-
-        [%{origin: origin} | _rest] ->
-          media_event =
-            MediaEvent.tracks_added(origin, track_id_to_metadata) |> MediaEvent.encode()
-
-          [notify: {:forward_to_parent, {:media_event, media_event}}]
-      end
-
     outbound_tracks = update_tracks(tracks, state.outbound_tracks)
 
+    media_event_actions =
+      tracks
+      |> Enum.group_by(& &1.origin)
+      |> Enum.map(fn {origin, tracks} ->
+        track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
+
+        media_event =
+          origin
+          |> MediaEvent.tracks_added(track_id_to_metadata)
+          |> MediaEvent.encode()
+
+        {:notify, {:forward_to_parent, {:media_event, media_event}}}
+      end)
+
     {{:ok,
-      media_event_action ++
+      media_event_actions ++
         forward(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
      %{state | outbound_tracks: outbound_tracks}}
   end
@@ -751,6 +751,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
          _ctx,
          state
        ) do
+    state = put_in(state, [:outbound_tracks, track_id, :metadata], metadata)
     {{:ok, notify: {:update_track_metadata, track_id, metadata}}, state}
   end
 
