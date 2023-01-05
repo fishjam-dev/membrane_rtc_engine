@@ -201,15 +201,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       inspect(opts.peer_metadata)
     )
 
-    # TODO: remove configuring via app env
     connection_allocator_module =
       if opts.simulcast_config.enabled,
-        do:
-          Application.get_env(
-            :membrane_rtc_engine,
-            :connection_prober_implementation,
-            __MODULE__.RTPConnectionAllocator
-          ),
+        do: __MODULE__.RTPConnectionAllocator,
         else: __MODULE__.NoOpConnectionAllocator
 
     state =

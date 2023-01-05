@@ -198,6 +198,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   """
   @spec variant_inactive(t(), Track.variant()) :: {t(), selector_action_t()}
   def variant_inactive(selector, variant) do
+    Membrane.Logger.debug("Variant inactive #{variant}")
+
     selector = %__MODULE__{
       selector
       | active_variants: MapSet.delete(selector.active_variants, variant)
@@ -224,6 +226,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   """
   @spec variant_active(t(), Track.variant()) :: {t(), selector_action_t()}
   def variant_active(selector, variant) do
+    Membrane.Logger.debug("Variant active #{variant}")
+
     selector = %__MODULE__{
       selector
       | active_variants: MapSet.put(selector.active_variants, variant)
@@ -294,6 +298,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   defp select_variant(%__MODULE__{} = selector) do
     variant = best_active_variant(selector)
+    Membrane.Logger.debug("Best active variant: #{inspect(variant)}")
 
     select_variant(selector, variant)
   end
@@ -408,6 +413,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       |> Enum.max()
 
     next_variant = next_desired_variant(selector)
+
+    Membrane.Logger.debug("Next desired variant #{inspect(next_variant)}")
 
     cond do
       # If we're not having that much margin left in current allocation,

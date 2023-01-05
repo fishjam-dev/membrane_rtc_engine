@@ -110,7 +110,12 @@ class Room {
         track,
         this.localStream,
         {},
-        { enabled: true, active_encodings: this.encodings })
+        { enabled: true, active_encodings: this.encodings },
+        new Map([
+          ["h", 1500],
+          ["m", 500],
+          ["l", 100],
+        ]))
 
 
     if (track.kind == "audio") this.audioTrack = [trackId, track];
