@@ -24,6 +24,16 @@ defmodule Membrane.RTC.Engine.MixProject do
       homepage_url: "https://membraneframework.org",
       docs: docs(),
 
+      # test coverage
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test,
+      ],
+
       # dialyzer
       # this is because of optional dependencies
       # they are not included in PLT
@@ -81,6 +91,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},
       {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
+      {:excoveralls, "~> 0.15.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
