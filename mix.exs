@@ -31,7 +31,7 @@ defmodule Membrane.RTC.Engine.MixProject do
         "coveralls.detail": :test,
         "coveralls.post": :test,
         "coveralls.html": :test,
-        "coveralls.json": :test,
+        "coveralls.json": :test
       ],
 
       # dialyzer
