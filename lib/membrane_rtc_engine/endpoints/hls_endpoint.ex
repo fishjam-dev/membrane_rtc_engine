@@ -262,7 +262,8 @@ if Enum.all?(
           :track_receiver,
           :depayloader,
           :blank,
-          :realtimer
+          :realtimer,
+          :audio_filler
         ]
         |> Enum.map(&{&1, track_id})
         |> Enum.filter(&Map.has_key?(ctx.children, &1))
@@ -276,16 +277,9 @@ if Enum.all?(
         end)
 
       {state, children_to_remove} =
-        cond do
-          is_nil(state.mixer_config) and not sink_bin_used? ->
-            {state, [{:hls_sink_bin, removed_track.stream_id}]}
-
-          # not is_nil(state.mixer_config) and tracks == %{} ->
-          #   {%{state | stream_beginning: nil}, get_common_children(ctx)}
-
-          true ->
-            {state, []}
-        end
+        if is_nil(state.mixer_config) and not sink_bin_used?,
+          do: {state, [{:hls_sink_bin, removed_track.stream_id}]},
+          else: {state, []}
 
       children_to_remove = track_children ++ children_to_remove
 
@@ -429,6 +423,7 @@ if Enum.all?(
           |> to({:track_receiver, track.id})
           |> to({:depayloader, track.id})
           |> to({:opus_decoder, track.id})
+          |> to({:audio_filler, track.id}, Membrane.AudioFiller)
           |> via_in(Pad.ref(:input, {:extra, track.id}), options: [offset: offset])
           |> to(:audio_mixer)
         ]
@@ -562,7 +557,8 @@ if Enum.all?(
             sample_rate: state.mixer_config.audio.sample_rate,
             sample_format: state.mixer_config.audio.sample_format
           },
-          duration: :infinity
+          duration: :infinity,
+          frames_per_buffer: 960
         }
 
         %ParentSpec{
@@ -717,24 +713,6 @@ if Enum.all?(
       track
       |> Track.get_depayloader()
       |> tap(&unless &1, do: raise("Couldn't find depayloader for track #{inspect(track)}"))
-    end
-
-    defp get_common_children(ctx) do
-      children = [
-        :compositor,
-        :encoder,
-        :video_parser_out,
-        :hls_sink_bin,
-        :audio_mixer,
-        :aac_encoder,
-        :aac_parser,
-        :video_realtimer,
-        :audio_realtimer,
-        :fake_source,
-        :silence_generator
-      ]
-
-      Enum.filter(children, &Map.has_key?(ctx.children, &1))
     end
 
     defp get_hls_stream_directory(%{mixer_config: nil} = state, track),
