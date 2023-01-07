@@ -27,7 +27,7 @@ end
 
 ## Usage
 
-For usage examples, please refer to our [membrane_demo](https://github.com/membraneframework/membrane_demo/tree/master/webrtc/videoroom) or
+For usage examples, please refer to our [membrane_demo](https://github.com/membraneframework/membrane_demo/tree/master/webrtc_videoroom) or
 [membrane_videoroom](https://github.com/membraneframework/membrane_videoroom) repositories.
 
 
