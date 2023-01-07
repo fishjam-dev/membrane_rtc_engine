@@ -2,16 +2,16 @@
 
 [![Hex.pm](https://img.shields.io/hexpm/v/membrane_rtc_engine.svg)](https://hex.pm/packages/membrane_rtc_engine)
 [![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_rtc_engine)
-[![CircleCI](https://circleci.com/gh/membraneframework/membrane_rtc_engine.svg?style=svg)](https://circleci.com/gh/membraneframework/membrane_rtc_engine)
+[![CircleCI](https://circleci.com/gh/jellyfish-dev/membrane_rtc_engine.svg?style=svg)](https://circleci.com/gh/jellyfish-dev/membrane_rtc_engine)
 
 Customizable Real-time Communication Engine/SFU library focused on WebRTC.
 
 ## Client SDKs
 
-* [JS/TS](https://github.com/membraneframework/membrane-webrtc-js)
-* [Android](https://github.com/membraneframework/membrane-webrtc-android)
-* [iOS](https://github.com/membraneframework/membrane-webrtc-ios)
-* [React Native](https://github.com/membraneframework/react-native-membrane-webrtc)
+* [JS/TS](https://github.com/jellyfish-dev/membrane-webrtc-js)
+* [Android](https://github.com/jellyfish-dev/membrane-webrtc-android)
+* [iOS](https://github.com/jellyfish-dev/membrane-webrtc-ios)
+* [React Native](https://github.com/jellyfish-dev/react-native-membrane-webrtc)
 
 ## Installation
 
