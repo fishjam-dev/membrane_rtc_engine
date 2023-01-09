@@ -16,7 +16,7 @@ defmodule Membrane.RTC.Engine.Event.TrackVariantSwitched do
   * `reason` - a reason passed in `Membrane.RTC.Engine.Event.RequestTrackVariant`.
   Defaults to `nil`,
   """
-  @type t :: %__MODULE__{new_variant: Track.variant(), reason: atom()}
+  @type t :: %__MODULE__{new_variant: Track.variant(), reason: atom() | nil}
 
   @enforce_keys [:new_variant]
   defstruct @enforce_keys ++ [reason: nil]
