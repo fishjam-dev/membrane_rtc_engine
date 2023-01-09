@@ -67,8 +67,6 @@ defmodule Membrane.RTC.EngineTest do
       Engine.add_endpoint(rtc_engine, peer1_spec, peer_id: "peer1")
       Engine.add_endpoint(rtc_engine, msg_endpoint_spec, peer_id: "peer2")
 
-      Process.sleep(200)
-
       Engine.message_endpoint(
         rtc_engine,
         "peer2",
@@ -92,7 +90,10 @@ defmodule Membrane.RTC.EngineTest do
   describe ":update_track_metadata" do
     setup :setup_for_metadata_tests
 
-    test "triggers :track_metadata_updated", %{rtc_engine: rtc_engine, track: %Track{id: track_id}} do
+    test "triggers :track_metadata_updated", %{
+      rtc_engine: rtc_engine,
+      track: %Track{id: track_id}
+    } do
       Engine.message_endpoint(
         rtc_engine,
         "track-endpoint",
