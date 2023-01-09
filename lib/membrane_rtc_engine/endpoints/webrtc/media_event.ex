@@ -1,6 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   @moduledoc false
 
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.{Peer, Track}
 
   @type t() :: map()
@@ -55,11 +56,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     %{type: "tracksPriority", data: %{tracks: tracks}}
   end
 
-  @spec encoding_switched(Peer.id(), Track.id(), String.t()) :: t()
-  def encoding_switched(peer_id, track_id, encoding) do
+  @spec encoding_switched(
+          Peer.id(),
+          Track.id(),
+          String.t(),
+          TrackReceiver.variant_switch_reason()
+        ) :: t()
+  def encoding_switched(peer_id, track_id, encoding, reason) do
     as_custom(%{
       type: "encodingSwitched",
-      data: %{peerId: peer_id, trackId: track_id, encoding: encoding}
+      data: %{peerId: peer_id, trackId: track_id, encoding: encoding, reason: reason}
     })
   end
 

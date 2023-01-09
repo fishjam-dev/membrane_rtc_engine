@@ -252,15 +252,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       inspect(opts.peer_metadata)
     )
 
-    # TODO: remove configuring via app env
     connection_allocator_module =
       if opts.simulcast_config.enabled,
-        do:
-          Application.get_env(
-            :membrane_rtc_engine,
-            :connection_prober_implementation,
-            __MODULE__.RTPConnectionAllocator
-          ),
+        do: __MODULE__.RTPConnectionAllocator,
         else: __MODULE__.NoOpConnectionAllocator
 
     state =
@@ -480,16 +474,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification(
-        {:variant_switched, new_variant},
+        {:variant_switched, new_variant, reason},
         {:track_receiver, track_id},
         _ctx,
         state
       ) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
+    reason = if reason == :variant_inactive, do: :encoding_inactive, else: reason
+
     media_event =
       track.origin
-      |> MediaEvent.encoding_switched(track_id, to_rid(new_variant))
+      |> MediaEvent.encoding_switched(track_id, to_rid(new_variant), reason)
       |> MediaEvent.encode()
 
     {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}

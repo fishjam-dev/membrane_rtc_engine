@@ -3,21 +3,17 @@ defmodule TestVideoroom.Integration.MetadataTest do
 
   import TestVideoroom.Integration.Utils
 
-  # in miliseconds
-  @peer_delay 500
-  # in miliseconds
-  @peer_duration 60_000
   @room_url "http://localhost:4001"
 
   # in miliseconds
-  @join_interval 10_000
+  @warmup_time 10_000
 
   @start_all "start-all"
   @update_peer "metadata-update-peer"
   @update_track "metadata-update-track"
   @metadata_peer "metadata-peer"
   @metadata_track "metadata-track"
-  @browser_options %{count: 1, delay: @peer_delay, headless: true}
+  @browser_options %{count: 1, headless: true}
 
   @tag timeout: 180_000
   test "updating peer metadata works and updating track metadata works correctly" do
@@ -29,8 +25,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
 
     mustang_options = %{
       target_url: @room_url,
-      linger: @peer_duration,
-      join_interval: @join_interval,
+      warmup_time: @warmup_time,
       start_button: @start_all,
       receiver: receiver,
       actions: [],

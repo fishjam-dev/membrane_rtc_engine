@@ -2,7 +2,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
   @version "0.8.2"
-  @github_url "https://github.com/membraneframework/membrane_rtc_engine"
+  @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
 
   def project do
     [
@@ -21,8 +21,18 @@ defmodule Membrane.RTC.Engine.MixProject do
       # docs
       name: "Membrane RTC Engine",
       source_url: @github_url,
-      homepage_url: "https://membraneframework.org",
+      homepage_url: "https://membrane.stream",
       docs: docs(),
+
+      # test coverage
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
+      ],
 
       # dialyzer
       # this is because of optional dependencies
@@ -81,6 +91,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},
       {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
+      {:excoveralls, "~> 0.15.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
@@ -100,7 +111,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @github_url,
-        "Membrane Framework Homepage" => "https://membraneframework.org"
+        "Membrane Framework Homepage" => "https://membrane.stream"
       }
     ]
   end
