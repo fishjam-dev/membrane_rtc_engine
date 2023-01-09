@@ -153,7 +153,6 @@ defmodule Membrane.RTC.Engine do
                   endpoints: %{},
                   pending_subscriptions: [],
                   pending_peers: %{},
-                  filters: %{},
                   subscriptions: %{},
                   display_manager: nil
                 ]
@@ -166,9 +165,8 @@ defmodule Membrane.RTC.Engine do
             display_manager: pid() | nil,
             peers: %{Endpoint.id() => Peer.t()},
             endpoints: %{Endpoint.id() => Endpoint.t()},
-            filters: map(),
-            subscriptions: %{Endpoint.id() => map()},
-            pending_subscriptions: list(),
+            subscriptions: %{Endpoint.id() => %{Track.id() => Subscription.t()}},
+            pending_subscriptions: [Subscription.t()],
             pending_peers: %{Endpoint.id() => %{peer: Peer.t(), endpoint: Endpoint.t()}}
           }
   end
@@ -209,8 +207,15 @@ defmodule Membrane.RTC.Engine do
   @typedoc """
   A message that the Engine sends to the endpoint when it ackowledges its `t:ready_action_t/0`
   """
-  # FIXME: typespec not accurate
-  @type ready_ack_msg_t() :: {:ready, peers_in_room :: list(Peer.t())}
+  @type ready_ack_msg_t() ::
+          {:ready,
+           peers_in_room :: [
+             %{
+               id: Peer.id(),
+               metadata: any(),
+               trackIdToMetadata: %{Track.id() => any()}
+             }
+           ]}
 
   @typedoc """
   Membrane action that will cause RTC Engine to forward supplied message to the business logic.
