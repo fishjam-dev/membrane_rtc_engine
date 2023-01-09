@@ -1,4 +1,8 @@
-version: 2.0
+version: 2.1
+orbs:
+  codecov: codecov/codecov@3.2.4
+
+
 jobs:
   test:
     resource_class: large
@@ -12,7 +16,8 @@ jobs:
     steps:
       - checkout
       - run: mix deps.get
-      - run: mix test
+      - run: mix coveralls.json
+      - codecov/upload
 
   lint:
     resource_class: large
@@ -51,7 +56,6 @@ jobs:
       - run: cd ./integration_test/test_videoroom && mix compile --force --warnings-as-errors
       - run: cd ./integration_test/test_videoroom && npm ci --prefix=assets
       - run: cd ./integration_test/test_videoroom && mix test
-
 
 
 workflows:
