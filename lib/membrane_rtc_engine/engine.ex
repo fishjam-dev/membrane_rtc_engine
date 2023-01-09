@@ -41,7 +41,7 @@ defmodule Membrane.RTC.Engine do
   The peer doesn't exist without their endpoint.
 
   ### Adding a peer
-  The only way to add a peer to the RTC Engine is to assign it a `peer_id` to the endpoint representing it.
+  The only way to add a peer to the RTC Engine is to assign a `peer_id` to the endpoint representing it.
   This is done when adding an endpoint to the Engine by passing a `peer_id` option.
 
   **Example**
@@ -49,10 +49,10 @@ defmodule Membrane.RTC.Engine do
   :ok = Engine.add_endpoint(webrtc_endpoint, peer_id: "Peer1")
   ```
 
-  Each peer then needs to delcare itself as ready before being fully connected to RTC Engine.
+  Each peer then needs to declare itself as ready before being fully connected to RTC Engine.
 
   ### Readiness state
-  Each peer endpoint is presumed to be initially inactive and has to delare itself ready to fully join the Engine.
+  Each peer endpoint is presumed to be initially inactive and has to declare itself ready to fully join the Engine.
 
   Before it does, it:
   * will not receive notifications about other peers and their metadata
@@ -539,7 +539,7 @@ defmodule Membrane.RTC.Engine do
       {{:ok, actions}, state}
     else
       Membrane.Logger.warn(
-        "Endpoint #{endpoint_id} sent a `:ready` message even though it's not a peer endpoint"
+        "Endpoint #{endpoint_id} sent a `:ready` message even though it's not a peer endpoint. Ignoring."
       )
 
       {:ok, state}
