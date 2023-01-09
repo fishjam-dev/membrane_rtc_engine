@@ -1,4 +1,4 @@
-# Media Events
+# WebRTC Media Events
 
 This document described all messages exchanged between the WebRTC Endpoint and a client.
 In general, each media event has to be sent in the form:

@@ -163,7 +163,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       "guides/vad.md",
 
       # internal docs
-      "internal_docs/media_events.md",
+      "internal_docs/webrtc_media_events.md",
       "internal_docs/protocol.md",
       "internal_docs/webrtc_endpoint.md",
       "internal_docs/simulcast.md": [filename: "internal_simulcast"],

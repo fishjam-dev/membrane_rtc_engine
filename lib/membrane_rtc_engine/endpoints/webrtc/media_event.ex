@@ -147,17 +147,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
         }
       })
 
-  @deprecated "Use error_event/1"
-  @spec create_error_event(String.t()) :: t()
-  def create_error_event(msg) do
-    error_event(msg)
-  end
-
-  @spec error_event(String.t()) :: t()
-  def error_event(msg) do
-    %{type: "error", data: %{message: msg}}
-  end
-
   @spec encode(t()) :: binary()
   def encode(event), do: Jason.encode!(event)
 

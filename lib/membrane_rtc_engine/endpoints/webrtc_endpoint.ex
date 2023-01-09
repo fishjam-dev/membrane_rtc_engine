@@ -325,7 +325,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
-    event = notification_to_media_event({:voice_activity, track_id, vad}) |> MediaEvent.encode()
+    event = to_media_event({:voice_activity, track_id, vad}) |> MediaEvent.encode()
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
 
@@ -452,7 +452,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     turns = get_turn_configs(turns, state)
 
     media_event =
-      notification_to_media_event({:signal, {:offer_data, media_count, turns}})
+      to_media_event({:signal, {:offer_data, media_count, turns}})
       |> MediaEvent.encode()
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
@@ -469,7 +469,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
-    media_event = notification_to_media_event(media_event_data) |> MediaEvent.encode()
+    media_event = to_media_event(media_event_data) |> MediaEvent.encode()
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
       event: inspect(media_event)
@@ -502,7 +502,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       estimation
     )
 
-    media_event = notification_to_media_event(msg) |> MediaEvent.encode()
+    media_event = to_media_event(msg) |> MediaEvent.encode()
 
     Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
       event: inspect(media_event)
@@ -590,7 +590,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     # Don't subscribe to new tracks yet.
     # We will do this after ice restart is finished.
     # Notification :negotiation_done will inform us about it
-    #
     webrtc_tracks =
       Enum.map(
         tracks,
@@ -831,30 +830,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         Map.put(acc, track.id, track)
       end)
 
-  defp notification_to_media_event({:signal, {:sdp_answer, answer, mid_to_track_id}}),
+  defp to_media_event({:signal, {:sdp_answer, answer, mid_to_track_id}}),
     do: MediaEvent.sdp_answer(answer, mid_to_track_id)
 
-  defp notification_to_media_event({:signal, {:offer_data, tracks_types, turns}}),
+  defp to_media_event({:signal, {:offer_data, tracks_types, turns}}),
     do: MediaEvent.offer_data(tracks_types, turns)
 
-  defp notification_to_media_event({:signal, {:candidate, candidate, sdp_m_line_index}}),
+  defp to_media_event({:signal, {:candidate, candidate, sdp_m_line_index}}),
     do: MediaEvent.candidate(candidate, sdp_m_line_index)
 
-  defp notification_to_media_event({:signal, {:sdp_offer, offer}}),
+  defp to_media_event({:signal, {:sdp_offer, offer}}),
     do: MediaEvent.sdp_offer(offer)
 
-  defp notification_to_media_event({:voice_activity, track_id, vad}),
+  defp to_media_event({:voice_activity, track_id, vad}),
     do: MediaEvent.voice_activity(track_id, vad)
 
-  defp notification_to_media_event({:bandwidth_estimation, estimation}),
+  defp to_media_event({:bandwidth_estimation, estimation}),
     do: MediaEvent.bandwidth_estimation(estimation)
 
   defp deserialize(string) when is_binary(string) do
-    with {:ok, event} <- MediaEvent.decode(string) do
-      case event do
-        %{type: :custom, data: data} -> {:ok, data}
-        e -> {:ok, e}
-      end
+    case MediaEvent.decode(string) do
+      {:ok, %{type: :custom, data: data}} -> {:ok, data}
+      {:ok, event} -> {:ok, event}
+      {:error, _reason} = error -> error
     end
   end
 

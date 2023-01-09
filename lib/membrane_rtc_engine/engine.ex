@@ -28,7 +28,7 @@ defmodule Membrane.RTC.Engine do
 
   > ### Deprecation notice {: .warning }
   > 
-  > **Peers are deprecated as of version 0.9.0**
+  > **Peers are deprecated as of version 0.10.0 and will be removed in the future**
   >
   > While Peers are still present in the RTC Engine, it's not recommended to use
   > this feature in new applications.
@@ -199,12 +199,18 @@ defmodule Membrane.RTC.Engine do
 
   @typedoc """
   Membrane action that will mark the peer endpoint as ready and set its metadata.
-  The Engine will respond with `{:ready, peer_in_room}` to acknowledge your transition to ready state.
+  The Engine will respond with `t:ready_ack_msg_t/0` to acknowledge your transition to ready state.
 
   This action can only be used once, any further calls by an endpoint will be ignored.
   It will also be ignored for non-peer endpoints.
   """
   @type ready_action_t() :: {:notify, {:ready, metadata :: any()}}
+
+  @typedoc """
+  A message that the Engine sends to the endpoint when it ackowledges its `t:ready_action_t/0`
+  """
+  # FIXME: typespec not accurate
+  @type ready_ack_msg_t() :: {:ready, peers_in_room :: list(Peer.t())}
 
   @typedoc """
   Membrane action that will cause RTC Engine to forward supplied message to the business logic.
@@ -223,12 +229,23 @@ defmodule Membrane.RTC.Engine do
   @type publish_message_t() ::
           {:new_tracks, [Track.t()]}
           | {:removed_tracks, [Track.t()]}
-          | {:ready, peers_in_room :: [map()]}
+          | {:track_metadata_updated, metadata :: any()}
+          | {:peer_metadata_updated, metadata :: any()}
+          | {:tracks_priority, tracks :: list()}
+          | TrackNotification.t()
+
+  @typedoc """
+  Type of messages that need to be handled by each endpoint.
+  """
+  @type published_message_t() ::
+          {:new_tracks, [Track.t()]}
+          | {:removed_tracks, [Track.t()]}
           | {:new_peer, Peer.t()}
           | {:peer_left, Peer.id()}
           | {:track_metadata_updated, Track.t()}
           | {:peer_metadata_updated, Peer.t()}
           | {:tracks_priority, tracks :: list()}
+          | ready_ack_msg_t()
           | TrackNotification.t()
 
   @spec start(options :: options_t(), process_options :: GenServer.options()) ::
@@ -790,7 +807,7 @@ defmodule Membrane.RTC.Engine do
       end
 
     actions =
-      ([spec: spec] ++ [forward: display_manager_message] ++ tracks_actions)
+      ([spec: spec, forward: display_manager_message] ++ tracks_actions)
       |> Keyword.filter(fn
         {:forward, nil} -> false
         _other -> true
