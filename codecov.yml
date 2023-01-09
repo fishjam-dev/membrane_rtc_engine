@@ -1,0 +1,35 @@
+codecov:
+  require_ci_to_pass: false
+  notify:
+    wait_for_ci: false
+
+comment:
+  layout: "header, reach, diff, flags, files, footer"
+  behavior: default
+
+flag_management:
+  default_rules:
+    carryforward: false
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+      - type: patch
+        target: 90%
+  individual_flags:
+    - name: unittests  #fill in your own flag name
+      paths: 
+      - src/feature_1  #fill in your own path. Note, accepts globs, not regexes
+      statuses:
+        - type: project
+          target: 20%
+        - type: patch
+          target: 100%
+    - name: feature_2 #fill in your own flag name
+      paths: 
+      - src/feature_2  #fill in your own path. Note, accepts globs, not regexes
+      statuses:
+      - type: project
+        target: 20%
+      - type: patch
+        target: 100%
