@@ -2,7 +2,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
   @version "0.8.2"
-  @github_url "https://github.com/membraneframework/membrane_rtc_engine"
+  @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
 
   def project do
     [
@@ -21,7 +21,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # docs
       name: "Membrane RTC Engine",
       source_url: @github_url,
-      homepage_url: "https://membraneframework.org",
+      homepage_url: "https://membrane.stream",
       docs: docs(),
 
       # test coverage
@@ -111,7 +111,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @github_url,
-        "Membrane Framework Homepage" => "https://membraneframework.org"
+        "Membrane Framework Homepage" => "https://membrane.stream"
       }
     ]
   end
