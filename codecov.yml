@@ -4,7 +4,7 @@ codecov:
     wait_for_ci: false
 
 comment:
-  layout: "header, diff, files"
+  layout: "header, diff, files, footer"
   behavior: default
 
 coverage:
