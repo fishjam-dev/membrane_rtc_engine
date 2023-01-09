@@ -21,7 +21,7 @@ defmodule Membrane.RTC.EngineTest do
     [rtc_engine: pid]
   end
 
-  describe ":ready message handling" do
+  describe ":ready message" do
     test "triggers :new_peer", %{rtc_engine: rtc_engine} do
       endpoint_spec = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
 
@@ -92,7 +92,7 @@ defmodule Membrane.RTC.EngineTest do
   describe ":update_track_metadata" do
     setup :setup_for_metadata_tests
 
-    test "works", %{rtc_engine: rtc_engine, track: %Track{id: track_id}} do
+    test "triggers :track_metadata_updated", %{rtc_engine: rtc_engine, track: %Track{id: track_id}} do
       Engine.message_endpoint(
         rtc_engine,
         "track-endpoint",
@@ -116,7 +116,7 @@ defmodule Membrane.RTC.EngineTest do
   describe ":update_peer_metadata" do
     setup :setup_for_metadata_tests
 
-    test "works", %{rtc_engine: rtc_engine, peer: %{id: peer_id}} do
+    test "triggers :peer_metadata_updated", %{rtc_engine: rtc_engine, peer: %{id: peer_id}} do
       Engine.message_endpoint(
         rtc_engine,
         "track-endpoint",
