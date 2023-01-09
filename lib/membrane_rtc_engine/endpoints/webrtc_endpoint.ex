@@ -420,19 +420,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification(
-        {:variant_switched, new_variant},
+        {:variant_switched, new_variant, reason},
         {:track_receiver, track_id},
         _ctx,
         state
       ) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
+    reason = if reason == :variant_inactive, do: :encoding_inactive, else: reason
+
     media_event = %{
       type: "encodingSwitched",
       data: %{
         peerId: track.origin,
         trackId: track_id,
-        encoding: to_rid(new_variant)
+        encoding: to_rid(new_variant),
+        reason: "#{reason}"
       }
     }
 

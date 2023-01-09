@@ -21,9 +21,11 @@ defmodule Membrane.RTC.Engine.Event.RequestTrackVariant do
   Type describing RequestTrackVariant event.
 
   * `variant` - track variant to receive
+  * `reason` - reason of the request. It will be repeated in
+  `Membrane.RTC.Engine.Event.TrackVariantSwitched`. Defaults to `nil`.
   """
-  @type t() :: %__MODULE__{variant: Track.variant()}
+  @type t() :: %__MODULE__{variant: Track.variant(), reason: atom() | nil}
 
   @enforce_keys [:variant]
-  defstruct @enforce_keys
+  defstruct @enforce_keys ++ [reason: nil]
 end
