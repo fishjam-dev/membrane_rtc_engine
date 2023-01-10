@@ -50,15 +50,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
-
-      assert %{
-               "type" => "tracksAdded",
-               "data" => %{
-                 "trackIdToMetadata" => %{track_id => nil},
-                 "peerId" => file_endpoint_id
-               }
-             } == Jason.decode!(data)
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: ^file_endpoint_id,
+        message: :tracks_added
+      }
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
@@ -124,25 +119,15 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok =
         Engine.add_endpoint(rtc_engine, audio_file_endpoint, endpoint_id: audio_file_endpoint_id)
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: ^video_file_endpoint_id,
+        message: :tracks_added
+      }
 
-      assert %{
-               "type" => "tracksAdded",
-               "data" => %{
-                 "trackIdToMetadata" => %{video_track_id => nil},
-                 "peerId" => video_file_endpoint_id
-               }
-             } == Jason.decode!(data)
-
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
-
-      assert %{
-               "type" => "tracksAdded",
-               "data" => %{
-                 "trackIdToMetadata" => %{audio_track_id => nil},
-                 "peerId" => audio_file_endpoint_id
-               }
-             } == Jason.decode!(data)
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: ^audio_file_endpoint_id,
+        message: :tracks_added
+      }
 
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
@@ -196,15 +181,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
 
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
-
-      assert %{
-               "type" => "tracksAdded",
-               "data" => %{
-                 "trackIdToMetadata" => %{track_id => nil},
-                 "peerId" => file_endpoint_id
-               }
-             } == Jason.decode!(data)
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: ^file_endpoint_id,
+        message: :tracks_added
+      }
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 

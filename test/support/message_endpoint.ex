@@ -18,12 +18,20 @@ defmodule Membrane.RTC.Engine.Support.MessageEndpoint do
                 description: "Pid of owner of endpoint"
               ]
 
+  def_input_pad :input,
+    availability: :on_request,
+    caps: :any,
+    demand_mode: :auto
+
   @impl true
   def handle_init(opts) do
     state = %{rtc_engine: opts.rtc_engine, owner: opts.owner}
 
     {:ok, state}
   end
+
+  @impl true
+  def handle_other({:execute_actions, actions}, _ctx, state), do: {{:ok, actions}, state}
 
   @impl true
   def handle_other(message, _ctx, state) do
