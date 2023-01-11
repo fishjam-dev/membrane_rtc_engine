@@ -115,6 +115,14 @@ if Enum.all?(
                   may help players achieve better UX.
                   """
                 ],
+                partial_segment_duration: [
+                  spec: SegmentDuration.t() | nil,
+                  default: SegmentDuration.new(Time.milliseconds(500), Time.milliseconds(550)),
+                  description: """
+                  Expected length of each partial segment. Setting it is not necessary, but
+                  may help players achieve better UX.
+                  """
+                ],
                 mixer_config: [
                   spec: %{audio: AudioMixerConfig.t(), video: CompositorConfig.t()} | nil,
                   default: nil,
@@ -129,6 +137,20 @@ if Enum.all?(
                   Tells if the session is live or a vod type of broadcast. Use live when you generate HLS stream from real-time data.
                   Use vod when generating HLS from file.
                   """
+                ],
+                manifest_module: [
+                  spec: module,
+                  default: Membrane.HTTPAdaptiveStream.HLS,
+                  description: """
+                  #TODO
+                  """
+                ],
+                storage_function: [
+                  spec: (Path.type() -> map()),
+                  default:  &__MODULE__.default_file_storage/1,
+                  description: """
+                  #TODO
+                  """
                 ]
 
     @impl true
@@ -142,10 +164,13 @@ if Enum.all?(
         hls_mode: opts.hls_mode,
         target_window_duration: opts.target_window_duration,
         segment_duration: opts.segment_duration,
+        partial_segment_duration: opts.partial_segment_duration,
         mixer_config: opts.mixer_config,
         broadcast_mode: opts.broadcast_mode,
+        manifest_module: opts.manifest_module,
         video_layout: nil,
-        stream_beginning: nil
+        stream_beginning: nil,
+        storage_function: opts.storage_function
       }
 
       video_layout =
@@ -346,12 +371,10 @@ if Enum.all?(
 
     defp get_hls_sink_spec(state, track, directory) do
       hls_sink = %Membrane.HTTPAdaptiveStream.SinkBin{
-        manifest_module: Membrane.HTTPAdaptiveStream.HLS,
+        manifest_module: state.manifest_module,
         target_window_duration: state.target_window_duration,
-        persist?: false,
-        storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
-          directory: directory
-        },
+        persist?: true,
+        storage: state.storage_function.(directory),
         hls_mode: state.hls_mode,
         mode: state.broadcast_mode,
         mp4_parameters_in_band?: is_nil(state.mixer_config)
@@ -394,7 +417,11 @@ if Enum.all?(
           |> to({:aac_encoder, track.id})
           |> to({:aac_parser, track.id})
           |> via_in(Pad.ref(:input, {:audio, track.id}),
-            options: [encoding: :AAC, segment_duration: state.segment_duration]
+            options: [
+              encoding: :AAC,
+              segment_duration: state.segment_duration,
+              partial_segment_duration: state.partial_segment_duration
+            ]
           )
           |> to({:hls_sink_bin, track.stream_id})
         ]
@@ -462,7 +489,11 @@ if Enum.all?(
           |> to({:depayloader, track.id})
           |> to({:video_parser, track.id})
           |> via_in(Pad.ref(:input, {:video, track.id}),
-            options: [encoding: :H264, segment_duration: state.segment_duration]
+            options: [
+              encoding: :H264,
+              segment_duration: state.segment_duration,
+              partial_segment_duration: state.partial_segment_duration
+            ]
           )
           |> to({:hls_sink_bin, track.stream_id})
         ]
@@ -639,7 +670,11 @@ if Enum.all?(
             })
             |> to(:video_parser_out)
             |> via_in(Pad.ref(:input, :video),
-              options: [encoding: :H264, segment_duration: state.segment_duration]
+              options: [
+                encoding: :H264,
+                segment_duration: state.segment_duration,
+                partial_segment_duration: state.partial_segment_duration
+              ]
             )
             |> to(:hls_sink_bin)
           ]
@@ -673,17 +708,18 @@ if Enum.all?(
           children: %{
             audio_mixer: audio_mixer,
             aac_encoder: Membrane.AAC.FDK.Encoder,
-            aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none},
-            audio_realtimer: Membrane.Realtimer
+            aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none}
           },
           links: [
-            link(:silence_generator)
-            |> to(:audio_realtimer)
-            |> to(:audio_mixer)
+            link(:audio_mixer)
             |> to(:aac_encoder)
             |> to(:aac_parser)
             |> via_in(Pad.ref(:input, :audio),
-              options: [encoding: :AAC, segment_duration: state.segment_duration]
+              options: [
+                encoding: :AAC,
+                segment_duration: state.segment_duration,
+                partial_segment_duration: state.partial_segment_duration
+              ]
             )
             |> to(:hls_sink_bin)
           ]
@@ -740,5 +776,9 @@ if Enum.all?(
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
       do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
+
+    @spec default_file_storage(String.t()) :: any
+    def default_file_storage(directory),
+      do: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{directory: directory}
   end
 end
