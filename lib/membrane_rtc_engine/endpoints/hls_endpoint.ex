@@ -232,6 +232,24 @@ if Enum.all?(
     end
 
     @impl true
+    def handle_prepared_to_playing(context, state) do
+      directory = state.output_directory
+      # remove directory if it already exists
+      File.rm_rf(directory)
+      File.mkdir_p!(directory)
+
+      hls_sink_spec = get_hls_sink_spec(state, %{stream_id: :error}, directory)
+
+      spec =
+        state
+        |> generate_audio_mixer(context)
+        |> merge_parent_specs(generate_compositor(state, context))
+        |> merge_parent_specs(hls_sink_spec)
+
+      {{:ok, spec: spec}, state}
+    end
+
+    @impl true
     def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
       track_children =
         [
@@ -262,8 +280,8 @@ if Enum.all?(
           is_nil(state.mixer_config) and not sink_bin_used? ->
             {state, [{:hls_sink_bin, removed_track.stream_id}]}
 
-          not is_nil(state.mixer_config) and tracks == %{} ->
-            {%{state | stream_beginning: nil}, get_common_children(ctx)}
+          # not is_nil(state.mixer_config) and tracks == %{} ->
+          #   {%{state | stream_beginning: nil}, get_common_children(ctx)}
 
           true ->
             {state, []}
@@ -417,8 +435,8 @@ if Enum.all?(
       }
 
       state
-      |> generate_audio_mixer(ctx)
-      |> merge_parent_specs(generate_compositor(state, ctx))
+      |> generate_blank(ctx)
+      |> merge_parent_specs(generate_silence(state, ctx))
       |> merge_parent_specs(parent_spec)
     end
 
@@ -528,12 +546,73 @@ if Enum.all?(
         end
 
       state
-      |> generate_audio_mixer(ctx)
-      |> merge_parent_specs(generate_compositor(state, ctx))
+      |> generate_blank(ctx)
+      |> merge_parent_specs(generate_silence(state, ctx))
       |> merge_parent_specs(parent_spec)
     end
 
     if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
+      defp generate_silence(_state, ctx) when is_map_key(ctx.children, :silence_generator),
+        do: %ParentSpec{children: %{}, links: []}
+
+      defp generate_silence(state, _ctx) do
+        silence_generator = %Membrane.SilenceGenerator{
+          caps: %Membrane.RawAudio{
+            channels: state.mixer_config.audio.channels,
+            sample_rate: state.mixer_config.audio.sample_rate,
+            sample_format: state.mixer_config.audio.sample_format
+          },
+          duration: :infinity
+        }
+
+        %ParentSpec{
+          children: %{
+            silence_generator: silence_generator,
+            audio_realtimer: Membrane.Realtimer
+          },
+          links: [
+            link(:silence_generator)
+            |> to(:audio_realtimer)
+            |> to(:audio_mixer)
+          ]
+        }
+      end
+
+      defp generate_blank(_state, ctx) when is_map_key(ctx.children, :fake_source),
+        do: %ParentSpec{children: %{}, links: []}
+
+      defp generate_blank(state, _ctx) do
+        video_caps = state.mixer_config.video.caps
+
+        initial_placement = %VideoPlacement{
+          position: {0, 0},
+          display_size: {video_caps.width, video_caps.height},
+          z_value: 0.0
+        }
+
+        %ParentSpec{
+          children: %{
+            fake_source: %Membrane.BlankVideoGenerator{
+              caps: %Membrane.RawVideo{
+                width: video_caps.width,
+                height: video_caps.height,
+                pixel_format: :I420,
+                framerate: video_caps.framerate,
+                aligned: true
+              },
+              duration: :infinity
+            },
+            video_realtimer: Membrane.Realtimer
+          },
+          links: [
+            link(:fake_source)
+            |> to(:video_realtimer)
+            |> via_in(:input, options: [initial_placement: initial_placement])
+            |> to(:compositor)
+          ]
+        }
+      end
+
       defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor),
         do: %ParentSpec{children: %{}, links: []}
 
@@ -551,35 +630,12 @@ if Enum.all?(
         {frames_per_second, 1} = state.mixer_config.video.caps.framerate
         seconds_number = Membrane.Time.as_seconds(state.segment_duration.target)
 
-        video_caps = state.mixer_config.video.caps
-
-        initial_placement = %VideoPlacement{
-          position: {0, 0},
-          display_size: {video_caps.width, video_caps.height},
-          z_value: 0.0
-        }
-
         %ParentSpec{
           children: %{
             compositor: compositor,
-            video_parser_out: video_parser_out,
-            fake_source: %Membrane.BlankVideoGenerator{
-              caps: %Membrane.RawVideo{
-                width: video_caps.width,
-                height: video_caps.height,
-                pixel_format: :I420,
-                framerate: video_caps.framerate,
-                aligned: true
-              },
-              duration: :infinity
-            },
-            video_realtimer: Membrane.Realtimer
+            video_parser_out: video_parser_out
           },
           links: [
-            link(:fake_source)
-            |> to(:video_realtimer)
-            |> via_in(:input, options: [initial_placement: initial_placement])
-            |> to(:compositor),
             link(:compositor)
             |> to(:encoder, %Membrane.H264.FFmpeg.Encoder{
               profile: :baseline,
@@ -617,18 +673,8 @@ if Enum.all?(
           synchronize_buffers?: true
         }
 
-        silence_generator = %Membrane.SilenceGenerator{
-          caps: %Membrane.RawAudio{
-            channels: state.mixer_config.audio.channels,
-            sample_rate: state.mixer_config.audio.sample_rate,
-            sample_format: state.mixer_config.audio.sample_format
-          },
-          duration: :infinity
-        }
-
         %ParentSpec{
           children: %{
-            silence_generator: silence_generator,
             audio_mixer: audio_mixer,
             aac_encoder: Membrane.AAC.FDK.Encoder,
             aac_parser: %Membrane.AAC.Parser{out_encapsulation: :none},
