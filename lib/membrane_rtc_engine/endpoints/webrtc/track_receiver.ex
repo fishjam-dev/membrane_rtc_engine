@@ -272,11 +272,38 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {actions, %{state | selector: selector}}
   end
 
+  @impl true
+  def handle_parent_notification({:bitrate_estimation, _estimation}, _ctx, state) do
+    # Handle bitrate estimations of incoming variants
+    # We're currently ignoring this information
+    {[], state}
+  end
+
+  @impl true
+  def handle_info(
+        %AllocationGrantedNotification{allocation: allocation},
+        _ctx,
+        state
+      ) do
+    {selector, selector_action} =
+      VariantSelector.set_bandwidth_allocation(state.selector, allocation)
+
+    actions = handle_selector_action(selector_action)
+    {actions, %{state | selector: selector}}
+  end
+
+  @impl true
+  def handle_info(:decrease_your_allocation, _ctx, state) do
+    {selector, selector_action} = VariantSelector.decrease_allocation(state.selector)
+    actions = handle_selector_action(selector_action)
+    {actions, %{state | selector: selector}}
+  end
+
   # FIXME
   # this guard is too complicated and might mean
   # we are doing something incorrectly
   @impl true
-  def handle_parent_notification(:send_padding_packet, ctx, state)
+  def handle_info(:send_padding_packet, ctx, state)
       when not ctx.pads.output.end_of_stream? and ctx.playback == :playing and
              ctx.pads.output.stream_format != nil do
     {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
@@ -293,41 +320,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_parent_notification(:send_padding_packet, _ctx, state) do
+  def handle_info(:send_padding_packet, _ctx, state) do
     Process.send_after(self(), :send_padding_packet, 100)
     {[], state}
-  end
-
-  @impl true
-  def handle_parent_notification({:bitrate_estimation, _estimation}, _ctx, state) do
-    # Handle bitrate estimations of incoming variants
-    # We're currently ignoring this information
-    {[], state}
-  end
-
-  @impl true
-  def handle_parent_notification(
-        %AllocationGrantedNotification{allocation: allocation},
-        _ctx,
-        state
-      ) do
-    {selector, selector_action} =
-      VariantSelector.set_bandwidth_allocation(state.selector, allocation)
-
-    actions = handle_selector_action(selector_action)
-    {actions, %{state | selector: selector}}
-  end
-
-  @impl true
-  def handle_parent_notification(:decrease_your_allocation, _ctx, state) do
-    {selector, selector_action} = VariantSelector.decrease_allocation(state.selector)
-    actions = handle_selector_action(selector_action)
-    {actions, %{state | selector: selector}}
-  end
-
-  @impl true
-  def handle_parent_notification(msg, ctx, state) do
-    super(msg, ctx, state)
   end
 
   defp maybe_request_keyframe(nil), do: []
