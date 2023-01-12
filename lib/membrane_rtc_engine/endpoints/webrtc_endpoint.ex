@@ -76,13 +76,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 description: "Logger metadata used for endpoint bin and all its descendants"
               ],
               webrtc_extensions: [
-                spec: [Membrane.WebRTC.Extension.t()],
+                spec: [module()],
                 default: [],
                 description: """
                 List of WebRTC extensions to use.
 
-                At this moment only VAD (RFC 6464) is supported.
-                Enabling it will cause RTC Engine sending `{:vad_notification, val, endpoint_id}` messages.
+                Each module has to implement `Membrane.WebRTC.Extension.t()`.
+                See `membrane_webrtc_plugin` documentation for a list of possible extensions.
                 """
               ],
               extensions: [
@@ -256,6 +256,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_child_notification(
+        {:voice_activity_changed, vad},
+        {:track_receiver, track_id},
+        _ctx,
+        state
+      ) do
+    event = serialize({:voice_activity, track_id, vad})
+    {[notify_parent: {:custom_media_event, event}], state}
+  end
+
+  @impl true
+  def handle_child_notification(
         {:estimation, estimations},
         {:track_sender, track_id},
         _ctx,
@@ -374,15 +385,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_child_notification({:vad, val}, :endpoint_bin, ctx, state) do
-    send(state.owner, {:vad_notification, val, ctx.name})
-
-    send_if_not_nil(state.display_manager, {:vad_notification, ctx.name, val})
-
-    {[], state}
-  end
-
-  @impl true
   def handle_child_notification(
         {:signal, {:offer_data, media_count, turns}},
         _element,
@@ -437,18 +439,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_child_notification({:bandwidth_estimation, estimation}, _from, _ctx, state) do
+  def handle_child_notification({:bandwidth_estimation, estimation} = msg, _from, _ctx, state) do
     state.connection_allocator_module.update_bandwidth_estimation(
       state.connection_prober,
       estimation
     )
 
-    {[], state}
-  end
+    media_event = serialize(msg)
 
-  @impl true
-  def handle_child_notification(notification, _element, _ctx, state) do
-    {[notify_parent: notification], state}
+    Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_sent,
+      event: inspect(media_event)
+    )
+
+    {[notify_parent: {:custom_media_event, media_event}], state}
   end
 
   @impl true
@@ -725,6 +728,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       data: %{
         type: "offer",
         sdp: offer
+      }
+    }
+
+  defp serialize({:voice_activity, track_id, vad}),
+    do: %{
+      type: "vadNotification",
+      data: %{
+        trackId: track_id,
+        status: vad
+      }
+    }
+
+  defp serialize({:bandwidth_estimation, estimation}),
+    do: %{
+      type: "bandwidthEstimation",
+      data: %{
+        estimation: estimation
       }
     }
 

@@ -69,6 +69,7 @@ Messages used by any RTC Engine plugin
 | [candidate](#candidate-1)               | Contains an ICE candidate                                         |
 | [sdpAnswer](#sdpanswer)                 | Provides an SDP Answer to the client's offer                      |
 | [encodingSwitched](#encodingswitched)   | An information that a track will be sent with a specific encoding |
+| [vadNotification](#vadnotification)     | An update on Voice Activity Detection                             |
 
 
 ## Client -> RTC Engine
@@ -402,3 +403,27 @@ Messages used by any RTC Engine plugin
     encoding: encoding
   }
   ```
+
+### `vadNotification`
+* Informs that the track denoted by `trackId` has changed their voice actiivty
+* For this notification to work, the server must be configured to use VAD extension
+  and the sender must support it.
+
+```json
+{
+  trackId: track_id,
+  status: "silence" | "speech"
+}
+```
+
+### `bandwidthEstimation`
+* Informs about client's available incoming bitrate (a.k.a. download) estimated by the server.
+  It is measured in bits per second.
+* For this notification to work, the server must be configured to use TWCC extension
+  and the sender must support it.
+
+```json
+{
+  estimation: estimation,
+}
+```

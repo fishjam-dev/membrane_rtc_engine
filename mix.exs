@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.8.1"
+  @version "0.8.2"
   @github_url "https://github.com/membraneframework/membrane_rtc_engine"
 
   def project do
@@ -53,8 +53,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_core, "~> 0.11.2"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin,
-       github: "membraneframework/membrane_webrtc_plugin", branch: "core-v0.11"},
+      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
       {:membrane_rtp_format, "~> 0.6.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.7.0"},
       {:membrane_rtp_opus_plugin, "~> 0.7.0"},
@@ -117,6 +116,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       assets: "internal_docs/assets",
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [
+        Membrane.RTC.Engine,
         Membrane.RTC.Engine.Endpoint,
         Membrane.RTC.Engine.Event,
         Membrane.RTC.Engine.Exception,
@@ -124,33 +124,27 @@ defmodule Membrane.RTC.Engine.MixProject do
       ],
       before_closing_body_tag: &before_closing_body_tag/1,
       groups_for_modules: [
+        Engine: [
+          Membrane.RTC.Engine,
+          Membrane.RTC.Engine.Metrics,
+          Membrane.RTC.Engine.Message,
+          Membrane.RTC.Engine.Notifications.TrackNotification,
+          Membrane.RTC.Engine.Peer,
+          Membrane.RTC.Engine.Track,
+          Membrane.RTC.Engine.Track.BitrateEstimation
+        ],
         Endpoints: [
-          Membrane.RTC.Engine.Endpoint.WebRTC,
-          Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig,
-          Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver,
-          Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator,
-          Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator,
-          Membrane.RTC.Engine.Endpoint.HLS,
-          Membrane.RTC.Engine.Endpoint.HLS.TranscodingConfig
+          ~r/^Membrane\.RTC\.Engine\.Endpoint\.WebRTC($|\.)/,
+          ~r/^Membrane\.RTC\.Engine\.Endpoint\.HLS($|\.)/
         ],
         Events: [
-          Membrane.RTC.Engine.Event.RequestTrackVariant,
-          Membrane.RTC.Engine.Event.TrackVariantSwitched,
-          Membrane.RTC.Engine.Event.TrackVariantPaused,
-          Membrane.RTC.Engine.Event.TrackVariantResumed
+          ~r/^Membrane\.RTC\.Engine\.Event($|\.)/
         ],
         Messages: [
-          Membrane.RTC.Engine.Message,
-          Membrane.RTC.Engine.Message.EndpointCrashed,
-          Membrane.RTC.Engine.Message.MediaEvent,
-          Membrane.RTC.Engine.Message.NewPeer,
-          Membrane.RTC.Engine.Message.PeerLeft
+          ~r/^Membrane\.RTC\.Engine\.Message($|\.)/
         ],
         Exceptions: [
-          Membrane.RTC.Engine.Exception.PublishTrackError,
-          Membrane.RTC.Engine.Exception.RequestTrackVariantError,
-          Membrane.RTC.Engine.Exception.TrackReadyError,
-          Membrane.RTC.Engine.Exception.TrackVariantStateError
+          ~r/^Membrane\.RTC\.Engine\.Exception($|\.)/
         ]
       ]
     ]
@@ -168,6 +162,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       "guides/logs.md",
       "guides/metrics.md",
       "guides/traces.md",
+      "guides/vad.md",
 
       # internal docs
       "internal_docs/media_events.md",
