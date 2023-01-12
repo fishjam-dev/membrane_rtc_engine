@@ -69,7 +69,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:statistics, "~> 0.6"},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin, "~> 0.9.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin,
+       github: "membraneframework/membrane_http_adaptive_stream_plugin", optional: true},
       {:membrane_mp4_plugin, "~> 0.17.0", optional: true},
       {:membrane_aac_plugin, "~> 0.12.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.13.0", optional: true},
@@ -82,6 +83,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_audio_mix_plugin, "~> 0.11.1", optional: true},
       {:membrane_generator_plugin, "~> 0.7.1", optional: true},
       {:membrane_realtimer_plugin, "~> 0.5.0", optional: true},
+      {:membrane_audio_filler_plugin, github: "membraneframework/membrane_audio_filler_plugin"},
 
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},
