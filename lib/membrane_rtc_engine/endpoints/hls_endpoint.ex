@@ -117,7 +117,7 @@ if Enum.all?(
                 ],
                 partial_segment_duration: [
                   spec: SegmentDuration.t() | nil,
-                  default: SegmentDuration.new(Time.milliseconds(500), Time.milliseconds(550)),
+                  default: nil,
                   description: """
                   Expected length of each partial segment. Setting it is not necessary, but
                   may help players achieve better UX.
@@ -146,8 +146,8 @@ if Enum.all?(
                   """
                 ],
                 storage_function: [
-                  spec: (Path.type() -> map()),
-                  default:  &__MODULE__.default_file_storage/1,
+                  spec: (Path.t() -> map()),
+                  default: &__MODULE__.default_file_storage/1,
                   description: """
                   #TODO
                   """
@@ -263,7 +263,7 @@ if Enum.all?(
       File.rm_rf(directory)
       File.mkdir_p!(directory)
 
-      hls_sink_spec = get_hls_sink_spec(state, %{stream_id: :error}, directory)
+      hls_sink_spec = get_hls_sink_spec(state, %{stream_id: nil}, directory)
 
       spec =
         state
