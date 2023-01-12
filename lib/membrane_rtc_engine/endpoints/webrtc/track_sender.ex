@@ -154,12 +154,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_tick(:check_variant_statuses, _ctx, state) do
-    {actions, state} =
-      Enum.flat_map_reduce(state.trackers, state, fn {variant, tracker}, state ->
-        check_variant_status(variant, tracker, state)
-      end)
-
-    {actions, state}
+    Enum.flat_map_reduce(state.trackers, state, fn {variant, tracker}, state ->
+      check_variant_status(variant, tracker, state)
+    end)
   end
 
   @impl true

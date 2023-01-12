@@ -170,7 +170,7 @@ The endpoint will be also notified when some tracks it subscribed for are remove
 > Engine <--- RequestTrackVariant (:low)    ---- Endpoint
 > ```
 >
-> Because this logic must be duplicated in each endpoint we enstream_formatulated 
+> Because this logic must be duplicated in each endpoint we encapsulated 
 > it into `TrackReceiver` that can easily be plugged in before the actual
 > Membrane element.
 >

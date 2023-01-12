@@ -263,7 +263,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     event = %VoiceActivityChanged{voice_activity: :speech}
 
     Pipeline.execute_actions(pipeline,
-      forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
+      notify_child: {{:source, :high}, {:execute_actions, event: {:output, event}}}
     )
 
     # We're already on high, so we expect the event to be forwarded
@@ -285,7 +285,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     event = %VoiceActivityChanged{voice_activity: :speech}
 
     Pipeline.execute_actions(pipeline,
-      forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
+      notify_child: {{:source, :high}, {:execute_actions, event: {:output, event}}}
     )
 
     request_track_variant(pipeline, :high)

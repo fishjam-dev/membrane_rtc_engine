@@ -281,7 +281,7 @@ if Enum.all?(
           {:depayloader, track.id} => get_depayloader(track),
           {:opus_decoder, track.id} => Membrane.Opus.Decoder,
           {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_enstream_formatulation: :none}
+          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
         },
         links: [
           link_builder

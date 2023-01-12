@@ -133,7 +133,7 @@ defmodule Membrane.RTC.Engine.Tee do
       |> Enum.filter(fn {_pad, config} -> config.current_variant == variant end)
       |> Enum.map(fn {pad, _config} -> {:event, {pad, event}} end)
 
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
@@ -229,12 +229,9 @@ defmodule Membrane.RTC.Engine.Tee do
       raise TrackVariantStateError, track: state.track, variant: variant
     end
 
-    {actions, state} =
-      Enum.flat_map_reduce(state.routes, state, fn route, state ->
-        handle_route(buffer, variant, route, ctx, state)
-      end)
-
-    {actions, state}
+    Enum.flat_map_reduce(state.routes, state, fn route, state ->
+      handle_route(buffer, variant, route, ctx, state)
+    end)
   end
 
   @impl true
