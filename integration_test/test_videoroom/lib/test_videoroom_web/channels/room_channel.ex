@@ -36,8 +36,9 @@ defmodule TestVideoroomWeb.RoomChannel do
   end
 
   @impl true
-  def handle_in("mediaEvent", %{"data" => event}, socket) do
-    send(socket.assigns.room, {:media_event, socket.assigns.peer_id, event})
+  def handle_in("mediaEvent", string, socket) do
+    {:ok, bin} = Base.decode16(string, case: :lower)
+    send(socket.assigns.room, {:media_event, socket.assigns.peer_id, bin})
 
     {:noreply, socket}
   end

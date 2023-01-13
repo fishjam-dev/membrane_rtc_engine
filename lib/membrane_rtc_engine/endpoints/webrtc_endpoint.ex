@@ -56,6 +56,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   require Membrane.OpenTelemetry
   require Membrane.TelemetryMetrics
 
+  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.Empty
+  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.ICECandidate
+  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.SdpOffer
+  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.TrackWithMetadata
+  alias Membrane.RTC.Engine.Signalling.Webrtc.ClientSignallingMsg
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
@@ -627,13 +632,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_other({:media_event, event}, ctx, state) do
     case deserialize(event) do
-      {:ok, data} ->
+      {:ok, %ClientSignallingMsg{content: {type, data} = event}} ->
         Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_received,
-          type: data[:type],
+          type: type,
           data: inspect(data[:data])
         )
 
-        handle_media_event(data, ctx, state)
+        handle_media_event(event, ctx, state)
 
       {:error, :invalid_media_event} ->
         Membrane.OpenTelemetry.add_event(@life_span_id, :invalid_custom_media_event_received,
@@ -735,16 +740,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:ok, state}
   end
 
-  defp handle_media_event(%{type: :join, data: %{metadata: metadata}}, _ctx, state) do
+  defp handle_media_event({:join, metadata}, _ctx, state) do
     {{:ok, notify: {:ready, metadata}}, state}
   end
 
-  defp handle_media_event(%{type: :leave}, _ctx, state) do
+  defp handle_media_event({:leave, %Empty{}}, _ctx, state) do
     {:ok, state}
   end
 
   defp handle_media_event(
-         %{type: :update_track_metadata, data: %{track_id: track_id, track_metadata: metadata}},
+         {:updateTrackMetadata, %TrackWithMetadata{trackId: track_id, metadata: metadata}},
          _ctx,
          state
        ) do
@@ -753,53 +758,35 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(
-         %{type: :update_peer_metadata, data: %{metadata: metadata}},
+         {:updatePeerMetadata, metadata},
          _ctx,
          state
        ) do
     {{:ok, notify: {:update_peer_metadata, metadata}}, state}
   end
 
-  defp handle_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
-    state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
-    msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
+  defp handle_media_event({:sdpOffer, %SdpOffer{sdp: sdp, tracks: tracks}}, ctx, state) do
+    track_id_to_track_metadata = Map.new(tracks, fn track -> {track.trackId, track.metadata} end)
+    mid_to_track_id = tracks |> Enum.sort_by(& &1.mid, :asc) |> Map.new(fn track -> {track.mid, track.trackId} end)
+    state = Map.put(state, :track_id_to_metadata, track_id_to_track_metadata)
+
+    msg = {:signal, {:sdp_offer, sdp, mid_to_track_id}}
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
 
-  defp handle_media_event(%{type: :candidate, data: data}, ctx, state) do
-    msg = {:signal, {:candidate, data.candidate}}
+  defp handle_media_event({:candidate, %ICECandidate{candidate: candidate}}, ctx, state) do
+    msg = {:signal, {:candidate, candidate}}
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
 
-  defp handle_media_event(%{type: :renegotiate_tracks}, ctx, state) do
+  defp handle_media_event({:renegotiateTracks, %Empty{}}, ctx, state) do
     msg = {:signal, :renegotiate_tracks}
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
 
-  defp handle_media_event(%{type: :set_target_track_variant, data: data}, ctx, state) do
+  defp handle_media_event({:setTargetTrackVariant, data}, ctx, state) do
     msg = {:set_target_variant, to_track_variant(data.variant)}
-    {{:ok, forward({:track_receiver, data.track_id}, msg, ctx)}, state}
-  end
-
-  defp handle_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
-    msg = {:prioritize_track, ctx.name, data.track_id}
-    send_if_not_nil(state.display_manager, msg)
-    {:ok, state}
-  end
-
-  defp handle_media_event(%{type: :unprioritize_track, data: data}, ctx, state) do
-    msg = {:unprioritize_track, ctx.name, data.track_id}
-    send_if_not_nil(state.display_manager, msg)
-    {:ok, state}
-  end
-
-  defp handle_media_event(%{type: :prefered_video_sizes, data: data}, _ctx, state) do
-    msg =
-      {:prefered_video_sizes, data.big_screens, data.medium_screens, data.small_screens,
-       data.same_size?}
-
-    send_if_not_nil(state.display_manager, msg)
-    {:ok, state}
+    {{:ok, forward({:track_receiver, data.trackId}, msg, ctx)}, state}
   end
 
   defp get_turn_configs(turn_servers, state) do
@@ -845,8 +832,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     do: MediaEvent.bandwidth_estimation(estimation)
 
   defp deserialize(string) when is_binary(string) do
-    case MediaEvent.decode(string) do
-      {:ok, %{type: :custom, data: data}} -> {:ok, data}
+    case dbg(MediaEvent.decode(string)) do
       {:ok, event} -> {:ok, event}
       {:error, _reason} = error -> error
     end

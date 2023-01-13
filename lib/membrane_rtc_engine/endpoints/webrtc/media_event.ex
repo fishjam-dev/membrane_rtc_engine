@@ -1,6 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   @moduledoc false
 
+  alias Membrane.RTC.Engine.Signalling.Webrtc.ClientSignallingMsg
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.{Peer, Track}
 
@@ -157,154 +158,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   def encode(event), do: Jason.encode!(event)
 
   @spec decode(binary()) :: {:ok, t()} | {:error, :invalid_media_event}
-  def decode(event_json) do
-    with {:ok, event} <- Jason.decode(event_json), do: do_decode(event)
+  def decode(binary_event) do
+    {:ok, ClientSignallingMsg.decode(binary_event)}
+  rescue
+    Protobuf.DecodeError -> {:error, :invalid_media_event}
   end
-
-  defp do_decode(%{"type" => "join", "data" => %{"metadata" => metadata}}),
-    do: {:ok, %{type: :join, data: %{metadata: metadata}}}
-
-  defp do_decode(%{"type" => "leave"}), do: {:ok, %{type: :leave}}
-
-  defp do_decode(%{"type" => "custom", "data" => data}) do
-    with {:ok, event} <- decode_custom_media_event(data), do: {:ok, %{type: :custom, data: event}}
-  end
-
-  defp do_decode(%{"type" => "updatePeerMetadata", "data" => %{"metadata" => metadata}}),
-    do: {:ok, %{type: :update_peer_metadata, data: %{metadata: metadata}}}
-
-  defp do_decode(%{
-         "type" => "updateTrackMetadata",
-         "data" => %{"trackId" => track_id, "trackMetadata" => metadata}
-       }),
-       do:
-         {:ok,
-          %{type: :update_track_metadata, data: %{track_id: track_id, track_metadata: metadata}}}
-
-  defp do_decode(_event), do: {:error, :invalid_media_event}
-
-  defp decode_custom_media_event(%{"type" => "renegotiateTracks"}) do
-    {:ok, %{type: :renegotiate_tracks}}
-  end
-
-  defp decode_custom_media_event(%{"type" => "prioritizeTrack"} = event) do
-    case event do
-      %{"type" => "prioritizeTrack", "data" => %{"trackId" => track_id}} ->
-        {:ok, %{type: :prioritize_track, data: %{track_id: track_id}}}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp decode_custom_media_event(%{"type" => "unprioritizeTrack"} = event) do
-    case event do
-      %{"type" => "unprioritizeTrack", "data" => %{"trackId" => track_id}} ->
-        {:ok, %{type: :unprioritize_track, data: %{track_id: track_id}}}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp decode_custom_media_event(%{"type" => "preferedVideoSizes"} = event) do
-    case event do
-      %{
-        "type" => "preferedVideoSizes",
-        "data" => %{
-          "bigScreens" => big_screens,
-          "mediumScreens" => medium_screens,
-          "smallScreens" => small_screens,
-          "allSameSize" => same_size?
-        }
-      } ->
-        {:ok,
-         %{
-           type: :prefered_video_sizes,
-           data: %{
-             big_screens: big_screens,
-             medium_screens: medium_screens,
-             small_screens: small_screens,
-             same_size?: same_size?
-           }
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp decode_custom_media_event(%{"type" => "candidate"} = event) do
-    case event do
-      %{
-        "type" => "candidate",
-        "data" => %{
-          "candidate" => candidate,
-          "sdpMLineIndex" => sdp_m_line_index
-        }
-      } ->
-        {:ok,
-         %{
-           type: :candidate,
-           data: %{
-             candidate: candidate,
-             sdp_m_line_index: sdp_m_line_index
-           }
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp decode_custom_media_event(%{"type" => "sdpOffer"} = event) do
-    case event do
-      %{
-        "type" => "sdpOffer",
-        "data" => %{
-          "sdpOffer" => %{
-            "type" => "offer",
-            "sdp" => sdp
-          },
-          "trackIdToTrackMetadata" => track_id_to_track_metadata,
-          "midToTrackId" => mid_to_track_id
-        }
-      } ->
-        {:ok,
-         %{
-           type: :sdp_offer,
-           data: %{
-             sdp_offer: %{
-               type: :offer,
-               sdp: sdp
-             },
-             track_id_to_track_metadata: track_id_to_track_metadata,
-             mid_to_track_id: mid_to_track_id
-           }
-         }}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp decode_custom_media_event(%{"type" => "setTargetTrackVariant"} = event) do
-    case event do
-      %{
-        "type" => "setTargetTrackVariant",
-        "data" => %{
-          "trackId" => tid,
-          "variant" => variant
-        }
-      } ->
-        {:ok, %{type: :set_target_track_variant, data: %{track_id: tid, variant: variant}}}
-
-      _other ->
-        {:error, :invalid_media_event}
-    end
-  end
-
-  defp decode_custom_media_event(_event), do: {:error, :invalid_media_event}
 
   defp as_custom(msg) do
     %{type: "custom", data: msg}

@@ -46,7 +46,8 @@ class Room {
     this.webrtc = new MembraneWebRTC({
       callbacks: {
         onSendMediaEvent: (mediaEvent) => {
-          this.webrtcChannel.push("mediaEvent", { data: mediaEvent });
+          const mediaEventString = Array.from(mediaEvent).map((v) => v.toString(16).padStart(2, "0")).join("");
+          this.webrtcChannel.push("mediaEvent", mediaEventString);
         },
         onConnectionError: setErrorMessage,
         onJoinSuccess: (peerId, peersInRoom) => {

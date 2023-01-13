@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+message ClientSignallingMsg {
+  oneof content {
+    bytes join = 1;
+    Payload.Empty leave = 2;
+    bytes updatePeerMetadata = 3;
+    Payload.TrackWithMetadata updateTrackMetadata = 4;
+    Payload.Empty renegotiateTracks = 5;
+    Payload.ICECandidate candidate = 9;
+    Payload.SdpOffer sdpOffer = 10;
+    Payload.TrackVariant setTargetVariant = 11;
+  }
+}
+
+message ServerSignallingMsg {
+  oneof content {
+    // Contains peer_id
+    string peerAccepted = 1;
+
+    Payload.Peer peerJoined = 2;
+
+    // Contains id of leaving peer
+    string peerLeft = 3;
+
+    Payload.Track trackAdded = 4;
+
+    // Id of removed track
+    string trackRemoved = 5;
+
+    Payload.TrackVariant variantSwitched = 6;
+
+    Payload.SdpAnswer sdpAnswer = 7;
+    Payload.OfferData offerData = 8;
+  }
+}
+
+message Payload {
+  message Empty {}
+
+  message TrackWithMetadata {
+    string trackId = 2;
+    bytes metadata = 3;
+  }
+
+  message Track {
+    string owner = 1;
+    string trackId = 2;
+    bytes metadata = 3;
+    string mid = 4;
+  }
+
+  message ICECandidate {
+    string candidate = 1;
+    uint64 mLineIndex = 2;
+  }
+
+  message SdpOffer {
+    string sdp = 1;
+    repeated Track tracks = 2;
+  }
+
+  message SdpAnswer {
+    string sdp = 1;
+    map<string, string> midToTrackId = 2;
+  }
+
+  message TrackVariant {
+    string trackId = 1;
+    string variant = 2;
+  }
+
+  message TrackVariantSwitched {
+    TrackVariant newVariant = 1;
+    string reason = 2;
+  }
+
+  message OfferData {
+    message TurnServer {
+      string addr = 1;
+      uint32 port = 2;
+      string transport = 3;
+      string password = 4;
+      string username = 5;
+    }
+
+    uint32 audioTracks = 1;
+    uint32 videoTracks = 2;
+    repeated TurnServer integratedTurnServers = 3;
+  }
+
+  message Peer {
+    string id = 1;
+    bytes metadata = 2;
+  }
+}
