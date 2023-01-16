@@ -9,7 +9,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
   alias Membrane.Pad
   alias Membrane.VideoCompositor.RustStructs.BaseVideoPlacement
   alias Membrane.VideoCompositor.VideoTransformations
-  alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations
   alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.CornersRounding
   alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.Cropping
 
@@ -53,50 +52,26 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
     |> Enum.with_index()
     |> Enum.flat_map(fn {{_id, {track, caps}}, index} ->
       {track_trans, track_layout} = get_track_layout(:basic, index, caps, output_caps)
-      {blank_trans, blank_layout} = get_track_layout(:blank, index, caps, output_caps)
 
       [
-        {{Pad.ref(:input, track.id), track_layout}, {Pad.ref(:input, track.id), track_trans}},
-        {{Pad.ref(:input, {:blank, track.id}), blank_layout},
-         {Pad.ref(:input, {:blank, track.id}), blank_trans}}
+        {{Pad.ref(:input, track.id), track_layout}, {Pad.ref(:input, track.id), track_trans}}
       ]
     end)
     |> Enum.unzip()
   end
 
   defp get_track_layout(:blank, index, caps, %{width: width, height: height}) do
-    output_caps = %{width: round(1 / 2 * width), height: round(1 / 4 * height)}
-    position = {round(index / 2 * width), height - round(1 / 4 * height)}
-
-    display_size = get_display_size(output_caps, caps)
-    cropping = get_cropping(output_caps, display_size)
-
-    placement = %BaseVideoPlacement{
-      position: position,
-      size: display_size,
-      z_value: 0.2
-    }
-
-    transformations = %VideoTransformations{
-      texture_transformations: [cropping]
-    }
+    output_caps = %{width: round(1 / 2 * width) - 10, height: round(1 / 4 * height) - 10}
+    position = {round(index / 2 * width) + 5, height - round(1 / 4 * height) + 5}
+    placement = get_placement(output_caps, caps, position, 0.2)
+    transformations = get_transformations(output_caps, placement.size, 20)
 
     {transformations, placement}
   end
 
   defp get_track_layout(:main, _index, caps, output_caps) do
-    display_size = get_display_size(output_caps, caps)
-    cropping = get_cropping(output_caps, display_size)
-
-    placement = %BaseVideoPlacement{
-      position: {0, 0},
-      size: display_size,
-      z_value: 0.1
-    }
-
-    transformations = %VideoTransformations{
-      texture_transformations: [cropping]
-    }
+    placement = get_placement(output_caps, caps, {0, 0}, 0.1)
+    transformations = get_transformations(output_caps, placement.size, 0)
 
     {transformations, placement}
   end
@@ -105,29 +80,36 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
     output_caps = %{width: round(1 / 2 * width) - 10, height: round(1 / 4 * height) - 10}
     position = {round(index / 2 * width) + 5, height - round(1 / 4 * height) + 5}
 
-    display_size = get_display_size(output_caps, caps)
-    cropping = get_cropping(output_caps, display_size)
-
-    placement = %BaseVideoPlacement{
-      position: position,
-      size: display_size,
-      z_value: 0.3
-    }
-
-    transformations = %VideoTransformations{
-      texture_transformations: [cropping]
-    }
+    placement = get_placement(output_caps, caps, position, 0.3)
+    transformations = get_transformations(output_caps, placement.size, 20)
 
     {transformations, placement}
   end
 
   defp video_proportion(%{width: width, height: height}), do: width / height
 
+  defp get_placement(output_caps, caps, position, z_value),
+    do: %BaseVideoPlacement{
+      position: position,
+      size: get_display_size(output_caps, caps),
+      z_value: z_value
+    }
+
   defp get_display_size(output_caps, caps) do
     if video_proportion(output_caps) > video_proportion(caps),
       do: {output_caps.width, round(output_caps.width / caps.width * caps.height)},
       else: {round(output_caps.height / caps.height * caps.width), output_caps.height}
   end
+
+  defp get_transformations(output_caps, display_size, radius),
+    do: %VideoTransformations{
+      texture_transformations: [
+        get_cropping(output_caps, display_size),
+        get_corners_rounding(radius)
+      ]
+    }
+
+  defp get_corners_rounding(radius), do: %CornersRounding{border_radius: radius}
 
   defp get_cropping(output_caps, display_size),
     do: %Cropping{
