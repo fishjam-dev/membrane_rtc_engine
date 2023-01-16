@@ -6,6 +6,9 @@ defmodule Membrane.RTC.Engine.Metrics do
   You can see usage example in (`membrane_videoroom`)[github.com/membraneframework/membrane_videoroom].
   """
 
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
+  alias Membrane.RTC.Engine.Track
+
   @type rtc_engine_report() :: %{
           optional({:room_id, binary()}) => %{
             optional({:peer_id, binary()}) => %{
@@ -18,6 +21,10 @@ defmodule Membrane.RTC.Engine.Metrics do
                 :"inbound-rtp.frames" => integer(),
                 :"inbound-rtp.keyframes" => integer(),
                 :"track.metadata" => any()
+              },
+              optional({:track_id, binary()}) => %{
+                :"outbound-rtp.variant" => Track.variant(),
+                :"outbound-rtp.variant-reason" => TrackReceiver.variant_switch_reason()
               },
               :"ice.binding_requests_received" => integer(),
               :"ice.binding_responses_sent" => integer(),
@@ -50,6 +57,21 @@ defmodule Membrane.RTC.Engine.Metrics do
         "inbound-rtp.keyframes",
         event_name: [Membrane.RTC.Engine, :RTP, :packet, :arrival],
         measurement: :keyframe_indicator
+      ),
+      Telemetry.Metrics.last_value(
+        "outbound-rtp.variant",
+        event_name: [Membrane.RTC.Engine, :RTP, :variant, :switched],
+        measurement: :variant
+      ),
+      Telemetry.Metrics.last_value(
+        "outbound-rtp.variant-reason",
+        event_name: [Membrane.RTC.Engine, :RTP, :variant, :switched],
+        measurement: :reason
+      ),
+      Telemetry.Metrics.last_value(
+        "peer.bandwidth",
+        event_name: [Membrane.RTC.Engine, :peer, :bandwidth],
+        measurement: :bandwidth
       ),
       Telemetry.Metrics.last_value(
         "peer.metadata",
