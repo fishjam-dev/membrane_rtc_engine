@@ -177,6 +177,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_init(opts) do
     Membrane.TelemetryMetrics.register(@peer_metadata_event, opts.telemetry_label)
+    Membrane.RTC.Utils.register_bandwidth_event(opts.telemetry_label)
 
     Membrane.TelemetryMetrics.execute(
       @peer_metadata_event,
@@ -444,6 +445,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_notification({:bandwidth_estimation, estimation} = msg, _from, _ctx, state) do
+    Membrane.RTC.Utils.emit_bandwidth_event(estimation, state.telemetry_label)
+
     state.connection_allocator_module.update_bandwidth_estimation(
       state.connection_prober,
       estimation
@@ -548,7 +551,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         track: track,
         initial_target_variant: initial_target_variant,
         connection_allocator: state.connection_prober,
-        connection_allocator_module: state.connection_allocator_module
+        connection_allocator_module: state.connection_allocator_module,
+        telemetry_label: state.telemetry_label
       })
       |> via_in(pad, options: [use_payloader?: false])
       |> to(:endpoint_bin)
