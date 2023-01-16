@@ -136,6 +136,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
                 This value can later be changed by sending a `set_negotiable?/0` control message to this Element.
                 """
+              ],
+              telemetry_label: [
+                spec: Membrane.TelemetryMetrics.label(),
+                default: [],
+                description: "Label passed to Membrane.TelemetryMetrics functions"
               ]
 
   def_input_pad :input,
@@ -155,8 +160,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         initial_target_variant: initial_target_variant,
         keyframe_request_interval: keyframe_request_interval,
         connection_allocator_module: connection_allocator_module,
-        allocation_negotiable?: allocation_negotiable?
+        allocation_negotiable?: allocation_negotiable?,
+        telemetry_label: telemetry_label
       }) do
+    telemetry_label = telemetry_label ++ [track_id: "#{track.id}"]
+    Membrane.RTC.Utils.register_variant_switched_event(telemetry_label)
+
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
 
     selector =
@@ -175,7 +184,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       needs_reconfiguration: false,
       keyframe_request_interval: keyframe_request_interval,
       connection_allocator: connection_allocator,
-      connection_allocator_module: connection_allocator_module
+      connection_allocator_module: connection_allocator_module,
+      telemetry_label: telemetry_label
     }
 
     {:ok, state}
@@ -200,6 +210,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %TrackVariantSwitched{} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
+
+    Membrane.RTC.Utils.emit_variant_switched_event(
+      event.new_variant,
+      event.reason,
+      state.telemetry_label
+    )
+
     selector = VariantSelector.set_current_variant(state.selector, event.new_variant)
     actions = [notify: {:variant_switched, event.new_variant, event.reason}]
     state = %{state | selector: selector, needs_reconfiguration: true}
