@@ -56,14 +56,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   require Membrane.OpenTelemetry
   require Membrane.TelemetryMetrics
 
-  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.Empty
-  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.ICECandidate
-  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.SdpOffer
-  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.TrackWithMetadata
-  alias Membrane.RTC.Engine.Signalling.Webrtc.ClientSignallingMsg
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Signalling.Webrtc.ClientSignallingMsg
+
+  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.{
+    Empty,
+    ICECandidate,
+    SdpOffer,
+    TrackWithMetadata
+  }
 
   alias __MODULE__.{
     MediaEvent,
@@ -484,14 +487,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
-    track = Map.fetch!(state.outbound_tracks, track_id)
-
     reason = if reason == :variant_inactive, do: :encoding_inactive, else: reason
 
     media_event =
-      track.origin
-      |> MediaEvent.encoding_switched(track_id, to_rid(new_variant), reason)
-      |> MediaEvent.encode()
+      MediaEvent.encoding_switched(track_id, to_rid(new_variant), reason) |> MediaEvent.encode()
 
     {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
   end
@@ -513,14 +512,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_other({:ready, peers_in_room}, ctx, state) do
+  def handle_other({:ready, _peers_in_room}, ctx, state) do
     # We've received confirmation from the RTC Engine that our peer is ready
     # alongside information about peers and tracks present in the room.
     # Forward this information to the client
 
     # FIXME: I don't think we actually need information about tracks in this media event
     {:endpoint, peer_id} = ctx.name
-    event = MediaEvent.peer_accepted(peer_id, peers_in_room) |> MediaEvent.encode()
+    event = MediaEvent.peer_accepted(peer_id) |> MediaEvent.encode()
 
     {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
   end
@@ -540,7 +539,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_other({:track_metadata_updated, track}, _ctx, state) do
     event =
-      MediaEvent.track_updated(track.origin, track.id, track.metadata)
+      MediaEvent.track_updated(track.id, track.metadata)
       |> MediaEvent.encode()
 
     state = put_in(state, [:outbound_tracks, track.id, :metadata], track.metadata)
@@ -581,9 +580,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_other({:tracks_priority, tracks}, _ctx, state) do
-    media_event = MediaEvent.tracks_priority(tracks) |> MediaEvent.encode()
-    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
+  def handle_other({:tracks_priority, _tracks}, _ctx, _state) do
+    raise "unimplemented!();"
   end
 
   @impl true
@@ -600,18 +598,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     outbound_tracks = update_tracks(tracks, state.outbound_tracks)
 
     media_event_actions =
-      tracks
-      |> Enum.group_by(& &1.origin)
-      |> Enum.map(fn {origin, tracks} ->
-        track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
-
-        media_event =
-          origin
-          |> MediaEvent.tracks_added(track_id_to_metadata)
-          |> MediaEvent.encode()
-
-        {:notify, {:forward_to_parent, {:media_event, media_event}}}
-      end)
+      Enum.map(
+        tracks,
+        &{:notify,
+         {:forward_to_parent, {:media_event, MediaEvent.track_added(&1) |> MediaEvent.encode()}}}
+      )
 
     {{:ok,
       media_event_actions ++
@@ -767,7 +758,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   defp handle_media_event({:sdpOffer, %SdpOffer{sdp: sdp, tracks: tracks}}, ctx, state) do
     track_id_to_track_metadata = Map.new(tracks, fn track -> {track.trackId, track.metadata} end)
-    mid_to_track_id = tracks |> Enum.sort_by(& &1.mid, :asc) |> Map.new(fn track -> {track.mid, track.trackId} end)
+
+    mid_to_track_id =
+      tracks
+      |> Enum.sort_by(& &1.mid, :asc)
+      |> Map.new(fn track -> {track.mid, track.trackId} end)
+
     state = Map.put(state, :track_id_to_metadata, track_id_to_track_metadata)
 
     msg = {:signal, {:sdp_offer, sdp, mid_to_track_id}}
@@ -784,7 +780,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
 
-  defp handle_media_event({:setTargetTrackVariant, data}, ctx, state) do
+  defp handle_media_event({:setTargetVariant, data}, ctx, state) do
     msg = {:set_target_variant, to_track_variant(data.variant)}
     {{:ok, forward({:track_receiver, data.trackId}, msg, ctx)}, state}
   end
@@ -829,10 +825,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     do: MediaEvent.voice_activity(track_id, vad)
 
   defp to_media_event({:bandwidth_estimation, estimation}),
-    do: MediaEvent.bandwidth_estimation(estimation)
+    do: MediaEvent.bandwidth_estimation(floor(estimation))
 
   defp deserialize(string) when is_binary(string) do
-    case dbg(MediaEvent.decode(string)) do
+    case MediaEvent.decode(string) do
       {:ok, event} -> {:ok, event}
       {:error, _reason} = error -> error
     end
@@ -879,6 +875,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_track_variant("m"), do: :medium
   defp to_track_variant("l"), do: :low
 
+  @spec to_rid(Track.variant()) :: String.t()
   defp to_rid(:high), do: "h"
   defp to_rid(:medium), do: "m"
   defp to_rid(:low), do: "l"

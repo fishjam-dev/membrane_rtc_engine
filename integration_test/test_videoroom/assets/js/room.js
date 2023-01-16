@@ -99,7 +99,18 @@ class Room {
       },
     });
 
-    this.webrtcChannel.on("mediaEvent", (event) => this.webrtc.receiveMediaEvent(event.data));
+    this.webrtcChannel.on("mediaEvent", (event) => {
+      const data = event.data;
+      let binaryMediaEvent = [];
+
+      for (let i = 0; i < data.length; i += 2) {
+        const slice = data.slice(i, i + 2);
+        const value = parseInt(slice, 16)
+        binaryMediaEvent.push(value)
+      }
+
+      this.webrtc.receiveMediaEvent(new Uint8Array(binaryMediaEvent))
+    });
   }
 
   addTrack = (track) => {
@@ -125,7 +136,7 @@ class Room {
     await this.phoenixChannelPushResult(this.webrtcChannel.join());
   };
 
-  join = () => {
+  join = async () => {
     this.webrtc.join({ displayName: this.displayName });
   };
 

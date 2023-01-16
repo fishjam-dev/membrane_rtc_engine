@@ -19,19 +19,27 @@ message ServerSignallingMsg {
     string peerAccepted = 1;
 
     Payload.Peer peerJoined = 2;
+    Payload.Peer peerUpdated = 3;
 
     // Contains id of leaving peer
-    string peerLeft = 3;
+    string peerLeft = 4;
 
-    Payload.Track trackAdded = 4;
+    Payload.Track trackAdded = 5;
+    Payload.TrackWithMetadata trackUpdated = 6;
 
     // Id of removed track
-    string trackRemoved = 5;
+    string trackRemoved = 7;
 
-    Payload.TrackVariant variantSwitched = 6;
+    Payload.TrackVariantSwitched variantSwitched = 8;
 
-    Payload.SdpAnswer sdpAnswer = 7;
-    Payload.OfferData offerData = 8;
+    Payload.SdpAnswer sdpAnswer = 9;
+    Payload.OfferData offerData = 10;
+
+    Payload.ICECandidate candidate = 11;
+    Payload.SdpOffer sdpOffer = 12;
+
+    Payload.VoiceActivity vadNotification = 13;
+    uint64 bandwidthEstimation = 14;
   }
 }
 
@@ -52,7 +60,7 @@ message Payload {
 
   message ICECandidate {
     string candidate = 1;
-    uint64 mLineIndex = 2;
+    uint64 sdpMLineIndex = 2;
   }
 
   message SdpOffer {
@@ -92,5 +100,10 @@ message Payload {
   message Peer {
     string id = 1;
     bytes metadata = 2;
+  }
+
+  message VoiceActivity {
+    string trackId = 1;
+    string vad = 2;
   }
 }

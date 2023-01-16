@@ -546,11 +546,16 @@ defmodule Membrane.RTC.Engine do
         |> Map.keys()
         |> Enum.map(&{:forward, {{:endpoint, &1}, {:new_peer, peer}}})
 
+      peers_notifications =
+        state.peers
+        |> Map.values()
+        |> Enum.map(&{:forward, {{:endpoint, endpoint_id}, {:new_peer, &1}}})
+
       actions =
-        [
-          forward: {{:endpoint, endpoint_id}, {:ready, peers_in_room}},
-          forward: {{:endpoint, endpoint_id}, {:new_tracks, get_active_tracks(state.endpoints)}}
-        ] ++ new_peer_notifications
+        [forward: {{:endpoint, endpoint_id}, {:ready, peers_in_room}}]
+        ++ peers_notifications
+        ++ [ forward: {{:endpoint, endpoint_id}, {:new_tracks, get_active_tracks(state.endpoints)}}]
+        ++ new_peer_notifications
 
       state =
         state

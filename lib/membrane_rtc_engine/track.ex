@@ -70,7 +70,7 @@ defmodule Membrane.RTC.Engine.Track do
           clock_rate: Membrane.RTP.clock_rate_t(),
           fmtp: FMTP,
           active?: boolean(),
-          metadata: any(),
+          metadata: binary(),
           ctx: map()
         }
 
@@ -90,7 +90,7 @@ defmodule Membrane.RTC.Engine.Track do
           id: String.t(),
           active?: boolean(),
           variants: [variant()],
-          metadata: any(),
+          metadata: binary(),
           ctx: map()
         ]
 

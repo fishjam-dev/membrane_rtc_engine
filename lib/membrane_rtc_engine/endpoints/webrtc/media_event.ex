@@ -1,85 +1,85 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   @moduledoc false
 
-  alias Membrane.RTC.Engine.Signalling.Webrtc.ClientSignallingMsg
+  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.SdpAnswer.MidToTrackIdEntry
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
+  alias Membrane.RTC.Engine.Signalling.Webrtc.{ClientSignallingMsg, Payload, ServerSignallingMsg}
   alias Membrane.RTC.Engine.{Peer, Track}
 
-  @type t() :: map()
+  @type t() :: ServerSignallingMsg.t()
 
-  @spec peer_accepted(Peer.id(), list()) :: t()
-  def peer_accepted(peer_id, peers) do
-    %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers}}
-  end
-
-  @spec peer_denied(map()) :: t()
-  def peer_denied(metadata \\ %{}) do
-    %{type: "peerDenied", data: metadata}
+  @spec peer_accepted(Peer.id()) :: t()
+  def peer_accepted(peer_id) do
+    %ServerSignallingMsg{content: {:peerAccepted, peer_id}}
   end
 
   @spec peer_joined(Peer.t()) :: t()
-  def peer_joined(%Peer{id: id, metadata: metadata}) do
-    %{type: "peerJoined", data: %{peer: %{id: id, metadata: metadata}}}
+  def peer_joined(%Peer{} = peer) do
+    peer = struct!(Payload.Peer, Map.from_struct(peer))
+    %ServerSignallingMsg{content: {:peerJoined, peer}}
   end
 
   @spec peer_left(Peer.id()) :: t()
   def peer_left(peer_id) do
-    %{type: "peerLeft", data: %{peerId: peer_id}}
+    %ServerSignallingMsg{content: {:peerLeft, peer_id}}
   end
 
   @spec peer_updated(Peer.t()) :: t()
-  def peer_updated(peer) do
-    %{type: "peerUpdated", data: %{peerId: peer.id, metadata: peer.metadata}}
+  def peer_updated(%Peer{} = peer) do
+    peer = struct!(Payload.Peer, Map.from_struct(peer))
+    %ServerSignallingMsg{content: {:peerUpdated, peer}}
   end
 
-  @spec peer_removed(Peer.id(), String.t()) :: t()
-  def peer_removed(peer_id, reason) do
-    %{type: "peerRemoved", data: %{peerId: peer_id, reason: reason}}
+  @spec track_added(Track.t()) :: t()
+  def track_added(%Track{} = track) do
+    track = %Payload.Track{
+      trackId: track.id,
+      metadata: track.metadata,
+      owner: track.origin
+    }
+
+    %ServerSignallingMsg{content: {:trackAdded, track}}
   end
 
-  @spec tracks_added(Peer.id(), map()) :: t()
-  def tracks_added(peer_id, track_id_to_metadata) do
-    %{type: "tracksAdded", data: %{peerId: peer_id, trackIdToMetadata: track_id_to_metadata}}
+  @spec track_removed(Track.id()) :: t()
+  def track_removed(track_id) do
+    %ServerSignallingMsg{content: {:trackRemoved, track_id}}
   end
 
-  @spec tracks_removed(Peer.id(), [String.t()]) :: t()
-  def tracks_removed(peer_id, track_ids) do
-    %{type: "tracksRemoved", data: %{peerId: peer_id, trackIds: track_ids}}
-  end
-
-  @spec track_updated(Peer.id(), String.t(), map()) :: t()
-  def track_updated(peer_id, track_id, metadata) do
-    %{type: "trackUpdated", data: %{peerId: peer_id, trackId: track_id, metadata: metadata}}
-  end
-
-  @spec tracks_priority([String.t()]) :: t()
-  def tracks_priority(tracks) do
-    %{type: "tracksPriority", data: %{tracks: tracks}}
+  @spec track_updated(Track.id(), map()) :: t()
+  def track_updated(track_id, metadata) do
+    track = %Payload.TrackWithMetadata{trackId: track_id, metadata: metadata}
+    %ServerSignallingMsg{content: {:trackUpdated, track}}
   end
 
   @spec encoding_switched(
-          Peer.id(),
           Track.id(),
           String.t(),
           TrackReceiver.variant_switch_reason()
         ) :: t()
-  def encoding_switched(peer_id, track_id, encoding, reason) do
-    as_custom(%{
-      type: "encodingSwitched",
-      data: %{peerId: peer_id, trackId: track_id, encoding: encoding, reason: reason}
-    })
+  def encoding_switched(track_id, encoding, reason) do
+    track_variant = %Payload.TrackVariantSwitched{
+      newVariant: %Payload.TrackVariant{
+        trackId: track_id,
+        variant: encoding
+      },
+      reason: Atom.to_string(reason)
+    }
+
+    %ServerSignallingMsg{content: {:variantSwitched, track_variant}}
   end
 
-  @spec sdp_answer(Strint.t(), %{String.t() => non_neg_integer()}) :: t()
-  def sdp_answer(answer, mid_to_track_id) do
-    as_custom(%{
-      type: "sdpAnswer",
-      data: %{
-        type: "answer",
-        sdp: answer,
-        midToTrackId: mid_to_track_id
-      }
-    })
+  @spec sdp_answer(Strint.t(), %{String.t() => Track.id()}) :: t()
+  def sdp_answer(sdp, mid_to_track_id) do
+    mid_to_track_id =
+      Enum.map(mid_to_track_id, fn {key, value} -> %MidToTrackIdEntry{key: key, value: value} end)
+
+    answer = %Payload.SdpAnswer{
+      sdp: sdp,
+      midToTrackId: mid_to_track_id
+    }
+
+    %ServerSignallingMsg{content: {:sdpAnswer, answer}}
   end
 
   @spec offer_data(%{audio: non_neg_integer(), video: non_neg_integer()}, turns: [map()]) :: t()
@@ -91,80 +91,61 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
             do: turn[:domain_name],
             else: :inet.ntoa(turn.mocked_server_addr) |> to_string()
 
-        %{
-          serverAddr: addr,
-          serverPort: turn.server_port,
-          transport: turn.relay_type,
+        %Payload.OfferData.TurnServer{
+          addr: addr,
+          port: turn.server_port,
+          transport: Atom.to_string(turn.relay_type),
           password: turn.password,
           username: turn.username
         }
       end)
 
-    as_custom(%{
-      type: "offerData",
-      data: %{
-        tracksTypes: tracks_types,
-        integratedTurnServers: integrated_turn_servers
-      }
-    })
+    payload = %Payload.OfferData{
+      integratedTurnServers: integrated_turn_servers,
+      audioTracks: tracks_types.audio,
+      videoTracks: tracks_types.video
+    }
+
+    %ServerSignallingMsg{content: {:offerData, payload}}
   end
 
   @spec candidate(String.t(), non_neg_integer()) :: t()
   def candidate(candidate, sdp_m_line_index) do
-    as_custom(%{
-      type: "candidate",
-      data: %{
-        candidate: candidate,
-        sdpMLineIndex: sdp_m_line_index,
-        sdpMid: nil,
-        usernameFragment: nil
-      }
-    })
+    payload = %Payload.ICECandidate{
+      candidate: candidate,
+      sdpMLineIndex: sdp_m_line_index
+    }
+
+    %ServerSignallingMsg{content: {:candidate, payload}}
   end
 
   @spec sdp_offer(String.t()) :: t()
-  def sdp_offer(offer) do
-    as_custom(%{
-      type: "sdpOffer",
-      data: %{
-        type: "offer",
-        sdp: offer
-      }
-    })
+  def sdp_offer(sdp) do
+    %ServerSignallingMsg{content: {:sdpOffer, %Payload.SdpOffer{sdp: sdp}}}
   end
 
   @spec voice_activity(Track.id(), :speech | :silence) :: t()
-  def voice_activity(track_id, vad),
-    do:
-      as_custom(%{
-        type: "vadNotification",
-        data: %{
-          trackId: track_id,
-          status: vad
-        }
-      })
+  def voice_activity(track_id, vad) do
+    payload = %Payload.VoiceActivity{
+      trackId: track_id,
+      vad: vad
+    }
+
+    %ServerSignallingMsg{content: {:vadNotification, payload}}
+  end
 
   @spec bandwidth_estimation(non_neg_integer()) :: t()
-  def bandwidth_estimation(estimation),
-    do:
-      as_custom(%{
-        type: "bandwidthEstimation",
-        data: %{
-          estimation: estimation
-        }
-      })
+  def bandwidth_estimation(estimation) do
+    %ServerSignallingMsg{content: {:bandwidthEstimation, estimation}}
+  end
 
   @spec encode(t()) :: binary()
-  def encode(event), do: Jason.encode!(event)
+  def encode(%ServerSignallingMsg{} = event), do: ServerSignallingMsg.encode(event)
 
   @spec decode(binary()) :: {:ok, t()} | {:error, :invalid_media_event}
   def decode(binary_event) do
     {:ok, ClientSignallingMsg.decode(binary_event)}
   rescue
     Protobuf.DecodeError -> {:error, :invalid_media_event}
-  end
-
-  defp as_custom(msg) do
-    %{type: "custom", data: msg}
   end
 end

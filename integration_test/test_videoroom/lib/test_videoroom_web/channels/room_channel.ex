@@ -45,6 +45,7 @@ defmodule TestVideoroomWeb.RoomChannel do
 
   @impl true
   def handle_info({:media_event, event}, socket) do
+    event = Base.encode16(event, case: :lower)
     push(socket, "mediaEvent", %{data: event})
 
     {:noreply, socket}

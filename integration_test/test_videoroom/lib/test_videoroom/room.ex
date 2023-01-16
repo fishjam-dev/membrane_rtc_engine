@@ -124,12 +124,6 @@ defmodule TestVideoroom.Room do
   end
 
   @impl true
-  def handle_info(%Message.EndpointMessage{endpoint_id: :broadcast, message: {:media_event, data}}, state) do
-    for {_peer_id, pid} <- state.peer_channels, do: send(pid, {:media_event, data})
-    {:noreply, state}
-  end
-
-  @impl true
   def handle_info(%Message.EndpointMessage{endpoint_id: to, message: {:media_event, data}}, state) do
     if state.peer_channels[to] != nil do
       send(state.peer_channels[to], {:media_event, data})
