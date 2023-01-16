@@ -779,8 +779,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
-    state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
-    msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
+    track_id_to_track_metadata =
+      data.track_id_to_track_info
+      |> Enum.map(fn {id, track_info} -> {id, track_info.track_metadata} end)
+      |> Map.new()
+
+    mid_to_track_id =
+      data.track_id_to_track_info
+      |> Enum.map(fn {id, track_info} -> {track_info.mid, id} end)
+      |> Map.new()
+
+    state = Map.put(state, :track_id_to_metadata, track_id_to_track_metadata)
+    msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, mid_to_track_id}}
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
 
