@@ -82,6 +82,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_audio_mix_plugin, "~> 0.11.1", optional: true},
       {:membrane_generator_plugin, "~> 0.7.1", optional: true},
       {:membrane_realtimer_plugin, "~> 0.5.0", optional: true},
+      {:membrane_audio_filler_plugin, github: "membraneframework/membrane_audio_filler_plugin"},
 
       # Test deps
       {:membrane_file_plugin, "~> 0.12.0"},
