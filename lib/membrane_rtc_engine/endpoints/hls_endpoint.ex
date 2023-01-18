@@ -44,12 +44,11 @@ if Enum.all?(
 
     alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
-    alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig}
+    alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CapsUpdater, CompositorConfig}
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
     alias Membrane.Time
     alias Membrane.VideoCompositor.RustStructs.BaseVideoPlacement
-    alias Membrane.RTC.Engine.Endpoint.HLS.CapsUpdater
 
     @compositor_deps [
       Membrane.H264.FFmpeg.Decoder,
@@ -734,9 +733,6 @@ if Enum.all?(
         links: spec1.links ++ spec2.links
       }
     end
-
-    defp filter_placements({Pad.ref(_type, id), _placement}, track),
-      do: id == track.id or id == {:blank, track.id}
 
     defp update_transformations_action(_track, _transformations, %{mixer_config: nil}),
       do: []

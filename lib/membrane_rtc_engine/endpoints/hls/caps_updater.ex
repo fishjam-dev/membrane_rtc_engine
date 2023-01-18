@@ -1,4 +1,8 @@
 defmodule Membrane.RTC.Engine.Endpoint.HLS.CapsUpdater do
+  @moduledoc """
+    Element responsible for sending caps for specific track to HLS Endpoint and waiting for Endpoint to send updated layout to compositor element.
+  """
+
   use Membrane.Filter
 
   def_input_pad :input,
