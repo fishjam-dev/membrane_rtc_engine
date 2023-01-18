@@ -1,7 +1,11 @@
 version: 2.1
+checkout:
+  post:
+    - git submodule sync --recursive
+    - git submodule update --init --recursive
+
 orbs:
   codecov: codecov/codecov@3.2.4
-
 
 jobs:
   test:
