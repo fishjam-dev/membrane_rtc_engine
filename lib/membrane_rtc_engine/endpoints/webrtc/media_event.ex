@@ -1,9 +1,9 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   @moduledoc false
 
-  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.SdpAnswer.MidToTrackIdEntry
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Signalling.Webrtc.{ClientSignallingMsg, Payload, ServerSignallingMsg}
+  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.SdpAnswer.MidToTrackIdEntry
   alias Membrane.RTC.Engine.{Peer, Track}
 
   @type t() :: ServerSignallingMsg.t()
