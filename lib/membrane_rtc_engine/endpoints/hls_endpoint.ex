@@ -56,7 +56,7 @@ if Enum.all?(
 
     def_input_pad :input,
       demand_unit: :buffers,
-      stream_format: :any,
+      accepted_format: _any,
       availability: :on_request
 
     def_options rtc_engine: [
@@ -121,7 +121,7 @@ if Enum.all?(
                 ]
 
     @impl true
-    def handle_init(opts) do
+    def handle_init(_ctx, opts) do
       state = %{
         rtc_engine: opts.rtc_engine,
         tracks: %{},
@@ -135,11 +135,11 @@ if Enum.all?(
         transcoding_config: opts.transcoding_config
       }
 
-      {:ok, state}
+      {[], state}
     end
 
     @impl true
-    def handle_other({:new_tracks, tracks}, ctx, state) do
+    def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
       {:endpoint, endpoint_id} = ctx.name
 
       state =
@@ -161,16 +161,16 @@ if Enum.all?(
           end
         end)
 
-      {:ok, state}
+      {[], state}
     end
 
     @impl true
-    def handle_other(msg, _ctx, state) do
+    def handle_parent_notification(msg, _ctx, state) do
       Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
-      {:ok, state}
+      {[], state}
     end
 
-    def handle_notification(
+    def handle_child_notification(
           {:track_playable, {content_type, track_id}},
           {:hls_sink_bin, stream_id},
           _ctx,
@@ -179,10 +179,10 @@ if Enum.all?(
       %{origin: origin} = Map.fetch!(state.tracks, track_id)
       # notify about playable just when video becomes available
       send(state.owner, {:playlist_playable, content_type, stream_id, origin})
-      {:ok, state}
+      {[], state}
     end
 
-    def handle_notification(
+    def handle_child_notification(
           {:cleanup, clean_function},
           {:hls_sink_bin, stream_id},
           _ctx,
@@ -190,13 +190,13 @@ if Enum.all?(
         ) do
       # notify about possibility to cleanup as the stream is finished.
       send(state.owner, {:cleanup, clean_function, stream_id})
-      {:ok, state}
+      {[], state}
     end
 
     @impl true
-    def handle_notification(notification, _element, _context, state) do
+    def handle_child_notification(notification, _element, _context, state) do
       Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
-      {:ok, state}
+      {[], state}
     end
 
     @impl true
@@ -229,101 +229,90 @@ if Enum.all?(
           do: children,
           else: [{:hls_sink_bin, removed_track.stream_id} | children]
 
-      {{:ok, [remove_child: children]}, state}
+        {[remove_child: children], state}
     end
 
     @impl true
     def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-      link_builder = link_bin_input(pad)
+      link_builder = bin_input(pad)
       track = Map.get(state.tracks, track_id)
 
       directory = Path.join(state.output_directory, track.stream_id)
 
-      spec = hls_links_and_children(link_builder, track, state)
+      spec = hls_structure(link_builder, track, state)
 
-      {spec, state} =
+      state =
         if MapSet.member?(state.stream_ids, track.stream_id) do
-          {spec, state}
+          state
         else
           # remove directory if it already exists
           File.rm_rf(directory)
           File.mkdir_p!(directory)
 
-          hls_sink_bin = %Membrane.HTTPAdaptiveStream.SinkBin{
-            manifest_module: Membrane.HTTPAdaptiveStream.HLS,
-            target_window_duration: state.target_window_duration,
-            target_segment_duration: state.target_segment_duration,
-            persist?: false,
-            storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
-              directory: directory
-            },
-            hls_mode: state.hls_mode
-          }
-
-          new_spec = %{
-            spec
-            | children: Map.put(spec.children, {:hls_sink_bin, track.stream_id}, hls_sink_bin)
-          }
-
-          {new_spec, %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}}
+          %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}
         end
 
-      {{:ok, spec: spec}, state}
+      {[spec: {spec, []}], state}
     end
 
-    defp hls_links_and_children(link_builder, %Track{encoding: :OPUS} = track, _state) do
-      %ParentSpec{
-        children: %{
-          {:track_receiver, track.id} => %TrackReceiver{
-            track: track,
-            initial_target_variant: :high
-          },
-          {:depayloader, track.id} => get_depayloader(track),
-          {:opus_decoder, track.id} => Membrane.Opus.Decoder,
-          {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
-        },
-        links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
-          |> to({:opus_decoder, track.id})
-          |> to({:aac_encoder, track.id})
-          |> to({:aac_parser, track.id})
-          |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC])
-          |> to({:hls_sink_bin, track.stream_id})
-        ]
-      }
+    defp hls_structure(link_builder, %Track{encoding: :OPUS} = track, state) do
+      [
+        child({:track_receiver, track.id}, %TrackReceiver{
+          track: track,
+          initial_target_variant: :high
+        }),
+        child({:depayloader, track.id}, get_depayloader(track)),
+        child({:opus_decoder, track.id}, Membrane.Opus.Decoder),
+        child({:aac_encoder, track.id}, Membrane.AAC.FDK.Encoder),
+        child({:aac_parser, track.id}, %Membrane.AAC.Parser{out_encapsulation: :none}),
+
+        link_builder
+        |> get_child({:track_receiver, track.id})
+        |> get_child({:depayloader, track.id})
+        |> get_child({:opus_decoder, track.id})
+        |> get_child({:aac_encoder, track.id})
+        |> get_child({:aac_parser, track.id})
+        |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC, segment_duration: %Membrane.HTTPAdaptiveStream.Sink.SegmentDuration{min: state.target_segment_duration - Membrane.Time.seconds(1), target: state.target_segment_duration}])
+        |> child({:hls_sink_bin, track.stream_id}, hls_sink_bin(track, state), get_if_exists: true)
+      ]
     end
 
-    defp hls_links_and_children(link_builder, %Track{encoding: :H264} = track, state) do
+    defp hls_structure(link_builder, %Track{encoding: :H264} = track, state) do
       link_to_transcoder = create_transcoder_link(state.transcoding_config, track.id)
 
-      %ParentSpec{
-        children: %{
-          {:track_receiver, track.id} => %TrackReceiver{
-            track: track,
-            initial_target_variant: :high,
-            keyframe_request_interval: state.target_segment_duration
-          },
-          {:depayloader, track.id} => get_depayloader(track),
-          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
-            alignment: :au,
-            attach_nalus?: true,
-            framerate: state.framerate
-          }
-        },
-        links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
-          |> to({:video_parser, track.id})
-          |> then(link_to_transcoder)
-          |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264])
-          |> to({:hls_sink_bin, track.stream_id})
-        ]
-      }
+      [
+        child({:track_receiver, track.id}, %TrackReceiver{
+          track: track,
+          initial_target_variant: :high,
+          keyframe_request_interval: state.target_segment_duration
+        }),
+        child({:depayloader, track.id}, get_depayloader(track)),
+        child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{
+          alignment: :au,
+          attach_nalus?: true,
+          framerate: state.framerate
+        }),
+        link_builder
+        |> get_child({:track_receiver, track.id})
+        |> get_child({:depayloader, track.id})
+        |> get_child({:video_parser, track.id})
+        |> then(link_to_transcoder)
+        |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264, segment_duration: %Membrane.HTTPAdaptiveStream.Sink.SegmentDuration{min: state.target_segment_duration - Membrane.Time.seconds(1), target: state.target_segment_duration}])
+        |> child({:hls_sink_bin, track.stream_id}, hls_sink_bin(track, state), get_if_exists: true)
+      ]
     end
+
+    defp hls_sink_bin(track, state), do:
+       %Membrane.HTTPAdaptiveStream.SinkBin{
+        manifest_module: Membrane.HTTPAdaptiveStream.HLS,
+        target_window_duration: state.target_window_duration,
+        persist?: false,
+        storage: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{
+          directory: Path.join(state.output_directory, track.stream_id)
+        },
+        hls_mode: state.hls_mode
+      }
+
 
     defp get_depayloader(track) do
       track
@@ -352,11 +341,11 @@ if Enum.all?(
 
         fn link_builder ->
           link_builder
-          |> to({:decoder, track_id}, Membrane.H264.FFmpeg.Decoder)
-          |> to({:resolution_scaler, track_id}, resolution_scaler)
-          |> to({:framerate_converter, track_id}, framerate_converter)
-          |> to({:encoder, track_id}, Membrane.H264.FFmpeg.Encoder)
-          |> to({:video_parser_out, track_id}, video_parser_out)
+          |> child({:decoder, track_id}, Membrane.H264.FFmpeg.Decoder)
+          |> child({:resolution_scaler, track_id}, resolution_scaler)
+          |> child({:framerate_converter, track_id}, framerate_converter)
+          |> child({:encoder, track_id}, Membrane.H264.FFmpeg.Encoder)
+          |> child({:video_parser_out, track_id}, video_parser_out)
         end
       end
     else

@@ -207,18 +207,18 @@ defmodule Membrane.RTC.Engine do
   @typedoc """
   Membrane action that will cause RTC Engine to publish some message to all other endpoints.
   """
-  @type publish_action_t() :: {:notify, {:publish, publish_message_t()}}
+  @type publish_action_t() :: {:notify_parent, {:publish, publish_message_t()}}
 
   @typedoc """
   Membrane action that will inform RTC Engine about track readiness.
   """
   @type track_ready_action_t() ::
-          {:notify, {:track_ready, Track.id(), Track.encoding(), Track.variant()}}
+          {:notify_parent, {:track_ready, Track.id(), Track.encoding(), Track.variant()}}
 
   @typedoc """
   Membrane action that will generate Custom Media Event.
   """
-  @type custom_media_event_action_t() :: {:notify, {:custom_media_event, data :: binary()}}
+  @type custom_media_event_action_t() :: {:notify_parent, {:custom_media_event, data :: binary()}}
 
   @typedoc """
   Types of messages that can be published to other Endpoints.

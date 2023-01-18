@@ -56,7 +56,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   @impl true
   def handle_playing(_ctx, state) do
-    {[notify: {:publish, {:new_tracks, [state.track]}}], state}
+    {[notify_parent: {:publish, {:new_tracks, [state.track]}}], state}
   end
 
   @impl true
@@ -93,6 +93,6 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   @impl true
   def handle_parent_notification(:start, _ctx, state) do
     track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
-    {[notify: track_ready], state}
+    {[notify_parent: track_ready], state}
   end
 end
