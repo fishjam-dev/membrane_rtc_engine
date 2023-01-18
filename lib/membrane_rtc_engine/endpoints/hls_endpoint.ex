@@ -70,6 +70,21 @@ if Enum.all?(
       z_value: 0.0
     }
 
+    @track_children [
+      :opus_decoder,
+      :aac_encoder,
+      :aac_parser,
+      :video_parser,
+      :decoder,
+      :framerate_converter,
+      :track_receiver,
+      :depayloader,
+      :blank,
+      :realtimer,
+      :audio_filler,
+      :caps_updater
+    ]
+
     def_input_pad(:input,
       demand_unit: :buffers,
       caps: :any,
@@ -228,15 +243,9 @@ if Enum.all?(
         ) do
       track = Map.get(state.tracks, track_id)
 
-      {{placements, transformations}, video_layout} =
-        state.mixer_config.video.layout_module.track_added(state.video_layout, track, caps)
+      {update_layout_action, state} = compositor_update_layout(track, caps, state)
 
-      state = %{state | video_layout: video_layout}
-
-      result_actions =
-        update_layout_action(track, placements, state) ++
-          update_transformations_action(track, transformations, state) ++
-          [forward: {child, :layout_updated}]
+      result_actions = update_layout_action ++ [forward: {child, :layout_updated}]
 
       {{:ok, result_actions}, state}
     end
@@ -305,20 +314,7 @@ if Enum.all?(
     @impl true
     def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
       track_children =
-        [
-          :opus_decoder,
-          :aac_encoder,
-          :aac_parser,
-          :video_parser,
-          :decoder,
-          :framerate_converter,
-          :track_receiver,
-          :depayloader,
-          :blank,
-          :realtimer,
-          :audio_filler,
-          :caps_updater
-        ]
+        @track_children
         |> Enum.map(&{&1, track_id})
         |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
@@ -337,22 +333,10 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      {{placements, transformations}, video_layout} =
-        if is_nil(state.mixer_config) or removed_track.type == :audio,
-          do: {{[], []}, state.video_layout},
-          else:
-            state.mixer_config.video.layout_module.track_removed(
-              state.video_layout,
-              removed_track
-            )
+      {update_layout_actions, state} = compositor_update_layout(track, nil, state)
 
-      state = %{state | video_layout: video_layout}
-
-      update_action =
-        update_layout_action(removed_track, placements, state) ++
-          update_transformations_action(removed_track, transformations, state)
-
-      {{:ok, [remove_child: children_to_remove] ++ update_action}, state}
+      result_actions = [remove_child: children_to_remove] ++ update_layout_actions
+      {{:ok, result_actions}, state}
     end
 
     @impl true
@@ -730,18 +714,29 @@ if Enum.all?(
       }
     end
 
-    defp update_transformations_action(_track, _transformations, %{mixer_config: nil}),
-      do: []
+    defp compositor_update_layout(%{type: :audio}, _caps, _state), do: []
+    defp compositor_update_layout(_track, _caps, %{mixer_config: nil}), do: []
 
-    defp update_transformations_action(%{type: :audio}, _transformations, _state), do: []
+    defp compositor_update_layout(track, caps, state) do
+      {updated_layout, video_layout} =
+        state.mixer_config.video.layout_module.track_added(state.video_layout, track, caps)
+
+      {layouts, transformations} =
+        updated_layout
+        |> Enum.map(fn {track_id, layout, transformations} ->
+          [{Pad.ref(:input, track_id), layout}, {Pad.ref(:input, track_id), transformations}]
+        end)
+        |> Enum.unzip()
+
+      update_layout_actions =
+        update_layout_action(track, layouts, state) ++
+          update_transformations_action(track, transformations, state)
+
+      {update_layout_actions, %{state | video_layout: video_layout}}
+    end
 
     defp update_transformations_action(_track, transformations, _state),
       do: [forward: {:compositor, {:update_transformations, transformations}}]
-
-    defp update_layout_action(_track, _video_layout, %{mixer_config: nil}),
-      do: []
-
-    defp update_layout_action(%{type: :audio}, _video_layout, _state), do: []
 
     defp update_layout_action(_track, placements, _state),
       do: [forward: {:compositor, {:update_placement, placements}}]
