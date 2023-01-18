@@ -35,7 +35,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CapsUpdater do
   @impl true
   def handle_process(_pad, buffer, _ctx, state) do
     new_buffers =
-      get_in(state, [:buffers, state.update_queue])
+      state
+      |> get_in([:buffers, state.update_queue])
       |> then(&[buffer | &1])
 
     state = put_in(state, [:buffers, state.update_queue], new_buffers)
@@ -44,7 +45,11 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CapsUpdater do
 
   @impl true
   def handle_other(:layout_updated, _ctx, state) do
-    buffers = get_in(state, [:buffers, state.update_queue]) |> Enum.reverse()
+    buffers =
+      state
+      |> get_in([:buffers, state.update_queue])
+      |> Enum.reverse()
+
     actions = [buffer: {:output, buffers}]
 
     new_buffers =

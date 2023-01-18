@@ -19,7 +19,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
   def track_added(state, %{metadata: %{"mainPresenter" => true}} = track, caps) do
     new_state = put_in(state, [:tracks, track.id], {track, caps})
 
-    {trans, layout} = get_track_layout(:main, 0, caps, state.output_caps)
+    {trans, layout} = get_track_layout(:main, nil, caps, state.output_caps)
 
     updated_layout = [
       {Pad.ref(:input, track.id), layout}
@@ -58,15 +58,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
       ]
     end)
     |> Enum.unzip()
-  end
-
-  defp get_track_layout(:blank, index, caps, %{width: width, height: height}) do
-    output_caps = %{width: round(1 / 2 * width) - 10, height: round(1 / 4 * height) - 10}
-    position = {round(index / 2 * width) + 5, height - round(1 / 4 * height) + 5}
-    placement = get_placement(output_caps, caps, position, 0.2)
-    transformations = get_transformations(output_caps, placement.size, 20)
-
-    {transformations, placement}
   end
 
   defp get_track_layout(:main, _index, caps, output_caps) do

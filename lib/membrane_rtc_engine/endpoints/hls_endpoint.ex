@@ -226,7 +226,6 @@ if Enum.all?(
           _ctx,
           state
         ) do
-      # wywolanie updatetu
       track = Map.get(state.tracks, track_id)
 
       {{placements, transformations}, video_layout} =
@@ -234,11 +233,12 @@ if Enum.all?(
 
       state = %{state | video_layout: video_layout}
 
-      update_action =
+      result_actions =
         update_layout_action(track, placements, state) ++
-          update_transformations_action(track, transformations, state)
+          update_transformations_action(track, transformations, state) ++
+          [forward: {child, :layout_updated}]
 
-      {{:ok, update_action ++ [forward: {child, :layout_updated}]}, state}
+      {{:ok, result_actions}, state}
     end
 
     def handle_notification(
@@ -368,7 +368,6 @@ if Enum.all?(
         if hls_sink_bin_exists?(track, ctx, state) do
           {spec, state}
         else
-          # remove directory if it already exists
           File.rm_rf(directory)
           File.mkdir_p!(directory)
 
@@ -377,10 +376,7 @@ if Enum.all?(
           {merge_parent_specs(spec, hls_sink_spec), state}
         end
 
-      # update_layout_action(track, placements, state)
-      update_action = []
-
-      {{:ok, [spec: spec] ++ update_action}, state}
+      {{:ok, [spec: spec]}, state}
     end
 
     defp get_hls_sink_spec(state, track, directory) do
