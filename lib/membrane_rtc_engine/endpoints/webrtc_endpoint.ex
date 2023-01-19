@@ -59,9 +59,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias ExSDP.Attribute.FMTP
   alias ExSDP.Attribute.RTPMapping
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Signalling.Webrtc.ClientSignallingMsg
+  alias Membrane.RTC.Engine.Signalling.WebRTC.ClientSignallingMsg
 
-  alias Membrane.RTC.Engine.Signalling.Webrtc.Payload.{
+  alias Membrane.RTC.Engine.Signalling.WebRTC.Payload.{
     Empty,
     ICECandidate,
     SdpOffer,
