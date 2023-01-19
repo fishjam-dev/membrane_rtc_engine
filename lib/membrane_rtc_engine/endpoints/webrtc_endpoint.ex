@@ -626,7 +626,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       {:ok, %ClientSignallingMsg{content: {type, data} = event}} ->
         Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_received,
           type: type,
-          data: inspect(data[:data])
+          data: inspect(data)
         )
 
         handle_media_event(event, ctx, state)

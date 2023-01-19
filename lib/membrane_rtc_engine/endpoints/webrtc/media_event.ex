@@ -69,11 +69,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     %ServerSignallingMsg{content: {:variantSwitched, track_variant}}
   end
 
-  @spec sdp_answer(Strint.t(), %{String.t() => Track.id()}) :: t()
+  @spec sdp_answer(String.t(), %{String.t() => Track.id()}) :: t()
   def sdp_answer(sdp, mid_to_track_id) do
-    mid_to_track_id =
-      Enum.map(mid_to_track_id, fn {key, value} -> %MidToTrackIdEntry{key: key, value: value} end)
-
     answer = %Payload.SdpAnswer{
       sdp: sdp,
       midToTrackId: mid_to_track_id
