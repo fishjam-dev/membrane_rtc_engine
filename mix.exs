@@ -74,7 +74,11 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_aac_plugin, "~> 0.13.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.14.0", optional: true},
       {:membrane_opus_plugin, "~> 0.16.0", optional: true},
-      {:membrane_h264_ffmpeg_plugin, github: "membraneframework/membrane_h264_ffmpeg_plugin", branch: "bugfix/parser-input-stream-format", optional: true, override: true},
+      {:membrane_h264_ffmpeg_plugin,
+       github: "membraneframework/membrane_h264_ffmpeg_plugin",
+       branch: "bugfix/parser-input-stream-format",
+       optional: true,
+       override: true},
       {:membrane_framerate_converter_plugin, "~> 0.6.0", optional: true},
       {:membrane_ffmpeg_swscale_plugin, "~> 0.11.0", optional: true},
 

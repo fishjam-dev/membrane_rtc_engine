@@ -75,7 +75,6 @@ if Enum.all?(
 
                   These notifications are:
                     * `{:playlist_playable, content_type, stream_id, origin}`
-                    * `{:cleanup, clean_function, stream_id}`
                   """
                 ],
                 hls_mode: [
@@ -182,17 +181,6 @@ if Enum.all?(
       {[], state}
     end
 
-    def handle_child_notification(
-          {:cleanup, clean_function},
-          {:hls_sink_bin, stream_id},
-          _ctx,
-          state
-        ) do
-      # notify about possibility to cleanup as the stream is finished.
-      send(state.owner, {:cleanup, clean_function, stream_id})
-      {[], state}
-    end
-
     @impl true
     def handle_child_notification(notification, _element, _context, state) do
       Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
@@ -211,6 +199,8 @@ if Enum.all?(
           :decoder,
           :encoder,
           :resolution_scaler,
+          :track_receiver,
+          :depayloader,
           :framerate_converter
         ]
         |> Enum.map(&{&1, track_id})
@@ -229,7 +219,7 @@ if Enum.all?(
           do: children,
           else: [{:hls_sink_bin, removed_track.stream_id} | children]
 
-        {[remove_child: children], state}
+      {[remove_child: children], state}
     end
 
     @impl true
@@ -265,14 +255,21 @@ if Enum.all?(
         child({:opus_decoder, track.id}, Membrane.Opus.Decoder),
         child({:aac_encoder, track.id}, Membrane.AAC.FDK.Encoder),
         child({:aac_parser, track.id}, %Membrane.AAC.Parser{out_encapsulation: :none}),
-
         link_builder
         |> get_child({:track_receiver, track.id})
         |> get_child({:depayloader, track.id})
         |> get_child({:opus_decoder, track.id})
         |> get_child({:aac_encoder, track.id})
         |> get_child({:aac_parser, track.id})
-        |> via_in(Pad.ref(:input, {:audio, track.id}), options: [encoding: :AAC, segment_duration: %Membrane.HTTPAdaptiveStream.Sink.SegmentDuration{min: state.target_segment_duration - Membrane.Time.seconds(1), target: state.target_segment_duration}])
+        |> via_in(Pad.ref(:input, {:audio, track.id}),
+          options: [
+            encoding: :AAC,
+            segment_duration: %Membrane.HTTPAdaptiveStream.Sink.SegmentDuration{
+              min: state.target_segment_duration - Membrane.Time.seconds(1),
+              target: state.target_segment_duration
+            }
+          ]
+        )
         |> child({:hls_sink_bin, track.stream_id}, hls_sink_bin(track, state), get_if_exists: true)
       ]
     end
@@ -297,13 +294,21 @@ if Enum.all?(
         |> get_child({:depayloader, track.id})
         |> get_child({:video_parser, track.id})
         |> then(link_to_transcoder)
-        |> via_in(Pad.ref(:input, {:video, track.id}), options: [encoding: :H264, segment_duration: %Membrane.HTTPAdaptiveStream.Sink.SegmentDuration{min: state.target_segment_duration - Membrane.Time.seconds(1), target: state.target_segment_duration}])
+        |> via_in(Pad.ref(:input, {:video, track.id}),
+          options: [
+            encoding: :H264,
+            segment_duration: %Membrane.HTTPAdaptiveStream.Sink.SegmentDuration{
+              min: state.target_segment_duration - Membrane.Time.seconds(1),
+              target: state.target_segment_duration
+            }
+          ]
+        )
         |> child({:hls_sink_bin, track.stream_id}, hls_sink_bin(track, state), get_if_exists: true)
       ]
     end
 
-    defp hls_sink_bin(track, state), do:
-       %Membrane.HTTPAdaptiveStream.SinkBin{
+    defp hls_sink_bin(track, state),
+      do: %Membrane.HTTPAdaptiveStream.SinkBin{
         manifest_module: Membrane.HTTPAdaptiveStream.HLS,
         target_window_duration: state.target_window_duration,
         persist?: false,
@@ -312,7 +317,6 @@ if Enum.all?(
         },
         hls_mode: state.hls_mode
       }
-
 
     defp get_depayloader(track) do
       track
