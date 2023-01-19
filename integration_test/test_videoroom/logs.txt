@@ -1,0 +1,227 @@
+==> membrane_rtc_engine
+Compiling 3 files (.ex)
+Generated membrane_rtc_engine app
+
+  ../priv/static/assets/app.js  179.6kb
+
+⚡ Done in 15ms
+==> test_videoroom
+Check your digested files at "priv/static"
+08:47:58.707 [info] Running TestVideoroomWeb.Endpoint with cowboy 2.9.0 at 0.0.0.0:4001 (http)
+08:47:58.709 [info] Access TestVideoroomWeb.Endpoint at http://localhost:4001
+Excluding tags: [:test]
+Including tags: [line: "27"]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "1juNviMX72EOlI1DDY0gBsxEa1g=",
+    pid: #PID<0.923.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 50250,
+    username: "1674114479:61f7346f-e4a3-466f-baaa-44bf0354bd51"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "2QDiucPrFdjrmueo80vyrjoJViY=",
+    pid: #PID<0.998.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 51995,
+    username: "1674114489:bc4925ca-8289-49ca-aab1-f6cec32132a7"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "Dq4oA/DaKXqgM5cr3lnpb1fYQ+A=",
+    pid: #PID<0.923.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 50250,
+    username: "1674114489:61f7346f-e4a3-466f-baaa-44bf0354bd51"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "0ko0sqUmWKQyxyMfjFSRE/lSnto=",
+    pid: #PID<0.1133.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 52631,
+    username: "1674114499:b0524ed3-ca01-4c00-bb41-ffffa4567bfb"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "WUijzdFAb+kGMZXCa5f01EHR+TM=",
+    pid: #PID<0.998.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 51995,
+    username: "1674114499:bc4925ca-8289-49ca-aab1-f6cec32132a7"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "eITFMJG1QfOHqDoKHfcnJHLIBsw=",
+    pid: #PID<0.923.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 50250,
+    username: "1674114499:61f7346f-e4a3-466f-baaa-44bf0354bd51"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "DXHHtBEmJrDCjcqnE0dul4IvL5w=",
+    pid: #PID<0.1323.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 54379,
+    username: "1674114509:805632f4-e087-41ee-a5dc-b499a820fbe7"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "idw3eqr9cmV9RBJhTWfCX0Vjt6Y=",
+    pid: #PID<0.923.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 50250,
+    username: "1674114509:61f7346f-e4a3-466f-baaa-44bf0354bd51"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "/GvHqcY4G8MlGxTrjc6KJdnQ4qk=",
+    pid: #PID<0.998.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 51995,
+    username: "1674114509:bc4925ca-8289-49ca-aab1-f6cec32132a7"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "q9t4dLYaBa93zLLPYQNHL/nZMys=",
+    pid: #PID<0.1133.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 52631,
+    username: "1674114509:b0524ed3-ca01-4c00-bb41-ffffa4567bfb"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "Wt3x8vgrnL1B/fuMCPXeKeXqmbM=",
+    pid: #PID<0.1133.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 52631,
+    username: "1674114547:b0524ed3-ca01-4c00-bb41-ffffa4567bfb"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "vTRzfLV2ig/uXcuxtXO+uQT9xps=",
+    pid: #PID<0.998.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 51995,
+    username: "1674114547:bc4925ca-8289-49ca-aab1-f6cec32132a7"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "tU26fP0P25FIdSGZ8uItJgJAAO8=",
+    pid: #PID<0.1323.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 54379,
+    username: "1674114547:805632f4-e087-41ee-a5dc-b499a820fbe7"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "mHQaRcJX2g+nIIFXJz+KPG6lOfE=",
+    pid: #PID<0.1133.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 52631,
+    username: "1674114557:b0524ed3-ca01-4c00-bb41-ffffa4567bfb"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "OW+/2kKr+dPCcsPy10u9RXG9O7k=",
+    pid: #PID<0.1323.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 54379,
+    username: "1674114557:805632f4-e087-41ee-a5dc-b499a820fbe7"
+  }
+]
+
+[lib/membrane_rtc_engine/endpoints/webrtc/media_event.ex:83: Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent.offer_data/2]
+turns #=> [
+  %{
+    mocked_server_addr: {127, 0, 0, 1},
+    password: "qDXnd3A6mmx4oPnz4noR3UU2eOw=",
+    pid: #PID<0.1323.0>,
+    relay_type: :udp,
+    server_addr: {127, 0, 0, 1},
+    server_port: 54379,
+    username: "1674114567:805632f4-e087-41ee-a5dc-b499a820fbe7"
+  }
+]
+
+.
+Finished in 98.6 seconds (0.00s async, 98.6s sync)
+3 tests, 0 failures, 2 excluded
+
+Randomized with seed 719366

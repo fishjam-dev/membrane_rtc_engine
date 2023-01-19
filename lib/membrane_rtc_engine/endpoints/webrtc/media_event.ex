@@ -3,7 +3,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Signalling.WebRTC.{ClientSignallingMsg, Payload, ServerSignallingMsg}
-  alias Membrane.RTC.Engine.Signalling.WebRTC.Payload.SdpAnswer.MidToTrackIdEntry
   alias Membrane.RTC.Engine.{Peer, Track}
 
   @type t() :: ServerSignallingMsg.t()
@@ -125,7 +124,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   def voice_activity(track_id, vad) do
     payload = %Payload.VoiceActivity{
       trackId: track_id,
-      vad: vad
+      vad: Atom.to_string(vad)
     }
 
     %ServerSignallingMsg{content: {:vadNotification, payload}}
