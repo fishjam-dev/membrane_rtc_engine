@@ -347,6 +347,21 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
+  Sends message to RTC Engine and engine responds with list of endpoints in engine.
+  """
+  @spec get_endpoints(rtc_engine :: pid()) :: {:ok, [%{id: Endpoint.id(), type: atom()}]} | :error
+  def get_endpoints(rtc_engine) do
+    send(rtc_engine, {:get_endpoints, self()})
+
+    receive do
+      endpoints -> {:ok, endpoints}
+    after
+      5_000 ->
+        :error
+    end
+  end
+
+  @doc """
   Subscribes an endpoint for a track.
 
   The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
@@ -520,6 +535,21 @@ defmodule Membrane.RTC.Engine do
         else: []
 
     {actions, state}
+  end
+
+  @impl true
+  def handle_info({:get_endpoints, sender}, ctx, state) do
+    endpoints =
+      ctx.children
+      |> Map.values()
+      |> Enum.map(fn endpoint ->
+        {:endpoint, id} = endpoint.name
+        %{id: id, type: endpoint.module}
+      end)
+
+    send(sender, endpoints)
+
+    {[], state}
   end
 
   @impl true
