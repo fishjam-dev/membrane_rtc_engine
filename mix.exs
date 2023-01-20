@@ -29,10 +29,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # they are not included in PLT
       dialyzer: [
         plt_add_apps: [
-          :ex_sdp,
-          :membrane_rtp_plugin,
-          :membrane_ice_plugin,
-          :membrane_webrtc_plugin
+          :membrane_http_adaptive_stream_plugin
         ]
       ]
     ]
