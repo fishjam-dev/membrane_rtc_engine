@@ -29,7 +29,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
   describe "HLS Endpoint test" do
     @describetag :tmp_dir
 
-    @tag :debug
     test "creates correct hls stream from single (h264) input", %{
       rtc_engine: rtc_engine,
       tmp_dir: tmp_dir
