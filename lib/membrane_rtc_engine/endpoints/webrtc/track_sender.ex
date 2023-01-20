@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
 
   alias Membrane.RTC.Engine.Event.{
-    TrackVariantBandwidth,
+    TrackVariantBitrate,
     TrackVariantPaused,
     TrackVariantResumed,
     VoiceActivityChanged
@@ -38,10 +38,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
                 spec: Membrane.RTC.Engine.Track.t(),
                 description: "Track this sender will maintain"
               ],
-              variants_bandwidth: [
+              variant_bitrates: [
                 spec: %{optional(Track.variant()) => non_neg_integer()},
                 description:
-                  "Bandwidth of each variant of track maintained by this #{inspect(__MODULE__)}"
+                  "Bitrate of each variant of track maintained by this #{inspect(__MODULE__)}"
               ],
               telemetry_label: [
                 spec: Membrane.TelemetryMetrics.label(),
@@ -64,7 +64,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   @impl true
   def handle_init(%__MODULE__{
         track: track,
-        variants_bandwidth: variants_bandwidth,
+        variant_bitrates: variant_bitrates,
         telemetry_label: telemetry_label
       }) do
     {:ok,
@@ -73,7 +73,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
        trackers: %{},
        bitrate_estimators: %{},
        requested_keyframes: MapSet.new(),
-       variants_bandwidth: variants_bandwidth,
+       variant_bitrates: variant_bitrates,
        telemetry_label: telemetry_label
      }}
   end
@@ -364,9 +364,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       event: {pad, %TrackVariantResumed{variant: variant}},
       event:
         {pad,
-         %TrackVariantBandwidth{
+         %TrackVariantBitrate{
            variant: variant,
-           bandwidth: Map.get(state.variants_bandwidth, variant)
+           bitrate: Map.get(state.variant_bitrates, variant)
          }}
     ]
   end

@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.Tee do
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
-    TrackVariantBandwidth,
+    TrackVariantBitrate,
     TrackVariantPaused,
     TrackVariantResumed,
     TrackVariantSwitched,
@@ -50,7 +50,7 @@ defmodule Membrane.RTC.Engine.Tee do
        track: opts.track,
        routes: %{},
        inactive_variants: MapSet.new(opts.track.variants),
-       variants_bandwidth: %{},
+       variant_bitrates: %{},
        vad: %{}
      }}
   end
@@ -82,9 +82,9 @@ defmodule Membrane.RTC.Engine.Tee do
               event: {pad, %TrackVariantResumed{variant: &1}},
               event:
                 {pad,
-                 %TrackVariantBandwidth{
+                 %TrackVariantBitrate{
                    variant: &1,
-                   bandwidth: Map.get(state.variants_bandwidth, &1)
+                   bitrate: Map.get(state.variant_bitrates, &1)
                  }}
             ]
           )
@@ -150,12 +150,12 @@ defmodule Membrane.RTC.Engine.Tee do
 
   @impl true
   def handle_event(
-        Pad.ref(:input, {track_id, _variant}),
-        %TrackVariantBandwidth{variant: variant, bandwidth: bandwidth} = event,
+        Pad.ref(:input, _id),
+        %TrackVariantBitrate{variant: variant, bitrate: bitrate} = event,
         _ctx,
         state
       ),
-      do: {{:ok, forward: event}, put_in(state, [:variants_bandwidth, variant], bandwidth)}
+      do: {{:ok, forward: event}, put_in(state, [:variant_bitrates, variant], bitrate)}
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do

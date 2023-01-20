@@ -694,18 +694,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
     track_sender = {:track_sender, track_id}
 
-    # assume that bandwidth was passed in correct format
+    # assume that bitrates was passed in correct format
     # (i.e. map or number for simulcast tracks, number for non simulcast tracks)
-    variants_bandwidth =
-      with track_variants_bandwidth when not is_nil(track_variants_bandwidth) <-
+    variant_bitrates =
+      with track_variant_bitrates when not is_nil(track_variant_bitrates) <-
              Map.get(state.track_id_to_bandwidth, track_id) do
-        case track_variants_bandwidth do
+        case track_variant_bitrates do
           bandwidth when is_number(bandwidth) ->
             %{high: bandwidth}
 
-          variants_bandwidth ->
+          variants_bitrates ->
             track.variants
-            |> Enum.map(&{&1, Map.get(variants_bandwidth, to_rid(&1))})
+            |> Enum.map(&{&1, Map.get(variants_bitrates, to_rid(&1))})
             |> Map.new()
         end
       else
@@ -716,7 +716,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       if Map.has_key?(ctx.children, track_sender) do
         &to(&1, track_sender)
       else
-        &to(&1, track_sender, %TrackSender{track: track, variants_bandwidth: variants_bandwidth})
+        &to(&1, track_sender, %TrackSender{track: track, variant_bitrates: variant_bitrates})
       end
 
     # EndpointBin expects `rid` to be nil for non simulcast tracks
