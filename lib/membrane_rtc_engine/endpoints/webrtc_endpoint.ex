@@ -694,11 +694,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
     track_sender = {:track_sender, track_id}
 
+    # assume that bandwidth was passed in correct format
+    # (i.e. map or number for simulcast tracks, number for non simulcast tracks)
+    variants_bandwidth =
+      with track_variants_bandwidth when not is_nil(track_variants_bandwidth) <-
+             Map.get(state.track_id_to_bandwidth, track_id) do
+        case track_variants_bandwidth do
+          bandwidth when is_number(bandwidth) ->
+            %{high: bandwidth}
+
+          variants_bandwidth ->
+            track.variants
+            |> Enum.map(&{&1, Map.get(variants_bandwidth, to_rid(&1))})
+            |> Map.new()
+        end
+      else
+        _else -> raise "Variants bandwidth of track #{inspect(track.id)} were not set."
+      end
+
     link_to_track_sender =
       if Map.has_key?(ctx.children, track_sender) do
         &to(&1, track_sender)
       else
-        &to(&1, track_sender, %TrackSender{track: track})
+        &to(&1, track_sender, %TrackSender{track: track, variants_bandwidth: variants_bandwidth})
       end
 
     # EndpointBin expects `rid` to be nil for non simulcast tracks
@@ -789,7 +807,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> Enum.map(fn {id, track_info} -> {track_info.mid, id} end)
       |> Map.new()
 
-    state = Map.put(state, :track_id_to_metadata, track_id_to_track_metadata)
+    track_id_to_bandwidth =
+      data.track_id_to_track_info
+      |> Enum.map(fn {id, track_info} -> {id, track_info.max_bandwidth} end)
+      |> Map.new()
+
+    state =
+      state
+      |> Map.put(:track_id_to_metadata, track_id_to_track_metadata)
+      |> Map.put(:track_id_to_bandwidth, track_id_to_bandwidth)
+
     msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, mid_to_track_id}}
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end

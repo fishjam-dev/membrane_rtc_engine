@@ -33,6 +33,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
+    TrackVariantBandwidth,
     TrackVariantPaused,
     TrackVariantResumed,
     TrackVariantSwitched,
@@ -205,6 +206,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %VoiceActivityChanged{voice_activity: vad}, _ctx, state) do
     {{:ok, notify: {:voice_activity_changed, vad}}, state}
+  end
+
+  @impl true
+  def handle_event(
+        pad,
+        %TrackVariantBandwidth{variant: variant, bandwidth: bandwidth} = event,
+        _ctx,
+        state
+      ) do
+    Membrane.Logger.debug("Received event: #{inspect(event)}")
+
+    {:ok,
+     %{
+       state
+       | selector: VariantSelector.update_variant_bitrate(state.selector, variant, bandwidth)
+     }}
   end
 
   @impl true

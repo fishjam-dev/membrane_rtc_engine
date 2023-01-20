@@ -13,7 +13,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   alias Membrane.{Buffer, Time}
   alias Membrane.RTC.Engine.BitrateEstimator
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
-  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed, VoiceActivityChanged}
+
+  alias Membrane.RTC.Engine.Event.{
+    TrackVariantBandwidth,
+    TrackVariantPaused,
+    TrackVariantResumed,
+    VoiceActivityChanged
+  }
+
   alias Membrane.RTC.Engine.Track
 
   @keyframe_request_interval_ms 500
@@ -30,6 +37,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
                 type: :struct,
                 spec: Membrane.RTC.Engine.Track.t(),
                 description: "Track this sender will maintain"
+              ],
+              variants_bandwidth: [
+                spec: %{optional(Track.variant()) => non_neg_integer()},
+                description:
+                  "Bandwidth of each variant of track maintained by this #{inspect(__MODULE__)}"
               ],
               telemetry_label: [
                 spec: Membrane.TelemetryMetrics.label(),
@@ -50,13 +62,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     caps: Membrane.RTP
 
   @impl true
-  def handle_init(%__MODULE__{track: track, telemetry_label: telemetry_label}) do
+  def handle_init(%__MODULE__{
+        track: track,
+        variants_bandwidth: variants_bandwidth,
+        telemetry_label: telemetry_label
+      }) do
     {:ok,
      %{
        track: track,
        trackers: %{},
        bitrate_estimators: %{},
        requested_keyframes: MapSet.new(),
+       variants_bandwidth: variants_bandwidth,
        telemetry_label: telemetry_label
      }}
   end
@@ -97,7 +114,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_pad_added(Pad.ref(:output, _id) = pad, %{playback_state: playback_state}, state) do
     actions =
       if playback_state == :playing do
-        activate_pad_actions(pad)
+        activate_pad_actions(pad, state)
       else
         []
       end
@@ -127,7 +144,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     actions =
       ctx.pads
       |> Enum.filter(fn {_pad_id, %{name: name}} -> name == :output end)
-      |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad) end)
+      |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad, state) end)
 
     actions = actions ++ [@start_variant_check_timer, @start_bitrate_estimation_timer]
 
@@ -341,8 +358,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     %Buffer{buffer | metadata: new_metadata}
   end
 
-  defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad) do
-    [caps: {pad, %Membrane.RTP{}}, event: {pad, %TrackVariantResumed{variant: variant}}]
+  defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad, state) do
+    [
+      caps: {pad, %Membrane.RTP{}},
+      event: {pad, %TrackVariantResumed{variant: variant}},
+      event:
+        {pad,
+         %TrackVariantBandwidth{
+           variant: variant,
+           bandwidth: Map.get(state.variants_bandwidth, variant)
+         }}
+    ]
   end
 
   defp to_output_pad(Pad.ref(:input, {_track_id, _encoding} = pad_id)) do

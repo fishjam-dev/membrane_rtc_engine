@@ -143,6 +143,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   @doc """
+  Updates bitrate assigned to a variant in the selector.
+  """
+  @spec update_variant_bitrate(t(), Track.variant(), non_neg_integer()) :: t()
+  def update_variant_bitrate(%__MODULE__{} = selector, variant, bitrate) do
+    variant_bitrates = %{selector.variant_bitrates | variant => bitrate}
+    %{selector | variant_bitrates: variant_bitrates}
+  end
+
+  @doc """
   Updates the bandwidth allocated to the selector.
   """
   @spec set_bandwidth_allocation(t(), bitrates_t()) :: {t(), selector_action_t()}

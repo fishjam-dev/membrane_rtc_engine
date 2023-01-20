@@ -8,6 +8,7 @@ defmodule Membrane.RTC.Engine.Tee do
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
+    TrackVariantBandwidth,
     TrackVariantPaused,
     TrackVariantResumed,
     TrackVariantSwitched,
@@ -49,6 +50,7 @@ defmodule Membrane.RTC.Engine.Tee do
        track: opts.track,
        routes: %{},
        inactive_variants: MapSet.new(opts.track.variants),
+       variants_bandwidth: %{},
        vad: %{}
      }}
   end
@@ -75,7 +77,17 @@ defmodule Membrane.RTC.Engine.Tee do
         actions =
           state
           |> active_variants()
-          |> Enum.flat_map(&[event: {pad, %TrackVariantResumed{variant: &1}}])
+          |> Enum.flat_map(
+            &[
+              event: {pad, %TrackVariantResumed{variant: &1}},
+              event:
+                {pad,
+                 %TrackVariantBandwidth{
+                   variant: &1,
+                   bandwidth: Map.get(state.variants_bandwidth, &1)
+                 }}
+            ]
+          )
 
         [caps: {pad, %Membrane.RTP{}}] ++ actions
       else
@@ -135,6 +147,15 @@ defmodule Membrane.RTC.Engine.Tee do
 
     {{:ok, actions}, state}
   end
+
+  @impl true
+  def handle_event(
+        Pad.ref(:input, {track_id, _variant}),
+        %TrackVariantBandwidth{variant: variant, bandwidth: bandwidth} = event,
+        _ctx,
+        state
+      ),
+      do: {{:ok, forward: event}, put_in(state, [:variants_bandwidth, variant], bandwidth)}
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do
