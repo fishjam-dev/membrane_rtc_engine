@@ -229,7 +229,7 @@ if Enum.all?(
 
       directory = Path.join(state.output_directory, track.stream_id)
 
-      spec = hls_structure(link_builder, track, state)
+      structure = hls_structure(link_builder, track, state)
 
       state =
         if MapSet.member?(state.stream_ids, track.stream_id) do
@@ -242,25 +242,20 @@ if Enum.all?(
           %{state | stream_ids: MapSet.put(state.stream_ids, track.stream_id)}
         end
 
-      {[spec: {spec, []}], state}
+      {[spec: {structure, []}], state}
     end
 
     defp hls_structure(link_builder, %Track{encoding: :OPUS} = track, state) do
       [
-        child({:track_receiver, track.id}, %TrackReceiver{
+        link_builder
+        |> child({:track_receiver, track.id}, %TrackReceiver{
           track: track,
           initial_target_variant: :high
-        }),
-        child({:depayloader, track.id}, get_depayloader(track)),
-        child({:opus_decoder, track.id}, Membrane.Opus.Decoder),
-        child({:aac_encoder, track.id}, Membrane.AAC.FDK.Encoder),
-        child({:aac_parser, track.id}, %Membrane.AAC.Parser{out_encapsulation: :none}),
-        link_builder
-        |> get_child({:track_receiver, track.id})
-        |> get_child({:depayloader, track.id})
-        |> get_child({:opus_decoder, track.id})
-        |> get_child({:aac_encoder, track.id})
-        |> get_child({:aac_parser, track.id})
+        })
+        |> child({:depayloader, track.id}, get_depayloader(track))
+        |> child({:opus_decoder, track.id}, Membrane.Opus.Decoder)
+        |> child({:aac_encoder, track.id}, Membrane.AAC.FDK.Encoder)
+        |> child({:aac_parser, track.id}, %Membrane.AAC.Parser{out_encapsulation: :none})
         |> via_in(Pad.ref(:input, {:audio, track.id}),
           options: [
             encoding: :AAC,
@@ -278,21 +273,18 @@ if Enum.all?(
       link_to_transcoder = create_transcoder_link(state.transcoding_config, track.id)
 
       [
-        child({:track_receiver, track.id}, %TrackReceiver{
+        link_builder
+        |> child({:track_receiver, track.id}, %TrackReceiver{
           track: track,
           initial_target_variant: :high,
           keyframe_request_interval: state.target_segment_duration
-        }),
-        child({:depayloader, track.id}, get_depayloader(track)),
-        child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{
+        })
+        |> child({:depayloader, track.id}, get_depayloader(track))
+        |> child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{
           alignment: :au,
           attach_nalus?: true,
           framerate: state.framerate
-        }),
-        link_builder
-        |> get_child({:track_receiver, track.id})
-        |> get_child({:depayloader, track.id})
-        |> get_child({:video_parser, track.id})
+        })
         |> then(link_to_transcoder)
         |> via_in(Pad.ref(:input, {:video, track.id}),
           options: [

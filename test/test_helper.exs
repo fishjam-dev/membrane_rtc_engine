@@ -1,1 +1,1 @@
-ExUnit.start(capture_log: false, exclude: [:skip])
+ExUnit.start(capture_log: true, exclude: [:skip])
