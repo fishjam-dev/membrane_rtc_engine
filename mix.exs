@@ -1,8 +1,8 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.8.2"
-  @github_url "https://github.com/membraneframework/membrane_rtc_engine"
+  @version "0.9.0"
+  @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
 
   def project do
     [
@@ -21,8 +21,18 @@ defmodule Membrane.RTC.Engine.MixProject do
       # docs
       name: "Membrane RTC Engine",
       source_url: @github_url,
-      homepage_url: "https://membraneframework.org",
+      homepage_url: "https://membrane.stream",
       docs: docs(),
+
+      # test coverage
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
+      ],
 
       # dialyzer
       # this is because of optional dependencies
@@ -80,7 +90,9 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_ffmpeg_swscale_plugin, "~> 0.11.0", optional: true},
 
       # Test deps
+      {:membrane_file_plugin, "~> 0.13.0"},
       {:membrane_realtimer_plugin, "~> 0.6.0", only: :test, runtime: false},
+      {:excoveralls, "~> 0.15.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
@@ -100,7 +112,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @github_url,
-        "Membrane Framework Homepage" => "https://membraneframework.org"
+        "Membrane Framework Homepage" => "https://membrane.stream"
       }
     ]
   end
@@ -163,7 +175,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       "guides/vad.md",
 
       # internal docs
-      "internal_docs/media_events.md",
+      "internal_docs/webrtc_media_events.md",
       "internal_docs/protocol.md",
       "internal_docs/webrtc_endpoint.md",
       "internal_docs/simulcast.md": [filename: "internal_simulcast"],

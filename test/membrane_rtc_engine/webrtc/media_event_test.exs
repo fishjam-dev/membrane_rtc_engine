@@ -1,7 +1,7 @@
-defmodule Membrane.RTC.Engine.MediaEventTest do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
   use ExUnit.Case, async: true
 
-  alias Membrane.RTC.Engine.MediaEvent
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent
 
   describe "deserializing join media event" do
     test "creates proper map when event is valid" do

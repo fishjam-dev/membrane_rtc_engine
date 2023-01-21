@@ -1,6 +1,11 @@
-version: 2.0
+version: 2.1
+orbs:
+  codecov: codecov/codecov@3.2.4
+
+
 jobs:
   test:
+    resource_class: large
     docker:
       - image: membraneframeworklabs/docker_membrane:latest
         environment:
@@ -11,9 +16,11 @@ jobs:
     steps:
       - checkout
       - run: mix deps.get
-      - run: mix test
+      - run: mix coveralls.json
+      - codecov/upload
 
   lint:
+    resource_class: large
     docker:
       - image: membraneframeworklabs/docker_membrane:latest
         environment:
@@ -31,6 +38,7 @@ jobs:
       - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
 
   integration_test:
+    resource_class: large
     docker:
       - image: membraneframeworklabs/docker_membrane:latest
         environment:
@@ -49,7 +57,6 @@ jobs:
       - run: cd ./integration_test/test_videoroom && mix compile --force --warnings-as-errors
       - run: cd ./integration_test/test_videoroom && npm ci --prefix=assets
       - run: cd ./integration_test/test_videoroom && mix test
-
 
 
 workflows:

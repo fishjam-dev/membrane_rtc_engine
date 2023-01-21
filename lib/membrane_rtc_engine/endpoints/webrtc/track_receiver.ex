@@ -42,6 +42,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   alias Membrane.RTC.Engine.Track
 
   @typedoc """
+  Reason of track variant switch.
+
+  * `:low_bandwidth` - bandwidth was too low to maintain current track quality
+  * `:variant_inactive` - variant became inactive
+  * `:other` - it was hard to determine the exact reason
+  """
+  @type variant_switch_reason() :: :low_bandwidth | :variant_inactive | :other
+
+  @typedoc """
   Messages that can be sent to TrackReceiver to control its behavior.
   """
   @type control_messages() :: set_target_variant() | set_negotiable?()
@@ -70,7 +79,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @typedoc """
   Notification emitted whenever TrackReceiver starts receiving a new track variant.
   """
-  @type variant_switched() :: {:variant_switched, Track.variant()}
+  @type variant_switched() :: {:variant_switched, Track.variant(), variant_switch_reason()}
 
   @typedoc """
   Notfication emitted when TrackReceiver receives an update on voice activity
@@ -127,6 +136,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
                 This value can later be changed by sending a `set_negotiable?/0` control message to this Element.
                 """
+              ],
+              telemetry_label: [
+                spec: Membrane.TelemetryMetrics.label(),
+                default: [],
+                description: "Label passed to Membrane.TelemetryMetrics functions"
               ]
 
   def_input_pad :input,
@@ -146,8 +160,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         initial_target_variant: initial_target_variant,
         keyframe_request_interval: keyframe_request_interval,
         connection_allocator_module: connection_allocator_module,
-        allocation_negotiable?: allocation_negotiable?
+        allocation_negotiable?: allocation_negotiable?,
+        telemetry_label: telemetry_label
       }) do
+    telemetry_label = telemetry_label ++ [track_id: "#{track.id}"]
+    Membrane.RTC.Utils.register_variant_switched_event(telemetry_label)
+
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
 
     selector =
@@ -166,7 +184,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       needs_reconfiguration: false,
       keyframe_request_interval: keyframe_request_interval,
       connection_allocator: connection_allocator,
-      connection_allocator_module: connection_allocator_module
+      connection_allocator_module: connection_allocator_module,
+      telemetry_label: telemetry_label
     }
 
     {[], state}
@@ -189,10 +208,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(_pad, %TrackVariantSwitched{new_variant: new_variant} = event, _ctx, state) do
+  def handle_event(_pad, %TrackVariantSwitched{} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    selector = VariantSelector.set_current_variant(state.selector, new_variant)
-    actions = [notify_parent: {:variant_switched, new_variant}]
+
+    Membrane.RTC.Utils.emit_variant_switched_event(
+      event.new_variant,
+      event.reason,
+      state.telemetry_label
+    )
+
+    selector = VariantSelector.set_current_variant(state.selector, event.new_variant)
+    actions = [notify_parent: {:variant_switched, event.new_variant, event.reason}]
     state = %{state | selector: selector, needs_reconfiguration: true}
     {actions, state}
   end
@@ -330,8 +356,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   defp maybe_request_keyframe(_current_variant),
     do: [event: {:input, %Membrane.KeyframeRequestEvent{}}]
 
-  defp handle_selector_action({:request, variant}),
-    do: [event: {:input, %RequestTrackVariant{variant: variant}}]
+  defp handle_selector_action({:request, variant, reason}),
+    do: [event: {:input, %RequestTrackVariant{variant: variant, reason: reason}}]
 
   defp handle_selector_action(_other_action), do: []
 end

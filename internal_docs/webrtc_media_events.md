@@ -1,6 +1,6 @@
-# Media Events
+# WebRTC Media Events
 
-This document described all messages exchanged between the RTC Engine and a client.
+This document described all messages exchanged between the WebRTC Endpoint and a client.
 In general, each media event has to be sent in the form:
 
 ```json
@@ -16,22 +16,22 @@ where the name of the event is the value of the `type` field, while `data` shoul
 
 Below you can find a summary of all media events defined inside `membrane_rtc_engine`
 
-### Generic RTC Engine messages
+### Generic WebRTC Endpoint messages
 
-Messages used by any RTC Engine plugin
+Messages used by any WebRTC Endpoint plugin
 
-#### RTC Engine receives these types of `media_events` from client:
+#### WebRTC Endpoint receives these types of `media_events` from client:
 | Name                                        | Description                                                   |
 | ------------------------------------------- | ------------------------------------------------------------- |
-| [join](#join)                               | sent when peer join RTC Engine                     |
-| [leave](#leave)                             | sent when peer leaves RTC Engine                    |
+| [join](#join)                               | sent when peer join WebRTC Endpoint                     |
+| [leave](#leave)                             | sent when peer leaves WebRTC Endpoint                    |
 | [updatePeerMetadata](#updatepeermetadata)   | contains new metadata of a peer                         |
 | [updateTrackMetadata](#updatetrackmetadata) | contains new metadata of a track                        |
 | [custom](#custom)                           | message forwarded to the endpoint associated with the peer |
 
 
 
-#### RTC Engine sends these types of messages to the client:
+#### WebRTC Endpoint sends these types of messages to the client:
 
 | Name                              | Description                                                                             |
 | --------------------------------- | --------------------------------------------------------------------------------------- |
@@ -41,9 +41,9 @@ Messages used by any RTC Engine plugin
 | [trackUpdated](#trackupdated)     | contains new metadata of a track                                                        |
 | [tracksAdded](#tracksadded)       | sent when some tracks were added by some peer                                           |
 | [tracksRemoved](#tracksremoved)   | sent when some tracks were removed by some peer                                         |
-| [peerJoined](#peerjoined)         | sent after a new peer has joined the RTC Engine                                         |
-| [peerAccepted](#peeraccepted)     | sent to a peer after he joins the RTC Engine                                            |
-| [peerLeft](#peerleft)             | sent when some peer lefts the RTC Engine                                                |
+| [peerJoined](#peerjoined)         | sent after a new peer has joined the WebRTC Endpoint                                         |
+| [peerAccepted](#peeraccepted)     | sent to a peer after he joins the WebRTC Endpoint                                            |
+| [peerLeft](#peerleft)             | sent when some peer lefts the WebRTC Endpoint                                                |
 | [peerRemoved](#peerremoved)       | sent when peer is forcibly removed by the server                                        |
 | [error](#error)                   | Notifies about an error that occurred                                                   |
 | [custom](#custom-1)               | custom message forwarded from endpoint to client                                        |
@@ -72,11 +72,11 @@ Messages used by any RTC Engine plugin
 | [vadNotification](#vadnotification)     | An update on Voice Activity Detection                             |
 
 
-## Client -> RTC Engine
+## Client -> WebRTC Endpoint
 
 ### `join`
 
-* Sent when peer want to join RTC Engine. It contains only peer's metadata
+* Sent when peer want to join WebRTC Endpoint. It contains only peer's metadata
 
   ```json
   {
@@ -86,7 +86,7 @@ Messages used by any RTC Engine plugin
 
 ### `leave`
 
-* Sent when peer leaves RTC Engine. It contains no data
+* Sent when peer leaves WebRTC Endpoint. It contains no data
 
   ```json
   {}
@@ -115,13 +115,13 @@ Messages used by any RTC Engine plugin
 
 ### `custom`
 
-* A black-box for a message that RTC Engine will forward to the endpoint associated with the peer who sent the message.
+* A black-box for a message that WebRTC Endpoint will forward to the endpoint associated with the peer who sent the message.
 
   ```json
   any
   ```
 
-## RTC Engine -> Client
+## WebRTC Endpoint -> Client
 
 ### `tracksPriority`
 
@@ -194,7 +194,7 @@ Messages used by any RTC Engine plugin
 
 ### `peerJoined`
 
-* Message sent to all peers in the room after a new peer has joined RTC Engine.
+* Message sent to all peers in the room after a new peer has joined WebRTC Endpoint.
   It contains id and metadata of the new peer.
 
   ```json
@@ -208,7 +208,7 @@ Messages used by any RTC Engine plugin
 
 ### `peerAccepted`
 
-* Message sent to the peer after he's joined the RTC Engine. It contains his id and a list of information about peers in the Engine
+* Message sent to the peer after he's joined the WebRTC Endpoint. It contains his id and a list of information about peers in the Engine
   (id, metadata and a `trackIdToMetadata` like seen in `tracksAdded`)
 
   ```json
@@ -251,7 +251,8 @@ Messages used by any RTC Engine plugin
 
 ### `custom`
 
-* A black-box for a message that the RTC Engine will forward to the client.
+* WARNING!! This type of media event is deprecated - will soon be removed.
+* A black-box for a message that the WebRTC Endpoint will forward to the client.
 
   ```json
   any
@@ -395,12 +396,17 @@ Messages used by any RTC Engine plugin
 ### `encodingSwitched`
 
 * Informs that track with id `trackId` belonging to peer with id `peerId` will be sent in encoding `encoding` now.
+The meaning is as follows:
+* "low_bandwidth" - we no longer have enough bandwidth to maintain current track quality
+* "encoding_inactive" - encoding became inactive
+* "other" - it was hard to determine exact reason of encoding switch 
 
   ```json
   {
     peerId: peer_id,
     trackId: track_id,
-    encoding: encoding
+    encoding: encoding,
+    reason: "low_bandwidth" | "encoding_inactive" | "other"
   }
   ```
 

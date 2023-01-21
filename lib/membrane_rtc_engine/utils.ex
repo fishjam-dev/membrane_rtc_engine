@@ -4,9 +4,13 @@ defmodule Membrane.RTC.Utils do
   require OpenTelemetry.Tracer, as: Tracer
   require Membrane.TelemetryMetrics
 
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
+  alias Membrane.RTC.Engine.Track
   alias Membrane.RTP.PayloadFormatResolver
 
   @rtp_packet_arrival_event [Membrane.RTC.Engine, :RTP, :packet, :arrival]
+  @variant_switched_event [Membrane.RTC.Engine, :RTP, :variant, :switched]
+  @bandwidth_event [Membrane.RTC.Engine, :peer, :bandwidth]
 
   # This is workaround to make dialyzer happy.
   # In other case we would have to specify all possible CallbackContext types here.
@@ -105,6 +109,18 @@ defmodule Membrane.RTC.Utils do
     :ok
   end
 
+  @spec register_bandwidth_event(Membrane.TelemetryMetrics.label()) :: :ok
+  def register_bandwidth_event(telemetry_label) do
+    Membrane.TelemetryMetrics.register(@bandwidth_event, telemetry_label)
+    :ok
+  end
+
+  @spec register_variant_switched_event(Membrane.TelemetryMetrics.label()) :: :ok
+  def register_variant_switched_event(telemetry_label) do
+    Membrane.TelemetryMetrics.register(@variant_switched_event, telemetry_label)
+    :ok
+  end
+
   @spec emit_packet_arrival_event(
           binary(),
           :VP8 | :H264 | :OPUS,
@@ -114,6 +130,34 @@ defmodule Membrane.RTC.Utils do
     Membrane.TelemetryMetrics.execute(
       @rtp_packet_arrival_event,
       packet_measurements(payload, codec),
+      %{},
+      telemetry_label
+    )
+
+    :ok
+  end
+
+  @spec emit_bandwidth_event(float(), Membrane.TelemetryMetrics.label()) :: :ok
+  def emit_bandwidth_event(bandwidth, telemetry_label) do
+    Membrane.TelemetryMetrics.execute(
+      @bandwidth_event,
+      %{bandwidth: bandwidth},
+      %{},
+      telemetry_label
+    )
+
+    :ok
+  end
+
+  @spec emit_variant_switched_event(
+          Track.variant(),
+          TrackReceiver.variant_switch_reason(),
+          Membrane.TelemetryMetrics.label()
+        ) :: :ok
+  def emit_variant_switched_event(variant, reason, telemetry_label) do
+    Membrane.TelemetryMetrics.execute(
+      @variant_switched_event,
+      %{variant: variant, reason: reason},
       %{},
       telemetry_label
     )
