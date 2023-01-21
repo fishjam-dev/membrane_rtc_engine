@@ -29,10 +29,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # they are not included in PLT
       dialyzer: [
         plt_add_apps: [
-          :ex_sdp,
-          :membrane_rtp_plugin,
-          :membrane_ice_plugin,
-          :membrane_webrtc_plugin
+          :membrane_http_adaptive_stream_plugin
         ]
       ]
     ]
@@ -68,21 +65,22 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:statistics, "~> 0.6.0"},
 
-      # FIXME: update HLS stuff
       # Optional deps for HLS endpoint
-      # {:membrane_http_adaptive_stream_plugin, "~> 0.8.1", optional: true},
-      # {:membrane_mp4_plugin, "~> 0.16.1", optional: true},
-      # {:membrane_aac_plugin, "~> 0.12.0", optional: true},
-      # {:membrane_aac_fdk_plugin, "~> 0.13.0", optional: true},
-      # {:membrane_opus_plugin, "~> 0.15.0", optional: true},
-      # {:membrane_h264_ffmpeg_plugin, "~> 0.21.5", optional: true},
-      # {:membrane_framerate_converter_plugin, "~> 0.5.0", optional: true},
-      # {:membrane_ffmpeg_swscale_plugin, "~> 0.10.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.10.0", optional: true},
+      {:membrane_mp4_plugin, "~> 0.18.0", optional: true},
+      {:membrane_aac_plugin, "~> 0.13.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.14.0", optional: true},
+      {:membrane_opus_plugin, "~> 0.16.0", optional: true},
+      {:membrane_h264_ffmpeg_plugin,
+       github: "membraneframework/membrane_h264_ffmpeg_plugin",
+       branch: "bugfix/parser-input-stream-format",
+       optional: true,
+       override: true},
+      {:membrane_framerate_converter_plugin, "~> 0.6.0", optional: true},
+      {:membrane_ffmpeg_swscale_plugin, "~> 0.11.0", optional: true},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.13.0", only: :test},
-      # FIXME: put back for HLS tests
-      # {:membrane_realtimer_plugin, "~> 0.5.0", only: :test, runtime: false},
+      {:membrane_realtimer_plugin, "~> 0.6.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
