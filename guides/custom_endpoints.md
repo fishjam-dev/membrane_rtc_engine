@@ -73,17 +73,17 @@ defmodule RecordingEndpoint do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    stream_format: :any,
+    accepted_format: _any,
     availability: :on_request
 
   @impl true
-  def handle_init(opts) do
+  def handle_init(_ctx, opts) do
     state = %{
-      directory_path: opts.directory_path,
-      rtc_engine: opts.rtc_engine
+      output_dir_path: opts.output_dir_path,
+      rtc_engine: opts.rtc_engine,
     }
 
-    {:ok, state}
+    {[], state}
   end
 end
 ```
@@ -103,46 +103,40 @@ used for serializing incoming Membrane stream
 
 For each incoming track we will create separate serializer and sink.
 
-## Subscribing for a track
+## Subscribing to a track
 
 Whenever some endpoint publishes its tracks, all other endpoints receive a message
 in form of `{:new_tracks, tracks}` where `tracks` is a list of `t:Membrane.RTC.Engine.Track.t/0`.
 
 To subscribe to any of the published tracks, an endpoint has to call `Membrane.RTC.Engine.subscribe/4`. 
 
-After subscribing for a track the endpoint will be notified about its readiness in
+After subscribing to a track, the endpoint will be notified about its readiness in
 `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
 callback can look like this
 
 ```elixir
 @impl true
 def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-  children = %{
-    {:track_receiver, track_id} => %TrackReceiver{
+  structure = [
+    bin_input(pad)
+    |> child({:track_receiver, track_id}, %TrackReceiver{
       track: Map.fetch!(state.tracks, track_id),
       initial_target_variant: :high
-    },
-    {:serializer, track_id} => Membrane.Stream.Serializer,
-    {:sink, track_id} => %Membrane.File.Sink{
+    })
+    |> child({:serializer, track_id}, Membrane.Stream.Serializer)
+    |> child({:sink, track_id}, %Membrane.File.Sink{
       location: Path.join(state.output_dir_path, track_id)
-    }
-  }
-
-  links = [
-    link_bin_input(pad)
-    |> to({:track_receiver, track_id})
-    |> to({:serializer, track_id})
-    |> to({:sink, track_id})
+    })
   ]
 
-  {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+  {[spec: structure], state}
 end
 ```
 
 We simply link our input pad on which we will receive media data to the track receiver, 
 serializer and then to the sink.
 
-The endpoint will be also notified when some tracks it subscribed for are removed with
+The endpoint will be also notified when some tracks it subscribed to are removed with
 `{:removed_tracks, tracks}` message.
 
 > #### Deeper dive into TrackReciver {: .tip}
@@ -201,41 +195,35 @@ defmodule RecordingEndpoint do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    stream_format: :any,
+    accepted_format: _any,
     availability: :on_request
 
   @impl true
-  def handle_init(opts) do
+  def handle_init(_ctx, opts) do
     state = %{
       output_dir_path: opts.output_dir_path,
       rtc_engine: opts.rtc_engine,
       tracks: %{}
     }
 
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-    children = %{
-      {:track_receiver, track_id} => %TrackReceiver{
+    structure = [
+      bin_input(pad)
+      |> child({:track_receiver, track_id}, %TrackReceiver{
         track: Map.fetch!(state.tracks, track_id),
         initial_target_variant: :high
-      },
-      {:serializer, track_id} => Membrane.Stream.Serializer,
-      {:sink, track_id} => %Membrane.File.Sink{
+      })
+      |> child({:serializer, track_id}, Membrane.Stream.Serializer)
+      |> child({:sink, track_id}, %Membrane.File.Sink{
         location: Path.join(state.output_dir_path, track_id)
-      }
-    }
-
-    links = [
-      link_bin_input(pad)
-      |> to({:track_receiver, track_id})
-      |> to({:serializer, track_id})
-      |> to({:sink, track_id})
+      })
     ]
 
-    {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+    {[spec: structure], state}
   end
 
   @impl true
@@ -246,17 +234,17 @@ defmodule RecordingEndpoint do
       {:sink, track_id}
     ]
 
-    {{:ok, remove_child: children}, state}
+    {[remove_child: children], state}
   end
 
   @impl true
-  def handle_other({:new_tracks, tracks}, ctx, state) do
+  def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
-    Enum.reduce_while(tracks, {:ok, state}, fn track, {:ok, state} ->
+    Enum.reduce_while(tracks, {[], state}, fn track, {[], state} ->
       case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
         :ok ->
-          {:cont, {:ok, update_in(state, [:tracks], &Map.put(&1, track.id, track))}}
+          {:cont, {[], update_in(state, [:tracks], &Map.put(&1, track.id, track))}}
 
         {:error, :invalid_track_id} ->
           Membrane.Logger.warn("""
@@ -264,7 +252,7 @@ defmodule RecordingEndpoint do
           It had to be removed just after publishing it. Ignoring.
           """)
 
-          {:cont, {:ok, state}}
+          {:cont, {[], state}}
 
         {:error, reason} ->
           raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
@@ -273,8 +261,8 @@ defmodule RecordingEndpoint do
   end
 
   @impl true
-  def handle_other({:remove_tracks, []}, _ctx, state) do
-    {:ok, state}
+  def handle_parent_notification({:remove_tracks, _tracks}, _ctx, state) do
+    {[], state}
   end
 end
 ```
