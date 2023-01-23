@@ -401,7 +401,8 @@ defmodule Membrane.RTC.Engine do
   def handle_terminate_request(ctx, state) do
     {actions, state} =
       Enum.flat_map_reduce(state.endpoints, state, fn {endpoint_id, _endpoint}, state ->
-        handle_remove_endpoint(endpoint_id, ctx, state)
+        {_status, actions, state} = handle_remove_endpoint(endpoint_id, ctx, state)
+        {actions, state}
       end)
 
     {actions ++ [terminate: :normal], state}

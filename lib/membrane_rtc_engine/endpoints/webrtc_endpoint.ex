@@ -273,7 +273,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:ok, connection_prober} = state.connection_allocator_module.create()
 
     Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
-      state.connection_allocator_module.destroy(state.connection_prober)
+      state.connection_allocator_module.destroy(connection_prober)
     end)
 
     log_metadata = state.log_metadata ++ [webrtc_endpoint: endpoint_id]

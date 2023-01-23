@@ -227,10 +227,10 @@ defmodule RecordingEndpoint do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:output, track_id), _ctx, state) do
+  def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
     children = [
       {:track_receiver, track_id},
-      {:serialized, track_id},
+      {:serializer, track_id},
       {:sink, track_id}
     ]
 
@@ -262,6 +262,12 @@ defmodule RecordingEndpoint do
 
   @impl true
   def handle_parent_notification({:remove_tracks, _tracks}, _ctx, state) do
+    {[], state}
+  end
+
+  @impl true
+  def handle_parent_notification(_msg, _ctx, state) do
+    # ignore all other notifications
     {[], state}
   end
 end
