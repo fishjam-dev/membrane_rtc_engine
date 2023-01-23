@@ -935,19 +935,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_variant_bitrates(track, raw_variant_bitrates) do
     # assume that bitrates was passed in correct format
     # (i.e. map or number for simulcast tracks, number for non simulcast tracks)
-    if not is_nil(raw_variant_bitrates) do
-      case raw_variant_bitrates do
-        bandwidth when is_number(bandwidth) ->
-          %{high: bandwidth}
+    if is_nil(raw_variant_bitrates),
+      do: raise("Bitrates of this track's variants have not been set")
 
-        variant_bitrates ->
-          track.variants
-          |> Enum.filter(&Map.has_key?(variant_bitrates, to_rid(&1)))
-          |> Enum.map(&{&1, Map.get(variant_bitrates, to_rid(&1))})
-          |> Map.new()
-      end
-    else
-      raise "Bitrates of this track's variants have not been set"
+    case raw_variant_bitrates do
+      bandwidth when is_number(bandwidth) ->
+        %{high: bandwidth}
+
+      variant_bitrates ->
+        track.variants
+        |> Enum.filter(&Map.has_key?(variant_bitrates, to_rid(&1)))
+        |> Enum.map(&{&1, Map.get(variant_bitrates, to_rid(&1))})
+        |> Map.new()
     end
   end
 

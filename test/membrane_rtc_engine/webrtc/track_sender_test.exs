@@ -17,6 +17,12 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   @variants [:high, :medium, :low]
   @stream_id "stream1"
   @track_origin "generated"
+  @default_bitrates_video %{
+    high: 1_500,
+    medium: 500,
+    low: 150
+  }
+  @default_bitrates_audio %{high: 50}
 
   describe "TrackSender" do
     test "adds `is_keyframe` flag to each buffer" do
@@ -174,7 +180,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
     children = [
       source: %Source{caps: %Membrane.RTP{}, output: source_buffers},
-      track_sender: %TrackSender{track: track},
+      track_sender: %TrackSender{track: track, variant_bitrates: @default_bitrates_audio},
       sink: Sink
     ]
 
@@ -216,7 +222,9 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
     actions = [
       spec: %Membrane.ParentSpec{
-        children: [track_sender: %TrackSender{track: track}],
+        children: [
+          track_sender: %TrackSender{track: track, variant_bitrates: @default_bitrates_video}
+        ],
         links: variant_links ++ track_sender_links
       }
     ]
