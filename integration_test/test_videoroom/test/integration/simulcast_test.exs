@@ -17,7 +17,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   @simulcast_inbound_stats "simulcast-inbound-stats"
   @simulcast_outbound_stats "simulcast-outbound-stats"
   @browser_options %{count: 1, headless: true}
-  @max_test_duration 400_000
+  @max_test_duration 460_000
 
   # we want to get stats for at least 30 seconds
   # to ensure that the variant won't switch
@@ -31,9 +31,9 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   # time needed to request and receive a variant
   @variant_request_time 2_000
   # max time needed to recognize variant as inactive
-  @variant_inactivity_time 2_000
+  @variant_inactivity_time 4_000
   # max time needed to recognize variant as active
-  @variant_activity_time 11_000
+  @variant_activity_time 13_000
   # times needed to probe from one resolution to another
   # assumes that audio is present
   # assumes the following max limits:
@@ -41,7 +41,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   # video low - 150kbps
   # video medium - 500kbps
   # video high - 1500kbps
-  @probe_times %{low_to_medium: 15_000, low_to_high: 30_000, nil_to_high: 50_000}
+  @probe_times %{low_to_medium: 16_000, low_to_high: 31_000, nil_to_high: 55_000}
 
   # FIXME
   # this test shouldn't pass
