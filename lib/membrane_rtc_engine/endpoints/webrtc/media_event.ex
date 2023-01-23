@@ -257,6 +257,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     end
   end
 
+  defp decode_custom_media_event(%{"type" => "setTrackVariantBitrates"} = event) do
+    case event do
+      %{
+        "type" => "setTrackVariantBitrates",
+        "data" => %{
+          "trackId" => track_id,
+          "variant_bitrates" => variant_bitrates
+        }
+      } ->
+        {:ok,
+         %{
+           type: :set_track_variant_bitrates,
+           data: %{
+             track_id: track_id,
+             variant_bitrates: variant_bitrates
+           }
+         }}
+
+      _other ->
+        {:error, :incalid_media_event}
+    end
+  end
+
   defp decode_custom_media_event(%{"type" => "sdpOffer"} = event) do
     case event do
       %{

@@ -316,6 +316,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     end
   end
 
+  @impl true
+  def handle_other({:variant_bitrates, variant_bitrates}, ctx, state) do
+    state = %{state | variant_bitrates: Map.merge(state.variant_bitrates, variant_bitrates)}
+
+    actions =
+      ctx.pads
+      |> Enum.flat_map(fn
+        {{Membrane.Pad, :output, {_track_id, variant}} = pad, _pad_data} ->
+          case Map.get(variant_bitrates, variant) do
+            nil -> []
+            bitrate -> [event: {pad, %TrackVariantBitrate{variant: variant, bitrate: bitrate}}]
+          end
+
+        _other ->
+          []
+      end)
+
+    {{:ok, actions}, state}
+  end
+
   defp check_variant_status(variant, tracker, state) do
     pad = Pad.ref(:output, {state.track.id, variant})
 
