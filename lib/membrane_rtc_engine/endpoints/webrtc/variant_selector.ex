@@ -143,11 +143,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   @doc """
-  Updates bitrate assigned to a variant in the selector.
+  Updates bitrate assigned to a variant in the selector. Expected bitrate unit is kbps.
   """
   @spec update_variant_bitrate(t(), Track.variant(), non_neg_integer()) :: t()
   def update_variant_bitrate(%__MODULE__{} = selector, variant, bitrate) do
-    variant_bitrates = %{selector.variant_bitrates | variant => bitrate}
+    variant_bitrates = %{selector.variant_bitrates | variant => bitrate * 1024}
     %{selector | variant_bitrates: variant_bitrates}
   end
 

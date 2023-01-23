@@ -263,7 +263,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
         "type" => "setTrackVariantBitrates",
         "data" => %{
           "trackId" => track_id,
-          "variant_bitrates" => variant_bitrates
+          "variantBitrates" => variant_bitrates
         }
       } ->
         {:ok,
