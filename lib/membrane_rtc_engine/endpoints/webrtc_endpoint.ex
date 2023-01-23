@@ -780,20 +780,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
-    track_id_to_track_metadata =
+    map_track_info = fn map ->
       data.track_id_to_track_info
-      |> Enum.map(fn {id, track_info} -> {id, track_info.track_metadata} end)
+      |> Enum.map(map)
       |> Map.new()
+    end
 
-    mid_to_track_id =
-      data.track_id_to_track_info
-      |> Enum.map(fn {id, track_info} -> {track_info.mid, id} end)
-      |> Map.new()
+    track_id_to_track_metadata =
+      map_track_info.(fn {id, track_info} -> {id, track_info.track_metadata} end)
 
     track_id_to_bandwidth =
-      data.track_id_to_track_info
-      |> Enum.map(fn {id, track_info} -> {id, track_info.max_bandwidth} end)
-      |> Map.new()
+      map_track_info.(fn {id, track_info} -> {id, track_info.max_bandwidth} end)
+
+    mid_to_track_id = map_track_info.(fn {id, track_info} -> {track_info.mid, id} end)
 
     state =
       state
@@ -936,9 +935,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_variant_bitrates(track, raw_variant_bitrates) do
     # assume that bitrates was passed in correct format
     # (i.e. map or number for simulcast tracks, number for non simulcast tracks)
-    with track_variant_bitrates when not is_nil(track_variant_bitrates) <-
-           raw_variant_bitrates do
-      case track_variant_bitrates do
+    if not is_nil(raw_variant_bitrates) do
+      case raw_variant_bitrates do
         bandwidth when is_number(bandwidth) ->
           %{high: bandwidth}
 
@@ -949,7 +947,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
           |> Map.new()
       end
     else
-      _else -> raise "Bitrates of this track's variants have not been set"
+      raise "Bitrates of this track's variants have not been set"
     end
   end
 

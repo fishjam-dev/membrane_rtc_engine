@@ -276,7 +276,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
          }}
 
       _other ->
-        {:error, :incalid_media_event}
+        {:error, :invalid_media_event}
     end
   end
 
@@ -292,7 +292,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
           "trackIdToTrackInfo" => track_id_to_track_info
         }
       } ->
-        # max_bandwidth still has strings as keys
+        # max_bandwidth map still has rid strings as keys (e.g. %{"h" => 1500})
         decoded_track_id_to_track_info =
           track_id_to_track_info
           |> Enum.map(fn {id, track_info} ->

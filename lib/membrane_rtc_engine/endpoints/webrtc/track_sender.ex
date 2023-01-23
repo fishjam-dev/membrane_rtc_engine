@@ -40,8 +40,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
               ],
               variant_bitrates: [
                 spec: %{optional(Track.variant()) => non_neg_integer()},
-                description:
-                  "Bitrate of each variant of track maintained by this #{inspect(__MODULE__)}"
+                description: "Bitrate of each variant of track maintained by this sender"
               ],
               telemetry_label: [
                 spec: Membrane.TelemetryMetrics.label(),
