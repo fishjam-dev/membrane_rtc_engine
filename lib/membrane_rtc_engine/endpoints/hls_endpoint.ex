@@ -189,109 +189,22 @@ if Enum.all?(
         mixer_config: opts.mixer_config,
         broadcast_mode: opts.broadcast_mode,
         manifest_module: opts.manifest_module,
-        video_layout: nil,
+        video_layout_state: nil,
+        video_layout_tracks_added: %{},
         stream_beginning: nil,
         storage_function: opts.storage_function
       }
 
-      video_layout =
+      video_layout_state =
         if is_nil(opts.mixer_config),
           do: nil,
           else: state.mixer_config.video.layout_module.init(opts.mixer_config.video.caps)
 
-      {:ok, %{state | video_layout: video_layout}}
+      {:ok, %{state | video_layout_state: video_layout_state}}
     end
 
     @impl true
-    def handle_other({:new_tracks, tracks}, ctx, state) do
-      {:endpoint, endpoint_id} = ctx.name
-
-      state =
-        Enum.reduce(tracks, state, fn track, state ->
-          case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
-            :ok ->
-              put_in(state, [:tracks, track.id], track)
-
-            {:error, :invalid_track_id} ->
-              Membrane.Logger.debug("""
-              Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
-              It had to be removed just after publishing it. Ignoring.
-              """)
-
-              state
-
-            {:error, reason} ->
-              raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
-          end
-        end)
-
-      {:ok, state}
-    end
-
-    @impl true
-    def handle_other(msg, _ctx, state) do
-      Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
-      {:ok, state}
-    end
-
-    @impl true
-    def handle_notification(
-          {:update_layout, caps},
-          {:caps_updater, track_id} = child,
-          _ctx,
-          state
-        ) do
-      track = Map.get(state.tracks, track_id)
-
-      {update_layout_action, state} = compositor_update_layout(track, caps, state)
-
-      result_actions = update_layout_action ++ [forward: {child, :layout_updated}]
-
-      {{:ok, result_actions}, state}
-    end
-
-    def handle_notification(
-          {:track_playable, content_type},
-          :hls_sink_bin,
-          _ctx,
-          state
-        ) do
-      send(state.owner, {:playlist_playable, content_type, ""})
-      {:ok, state}
-    end
-
-    def handle_notification(
-          {:track_playable, {content_type, _track_id}},
-          {:hls_sink_bin, stream_id},
-          _ctx,
-          state
-        ) do
-      send(state.owner, {:playlist_playable, content_type, stream_id})
-      {:ok, state}
-    end
-
-    def handle_notification(
-          {:cleanup, clean_function},
-          children,
-          _ctx,
-          state
-        ) do
-      case children do
-        :hls_sink_bin ->
-          send(state.owner, {:cleanup, clean_function, ""})
-
-        {:hls_sink_bin, stream_id} ->
-          send(state.owner, {:cleanup, clean_function, stream_id})
-      end
-
-      {:ok, state}
-    end
-
-    @impl true
-    def handle_notification(notification, _element, _context, state) do
-      Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
-      {:ok, state}
-    end
+    def handle_prepared_to_playing(_context, %{mixer_config: nil} = state), do: {:ok, state}
 
     @impl true
     def handle_prepared_to_playing(context, state) do
@@ -333,9 +246,16 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      {update_layout_actions, state} = compositor_update_layout(track, nil, state)
+      {update_layout_actions, state} =
+        compositor_update_layout(:remove, removed_track, nil, state)
 
       result_actions = [remove_child: children_to_remove] ++ update_layout_actions
+
+      state = %{
+        state
+        | video_layout_tracks_added: Map.delete(state.video_layout_tracks_added, track_id)
+      }
+
       {{:ok, result_actions}, state}
     end
 
@@ -363,6 +283,85 @@ if Enum.all?(
       {{:ok, [spec: spec]}, state}
     end
 
+    @impl true
+    def handle_notification(
+          {:update_layout, caps},
+          {:caps_updater, track_id} = child,
+          _ctx,
+          state
+        ) do
+      track = Map.get(state.tracks, track_id)
+      # TODO: capsy przychodzą często moze warto dodać do behavioura callback update_caps
+
+      {update_layout_action, state} =
+        if is_map_key(state.video_layout_tracks_added, track_id),
+          do: compositor_update_layout(:update, track, caps, state),
+          else: compositor_update_layout(:add, track, caps, state)
+
+      result_actions = update_layout_action ++ [forward: {child, :layout_updated}]
+      state = put_in(state, [:video_layout_tracks_added, track_id], nil)
+
+      {{:ok, result_actions}, state}
+    end
+
+    def handle_notification(
+          {:track_playable, content_type},
+          :hls_sink_bin,
+          _ctx,
+          state
+        ) do
+      send(state.owner, {:playlist_playable, content_type, ""})
+      {:ok, state}
+    end
+
+    def handle_notification(
+          {:track_playable, {content_type, _track_id}},
+          {:hls_sink_bin, stream_id},
+          _ctx,
+          state
+        ) do
+      send(state.owner, {:playlist_playable, content_type, stream_id})
+      {:ok, state}
+    end
+
+    @impl true
+    def handle_notification(notification, _element, _context, state) do
+      Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
+      {:ok, state}
+    end
+
+    @impl true
+    def handle_other({:new_tracks, tracks}, ctx, state) do
+      {:endpoint, endpoint_id} = ctx.name
+
+      state =
+        Enum.reduce(tracks, state, fn track, state ->
+          case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
+            :ok ->
+              put_in(state, [:tracks, track.id], track)
+
+            {:error, :invalid_track_id} ->
+              Membrane.Logger.debug("""
+              Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
+              It had to be removed just after publishing it. Ignoring.
+              """)
+
+              state
+
+            {:error, reason} ->
+              raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+          end
+        end)
+
+      {:ok, state}
+    end
+
+    @impl true
+    def handle_other(msg, _ctx, state) do
+      Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
+      {:ok, state}
+    end
+
     defp get_hls_sink_spec(state, track, directory) do
       hls_sink = %Membrane.HTTPAdaptiveStream.SinkBin{
         manifest_module: state.manifest_module,
@@ -385,28 +384,85 @@ if Enum.all?(
     end
 
     defp hls_links_and_children(
-           _offset,
+           offset,
            link_builder,
            %{encoding: :OPUS} = track,
-           %{mixer_config: nil} = state,
-           _ctx
+           state,
+           ctx
          ) do
-      %ParentSpec{
+      transcode_track_spec = %ParentSpec{
         children: %{
           {:track_receiver, track.id} => %TrackReceiver{
             track: track,
             initial_target_variant: :high
           },
           {:depayloader, track.id} => get_depayloader(track),
-          {:opus_decoder, track.id} => Membrane.Opus.Decoder,
-          {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+          {:opus_decoder, track.id} => Membrane.Opus.Decoder
         },
         links: [
           link_builder
           |> to({:track_receiver, track.id})
           |> to({:depayloader, track.id})
           |> to({:opus_decoder, track.id})
+        ]
+      }
+
+      attach_track_spec = attach_audio_track(offset, track, state)
+      blank_spec = generate_blank(state, ctx)
+      silence_spec = generate_silence(state, ctx)
+
+      transcode_track_spec
+      |> merge_parent_specs(attach_track_spec)
+      |> merge_parent_specs(blank_spec)
+      |> merge_parent_specs(silence_spec)
+    end
+
+    defp hls_links_and_children(
+           offset,
+           link_builder,
+           %{encoding: :H264} = track,
+           state,
+           ctx
+         ) do
+      transcode_track_spec = %ParentSpec{
+        children: %{
+          {:track_receiver, track.id} => %TrackReceiver{
+            track: track,
+            initial_target_variant: :high,
+            keyframe_request_interval: state.segment_duration.target
+          },
+          {:depayloader, track.id} => get_depayloader(track),
+          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+            alignment: :au,
+            attach_nalus?: true
+          }
+        },
+        links: [
+          link_builder
+          |> to({:track_receiver, track.id})
+          |> to({:depayloader, track.id})
+          |> to({:video_parser, track.id})
+        ]
+      }
+
+      attach_track_spec = attach_video_track(offset, track, state)
+      blank_spec = generate_blank(state, ctx)
+      silence_spec = generate_silence(state, ctx)
+
+      transcode_track_spec
+      |> merge_parent_specs(attach_track_spec)
+      |> merge_parent_specs(blank_spec)
+      |> merge_parent_specs(silence_spec)
+    end
+
+    defp attach_audio_track(_offset, track, %{mixer_config: nil} = state) do
+      %ParentSpec{
+        children: %{
+          {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
+          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
+        },
+        links: [
+          link({:opus_decoder, track.id})
           |> to({:aac_encoder, track.id})
           |> to({:aac_parser, track.id})
           |> via_in(Pad.ref(:input, {:audio, track.id}),
@@ -421,63 +477,21 @@ if Enum.all?(
       }
     end
 
-    defp hls_links_and_children(
-           offset,
-           link_builder,
-           %{encoding: :OPUS} = track,
-           state,
-           ctx
-         ) do
-      parent_spec = %ParentSpec{
-        children: %{
-          {:track_receiver, track.id} => %TrackReceiver{
-            track: track,
-            initial_target_variant: :high
-          },
-          {:depayloader, track.id} => get_depayloader(track),
-          {:opus_decoder, track.id} => Membrane.Opus.Decoder
-        },
+    defp attach_audio_track(offset, track, _state) do
+      %ParentSpec{
         links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
-          |> to({:opus_decoder, track.id})
+          link({:opus_decoder, track.id})
           |> to({:audio_filler, track.id}, Membrane.AudioFiller)
           |> via_in(Pad.ref(:input, {:extra, track.id}), options: [offset: offset])
           |> to(:audio_mixer)
         ]
       }
-
-      state
-      |> generate_blank(ctx)
-      |> merge_parent_specs(generate_silence(state, ctx))
-      |> merge_parent_specs(parent_spec)
     end
 
-    defp hls_links_and_children(
-           _offset,
-           link_builder,
-           %{encoding: :H264} = track,
-           %{mixer_config: nil} = state,
-           _ctx
-         ) do
-      %ParentSpec{
-        children: %{
-          {:track_receiver, track.id} => %TrackReceiver{
-            track: track,
-            initial_target_variant: :high
-          },
-          {:depayloader, track.id} => get_depayloader(track),
-          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
-            alignment: :au,
-            attach_nalus?: true
-          }
-        },
+    defp attach_video_track(_offset, track, %{mixer_config: nil} = state),
+      do: %ParentSpec{
         links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
-          |> to({:video_parser, track.id})
+          link({:video_parser, track.id})
           |> via_in(Pad.ref(:input, {:video, track.id}),
             options: [
               encoding: :H264,
@@ -488,51 +502,19 @@ if Enum.all?(
           |> to({:hls_sink_bin, track.stream_id})
         ]
       }
-    end
 
-    defp hls_links_and_children(
-           offset,
-           link_builder,
-           %{encoding: :H264} = track,
-           state,
-           ctx
-         ) do
-      parent_spec = %ParentSpec{
-        children: %{
-          {:track_receiver, track.id} => %TrackReceiver{
-            track: track,
-            initial_target_variant: :high,
-            keyframe_request_interval: state.segment_duration.target
-          },
-          {:depayloader, track.id} => get_depayloader(track),
-          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
-            alignment: :au,
-            attach_nalus?: true
-          },
-          {:framerate_converter, track.id} => %Membrane.FramerateConverter{
-            framerate: state.mixer_config.video.caps.framerate
-          }
-        },
+    defp attach_video_track(offset, track, _state),
+      do: %ParentSpec{
         links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
-          |> to({:video_parser, track.id})
+          link({:video_parser, track.id})
           |> to({:caps_updater, track.id}, CapsUpdater)
           |> to({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
-          |> to({:framerate_converter, track.id})
           |> via_in(Pad.ref(:input, track.id),
             options: [initial_placement: @initial_placement, timestamp_offset: offset]
           )
           |> to(:compositor)
         ]
       }
-
-      state
-      |> generate_blank(ctx)
-      |> merge_parent_specs(generate_silence(state, ctx))
-      |> merge_parent_specs(parent_spec)
-    end
 
     if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
       defp generate_silence(_state, ctx) when is_map_key(ctx.children, :silence_generator),
@@ -714,38 +696,49 @@ if Enum.all?(
       }
     end
 
-    defp compositor_update_layout(%{type: :audio}, _caps, _state), do: []
-    defp compositor_update_layout(_track, _caps, %{mixer_config: nil}), do: []
+    defp compositor_update_layout(_action, %{type: :audio}, _caps, state), do: {[], state}
 
-    defp compositor_update_layout(track, caps, state) do
-      {updated_layout, video_layout} =
-        state.mixer_config.video.layout_module.track_added(state.video_layout, track, caps)
+    defp compositor_update_layout(_action, _track, _caps, %{mixer_config: nil} = state),
+      do: {[], state}
+
+    defp compositor_update_layout(
+           action,
+           track,
+           caps,
+           %{video_layout_state: video_layout_state} = state
+         ) do
+      {updated_layout, video_layout_state} =
+        case action do
+          :add ->
+            state.mixer_config.video.layout_module.track_added(video_layout_state, track, caps)
+
+          :update ->
+            state.mixer_config.video.layout_module.track_updated(video_layout_state, track, caps)
+
+          :remove ->
+            state.mixer_config.video.layout_module.track_removed(video_layout_state, track)
+        end
 
       {layouts, transformations} =
         updated_layout
         |> Enum.map(fn {track_id, layout, transformations} ->
-          [{Pad.ref(:input, track_id), layout}, {Pad.ref(:input, track_id), transformations}]
+          {{Pad.ref(:input, track_id), layout}, {Pad.ref(:input, track_id), transformations}}
         end)
         |> Enum.unzip()
 
-      update_layout_actions =
-        update_layout_action(track, layouts, state) ++
-          update_transformations_action(track, transformations, state)
+      update_layout_actions = [
+        forward: {:compositor, {:update_transformations, transformations}},
+        forward: {:compositor, {:update_placement, layouts}}
+      ]
 
-      {update_layout_actions, %{state | video_layout: video_layout}}
+      {update_layout_actions, %{state | video_layout_state: video_layout_state}}
     end
-
-    defp update_transformations_action(_track, transformations, _state),
-      do: [forward: {:compositor, {:update_transformations, transformations}}]
-
-    defp update_layout_action(_track, placements, _state),
-      do: [forward: {:compositor, {:update_placement, placements}}]
-
-    unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
-      do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
 
     @spec default_file_storage(String.t()) :: any
     def default_file_storage(directory),
       do: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{directory: directory}
+
+    unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
+      do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
   end
 end

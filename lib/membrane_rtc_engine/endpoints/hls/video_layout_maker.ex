@@ -12,5 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
   """
   @callback init(output_format()) :: state()
   @callback track_added(state, Track.t(), caps) :: {updated_layout, state}
+  # track_updated is called when caps for specific track hqw changed
+  @callback track_updated(state, Track.t(), caps) :: {updated_layout, state}
   @callback track_removed(state, Track.t()) :: {updated_layout, state}
 end

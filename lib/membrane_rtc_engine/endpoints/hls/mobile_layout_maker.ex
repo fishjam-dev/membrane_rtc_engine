@@ -32,6 +32,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
   end
 
   @impl true
+  def track_updated(state, track, caps), do: track_added(state, track, caps)
+
+  @impl true
   def track_removed(state, track) do
     {_, new_state} = pop_in(state, [:tracks, track.id])
     {update_layout(new_state), new_state}
