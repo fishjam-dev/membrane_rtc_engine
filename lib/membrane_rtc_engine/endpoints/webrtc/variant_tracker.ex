@@ -67,7 +67,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker do
     if tracker.samples < tracker.required_samples do
       tracker = %__MODULE__{
         tracker
-        | activity_cycles: 0,
+        | samples: 0,
+          activity_cycles: 0,
           inactivity_cycles: tracker.inactivity_cycles + 1
       }
 
@@ -96,7 +97,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker do
     if tracker.status == :active and
          tracker.inactivity_cycles == tracker.required_inactivity_cycles do
       Membrane.Logger.debug("Variant #{inspect(tracker.variant)} is inactive.")
-      tracker = %__MODULE__{tracker | status: :inactive, inactivity_cycles: 0, samples: 0}
+      tracker = %__MODULE__{tracker | status: :inactive, inactivity_cycles: 0}
       {:status_changed, tracker, :inactive}
     else
       {:ok, tracker}

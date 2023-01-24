@@ -33,7 +33,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   # max time needed to recognize variant as inactive
   @variant_inactivity_time 4_000
   # max time needed to recognize variant as active
-  @variant_activity_time 13_000
+  @variant_activity_time 11_000
   # times needed to probe from one resolution to another
   # assumes that audio is present
   # assumes the following max limits:
