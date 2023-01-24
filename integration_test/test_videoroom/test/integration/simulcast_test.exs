@@ -41,7 +41,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   # video low - 150kbps
   # video medium - 500kbps
   # video high - 1500kbps
-  @probe_times %{low_to_medium: 16_000, low_to_high: 31_000, nil_to_high: 55_000}
+  @probe_times %{low_to_medium: 15_000, low_to_high: 30_000, nil_to_high: 50_000}
 
   # FIXME
   # this test shouldn't pass
