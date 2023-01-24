@@ -803,7 +803,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
   end
 
-  defp handle_media_event(%{type: :set_track_variant_bitrates, data: data}, ctx, state) do
+  defp handle_media_event(%{type: :track_variant_bitrates, data: data}, ctx, state) do
     track_bandwidth = Map.merge(state.track_id_to_bandwidth[data.track_id], data.variant_bitrates)
     state = put_in(state, [:track_id_to_bandwidth, data.track_id], track_bandwidth)
 

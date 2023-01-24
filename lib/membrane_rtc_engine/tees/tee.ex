@@ -79,17 +79,11 @@ defmodule Membrane.RTC.Engine.Tee do
           |> active_variants()
           |> Enum.flat_map(
             &[
-              event: {pad, %TrackVariantResumed{variant: &1}},
-              event:
-                {pad,
-                 %TrackVariantBitrate{
-                   variant: &1,
-                   bitrate: Map.get(state.variant_bitrates, &1)
-                 }}
+              event: {pad, %TrackVariantResumed{variant: &1}}
             ]
           )
 
-        [caps: {pad, %Membrane.RTP{}}] ++ actions
+        activate_pad_actions(pad, state) ++ actions
       else
         []
       end
@@ -119,7 +113,7 @@ defmodule Membrane.RTC.Engine.Tee do
       ctx.pads
       |> Enum.filter(fn {_pad, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} ->
-        [caps: {pad, %Membrane.RTP{}}]
+        activate_pad_actions(pad, state)
       end)
 
     {{:ok, actions}, state}
@@ -319,6 +313,23 @@ defmodule Membrane.RTC.Engine.Tee do
   end
 
   defp handle_route(_buffer, _variant, _route, _ctx, state), do: {[], state}
+
+  defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad, state) do
+    [
+      caps: {pad, %Membrane.RTP{}},
+    ] ++
+    case Map.get(state.variant_bitrates, variant) do
+      nil -> []
+      bitrate -> [
+        event:
+          {pad,
+          %TrackVariantBitrate{
+            variant: variant,
+            bitrate: bitrate
+          }}
+      ]
+    end
+  end
 
   defp active_variants(state),
     do:
