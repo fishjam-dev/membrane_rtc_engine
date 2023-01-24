@@ -44,7 +44,14 @@ if Enum.all?(
 
     alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
-    alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CapsUpdater, CompositorConfig}
+
+    alias Membrane.RTC.Engine.Endpoint.HLS.{
+      AudioMixerConfig,
+      CapsUpdater,
+      CompositorConfig,
+      SinkBinConfig
+    }
+
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
     alias Membrane.Time
@@ -95,37 +102,32 @@ if Enum.all?(
                   spec: pid(),
                   description: "Pid of parent Engine"
                 ],
-                output_directory: [
-                  spec: Path.t(),
-                  description: "Path to directory under which HLS output will be saved",
-                  default: "hls_output"
-                ],
                 owner: [
                   spec: pid(),
                   description: """
                   Pid of parent all notifications will be send to.
 
                   These notifications are:
-                    * `{:playlist_playable, content_type}`
-                    * `{:cleanup, clean_function}`
+                  * `{:playlist_playable, content_type}`
+                  * `{:cleanup, clean_function}`
                   """
                 ],
-                hls_mode: [
-                  spec: :separate_av | :muxed_av,
-                  default: :separate_av,
+                output_directory: [
+                  spec: Path.t(),
+                  description: "Path to directory under which HLS output will be saved",
+                  default: "hls_output"
+                ],
+                mixer_config: [
+                  spec: %{audio: AudioMixerConfig.t(), video: CompositorConfig.t()} | nil,
+                  default: nil,
                   description: """
-                  Defines output mode for `Membrane.HTTPAdaptiveStream.SinkBin`.
-
-                  - `:separate_av` - audio and video tracks will be separated
-                  - `:muxed_av` - audio will be attached to every video track
+                  Audio and video mixer configuration. If you don't want to use compositor pass nil.
                   """
                 ],
-                target_window_duration: [
-                  type: :time,
-                  spec: Membrane.Time.t() | :infinity,
-                  default: Membrane.Time.seconds(20),
+                sink_bin_config: [
+                  spec: SinkBinConfig.t(),
+                  default: SinkBinConfig,
                   description: """
-                  Max duration of stream that will be stored. Segments that are older than window duration will be removed.
                   """
                 ],
                 segment_duration: [
@@ -143,62 +145,25 @@ if Enum.all?(
                   Expected length of each partial segment. Setting it is not necessary, but
                   may help players achieve better UX.
                   """
-                ],
-                mixer_config: [
-                  spec: %{audio: AudioMixerConfig.t(), video: CompositorConfig.t()} | nil,
-                  default: nil,
-                  description: """
-                  Audio and video mixer configuration. If you don't want to use compositor pass nil.
-                  """
-                ],
-                broadcast_mode: [
-                  spec: :live | :vod,
-                  default: :live,
-                  description: """
-                  Tells if the session is live or a vod type of broadcast. Use live when you generate HLS stream from real-time data.
-                  Use vod when generating HLS from file.
-                  """
-                ],
-                manifest_module: [
-                  spec: module,
-                  default: Membrane.HTTPAdaptiveStream.HLS,
-                  description: """
-                  #TODO
-                  """
-                ],
-                storage_function: [
-                  spec: (Path.t() -> map()),
-                  default: &__MODULE__.default_file_storage/1,
-                  description: """
-                  #TODO
-                  """
                 ]
 
     @impl true
-    def handle_init(opts) do
-      state = %{
-        rtc_engine: opts.rtc_engine,
-        tracks: %{},
-        stream_ids: MapSet.new(),
-        output_directory: opts.output_directory,
-        owner: opts.owner,
-        hls_mode: opts.hls_mode,
-        target_window_duration: opts.target_window_duration,
-        segment_duration: opts.segment_duration,
-        partial_segment_duration: opts.partial_segment_duration,
-        mixer_config: opts.mixer_config,
-        broadcast_mode: opts.broadcast_mode,
-        manifest_module: opts.manifest_module,
-        video_layout_state: nil,
-        video_layout_tracks_added: %{},
-        stream_beginning: nil,
-        storage_function: opts.storage_function
-      }
+    def handle_init(options) do
+      state =
+        options
+        |> Map.from_struct()
+        |> Map.merge(%{
+          tracks: %{},
+          stream_beginning: nil,
+          video_layout_state: nil,
+          stream_ids: MapSet.new(),
+          video_layout_tracks_added: %{}
+        })
 
       video_layout_state =
-        if is_nil(opts.mixer_config),
+        if is_nil(options.mixer_config),
           do: nil,
-          else: state.mixer_config.video.layout_module.init(opts.mixer_config.video.caps)
+          else: state.mixer_config.video.layout_module.init(options.mixer_config.video.caps)
 
       {:ok, %{state | video_layout_state: video_layout_state}}
     end
@@ -208,18 +173,10 @@ if Enum.all?(
 
     @impl true
     def handle_prepared_to_playing(context, state) do
-      directory = state.output_directory
-      # remove directory if it already exists
-      File.rm_rf(directory)
-      File.mkdir_p!(directory)
-
-      hls_sink_spec = get_hls_sink_spec(state, %{stream_id: nil}, directory)
-
       spec =
-        state
-        |> generate_audio_mixer(context)
+        generate_audio_mixer(state, context)
         |> merge_parent_specs(generate_compositor(state, context))
-        |> merge_parent_specs(hls_sink_spec)
+        |> merge_parent_specs(get_hls_sink_spec(state, %{stream_id: nil}, state.output_directory))
 
       {{:ok, spec: spec}, state}
     end
@@ -266,18 +223,14 @@ if Enum.all?(
       track = Map.get(state.tracks, track_id)
       directory = get_hls_stream_directory(state, track)
 
-      spec = hls_links_and_children(offset, link_builder, track, state, ctx)
+      track_spec = get_track_spec(offset, link_builder, track, state, ctx)
 
       {spec, state} =
         if hls_sink_bin_exists?(track, ctx, state) do
-          {spec, state}
+          {track_spec, state}
         else
-          File.rm_rf(directory)
-          File.mkdir_p!(directory)
-
           hls_sink_spec = get_hls_sink_spec(state, track, directory)
-
-          {merge_parent_specs(spec, hls_sink_spec), state}
+          {merge_parent_specs(track_spec, hls_sink_spec), state}
         end
 
       {{:ok, [spec: spec]}, state}
@@ -291,7 +244,6 @@ if Enum.all?(
           state
         ) do
       track = Map.get(state.tracks, track_id)
-      # TODO: capsy przychodzą często moze warto dodać do behavioura callback update_caps
 
       {update_layout_action, state} =
         if is_map_key(state.video_layout_tracks_added, track_id),
@@ -363,106 +315,68 @@ if Enum.all?(
     end
 
     defp get_hls_sink_spec(state, track, directory) do
-      hls_sink = %Membrane.HTTPAdaptiveStream.SinkBin{
-        manifest_module: state.manifest_module,
-        target_window_duration: state.target_window_duration,
-        persist?: true,
-        storage: state.storage_function.(directory),
-        hls_mode: state.hls_mode,
-        mode: state.broadcast_mode,
-        mp4_parameters_in_band?: is_nil(state.mixer_config)
+      File.rm_rf(directory)
+      File.mkdir_p!(directory)
+
+      config = %{
+        state.sink_bin_config
+        | storage: state.sink_bin_config.storage.(directory),
+          mp4_parameters_in_band?: is_nil(state.mixer_config)
       }
+
+      hls_sink = struct!(Membrane.HTTPAdaptiveStream.SinkBin, Map.from_struct(config))
 
       parent_spec_key =
         if is_nil(state.mixer_config), do: {:hls_sink_bin, track.stream_id}, else: :hls_sink_bin
 
-      %ParentSpec{
-        children: %{
-          parent_spec_key => hls_sink
-        }
-      }
+      %ParentSpec{children: %{parent_spec_key => hls_sink}}
     end
 
-    defp hls_links_and_children(
+    defp get_track_spec(
            offset,
            link_builder,
            %{encoding: :OPUS} = track,
            state,
            ctx
          ) do
-      transcode_track_spec = %ParentSpec{
+      get_depayloading_track_spec(link_builder, track)
+      |> merge_parent_specs(attach_track_spec(offset, track, state))
+      |> merge_parent_specs(generate_blank_spec(state, ctx))
+      |> merge_parent_specs(generate_silence_spec(state, ctx))
+    end
+
+    defp get_depayloading_track_spec(link_builder, track),
+      do: %ParentSpec{
         children: %{
           {:track_receiver, track.id} => %TrackReceiver{
             track: track,
             initial_target_variant: :high
           },
-          {:depayloader, track.id} => get_depayloader(track),
+          {:depayloader, track.id} => get_depayloader(track)
+        },
+        links: [
+          link_builder
+          |> to({:track_receiver, track.id})
+          |> to({:depayloader, track.id})
+        ]
+      }
+
+    defp attach_track_spec(offset, %{type: :audio} = track, state),
+      do: attach_audio_track_spec(offset, track, state)
+
+    defp attach_track_spec(offset, %{type: :video} = track, state),
+      do: attach_video_track_spec(offset, track, state)
+
+    defp attach_audio_track_spec(_offset, track, %{mixer_config: nil} = state),
+      do: %ParentSpec{
+        children: %{
+          {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
+          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none},
           {:opus_decoder, track.id} => Membrane.Opus.Decoder
         },
         links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
+          link({:depayloader, track.id})
           |> to({:opus_decoder, track.id})
-        ]
-      }
-
-      attach_track_spec = attach_audio_track(offset, track, state)
-      blank_spec = generate_blank(state, ctx)
-      silence_spec = generate_silence(state, ctx)
-
-      transcode_track_spec
-      |> merge_parent_specs(attach_track_spec)
-      |> merge_parent_specs(blank_spec)
-      |> merge_parent_specs(silence_spec)
-    end
-
-    defp hls_links_and_children(
-           offset,
-           link_builder,
-           %{encoding: :H264} = track,
-           state,
-           ctx
-         ) do
-      transcode_track_spec = %ParentSpec{
-        children: %{
-          {:track_receiver, track.id} => %TrackReceiver{
-            track: track,
-            initial_target_variant: :high,
-            keyframe_request_interval: state.segment_duration.target
-          },
-          {:depayloader, track.id} => get_depayloader(track),
-          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
-            alignment: :au,
-            attach_nalus?: true
-          }
-        },
-        links: [
-          link_builder
-          |> to({:track_receiver, track.id})
-          |> to({:depayloader, track.id})
-          |> to({:video_parser, track.id})
-        ]
-      }
-
-      attach_track_spec = attach_video_track(offset, track, state)
-      blank_spec = generate_blank(state, ctx)
-      silence_spec = generate_silence(state, ctx)
-
-      transcode_track_spec
-      |> merge_parent_specs(attach_track_spec)
-      |> merge_parent_specs(blank_spec)
-      |> merge_parent_specs(silence_spec)
-    end
-
-    defp attach_audio_track(_offset, track, %{mixer_config: nil} = state) do
-      %ParentSpec{
-        children: %{
-          {:aac_encoder, track.id} => Membrane.AAC.FDK.Encoder,
-          {:aac_parser, track.id} => %Membrane.AAC.Parser{out_encapsulation: :none}
-        },
-        links: [
-          link({:opus_decoder, track.id})
           |> to({:aac_encoder, track.id})
           |> to({:aac_parser, track.id})
           |> via_in(Pad.ref(:input, {:audio, track.id}),
@@ -475,23 +389,30 @@ if Enum.all?(
           |> to({:hls_sink_bin, track.stream_id})
         ]
       }
-    end
 
-    defp attach_audio_track(offset, track, _state) do
-      %ParentSpec{
+    defp attach_audio_track_spec(offset, track, _state),
+      do: %ParentSpec{
+        children: %{{:opus_decoder, track.id} => Membrane.Opus.Decoder},
         links: [
-          link({:opus_decoder, track.id})
+          link({:depayloader, track.id})
+          |> to({:opus_decoder, track.id})
           |> to({:audio_filler, track.id}, Membrane.AudioFiller)
           |> via_in(Pad.ref(:input, {:extra, track.id}), options: [offset: offset])
           |> to(:audio_mixer)
         ]
       }
-    end
 
-    defp attach_video_track(_offset, track, %{mixer_config: nil} = state),
+    defp attach_video_track_spec(_offset, track, %{mixer_config: nil} = state),
       do: %ParentSpec{
+        children: %{
+          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+            alignment: :au,
+            attach_nalus?: true
+          }
+        },
         links: [
-          link({:video_parser, track.id})
+          link({:depayloader, track.id})
+          |> to({:video_parser, track.id})
           |> via_in(Pad.ref(:input, {:video, track.id}),
             options: [
               encoding: :H264,
@@ -503,10 +424,17 @@ if Enum.all?(
         ]
       }
 
-    defp attach_video_track(offset, track, _state),
+    defp attach_video_track_spec(offset, track, _state),
       do: %ParentSpec{
+        children: %{
+          {:video_parser, track.id} => %Membrane.H264.FFmpeg.Parser{
+            alignment: :au,
+            attach_nalus?: true
+          }
+        },
         links: [
-          link({:video_parser, track.id})
+          link({:depayloader, track.id})
+          |> to({:video_parser, track.id})
           |> to({:caps_updater, track.id}, CapsUpdater)
           |> to({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
           |> via_in(Pad.ref(:input, track.id),
@@ -517,10 +445,13 @@ if Enum.all?(
       }
 
     if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
-      defp generate_silence(_state, ctx) when is_map_key(ctx.children, :silence_generator),
+      defp generate_silence_spec(%{mixer_config: nil}, _ctx),
         do: %ParentSpec{children: %{}, links: []}
 
-      defp generate_silence(state, _ctx) do
+      defp generate_silence_spec(_state, ctx) when is_map_key(ctx.children, :silence_generator),
+        do: %ParentSpec{children: %{}, links: []}
+
+      defp generate_silence_spec(state, _ctx) do
         silence_generator = %Membrane.SilenceGenerator{
           caps: %Membrane.RawAudio{
             channels: state.mixer_config.audio.channels,
@@ -544,10 +475,13 @@ if Enum.all?(
         }
       end
 
-      defp generate_blank(_state, ctx) when is_map_key(ctx.children, :fake_source),
+      defp generate_blank_spec(%{mixer_config: nil}, _ctx),
         do: %ParentSpec{children: %{}, links: []}
 
-      defp generate_blank(state, _ctx) do
+      defp generate_blank_spec(_state, ctx) when is_map_key(ctx.children, :fake_source),
+        do: %ParentSpec{children: %{}, links: []}
+
+      defp generate_blank_spec(state, _ctx) do
         video_caps = state.mixer_config.video.caps
 
         %ParentSpec{
@@ -733,10 +667,6 @@ if Enum.all?(
 
       {update_layout_actions, %{state | video_layout_state: video_layout_state}}
     end
-
-    @spec default_file_storage(String.t()) :: any
-    def default_file_storage(directory),
-      do: %Membrane.HTTPAdaptiveStream.Storages.FileStorage{directory: directory}
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
       do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
