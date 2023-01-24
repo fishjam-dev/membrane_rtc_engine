@@ -618,6 +618,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_other({:remove_tracks, tracks} = msg, ctx, state) do
+    media_event_actions =
+      tracks
+      |> Enum.group_by(& &1.origin)
+      |> Enum.map(fn {origin, tracks} ->
+        ids = Enum.map(tracks, & &1.id)
+        event = origin |> MediaEvent.tracks_removed(ids) |> MediaEvent.encode()
+        {:notify, {:forward_to_parent, {:media_event, event}}}
+      end)
+
+    {{:ok, media_event_actions ++ forward(:endpoint_bin, msg, ctx)}, state}
+  end
+
+  @impl true
   def handle_other({:display_manager, display_manager_pid}, ctx, state) do
     send_if_not_nil(
       display_manager_pid,
