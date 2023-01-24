@@ -213,6 +213,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 spec: Membrane.TelemetryMetrics.label(),
                 default: [],
                 description: "Label passed to Membrane.TelemetryMetrics functions"
+              ],
+              toilet_capacity: [
+                spec: pos_integer(),
+                default: 200,
+                description: "TrackReceiver toilet capacity"
               ]
 
   def_input_pad :input,
@@ -667,7 +672,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         connection_allocator_module: state.connection_allocator_module,
         telemetry_label: state.telemetry_label
       })
-      |> via_in(pad, options: [use_payloader?: false])
+      |> via_in(pad, toilet_capacity: state.toilet_capacity, options: [use_payloader?: false])
       |> to(:endpoint_bin)
     ]
 
