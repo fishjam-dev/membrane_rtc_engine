@@ -3,52 +3,61 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTrackerTest do
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
 
+  test "VariantTracker.new/1" do
+    assert %VariantTracker{} = VariantTracker.new(:high)
+  end
+
   test "VariantTracker detects that variant is no longer active" do
-    tracker = VariantTracker.new(:high, 5, 10)
-
-    # simulate we received only 4 packets from last check
-    tracker =
-      Enum.reduce(1..4, tracker, fn _sample, tracker ->
-        VariantTracker.increment_samples(tracker)
-      end)
-
-    ret = VariantTracker.check_variant_status(tracker)
-
-    assert {:status_changed, _tracker, :inactive} = ret
+    tracker = VariantTracker.new(:high)
+    simulate_inactive_sequence(tracker)
   end
 
   test "VariantTracker detects that variant is active again" do
-    tracker = VariantTracker.new(:high, 5, 10)
+    tracker = VariantTracker.new(:high)
 
-    # simulate we received only 4 packets from last check
-    tracker =
-      Enum.reduce(1..4, tracker, fn _sample, tracker ->
-        VariantTracker.increment_samples(tracker)
-      end)
+    tracker = simulate_inactive_sequence(tracker)
+    simulate_active_sequence(tracker)
+  end
 
-    ret = VariantTracker.check_variant_status(tracker)
+  test "VariantTracker correctly classifies the track that goes in and out of activity" do
+    :high
+    |> VariantTracker.new()
+    |> simulate_inactive_sequence()
+    |> simulate_active_sequence()
+    |> simulate_inactive_sequence()
+    |> simulate_active_sequence()
+  end
 
-    assert {:status_changed, tracker, :inactive} = ret
+  defp simulate_inactive_sequence(tracker), do: apply_sequence(tracker, 3, 0, :inactive)
+  defp simulate_active_sequence(tracker), do: apply_sequence(tracker, 10, 5, :active)
 
-    # simulate we received 5 packets in subsequent 9 cycles
-    tracker =
-      Enum.reduce(1..9, tracker, fn _cycle, tracker ->
-        tracker =
-          Enum.reduce(1..5, tracker, fn _sample, tracker ->
+  defp apply_sequence(tracker, cycles, samples_per_cycle, desired_status) do
+    refute tracker.status == desired_status
+
+    cycle =
+      if samples_per_cycle == 0,
+        do: fn tracker -> tracker end,
+        else: fn tracker ->
+          Enum.reduce(1..samples_per_cycle, tracker, fn _sample, tracker ->
             VariantTracker.increment_samples(tracker)
           end)
+        end
+
+    tracker =
+      Enum.reduce(1..(cycles - 1), tracker, fn _sample, tracker ->
+        tracker = cycle.(tracker)
 
         assert {:ok, tracker} = VariantTracker.check_variant_status(tracker)
         tracker
       end)
 
     # simulate one more cycle
-    tracker =
-      Enum.reduce(1..5, tracker, fn _sample, tracker ->
-        VariantTracker.increment_samples(tracker)
-      end)
+    tracker = cycle.(tracker)
 
     # now VariantTracker should detect change
-    assert {:status_changed, _tracker, :active} = VariantTracker.check_variant_status(tracker)
+    assert {:status_changed, tracker, ^desired_status} =
+             VariantTracker.check_variant_status(tracker)
+
+    tracker
   end
 end

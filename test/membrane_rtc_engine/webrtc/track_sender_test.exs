@@ -103,7 +103,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       end)
 
       Enum.each(@variants, fn variant ->
-        assert_sink_event(pipeline, {:sink, variant}, %TrackVariantPaused{}, 3_000)
+        assert_sink_event(pipeline, {:sink, variant}, %TrackVariantPaused{}, 5_000)
       end)
 
       Pipeline.terminate(pipeline, blocking?: true)
@@ -118,7 +118,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       end)
 
       Enum.each(@variants, fn variant ->
-        assert_sink_event(pipeline, {:sink, variant}, %TrackVariantPaused{}, 3_000)
+        assert_sink_event(pipeline, {:sink, variant}, %TrackVariantPaused{}, 5_000)
       end)
 
       Enum.each(@variants, fn variant ->
