@@ -11,6 +11,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
+    TrackVariantBitrate,
     TrackVariantPaused,
     TrackVariantResumed,
     TrackVariantSwitched,
@@ -63,6 +64,61 @@ defmodule Membrane.RTC.Engine.TeeTest do
     refute_sink_event(pipeline, :other_sink, %TrackVariantResumed{variant: :low})
     refute_sink_event(pipeline, :other_sink, %TrackVariantResumed{variant: :high}, 0)
     refute_sink_event(pipeline, :other_sink, %TrackVariantResumed{variant: :medium}, 0)
+
+    Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  test "Tee forwards TrackVariantBitrate events" do
+    track = build_h264_track()
+    pipeline = build_pipeline(track, [])
+
+    new_variant_bitrates = %{high: 1300, medium: 800}
+
+    events =
+      Enum.map(new_variant_bitrates, fn {variant, bitrate} ->
+        %TrackVariantBitrate{variant: variant, bitrate: bitrate}
+      end)
+
+    actions = Enum.flat_map(events, fn event -> [event: {:output, event}] end)
+
+    Pipeline.execute_actions(pipeline, forward: {{:source, :high}, {:execute_actions, actions}})
+
+    Enum.each(new_variant_bitrates, fn {variant, bitrate} ->
+      assert_sink_event(pipeline, :sink, %TrackVariantBitrate{
+        variant: ^variant,
+        bitrate: ^bitrate
+      })
+    end)
+
+    Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  test "Tee sends TrackVariantBitrate after linking output pad" do
+    track = build_h264_track()
+    pipeline = build_pipeline(track, [])
+
+    new_variant = :high
+    new_bitrate = 1488
+
+    actions = [event: {:output, %TrackVariantBitrate{variant: new_variant, bitrate: new_bitrate}}]
+
+    Pipeline.execute_actions(pipeline,
+      forward: {{:source, new_variant}, {:execute_actions, actions}}
+    )
+
+    links = [
+      link(:tee)
+      |> via_out(Pad.ref(:output, {:endpoint, :other_endpoint}))
+      |> to(:other_sink, TestSink)
+    ]
+
+    actions = [spec: %Membrane.ParentSpec{links: links}]
+    Pipeline.execute_actions(pipeline, actions)
+
+    assert_sink_event(pipeline, :other_sink, %TrackVariantBitrate{
+      variant: ^new_variant,
+      bitrate: ^new_bitrate
+    })
 
     Pipeline.terminate(pipeline, blocking?: true)
   end

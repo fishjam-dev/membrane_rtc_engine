@@ -174,6 +174,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
       VariantSelector.set_current_variant(selector, :low)
       assert_allocation_requested(:low)
     end
+
+    test "updates selector variant bitrates", %{selector: selector} do
+      new_high_bitrate_kbps = 1999
+
+      new_selector =
+        VariantSelector.update_variant_bitrate(selector, :high, new_high_bitrate_kbps)
+
+      high_bitrate = Map.get(new_selector.variant_bitrates, :high)
+
+      assert high_bitrate == new_high_bitrate_kbps * 1024
+    end
   end
 
   defp create_selector() do
