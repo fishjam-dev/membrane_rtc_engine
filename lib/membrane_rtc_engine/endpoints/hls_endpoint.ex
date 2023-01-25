@@ -335,7 +335,7 @@ if Enum.all?(
     defp get_track_spec(
            offset,
            link_builder,
-           %{encoding: :OPUS} = track,
+           track,
            state,
            ctx
          ) do
