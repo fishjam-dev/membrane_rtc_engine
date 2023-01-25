@@ -125,18 +125,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
   end
 
   describe "deserializing trackVariantBitrates media event" do
-    test "creates proper map when event is valid" do
-      track_id = "mock_track_id"
-      bitrates = %{"h" => 1000, "m" => 500}
+    setup do
+      %{
+        track_id: "mock_track_id",
+        bitrates: %{"h" => 1000, "m" => 500}
+      }
+    end
 
+    test "creates proper map when event is valid", context do
       raw_media_event =
         %{
           "type" => "custom",
           "data" => %{
             "type" => "trackVariantBitrates",
             "data" => %{
-              "trackId" => track_id,
-              "variantBitrates" => bitrates
+              "trackId" => context.track_id,
+              "variantBitrates" => context.bitrates
             }
           }
         }
@@ -147,13 +151,30 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
         data: %{
           type: :track_variant_bitrates,
           data: %{
-            track_id: track_id,
-            variant_bitrates: bitrates
+            track_id: context.track_id,
+            variant_bitrates: context.bitrates
           }
         }
       }
 
       assert {:ok, expected_media_event} == MediaEvent.decode(raw_media_event)
+    end
+
+    test "returns error when event misses key", context do
+      raw_media_event =
+        %{
+          "type" => "custom",
+          "data" => %{
+            "type" => "trackVariantBitrates",
+            "data" => %{
+              "trackId" => context.track_id
+              # missing variantBitrates
+            }
+          }
+        }
+        |> Jason.encode!()
+
+      assert {:error, :invalid_media_event} == MediaEvent.decode(raw_media_event)
     end
   end
 end
