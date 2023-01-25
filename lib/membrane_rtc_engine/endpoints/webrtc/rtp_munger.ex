@@ -96,6 +96,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   @spec generate_padding_packet(t(), Track.t()) :: {t(), Membrane.Buffer.t() | nil}
   def generate_padding_packet(rtp_munger, track) when rtp_munger.last_marker do
     # We can only generate padding packets at frame boundary
+
+    # convert from 1/s to 1/ms
+    clock_rate = div(rtp_munger.clock_rate, 1000)
+    now = System.monotonic_time(:millisecond)
+
+    # estimated time elapsed from the last packet arrival, in clock rate
+    # We add it to last_timestamp to avoid increasing the jitter value calculated by the client
+    timestamp_offset = div(now - rtp_munger.last_packet_arrival, clock_rate)
+
     buffer = %Membrane.Buffer{
       payload: <<>>,
       metadata: %{
@@ -107,7 +116,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           payload_type: track.payload_type,
           marker: false,
           sequence_number: calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger),
-          timestamp: rtp_munger.last_timestamp
+          timestamp: rem(rtp_munger.last_timestamp + timestamp_offset, 1 <<< 32)
         }
       }
     }
