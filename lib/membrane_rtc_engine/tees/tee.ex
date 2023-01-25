@@ -314,21 +314,11 @@ defmodule Membrane.RTC.Engine.Tee do
 
   defp handle_route(_buffer, _variant, _route, _ctx, state), do: {[], state}
 
-  defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad, state) do
-    [
-      caps: {pad, %Membrane.RTP{}},
-    ] ++
-    case Map.get(state.variant_bitrates, variant) do
-      nil -> []
-      bitrate -> [
-        event:
-          {pad,
-          %TrackVariantBitrate{
-            variant: variant,
-            bitrate: bitrate
-          }}
-      ]
-    end
+  defp activate_pad_actions(Pad.ref(:output, _id) = pad, state) do
+    [caps: {pad, %Membrane.RTP{}}] ++
+      Enum.flat_map(state.variant_bitrates, fn {variant, bitrate} ->
+        [event: {pad, %TrackVariantBitrate{variant: variant, bitrate: bitrate}}]
+      end)
   end
 
   defp active_variants(state),
