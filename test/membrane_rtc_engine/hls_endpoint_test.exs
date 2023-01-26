@@ -164,9 +164,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
       Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
-
-      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
-      Process.sleep(5_000)
     end
 
     test "creates correct hls stream from multiple (h264, opus) inputs belonging to the same stream, muxed segments plus mixer",
@@ -251,9 +248,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
         %{size: size} = File.stat!(output_path)
         assert size > 0
       end
-
-      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
-      Process.sleep(5_000)
     end
 
     test "video mixer works properly", %{
@@ -339,9 +333,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       # if number of header files is greater than 1, video mixer is not working properly
       assert Enum.count(output_files, &String.starts_with?(&1, "video_header")) == 1
-
-      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
-      Process.sleep(5_000)
     end
 
     test "audio mixer works properly", %{
@@ -415,9 +406,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
         %{size: size} = File.stat!(output_path)
         assert size > 0
       end
-
-      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
-      Process.sleep(5_000)
     end
   end
 

@@ -174,7 +174,8 @@ if Enum.all?(
     @impl true
     def handle_prepared_to_playing(context, state) do
       spec =
-        generate_audio_mixer(state, context)
+        state
+        |> generate_audio_mixer(context)
         |> merge_parent_specs(generate_compositor(state, context))
         |> merge_parent_specs(get_hls_sink_spec(state, %{stream_id: nil}, state.output_directory))
 
@@ -245,13 +246,11 @@ if Enum.all?(
         ) do
       track = Map.get(state.tracks, track_id)
 
-      {update_layout_action, state} =
-        if is_map_key(state.video_layout_tracks_added, track_id),
-          do: compositor_update_layout(:update, track, caps, state),
-          else: compositor_update_layout(:add, track, caps, state)
+      action = if is_map_key(state.video_layout_tracks_added, track_id), do: :update, else: :add
+      {update_layout_action, state} = compositor_update_layout(action, track, caps, state)
 
       result_actions = update_layout_action ++ [forward: {child, :layout_updated}]
-      state = put_in(state, [:video_layout_tracks_added, track_id], nil)
+      {_poped_value, state} = pop_in(state, [:video_layout_tracks_added, track_id])
 
       {{:ok, result_actions}, state}
     end
@@ -339,7 +338,8 @@ if Enum.all?(
            state,
            ctx
          ) do
-      get_depayloading_track_spec(link_builder, track)
+      link_builder
+      |> get_depayloading_track_spec(track)
       |> merge_parent_specs(attach_track_spec(offset, track, state))
       |> merge_parent_specs(generate_blank_spec(state, ctx))
       |> merge_parent_specs(generate_silence_spec(state, ctx))
