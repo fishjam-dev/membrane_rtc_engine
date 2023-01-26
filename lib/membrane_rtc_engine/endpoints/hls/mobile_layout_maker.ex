@@ -4,9 +4,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
   """
   @behaviour Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker
 
-  require Membrane.Pad
-
-  alias Membrane.Pad
   alias Membrane.VideoCompositor.RustStructs.BaseVideoPlacement
   alias Membrane.VideoCompositor.VideoTransformations
   alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.CornersRounding
@@ -19,17 +16,13 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
   def track_added(state, %{metadata: %{"mainPresenter" => true}} = track, caps) do
     new_state = put_in(state, [:tracks, track.id], {track, caps})
 
-    {trans, layout} = get_track_layout(:main, nil, caps, state.output_caps)
+    {layout, transformations} = get_track_layout(:main, nil, caps, state.output_caps)
 
     updated_layout = [
-      {Pad.ref(:input, track.id), layout}
+      {track.id, layout, transformations}
     ]
 
-    updated_trans = [
-      {Pad.ref(:input, track.id), trans}
-    ]
-
-    {{updated_layout, updated_trans}, new_state}
+    {updated_layout, new_state}
   end
 
   @impl true
@@ -37,6 +30,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
     new_state = put_in(state, [:tracks, track.id], {track, caps})
     {update_layout(new_state), new_state}
   end
+
+  @impl true
+  def track_updated(state, track, caps), do: track_added(state, track, caps)
 
   @impl true
   def track_removed(state, track) do
@@ -51,20 +47,19 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
     end)
     |> Enum.with_index()
     |> Enum.flat_map(fn {{_id, {track, caps}}, index} ->
-      {track_trans, track_layout} = get_track_layout(:basic, index, caps, output_caps)
+      {layout, transcoding} = get_track_layout(:basic, index, caps, output_caps)
 
       [
-        {{Pad.ref(:input, track.id), track_layout}, {Pad.ref(:input, track.id), track_trans}}
+        {track.id, layout, transcoding}
       ]
     end)
-    |> Enum.unzip()
   end
 
   defp get_track_layout(:main, _index, caps, output_caps) do
     placement = get_placement(output_caps, caps, {0, 0}, 0.1)
     transformations = get_transformations(output_caps, placement.size, 0)
 
-    {transformations, placement}
+    {placement, transformations}
   end
 
   defp get_track_layout(:basic, index, caps, %{width: width, height: height}) do
@@ -74,7 +69,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
     placement = get_placement(output_caps, caps, position, 0.3)
     transformations = get_transformations(output_caps, placement.size, 20)
 
-    {transformations, placement}
+    {placement, transformations}
   end
 
   defp video_proportion(%{width: width, height: height}), do: width / height
