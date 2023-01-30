@@ -38,9 +38,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker do
   @spec new(String.t(), non_neg_integer(), non_neg_integer(), non_neg_integer()) :: t()
   def new(
         variant,
-        required_samples \\ 1,
+        required_samples \\ 5,
         required_activity_cycles \\ 10,
-        required_inactivity_cycles \\ 3
+        required_inactivity_cycles \\ 1
       ) do
     %__MODULE__{
       variant: variant,
