@@ -1,43 +1,42 @@
-defmodule Membrane.RTC.Engine.Endpoint.HLS.CapsUpdater do
+defmodule Membrane.RTC.Engine.Endpoint.HLS.StreamFormatUpdater do
   @moduledoc """
-    Element responsible for sending caps for specific track to HLS Endpoint and waiting for Endpoint to send updated layout to compositor element.
+    Element responsible for sending stream format for specific track to HLS Endpoint and waiting for Endpoint to send updated layout to compositor element.
   """
 
   use Membrane.Filter
 
   def_input_pad :input,
-    caps: :any,
+    accepted_format: _any,
     demand_unit: :buffers,
     demand_mode: :auto
 
   def_output_pad :output,
-    caps: :any,
-    demand_unit: :buffers,
+    accepted_format: _any,
     demand_mode: :auto
 
   @impl true
-  def handle_init(_opts) do
-    {:ok, %{update_queue: 0, buffers: %{}, end_of_stream: false}}
+  def handle_init(_ctx, _opts) do
+    {[], %{update_queue: 0, buffers: %{}, end_of_stream: false}}
   end
 
   @impl true
-  def handle_caps(_pad, caps, _ctx, state) do
+  def handle_stream_format(_pad, stream_format, _ctx, state) do
     state = put_in(state, [:buffers, state.update_queue + 1], [])
 
-    {{:ok, [forward: caps, notify: {:update_layout, caps}]},
+    {[forward: stream_format, notify_parent: {:update_layout, stream_format}],
      %{state | update_queue: state.update_queue + 1}}
   end
 
   @impl true
   def handle_end_of_stream(_pad, _ctx, %{update__queue: 0} = state),
-    do: {{:ok, end_of_stream: :output}, state}
+    do: {[end_of_stream: :output], state}
 
   @impl true
-  def handle_end_of_stream(_pad, _ctx, state), do: {:ok, %{state | end_of_stream: true}}
+  def handle_end_of_stream(_pad, _ctx, state), do: {[], %{state | end_of_stream: true}}
 
   @impl true
   def handle_process(_pad, buffer, _ctx, %{update_queue: 0} = state),
-    do: {{:ok, buffer: {:output, buffer}}, state}
+    do: {[buffer: {:output, buffer}], state}
 
   @impl true
   def handle_process(_pad, buffer, _ctx, state) do
@@ -47,11 +46,11 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CapsUpdater do
       |> then(&[buffer | &1])
 
     state = put_in(state, [:buffers, state.update_queue], new_buffers)
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_other(:layout_updated, _ctx, state) do
+  def handle_parent_notification(:layout_updated, _ctx, state) do
     buffers =
       state
       |> get_in([:buffers, state.update_queue])
@@ -64,7 +63,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CapsUpdater do
       |> Map.get(:buffers)
       |> Map.delete(state.update_queue)
 
-    {{:ok, actions}, %{state | buffers: new_buffers, update_queue: state.update_queue - 1}}
+    {actions, %{state | buffers: new_buffers, update_queue: state.update_queue - 1}}
   end
 
   defp maybe_notify_end_of_stream(%{end_of_stream: true, update_queue: 0}),

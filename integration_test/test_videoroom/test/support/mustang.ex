@@ -1,21 +1,22 @@
 defmodule TestMustang do
   use Stampede.Mustang
+  require Logger
 
   @impl true
   def join(browser, options) do
     page = browser |> Playwright.Browser.new_page()
     _response = Playwright.Page.goto(page, options.target_url)
 
-    Process.sleep(500)
-
-    :ok = Playwright.Page.click(page, "[id=#{options.start_button}]")
+    page
+    |> Playwright.Page.locator("[id=#{options.start_button}]")
+    |> Playwright.Locator.click()
 
     {browser, page}
   end
 
   @impl true
   def afterJoin({browser, page}, options) do
-    Process.sleep(options.join_interval)
+    Process.sleep(options.warmup_time)
 
     {browser, page}
   end
@@ -23,11 +24,13 @@ defmodule TestMustang do
   @impl true
   def linger({_browser, page} = ctx, options) do
     Enum.each(options.actions, fn
-      {:click, button, timeout} ->
+      {:click, button, timeout} = action ->
+        Logger.info("mustang: #{options.id}, action: #{inspect(action)}")
         :ok = Playwright.Page.click(page, "[id=#{button}]")
         Process.sleep(timeout)
 
-      {:get_stats, button, repeats, timeout, tag: tag} ->
+      {:get_stats, button, repeats, timeout, tag: tag} = action ->
+        Logger.info("mustang: #{options.id}, action: #{inspect(action)}")
         timeouts = List.duplicate(timeout, repeats)
 
         for timeout <- timeouts do
@@ -35,7 +38,8 @@ defmodule TestMustang do
           Process.sleep(timeout)
         end
 
-      {:wait, timeout} ->
+      {:wait, timeout} = action ->
+        Logger.info("mustang: #{options.id}, action: #{inspect(action)}")
         Process.sleep(timeout)
     end)
 
