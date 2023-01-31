@@ -44,9 +44,9 @@ if Enum.all?(
 
     alias Membrane.RTC.Engine.Endpoint.HLS.{
       AudioMixerConfig,
-      StreamFormatUpdater,
       CompositorConfig,
-      SinkBinConfig
+      SinkBinConfig,
+      StreamFormatUpdater
     }
 
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
@@ -359,9 +359,9 @@ if Enum.all?(
     defp attach_audio_track_spec(_offset, track, %{mixer_config: nil} = state),
       do: [
         get_child({:depayloader, track.id})
-        |> child({:opus_decoder, track.id}, Membrane.AAC.FDK.Encoder)
-        |> child({:aac_encoder, track.id}, %Membrane.AAC.Parser{out_encapsulation: :none})
-        |> child({:aac_parser, track.id}, Membrane.Opus.Decoder)
+        |> child({:opus_decoder, track.id}, Membrane.Opus.Decoder)
+        |> child({:aac_encoder, track.id}, Membrane.AAC.FDK.Encoder)
+        |> child({:aac_parser, track.id}, %Membrane.AAC.Parser{out_encapsulation: :none})
         |> via_in(Pad.ref(:input, {:audio, track.id}),
           options: [
             encoding: :AAC,

@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.SinkBinConfig do
   @type t() :: %__MODULE__{
           manifest_name: String.t(),
           manifest_module: (Path.t() -> module),
-          storage: Storage.config_t(),
+          storage: (Path.t() -> Storage.config_t()),
           target_window_duration: pos_integer | :infinity,
           persist?: boolean,
           mode: :live | :vod,

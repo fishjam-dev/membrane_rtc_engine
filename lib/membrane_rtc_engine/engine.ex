@@ -828,7 +828,6 @@ defmodule Membrane.RTC.Engine do
     actions = [spec: spec] ++ display_manager_message ++ tracks_actions
 
     endpoint = Endpoint.new(endpoint_id, [])
-    IO.inspect(state.pending_peers, label: :pending_peers)
 
     state =
       if is_peer? do
