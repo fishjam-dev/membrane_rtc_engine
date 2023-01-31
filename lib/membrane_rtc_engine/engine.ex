@@ -678,13 +678,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_endpoint_notification(
-         {:track_ready, track_id, variant, encoding},
+         {:track_ready, track_id, ssrc, variant, encoding},
          endpoint_id,
          _ctx,
          state
        ) do
     Membrane.Logger.info(
-      "New incoming #{encoding} track #{track_id} (variant: #{variant}) from endpoint #{inspect(endpoint_id)}"
+      "New incoming #{encoding} track #{track_id} (ssrc: #{ssrc} variant: #{variant}) from endpoint #{inspect(endpoint_id)}"
     )
 
     track = get_in(state, [:endpoints, endpoint_id]) |> Endpoint.get_track_by_id(track_id)
