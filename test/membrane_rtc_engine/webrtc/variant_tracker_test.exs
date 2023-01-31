@@ -28,7 +28,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTrackerTest do
     |> simulate_active_sequence()
   end
 
-  defp simulate_inactive_sequence(tracker), do: apply_sequence(tracker, 3, 0, :inactive)
+  defp simulate_inactive_sequence(tracker), do: apply_sequence(tracker, 1, 4, :inactive)
   defp simulate_active_sequence(tracker), do: apply_sequence(tracker, 10, 5, :active)
 
   defp apply_sequence(tracker, cycles, samples_per_cycle, desired_status) do
@@ -44,12 +44,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTrackerTest do
         end
 
     tracker =
-      Enum.reduce(1..(cycles - 1), tracker, fn _sample, tracker ->
-        tracker = cycle.(tracker)
+      if cycles > 1 do
+        Enum.reduce(1..(cycles - 1), tracker, fn _sample, tracker ->
+          tracker = cycle.(tracker)
 
-        assert {:ok, tracker} = VariantTracker.check_variant_status(tracker)
+          assert {:ok, tracker} = VariantTracker.check_variant_status(tracker)
+          tracker
+        end)
+      else
         tracker
-      end)
+      end
 
     # simulate one more cycle
     tracker = cycle.(tracker)
