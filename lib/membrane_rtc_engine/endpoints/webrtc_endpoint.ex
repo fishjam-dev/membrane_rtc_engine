@@ -50,7 +50,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   ## Monitoring track activity
   WebRTC Endpoint only monitors simulcast tracks activity, meaning that it never emits `Membrane.RTC.Engine.Event.TrackVariantPaused` event
-  for non-simulcast tracks. The main reason is that it's very hard to distinguish inactive screen sharing from screen sharing of static content.
+  for non-simulcast tracks. The main reason is that it's impossible to tell if the screensharing track is inactive or not sending any packets because it contains static content.
   """
   use Membrane.Bin
 
