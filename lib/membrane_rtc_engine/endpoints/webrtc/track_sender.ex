@@ -85,10 +85,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         {[], state}
       end
 
+    tracker =
+      if Track.is_simulcast?(state.track) do
+        VariantTracker.new(variant)
+      else
+        # assume that non-simulcast tracks are always active
+        # we also don't start variant tracker timer
+        # and don't increment samples for them
+        VariantTracker.new(variant, 0)
+      end
+
     state =
       state
       |> put_in([:bitrate_estimators, variant], BitrateEstimator.new())
-      |> put_in([:trackers, variant], VariantTracker.new(variant))
+      |> put_in([:trackers, variant], tracker)
 
     {{:ok, actions}, state}
   end
