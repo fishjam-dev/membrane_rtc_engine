@@ -2,301 +2,156 @@ defmodule Membrane.RTC.EngineTest do
   use ExUnit.Case
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.{Message, Peer}
+  alias Membrane.RTC.Engine.{Peer, Track}
 
-  alias Membrane.RTC.Engine.Support.{
-    MessageEndpoint,
-    TrackEndpoint
-  }
+  alias Membrane.RTC.Engine.Support.TestEndpoint
 
   setup do
     options = [
       id: "test_rtc"
     ]
 
-    {:ok, pid} = Engine.start_link(options, [])
+    {:ok, _supervisor, pid} = Engine.start_link(options, [])
 
     Engine.register(pid, self())
 
     [rtc_engine: pid]
   end
 
-  describe "joining to a room" do
-    test "triggers :new_peer notification when media event is valid", %{rtc_engine: rtc_engine} do
-      peer_id = "sample_id"
+  describe ":ready message" do
+    test "triggers :new_peer", %{rtc_engine: rtc_engine} do
+      endpoint_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
 
-      metadata = %{
-        "displayName" => "Bob"
-      }
+      Engine.add_endpoint(rtc_engine, endpoint_spec)
+      Engine.add_endpoint(rtc_engine, endpoint_spec, peer_id: "peer")
+      refute_receive {:new_peer, _peer}
 
-      media_event =
-        %{
-          "type" => "join",
-          "data" => %{
-            "receiveMedia" => true,
-            "metadata" => metadata
-          }
-        }
-        |> Jason.encode!()
-
-      peer = %Peer{
-        id: peer_id,
-        metadata: metadata
-      }
-
-      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-      assert_receive %Message.NewPeer{rtc_engine: ^rtc_engine, peer: ^peer}
-    end
-  end
-
-  # Fix me
-  # Skipped due to bug occuring, when starting CNode in not distributed Erlang
-  @tag :skip
-  describe "accepting a new peer" do
-    test "triggers peerAccepted event", %{rtc_engine: rtc_engine} do
-      peer_id = "sample_id"
-
-      metadata = %{
-        "displayName" => "Bob"
-      }
-
-      media_event =
-        %{
-          type: "join",
-          data: %{
-            receiveMedia: true,
-            metadata: metadata
-          }
-        }
-        |> Jason.encode!()
-
-      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-      assert_receive {_from, {:new_peer, ^peer_id, ^metadata}}
-      Engine.accept_peer(rtc_engine, peer_id)
-      assert_receive {_from, {:rtc_media_event, ^peer_id, media_event}}, 1000
-
-      assert %{
-               "type" => "peerAccepted",
-               "data" => %{
-                 "id" => peer_id,
-                 "peersInRoom" => [],
-                 "iceTransportPolicy" => "all",
-                 "integratedTurnServers" => []
-               }
-             } ==
-               Jason.decode!(media_event)
-    end
-  end
-
-  describe "denying a new peer" do
-    test "triggers peerDenied event", %{rtc_engine: rtc_engine} do
-      peer_id = "sample_id"
-
-      metadata = %{
-        "reason" => "bob smells"
-      }
-
-      media_event =
-        %{
-          type: "join",
-          data: %{
-            receiveMedia: true,
-            metadata: metadata
-          }
-        }
-        |> Jason.encode!()
-
-      peer = %Peer{
-        id: peer_id,
-        metadata: metadata
-      }
-
-      Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-      assert_receive %Message.NewPeer{rtc_engine: ^rtc_engine, peer: ^peer}
-      Engine.deny_peer(rtc_engine, peer_id, data: metadata)
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: ^peer_id, data: data}
-
-      assert %{"type" => "peerDenied", "data" => %{"reason" => "bob smells"}} ==
-               Jason.decode!(data)
-    end
-  end
-
-  describe "adding a new peer" do
-    test "triggers peerAccepted and peerJoined events", %{rtc_engine: rtc_engine} do
-      peer_id = "test_peer"
-      metadata = %{"display_name" => "test_peer"}
-      add_peer(rtc_engine, peer_id, metadata)
-    end
-  end
-
-  describe "updating peer metadata" do
-    test "triggers peerUpdated event", %{rtc_engine: rtc_engine} do
-      peer_id = "test_peer"
-      metadata = %{"display_name" => "test_peer"}
-      add_peer(rtc_engine, peer_id, metadata)
-
-      media_event =
-        %{
-          type: "updatePeerMetadata",
-          data: %{
-            metadata: %{"info" => "test"}
-          }
-        }
-        |> Jason.encode!()
-
-      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
-
-      assert %{
-               "type" => "peerUpdated",
-               "data" => %{
-                 "peerId" => "test_peer",
-                 "metadata" => %{"info" => "test"}
-               }
-             } == Jason.decode!(data)
-    end
-
-    test "doesn't trigger peerUpdated event, when metadata doesn't differ", %{
-      rtc_engine: rtc_engine
-    } do
-      peer_id = "test_peer"
-      metadata = %{"display_name" => "test_peer"}
-      add_peer(rtc_engine, peer_id, metadata)
-
-      media_event =
-        %{
-          type: "updatePeerMetadata",
-          data: %{
-            metadata: metadata
-          }
-        }
-        |> Jason.encode!()
-
-      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-
-      refute_receive(
-        %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: _media_event},
-        1000
+      Engine.message_endpoint(
+        rtc_engine,
+        "peer",
+        {:execute_actions, [notify_parent: {:ready, "metadata"}]}
       )
+
+      assert_receive {:new_peer, %Peer{id: "peer", metadata: "metadata"}}
+      assert_receive {:ready, []}
+    end
+
+    test "is ignored for non-peers", %{rtc_engine: rtc_engine} do
+      endpoint_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
+
+      Engine.add_endpoint(rtc_engine, endpoint_spec)
+      Engine.add_endpoint(rtc_engine, endpoint_spec, endpoint_id: "not-a-peer")
+
+      Engine.message_endpoint(
+        rtc_engine,
+        "not-a-peer",
+        {:execute_actions, [notify_parent: {:ready, "metadata"}]}
+      )
+
+      refute_receive {:new_peer, _peer}
+      refute_receive {:ready, _peers_in_room}
+    end
+
+    test "reports other peers", %{rtc_engine: rtc_engine} do
+      peer1_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
+      peer1_track = video_track("peer1", "track1", "track1-metadata", "stream1")
+      peer2_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
+
+      Engine.add_endpoint(rtc_engine, peer1_spec, peer_id: "peer1")
+
+      Engine.message_endpoint(
+        rtc_engine,
+        "peer1",
+        {:execute_actions,
+         [
+           notify_parent: {:ready, "peer1-metadata"},
+           notify_parent: {:publish, {:new_tracks, [peer1_track]}}
+         ]}
+      )
+
+      assert_receive {:ready, []}
+
+      Engine.add_endpoint(rtc_engine, peer2_spec, peer_id: "peer2")
+
+      Engine.message_endpoint(
+        rtc_engine,
+        "peer2",
+        {:execute_actions, [notify_parent: {:ready, "peer2-metadata"}]}
+      )
+
+      assert_receive {:ready, peers_in_room}
+
+      assert peers_in_room == [
+               %{
+                 id: "peer1",
+                 metadata: "peer1-metadata",
+                 trackIdToMetadata: %{"track1" => "track1-metadata"}
+               }
+             ]
+
+      assert_receive {:new_tracks, [%Track{id: "track1"}]}
     end
   end
 
-  describe "updating track metadata" do
-    test "triggers trackUpdated event", %{rtc_engine: rtc_engine} do
-      peer_id = "test_peer"
-      metadata = %{"display_name" => "test_peer"}
+  describe ":update_track_metadata" do
+    setup :setup_for_metadata_tests
 
-      add_peer(rtc_engine, peer_id, metadata)
-      track_id = "test-track-id"
+    test "triggers :track_metadata_updated", %{
+      rtc_engine: rtc_engine,
+      track: %Track{id: track_id},
+      peer: %{id: peer_id}
+    } do
+      Engine.message_endpoint(
+        rtc_engine,
+        peer_id,
+        {:execute_actions, [notify_parent: {:update_track_metadata, track_id, "new-metadata"}]}
+      )
 
-      metadata = %{"source" => "camera1"}
-
-      track =
-        Engine.Track.new(
-          :video,
-          "test-stream",
-          peer_id,
-          :VP8,
-          nil,
-          nil,
-          id: track_id,
-          metadata: metadata
-        )
-
-      endpoint = %TrackEndpoint{rtc_engine: rtc_engine, track: track}
-
-      :ok = Engine.add_endpoint(rtc_engine, endpoint, peer_id: peer_id)
-
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
-
-      assert %{
-               "type" => "tracksAdded",
-               "data" => %{"trackIdToMetadata" => %{track_id => metadata}, "peerId" => peer_id}
-             } == Jason.decode!(data)
-
-      metadata = %{"source" => "camera2"}
-
-      media_event =
-        %{
-          type: "updateTrackMetadata",
-          data: %{
-            "trackId" => track_id,
-            "trackMetadata" => metadata
-          }
-        }
-        |> Jason.encode!()
-
-      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
-
-      assert %{
-               "type" => "trackUpdated",
-               "data" => %{
-                 "peerId" => peer_id,
-                 "metadata" => metadata,
-                 "trackId" => track_id
-               }
-             } == Jason.decode!(data)
+      assert_receive {:track_metadata_updated, %Track{id: ^track_id, metadata: "new-metadata"}}
     end
 
-    test "doesn't trigger trackUpdated event, when metadata doesn't differ", %{
-      rtc_engine: rtc_engine
+    test "ignores identical metadata", %{
+      rtc_engine: rtc_engine,
+      track: track,
+      peer: %{id: peer_id}
     } do
-      peer_id = "test_peer"
-      metadata = %{"display_name" => "test_peer"}
-
-      add_peer(rtc_engine, peer_id, metadata)
-      track_id = "test-track-id"
-
-      metadata = %{"source" => "camera1"}
-
-      track =
-        Engine.Track.new(
-          :video,
-          "test-stream",
-          peer_id,
-          :VP8,
-          nil,
-          nil,
-          id: track_id,
-          metadata: metadata
-        )
-
-      endpoint = %TrackEndpoint{rtc_engine: rtc_engine, track: track}
-
-      :ok = Engine.add_endpoint(rtc_engine, endpoint, peer_id: peer_id)
-
-      assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
-
-      assert %{
-               "type" => "tracksAdded",
-               "data" => %{"trackIdToMetadata" => %{track_id => metadata}, "peerId" => peer_id}
-             } == Jason.decode!(data)
-
-      media_event =
-        %{
-          type: "updateTrackMetadata",
-          data: %{
-            "trackId" => track_id,
-            "trackMetadata" => track.metadata
-          }
-        }
-        |> Jason.encode!()
-
-      :ok = Engine.receive_media_event(rtc_engine, {:media_event, peer_id, media_event})
-
-      refute_receive(
-        %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: _media_event},
-        1000
+      Engine.message_endpoint(
+        rtc_engine,
+        peer_id,
+        {:execute_actions, [notify_parent: {:update_track_metadata, track.id, track.metadata}]}
       )
+
+      refute_receive {:track_metadata_updated, _track}
+    end
+  end
+
+  describe ":update_peer_metadata" do
+    setup :setup_for_metadata_tests
+
+    test "triggers :peer_metadata_updated", %{rtc_engine: rtc_engine, peer: %{id: peer_id}} do
+      Engine.message_endpoint(
+        rtc_engine,
+        peer_id,
+        {:execute_actions, [notify_parent: {:update_peer_metadata, "new-metadata"}]}
+      )
+
+      assert_receive {:peer_metadata_updated, %Peer{id: ^peer_id, metadata: "new-metadata"}}
+    end
+
+    test "ignores identical metadata", %{rtc_engine: rtc_engine, peer: peer} do
+      Engine.message_endpoint(
+        rtc_engine,
+        peer.id,
+        {:execute_actions, [notify_parent: {:update_peer_metadata, peer.metadata}]}
+      )
+
+      refute_receive {:peer_metadata_updated, _track}
     end
   end
 
   describe "Engine.message_endpoint/3" do
     test "forwards message to endpoint", %{rtc_engine: rtc_engine} do
-      endpoint = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+      endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
       endpoint_id = :test_endpoint
       :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
       :ok = Engine.message_endpoint(rtc_engine, endpoint_id, :message)
@@ -310,21 +165,53 @@ defmodule Membrane.RTC.EngineTest do
     end
   end
 
-  defp add_peer(rtc_engine, peer_id, metadata) do
-    peer = Peer.new(peer_id, metadata)
-    :ok = Engine.add_peer(rtc_engine, peer)
-    assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: ^peer_id, data: data}
+  defp video_track(peer_id, track_id, metadata, stream_id \\ "test-stream") do
+    Engine.Track.new(:video, stream_id, peer_id, :VP8, nil, nil,
+      id: track_id,
+      metadata: metadata
+    )
+  end
 
-    assert %{"type" => "peerAccepted", "data" => %{"id" => peer_id, "peersInRoom" => []}} ==
-             Jason.decode!(data)
+  defp setup_for_metadata_tests(%{rtc_engine: rtc_engine}) do
+    track = video_track("track-endpoint", "track1", "track-metadata")
 
-    assert_receive %Message.MediaEvent{rtc_engine: ^rtc_engine, to: :broadcast, data: data}
+    peer = %Peer{
+      id: "track-endpoint",
+      metadata: "original-metadata"
+    }
 
-    assert %{
-             "type" => "peerJoined",
-             "data" => %{
-               "peer" => %{"id" => peer_id, "metadata" => metadata}
-             }
-           } == Jason.decode!(data)
+    track_endpoint = %TestEndpoint{rtc_engine: rtc_engine}
+
+    server_endpoint = %TestEndpoint{
+      rtc_engine: rtc_engine,
+      owner: self()
+    }
+
+    Engine.add_endpoint(rtc_engine, track_endpoint, peer_id: peer.id)
+
+    Engine.message_endpoint(
+      rtc_engine,
+      peer.id,
+      {:execute_actions,
+       notify_parent: {:ready, peer.metadata}, notify_parent: {:publish, {:new_tracks, [track]}}}
+    )
+
+    Engine.add_endpoint(rtc_engine, server_endpoint, endpoint_id: "server-endpoint")
+
+    assert_receive {:new_tracks, [%Track{id: "track1"}]}
+    assert :ok = Engine.subscribe(rtc_engine, "server-endpoint", "track1")
+
+    Engine.message_endpoint(
+      rtc_engine,
+      peer.id,
+      {:execute_actions,
+       [notify_parent: {:track_ready, track.id, hd(track.variants), track.encoding}]}
+    )
+
+    [
+      track: track,
+      track_endpoint: track_endpoint,
+      peer: peer
+    ]
   end
 end

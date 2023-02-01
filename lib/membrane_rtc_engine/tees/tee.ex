@@ -28,15 +28,15 @@ defmodule Membrane.RTC.Engine.Tee do
     availability: :on_request,
     mode: :pull,
     demand_mode: :auto,
-    caps: Membrane.RTP
+    accepted_format: Membrane.RTP
 
   def_output_pad :output,
     availability: :on_request,
     mode: :push,
-    caps: Membrane.RTP
+    accepted_format: Membrane.RTP
 
   @impl true
-  def handle_init(opts) do
+  def handle_init(_ctx, opts) do
     if opts.track.encoding not in @supported_codecs do
       raise("""
       #{inspect(__MODULE__)} does not support codec #{inspect(opts.track.encoding)}.
@@ -44,7 +44,7 @@ defmodule Membrane.RTC.Engine.Tee do
       """)
     end
 
-    {:ok,
+    {[],
      %{
        track: opts.track,
        routes: %{},
@@ -55,13 +55,13 @@ defmodule Membrane.RTC.Engine.Tee do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, {_track_id, _variant}), _ctx, state) do
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
   def handle_pad_added(
         Pad.ref(:output, {:endpoint, _endpoint_id}) = pad,
-        %{playback_state: playback_state},
+        %{playback: playback},
         state
       ) do
     state =
@@ -71,46 +71,46 @@ defmodule Membrane.RTC.Engine.Tee do
       })
 
     actions =
-      if playback_state == :playing do
+      if playback == :playing do
         actions =
           state
           |> active_variants()
           |> Enum.flat_map(&[event: {pad, %TrackVariantResumed{variant: &1}}])
 
-        [caps: {pad, %Membrane.RTP{}}] ++ actions
+        [stream_format: {pad, %Membrane.RTP{}}] ++ actions
       else
         []
       end
 
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
   def handle_pad_added(pad, _ctx, _state) do
-    raise("Pad #{inspect(pad)} not allowed for #{inspect(__MODULE__)}")
+    raise "Pad #{inspect(pad)} not allowed for #{inspect(__MODULE__)}"
   end
 
   @impl true
   def handle_pad_removed(Pad.ref(:output, {:endpoint, _endpoint_id}) = pad, _ctx, state) do
     {_route, state} = pop_in(state, [:routes, pad])
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, {_track_id, _rid}), _ctx, state) do
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_prepared_to_playing(ctx, state) do
+  def handle_playing(ctx, state) do
     actions =
       ctx.pads
       |> Enum.filter(fn {_pad, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} ->
-        [caps: {pad, %Membrane.RTP{}}]
+        [stream_format: {pad, %Membrane.RTP{}}]
       end)
 
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
@@ -133,11 +133,12 @@ defmodule Membrane.RTC.Engine.Tee do
       |> Enum.filter(fn {_pad, config} -> config.current_variant == variant end)
       |> Enum.map(fn {pad, _config} -> {:event, {pad, event}} end)
 
-    {{:ok, actions}, state}
+    {actions, state}
   end
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do
+    Membrane.Logger.info("Track variant #{inspect(id)} paused.")
     {_track_id, variant} = id
     state = Map.update!(state, :inactive_variants, &MapSet.put(&1, variant))
 
@@ -156,14 +157,15 @@ defmodule Membrane.RTC.Engine.Tee do
           state
       end)
 
-    {{:ok, forward: event}, state}
+    {[forward: event], state}
   end
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantResumed{} = event, _ctx, state) do
+    Membrane.Logger.info("Track variant #{inspect(id)} resumed.")
     {_track_id, variant} = id
     state = Map.update!(state, :inactive_variants, &MapSet.delete(&1, variant))
-    {{:ok, forward: event}, state}
+    {[forward: event], state}
   end
 
   @impl true
@@ -186,7 +188,7 @@ defmodule Membrane.RTC.Engine.Tee do
         Ignoring.\
         """)
 
-        {:ok, state}
+        {[], state}
 
       true ->
         Membrane.Logger.debug("""
@@ -208,13 +210,13 @@ defmodule Membrane.RTC.Engine.Tee do
     %{current_variant: current_variant} = state.routes[pad]
 
     if current_variant do
-      {{:ok, event: {Pad.ref(:input, {state.track.id, current_variant}), event}}, state}
+      {[event: {Pad.ref(:input, {state.track.id, current_variant}), event}], state}
     else
       Membrane.Logger.warn("""
       Endpoint #{endpoint_id} requested keyframe but we don't send any variant to it. Ignoring.
       """)
 
-      {:ok, state}
+      {[], state}
     end
   end
 
@@ -229,12 +231,9 @@ defmodule Membrane.RTC.Engine.Tee do
       raise TrackVariantStateError, track: state.track, variant: variant
     end
 
-    {actions, state} =
-      Enum.flat_map_reduce(state.routes, state, fn route, state ->
-        handle_route(buffer, variant, route, ctx, state)
-      end)
-
-    {{:ok, actions}, state}
+    Enum.flat_map_reduce(state.routes, state, fn route, state ->
+      handle_route(buffer, variant, route, ctx, state)
+    end)
   end
 
   @impl true
@@ -249,55 +248,39 @@ defmodule Membrane.RTC.Engine.Tee do
       end)
 
     if all_end_of_streams? do
-      {{:ok, forward: :end_of_stream}, state}
+      {[forward: :end_of_stream], state}
     else
-      {:ok, state}
+      {[], state}
     end
   end
 
   defp handle_track_variant_request(output_pad, event, state) do
-    %RequestTrackVariant{variant: requested_variant} = event
+    %RequestTrackVariant{variant: requested_variant, reason: reason} = event
     pad = Pad.ref(:input, {state.track.id, requested_variant})
 
     actions = [event: {pad, %Membrane.KeyframeRequestEvent{}}]
 
-    state = put_in(state, [:routes, output_pad, :target_variant], requested_variant)
-    {{:ok, actions}, state}
-  end
-
-  defp handle_route(buffer, variant, {output_pad, %{current_variant: variant}}, ctx, state) do
-    started? = ctx.pads[output_pad].start_of_stream?
-
-    actions =
-      cond do
-        started? ->
-          [buffer: {output_pad, buffer}]
-
-        buffer.metadata.is_keyframe ->
-          event = %TrackVariantSwitched{new_variant: variant}
-
-          vad_event_action =
-            if Map.has_key?(state.vad, variant),
-              do: [event: {output_pad, %VoiceActivityChanged{voice_activity: state.vad[variant]}}],
-              else: []
-
-          [event: {output_pad, event}] ++ vad_event_action ++ [buffer: {output_pad, buffer}]
-
-        true ->
-          []
-      end
+    state =
+      state
+      |> put_in([:routes, output_pad, :target_variant], requested_variant)
+      |> put_in([:routes, output_pad, :reason], reason)
 
     {actions, state}
   end
 
+  defp handle_route(buffer, variant, {output_pad, %{current_variant: variant}}, _ctx, state) do
+    {[buffer: {output_pad, buffer}], state}
+  end
+
   defp handle_route(buffer, variant, {output_pad, %{target_variant: variant}}, _ctx, state) do
     if buffer.metadata.is_keyframe do
+      event = %TrackVariantSwitched{new_variant: variant, reason: state.routes[output_pad].reason}
+
       state =
         state
         |> put_in([:routes, output_pad, :current_variant], variant)
         |> put_in([:routes, output_pad, :target_variant], nil)
-
-      event = %TrackVariantSwitched{new_variant: variant}
+        |> put_in([:routes, output_pad, :reason], nil)
 
       vad_event_action =
         if Map.has_key?(state.vad, variant),

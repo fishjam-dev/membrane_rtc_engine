@@ -11,8 +11,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
   test "VariantSelector selects another variant when currently used variant becomes inactive" do
     selector = create_selector()
-    assert {selector, {:request, :medium}} = VariantSelector.variant_inactive(selector, :high)
-    assert {_selector, {:request, :low}} = VariantSelector.variant_inactive(selector, :medium)
+
+    assert {selector, {:request, :medium, :variant_inactive}} =
+             VariantSelector.variant_inactive(selector, :high)
+
+    assert {_selector, {:request, :low, :variant_inactive}} =
+             VariantSelector.variant_inactive(selector, :medium)
   end
 
   # Skip explanation:
@@ -24,17 +28,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   test "VariantSelector selects variant being used before it became inactive" do
     selector = create_selector()
 
-    assert {selector, {:request, :medium}} = VariantSelector.variant_inactive(selector, :high)
+    assert {selector, {:request, :medium, :variant_inactive}} =
+             VariantSelector.variant_inactive(selector, :high)
 
     selector = VariantSelector.set_current_variant(selector, :medium)
 
-    assert {_selector, {:request, :high}} = VariantSelector.variant_active(selector, :high)
+    assert {_selector, {:request, :high, :other}} =
+             VariantSelector.variant_active(selector, :high)
   end
 
   test "target_variant/2 sets target variant and chooses it when it is active" do
     selector = create_selector()
 
-    assert {selector, {:request, :medium}} = VariantSelector.variant_inactive(selector, :high)
+    assert {selector, {:request, :medium, :variant_inactive}} =
+             VariantSelector.variant_inactive(selector, :high)
+
     assert {selector, :noop} = VariantSelector.set_target_variant(selector, :medium)
 
     selector = VariantSelector.set_current_variant(selector, :medium)
@@ -49,7 +57,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
     assert {selector, :noop} = VariantSelector.variant_inactive(selector, :low)
     assert {selector, :noop} = VariantSelector.set_target_variant(selector, :low)
-    assert {_selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
+    assert {_selector, {:request, :low, :other}} = VariantSelector.variant_active(selector, :low)
   end
 
   @tag :skip
@@ -75,18 +83,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
     test "accepts any variant before receiving first allocation", %{selector: selector} do
       Enum.each([:low, :medium, :high], fn variant ->
-        assert {_selector, {:request, ^variant}} =
+        assert {_selector, {:request, ^variant, :other}} =
                  VariantSelector.variant_active(selector, variant)
       end)
     end
 
     test "frees unused allocation", %{selector: selector} do
-      assert {_selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
+      assert {_selector, {:request, :low, :other}} =
+               VariantSelector.variant_active(selector, :low)
+
       assert_allocation_requested(:low)
     end
 
     test "requests allocation for higher variant", %{selector: selector} do
-      assert {selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
+      assert {selector, {:request, :low, :other}} = VariantSelector.variant_active(selector, :low)
       assert_allocation_requested(:low)
       assert {_selector, :noop} = VariantSelector.variant_active(selector, :medium)
       assert_allocation_requested(:medium)
@@ -94,7 +104,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
     test "doesn't select a higher variant right after lowering its allocation, before receiving confirmation from the Allocator",
          %{selector: selector} do
-      assert {selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
+      assert {selector, {:request, :low, :other}} = VariantSelector.variant_active(selector, :low)
       assert_allocation_requested(:low)
       assert {_selector, :noop} = VariantSelector.variant_active(selector, :medium)
     end
@@ -118,7 +128,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
         allocation = @variant_bitrates[variant] * 1.1
         assert_allocation_requested(variant)
 
-        assert {selector, {:request, ^variant}} =
+        assert {selector, {:request, ^variant, :other}} =
                  VariantSelector.set_bandwidth_allocation(selector, allocation)
 
         selector
@@ -126,7 +136,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
     end
 
     test "requests to stop the track when allocation is forcefully lowered", %{selector: selector} do
-      assert {selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
+      assert {selector, {:request, :low, :other}} = VariantSelector.variant_active(selector, :low)
       assert {_selector, :stop} = VariantSelector.set_bandwidth_allocation(selector, 0)
     end
 
@@ -138,18 +148,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
     end
 
     test "refuses to lower the allocation when on low", %{selector: selector} do
-      assert {selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
+      assert {selector, {:request, :low, :other}} = VariantSelector.variant_active(selector, :low)
       assert {_selector, :noop} = VariantSelector.decrease_allocation(selector)
       assert_receive {_pid, {:decrease_allocation_request, :reject}}
     end
 
     test "lowers the allocation when on medium and it is requested", %{selector: selector} do
-      assert {selector, {:request, :low}} = VariantSelector.variant_active(selector, :low)
+      assert {selector, {:request, :low, :other}} = VariantSelector.variant_active(selector, :low)
       assert_allocation_requested(:low)
       assert {selector, :noop} = VariantSelector.variant_active(selector, :medium)
       assert_allocation_requested(:medium)
 
-      assert {selector, {:request, :medium}} =
+      assert {selector, {:request, :medium, :other}} =
                VariantSelector.set_bandwidth_allocation(
                  selector,
                  @variant_bitrates[:medium] * 1.1
@@ -157,7 +167,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
       selector = VariantSelector.set_current_variant(selector, :medium)
 
-      assert {selector, {:request, :low}} = VariantSelector.decrease_allocation(selector)
+      assert {selector, {:request, :low, :low_bandwidth}} =
+               VariantSelector.decrease_allocation(selector)
+
       assert_receive {_pid, {:decrease_allocation_request, :accept}}
       VariantSelector.set_current_variant(selector, :low)
       assert_allocation_requested(:low)
@@ -175,7 +187,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
     selector = %{selector | current_allocation: 9_999_999_999_999}
 
-    assert {selector, {:request, :high}} = VariantSelector.variant_active(selector, :high)
+    assert {selector, {:request, :high, :other}} = VariantSelector.variant_active(selector, :high)
 
     selector = VariantSelector.set_current_variant(selector, :high)
 

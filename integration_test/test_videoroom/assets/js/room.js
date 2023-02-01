@@ -1,4 +1,4 @@
-import { MembraneWebRTC } from "@membraneframework/membrane-webrtc-js";
+import { MembraneWebRTC } from "@jellyfish-dev/membrane-webrtc-js";
 
 import { Socket } from "phoenix";
 
@@ -22,8 +22,6 @@ function setErrorMessage(error) {
 }
 
 class Room {
-
-
   constructor(localStream, simulcast) {
     this.localStream = localStream;
     this.peers = [];
@@ -110,7 +108,12 @@ class Room {
         track,
         this.localStream,
         {},
-        { enabled: true, active_encodings: this.encodings })
+        { enabled: true, active_encodings: this.encodings },
+        new Map([
+          ["h", 1500],
+          ["m", 500],
+          ["l", 100],
+        ]))
 
 
     if (track.kind == "audio") this.audioTrack = [trackId, track];

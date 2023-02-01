@@ -1,8 +1,8 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.8.2"
-  @github_url "https://github.com/membraneframework/membrane_rtc_engine"
+  @version "0.9.0"
+  @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
 
   def project do
     [
@@ -21,18 +21,25 @@ defmodule Membrane.RTC.Engine.MixProject do
       # docs
       name: "Membrane RTC Engine",
       source_url: @github_url,
-      homepage_url: "https://membraneframework.org",
+      homepage_url: "https://membrane.stream",
       docs: docs(),
+
+      # test coverage
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
+      ],
 
       # dialyzer
       # this is because of optional dependencies
       # they are not included in PLT
       dialyzer: [
         plt_add_apps: [
-          :ex_sdp,
-          :membrane_rtp_plugin,
-          :membrane_ice_plugin,
-          :membrane_webrtc_plugin
+          :membrane_http_adaptive_stream_plugin
         ]
       ]
     ]
@@ -51,14 +58,14 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_opentelemetry, "~> 0.1.0"},
-      {:membrane_core, "~> 0.10.0"},
+      {:membrane_core, "~> 0.11.2"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin, "~> 0.11.0"},
-      {:membrane_rtp_format, "~> 0.5.0"},
-      {:membrane_rtp_vp8_plugin, "~> 0.6.0"},
-      {:membrane_rtp_opus_plugin, "~> 0.6.0"},
-      {:membrane_rtp_h264_plugin, "~> 0.13.0"},
-      {:membrane_tee_plugin, "~> 0.9.0"},
+      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
+      {:membrane_rtp_format, "~> 0.6.0"},
+      {:membrane_rtp_vp8_plugin, "~> 0.7.0"},
+      {:membrane_rtp_opus_plugin, "~> 0.7.0"},
+      {:membrane_rtp_h264_plugin, "~> 0.14.0"},
+      {:membrane_tee_plugin, "~> 0.10.0"},
       {:uuid, "~> 1.1"},
       {:qex, "~> 0.5"},
       {:jason, "~> 1.2"},
@@ -66,27 +73,27 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:dialyxir, "1.1.0", only: :dev, runtime: false},
       {:ex_doc, "0.28.3", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
-      {:statistics, "~> 0.6"},
+      {:statistics, "~> 0.6.0"},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin,
-       github: "membraneframework/membrane_http_adaptive_stream_plugin", optional: true},
-      {:membrane_mp4_plugin, "~> 0.17.0", optional: true},
-      {:membrane_aac_plugin, "~> 0.12.0", optional: true},
-      {:membrane_aac_fdk_plugin, "~> 0.13.0", optional: true},
-      {:membrane_opus_plugin, "~> 0.15.0", optional: true},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.24.0", optional: true, override: true},
-      {:membrane_framerate_converter_plugin, "~> 0.5.1", optional: true},
-      {:membrane_ffmpeg_swscale_plugin, "~> 0.10.0", optional: true},
-      {:membrane_video_compositor_plugin,
-       github: "membraneframework-labs/membrane_video_compositor_plugin", optional: true},
-      {:membrane_audio_mix_plugin, "~> 0.11.1", optional: true},
-      {:membrane_generator_plugin, "~> 0.7.1", optional: true},
-      {:membrane_realtimer_plugin, "~> 0.5.0", optional: true},
-      {:membrane_audio_filler_plugin, github: "membraneframework/membrane_audio_filler_plugin"},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.10.0", optional: true},
+      {:membrane_mp4_plugin, "~> 0.18.0", optional: true},
+      {:membrane_aac_plugin, "~> 0.13.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.14.0", optional: true},
+      {:membrane_opus_plugin, "~> 0.16.0", optional: true},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.25.2", optional: true},
+      {:membrane_framerate_converter_plugin, "~> 0.6.0", optional: true},
+      {:membrane_ffmpeg_swscale_plugin, "~> 0.11.0", optional: true},
+      {:membrane_video_compositor_plugin, "~> 0.1.0", optional: true},
+      {:membrane_audio_mix_plugin, "~> 0.12.0", optional: true},
+      {:membrane_generator_plugin,
+       github: "membraneframework/membrane_generator_plugin", branch: "core-v0.11", optional: true},
+      {:membrane_realtimer_plugin, "~> 0.6.0", optional: true},
+      {:membrane_audio_filler_plugin, "~> 0.1.0"},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.12.0"},
+      {:membrane_file_plugin, "~> 0.13.0"},
+      {:excoveralls, "~> 0.15.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"},
@@ -106,7 +113,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @github_url,
-        "Membrane Framework Homepage" => "https://membraneframework.org"
+        "Membrane Framework Homepage" => "https://membrane.stream"
       }
     ]
   end
@@ -166,9 +173,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       "guides/logs.md",
       "guides/metrics.md",
       "guides/traces.md",
+      "guides/vad.md",
 
       # internal docs
-      "internal_docs/media_events.md",
+      "internal_docs/webrtc_media_events.md",
       "internal_docs/protocol.md",
       "internal_docs/webrtc_endpoint.md",
       "internal_docs/simulcast.md": [filename: "internal_simulcast"],
