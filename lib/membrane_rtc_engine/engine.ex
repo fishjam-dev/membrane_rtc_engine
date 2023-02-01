@@ -271,7 +271,11 @@ defmodule Membrane.RTC.Engine do
     options = Keyword.put(options, :id, id)
     options = Keyword.put(options, :display_manager?, display_manager?)
     Membrane.Logger.info("Starting a new RTC Engine instance with id: #{id}")
-    apply(Membrane.Pipeline, func, [__MODULE__, options, process_options])
+
+    with {:ok, _supervisor, pipeline} <-
+           apply(Membrane.Pipeline, func, [__MODULE__, options, process_options]) do
+      {:ok, pipeline}
+    end
   end
 
   @spec get_registry_name() :: atom()
