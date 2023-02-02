@@ -640,6 +640,7 @@ if Enum.all?(
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do
       defp merge_strings(strings), do: Enum.join(strings, ", ")
+
       defp raise_missing_deps(type, deps) do
         raise """
         Cannot find some of the modules required to use the #{type} mixer.

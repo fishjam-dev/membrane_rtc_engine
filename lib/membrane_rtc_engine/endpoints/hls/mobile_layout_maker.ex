@@ -49,7 +49,8 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       end)
       |> Enum.with_index()
       |> Enum.flat_map(fn {{_id, {track, stream_format}}, index} ->
-        {layout, transcoding} = get_track_layout(:basic, index, stream_format, output_stream_format)
+        {layout, transcoding} =
+          get_track_layout(:basic, index, stream_format, output_stream_format)
 
         [
           {track.id, layout, transcoding}
@@ -65,7 +66,11 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     end
 
     defp get_track_layout(:basic, index, stream_format, %{width: width, height: height}) do
-      output_stream_format = %{width: round(1 / 2 * width) - 10, height: round(1 / 4 * height) - 10}
+      output_stream_format = %{
+        width: round(1 / 2 * width) - 10,
+        height: round(1 / 4 * height) - 10
+      }
+
       position = {round(index / 2 * width) + 5, height - round(1 / 4 * height) + 5}
 
       placement = get_placement(output_stream_format, stream_format, position, 0.3)
@@ -87,10 +92,10 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       if video_proportion(output_stream_format) > video_proportion(stream_format),
         do:
           {output_stream_format.width,
-          round(output_stream_format.width / stream_format.width * stream_format.height)},
+           round(output_stream_format.width / stream_format.width * stream_format.height)},
         else:
           {round(output_stream_format.height / stream_format.height * stream_format.width),
-          output_stream_format.height}
+           output_stream_format.height}
     end
 
     defp get_transformations(output_stream_format, display_size, radius),
