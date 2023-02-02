@@ -12,11 +12,13 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.AudioMixerConfig do
   alias Membrane.RawAudio
 
   @type t() :: %__MODULE__{
-          channels: RawAudio.channels_t(),
-          sample_rate: RawAudio.sample_rate_t(),
-          sample_format: RawAudio.SampleFormat.t()
+          stream_format: RawAudio.t(),
+          background: struct() | nil
         }
-  defstruct channels: 1,
-            sample_rate: 48_000,
-            sample_format: :s16le
+  defstruct stream_format: %RawAudio{
+              channels: 1,
+              sample_rate: 48_000,
+              sample_format: :s16le
+            },
+            background: nil
 end

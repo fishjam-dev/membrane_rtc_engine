@@ -43,8 +43,7 @@ if Enum.all?(
     alias Membrane.RTC.Engine
 
     alias Membrane.RTC.Engine.Endpoint.HLS.{
-      AudioMixerConfig,
-      CompositorConfig,
+      MixerConfig,
       SinkBinConfig,
       StreamFormatUpdater
     }
@@ -113,7 +112,7 @@ if Enum.all?(
                   default: "hls_output"
                 ],
                 mixer_config: [
-                  spec: %{audio: AudioMixerConfig.t(), video: CompositorConfig.t()} | nil,
+                  spec: MixerConfig.t() | nil,
                   default: nil,
                   description: """
                   Audio and video mixer configuration. If you don't want to use compositor pass nil.
@@ -165,10 +164,7 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_playing(_context, %{mixer_config: nil} = state), do: {[], state}
-
-    @impl true
-    def handle_playing(context, state) do
+    def handle_playing(context, %{mixer_config: %{persist?: true}} = state) do
       spec =
         generate_audio_mixer(state, context) ++
           generate_compositor(state, context) ++
@@ -176,6 +172,9 @@ if Enum.all?(
 
       {[spec: spec], state}
     end
+
+    @impl true
+    def handle_playing(_context, state), do: {[], state}
 
     @impl true
     def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
@@ -192,10 +191,17 @@ if Enum.all?(
           track.stream_id == removed_track.stream_id
         end)
 
-      {state, children_to_remove} =
-        if is_nil(state.mixer_config) and not sink_bin_used?,
-          do: {state, [{:hls_sink_bin, removed_track.stream_id}]},
-          else: {state, []}
+      {children_to_remove, state} =
+        case {state.mixer_config, sink_bin_used?} do
+          {nil, false} ->
+            {[{:hls_sink_bin, removed_track.stream_id}], state}
+
+          {%{persist?: false}, _sink_bin_used?} when map_size(tracks) == 0 ->
+            {get_common_children(), %{state | stream_beginning: nil}}
+
+          _else ->
+            {[], state}
+        end
 
       children_to_remove = track_children ++ children_to_remove
 
@@ -337,7 +343,9 @@ if Enum.all?(
       get_depayloading_track_spec(link_builder, track) ++
         attach_track_spec(offset, track, state) ++
         generate_blank_spec(state, ctx) ++
-        generate_silence_spec(state, ctx)
+        generate_silence_spec(state, ctx) ++
+        generate_audio_mixer(state, ctx) ++
+        generate_compositor(state, ctx)
     end
 
     defp get_depayloading_track_spec(link_builder, track),
@@ -420,15 +428,10 @@ if Enum.all?(
         do: []
 
       defp generate_silence_spec(state, _ctx) do
-        silence_generator = %Membrane.SilenceGenerator{
-          stream_format: %Membrane.RawAudio{
-            channels: state.mixer_config.audio.channels,
-            sample_rate: state.mixer_config.audio.sample_rate,
-            sample_format: state.mixer_config.audio.sample_format
-          },
-          duration: :infinity,
-          frames_per_buffer: 960
-        }
+        silence_generator =
+          if is_nil(state.mixer_config.audio.background),
+            do: get_silence_generator(state.mixer_config.audio.stream_format),
+            else: state.mixer_config.audio.background
 
         [
           child(:silence_generator, silence_generator)
@@ -437,33 +440,39 @@ if Enum.all?(
         ]
       end
 
+      defp get_silence_generator(stream_format),
+        do: %Membrane.SilenceGenerator{
+          stream_format: stream_format,
+          duration: :infinity,
+          frames_per_buffer: 960
+        }
+
       defp generate_blank_spec(%{mixer_config: nil}, _ctx), do: []
 
       defp generate_blank_spec(_state, ctx) when is_map_key(ctx.children, :fake_source), do: []
 
       defp generate_blank_spec(state, _ctx) do
-        stream_format = state.mixer_config.video.stream_format
-
-        generator_stream_format = %Membrane.RawVideo{
-          width: stream_format.width,
-          height: stream_format.height,
-          pixel_format: :I420,
-          framerate: stream_format.framerate,
-          aligned: true
-        }
+        background_generator =
+          if is_nil(state.mixer_config.video.background),
+            do: get_blank_generator(state.mixer_config.video),
+            else: state.mixer_config.video.background
 
         [
-          child(:fake_source, %Membrane.BlankVideoGenerator{
-            stream_format: generator_stream_format,
-            duration: :infinity
-          })
+          child(:fake_source, background_generator)
           |> child(:video_realtimer, Membrane.Realtimer)
           |> via_in(:input, options: [initial_placement: @initial_placement])
           |> get_child(:compositor)
         ]
       end
 
+      defp get_blank_generator(%{stream_format: stream_format}),
+        do: %Membrane.BlankVideoGenerator{
+          stream_format: stream_format,
+          duration: :infinity
+        }
+
       defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor), do: []
+      defp generate_compositor(%{mixer_config: nil}, _ctx), do: []
 
       defp generate_compositor(state, _ctx) do
         compositor = %Membrane.VideoCompositor{
@@ -508,14 +517,11 @@ if Enum.all?(
 
     if Enum.all?(@audio_mixer_deps, &Code.ensure_loaded?/1) do
       defp generate_audio_mixer(_state, ctx) when is_map_key(ctx.children, :audio_mixer), do: []
+      defp generate_audio_mixer(%{mixer_config: nil}, _ctx), do: []
 
       defp generate_audio_mixer(state, _ctx) do
         audio_mixer = %Membrane.AudioMixer{
-          stream_format: %Membrane.RawAudio{
-            channels: state.mixer_config.audio.channels,
-            sample_rate: state.mixer_config.audio.sample_rate,
-            sample_format: state.mixer_config.audio.sample_format
-          },
+          stream_format: state.mixer_config.audio.stream_format,
           synchronize_buffers?: true
         }
 
@@ -610,6 +616,21 @@ if Enum.all?(
 
       {update_layout_actions, %{state | video_layout_state: video_layout_state}}
     end
+
+    defp get_common_children(),
+      do: [
+        :fake_source,
+        :video_realtimer,
+        :silence_generator,
+        :audio_realtimer,
+        :audio_mixer,
+        :aac_encoder,
+        :aac_parser,
+        :compositor,
+        :encoder,
+        :video_parser_out,
+        :hls_sink_bin
+      ]
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1),
       do: defp(merge_strings(strings), do: Enum.join(strings, ", "))
