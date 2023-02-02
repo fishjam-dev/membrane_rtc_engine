@@ -77,13 +77,10 @@ defmodule Membrane.RTC.Engine.MixProject do
 
       # Optional deps for HLS endpoint
       {:membrane_http_adaptive_stream_plugin, "~> 0.10.0", optional: true},
-      {:membrane_mp4_plugin, "~> 0.18.0", optional: true},
       {:membrane_aac_plugin, "~> 0.13.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.14.0", optional: true},
       {:membrane_opus_plugin, "~> 0.16.0", optional: true},
       {:membrane_h264_ffmpeg_plugin, "~> 0.25.2", optional: true},
-      {:membrane_framerate_converter_plugin, "~> 0.6.0", optional: true},
-      {:membrane_ffmpeg_swscale_plugin, "~> 0.11.0", optional: true},
       {:membrane_video_compositor_plugin, "~> 0.1.0", optional: true},
       {:membrane_audio_mix_plugin, "~> 0.12.0", optional: true},
       {:membrane_generator_plugin,
