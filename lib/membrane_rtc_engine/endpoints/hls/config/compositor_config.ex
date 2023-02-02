@@ -13,7 +13,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
   """
 
   @type t() :: %__MODULE__{
-          stream_format: RawVideo.t(),
+          stream_format: Membrane.RawVideo.t(),
           layout_module: module(),
           background: struct() | nil
         }

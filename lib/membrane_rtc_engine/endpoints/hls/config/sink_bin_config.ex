@@ -8,7 +8,7 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
       To read more about config options go to module Membrane.HTTPAdaptiveStream.SinkBin and read options descriptions.
     """
 
-    alias Membrane.HTTPAdaptiveStream.Manifest
+    alias Membrane.HTTPAdaptiveStream.{Manifest, Storage}
 
     @type t() :: %__MODULE__{
             manifest_name: String.t(),
