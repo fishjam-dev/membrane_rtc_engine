@@ -198,12 +198,26 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       [prober: prober]
     end
 
-    test "switches to disallowed_overuse when bandwidth estimation lowers below allocated bandwidth",
+    test "switches to allowed_overuse when bandwidth estimation lowers below allocated bandwidth",
          %{prober: prober} do
-      assert {:noreply, prober} =
-               RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 0}, prober)
+      assert {:noreply, %{prober_status: :allowed_overuse} = prober} =
+               RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 9000}, prober)
 
+      assert {:noreply, %{prober_status: :allowed_overuse} = prober} =
+               RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 9500}, prober)
+
+      assert {:noreply, %{prober_status: :disallowed_overuse}} =
+               RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 8500}, prober)
+    end
+
+    test "switches to disallowed_overuse from allowed_overuse when bandwidth allocation decreases",
+         %{prober: prober} do
+      assert {:noreply, %{prober_status: :allowed_overuse} = prober} =
+               RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 9000}, prober)
+
+      {:noreply, prober} = RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 0}, prober)
       assert prober.prober_status == :disallowed_overuse
+
       assert_receive :decrease_your_allocation, 0
 
       send(self(), {self(), {:decrease_allocation_request, :accept}})
@@ -213,21 +227,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
       assert prober.prober_status == :maintain_allocation
       refute_receive :decrease_your_allocation, 0
-    end
-
-    test "switches to disallowed_overuse from allowed_overuse when bandwidth allocation decreases",
-         %{prober: prober, track: track} do
-      # Get to allowed overuse
-      {:noreply, prober} =
-        RTPConnectionAllocator.handle_cast(
-          {:register_track_receiver, self(), 100_000_000, %{track | variants: [:high]}, []},
-          prober
-        )
-
-      assert prober.prober_status == :allowed_overuse
-
-      {:noreply, prober} = RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 0}, prober)
-      assert prober.prober_status == :disallowed_overuse
     end
 
     test "stays in allowed overuse if estimation increases", %{track: track, prober: prober} do
