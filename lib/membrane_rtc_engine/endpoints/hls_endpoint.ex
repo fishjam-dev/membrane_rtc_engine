@@ -452,6 +452,8 @@ if Enum.all?(
         do: %Membrane.SilenceGenerator{
           stream_format: stream_format,
           duration: :infinity,
+          # Value 960 is consistent with what we get from browser also with addition of default stream_format
+          # it generates total values so we don't lose data becouse of rounding error
           frames_per_buffer: 960
         }
     else
