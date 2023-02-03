@@ -2,9 +2,14 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
   @moduledoc """
   behaviour defining how VideoLayout should change when new video track is added or when it's removed.
   """
+
+  alias Membrane.RTC.Engine.Track
+  alias Membrane.VideoCompositor.RustStructs.BaseVideoPlacement
+  alias Membrane.VideoCompositor.VideoTransformations
+
   @type state() :: any()
   @type stream_format() :: Membrane.H264.t()
-  @type output_format() :: RawVideo.t()
+  @type output_format() :: Membrane.RawVideo.t()
   @doc """
   output format represents parameters of output video created by compositor.
   """

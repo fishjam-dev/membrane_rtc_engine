@@ -13,8 +13,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
   """
 
   @type t() :: %__MODULE__{
-          stream_format: RawVideo.t(),
-          layout_module: module()
+          stream_format: Membrane.RawVideo.t(),
+          layout_module: module(),
+          background: struct() | nil
         }
   defstruct stream_format: %Membrane.RawVideo{
               width: 400,
@@ -23,5 +24,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
               framerate: {24, 1},
               aligned: true
             },
-            layout_module: Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker
+            layout_module: Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker,
+            background: nil
 end

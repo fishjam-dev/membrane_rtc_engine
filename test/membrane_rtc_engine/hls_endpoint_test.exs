@@ -1,11 +1,18 @@
 defmodule Membrane.RTC.HLSEndpointTest do
   use ExUnit.Case
 
+  alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.HLS
   alias Membrane.RTC.Engine.Message
   alias Membrane.RTC.Engine.Support.FileEndpoint
-  alias Membrane.RTC.Engine.Endpoint.HLS.{AudioMixerConfig, CompositorConfig, SinkBinConfig}
+
+  alias Membrane.RTC.Engine.Endpoint.HLS.{
+    AudioMixerConfig,
+    CompositorConfig,
+    MixerConfig,
+    SinkBinConfig
+  }
 
   @fixtures_dir "./test/fixtures/"
   @reference_dir "./test/hls_reference/"
@@ -203,14 +210,12 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
 
-      Process.sleep(10_000)
+      Process.sleep(15_000)
 
       assert_receive({:playlist_playable, :video, ""})
 
       Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
       Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
-
-      Process.sleep(7_000)
 
       output_dir = tmp_dir
       reference_dir = Path.join([@reference_dir, reference_id])
@@ -276,15 +281,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      Process.sleep(10_000)
+      Process.sleep(20_000)
 
       assert_receive({:playlist_playable, :audio, _playlist_idl}, 10_000)
       assert_receive({:playlist_playable, :video, _playlist_idl}, 10_000)
 
       Engine.remove_endpoint(rtc_engine, file_endpoint_id)
       Engine.remove_endpoint(rtc_engine, file_endpoint_id_2)
-
-      Process.sleep(5_000)
 
       output_dir = tmp_dir
       reference_dir = Path.join([@reference_dir, reference_id])
@@ -343,15 +346,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      Process.sleep(10_000)
+      Process.sleep(15_000)
 
       assert_receive({:playlist_playable, :audio, _playlist_idl}, 10_000)
       assert_receive({:playlist_playable, :video, _playlist_idl}, 10_000)
 
       Engine.remove_endpoint(rtc_engine, file_endpoint_id)
       Engine.remove_endpoint(rtc_engine, file_endpoint_id_2)
-
-      Process.sleep(5_000)
 
       output_dir = tmp_dir
       reference_dir = Path.join([@reference_dir, reference_id])
@@ -378,21 +379,55 @@ defmodule Membrane.RTC.HLSEndpointTest do
   end
 
   defp create_hls_endpoint_with_mixer(rtc_engine, output_dir, _transcoding?) do
+    mixer_config = %MixerConfig{
+      video: %CompositorConfig{
+        background: %Membrane.BlankVideoGenerator{
+          stream_format: %CompositorConfig{}.stream_format,
+          duration: Membrane.Time.seconds(10)
+        }
+      },
+      audio: %AudioMixerConfig{
+        background: %Membrane.SilenceGenerator{
+          stream_format: %AudioMixerConfig{}.stream_format,
+          duration: Membrane.Time.seconds(10),
+          frames_per_buffer: 960
+        }
+      }
+    }
+
     %HLS{
       rtc_engine: rtc_engine,
       owner: self(),
       output_directory: output_dir,
-      mixer_config: %{audio: %AudioMixerConfig{}, video: %CompositorConfig{}},
+      mixer_config: mixer_config,
+      segment_duration: SegmentDuration.new(Membrane.Time.seconds(2), Membrane.Time.seconds(3)),
       sink_bin_config: %SinkBinConfig{mode: :vod, target_window_duration: :infinity}
     }
   end
 
   defp create_hls_endpoint_with_muxed_segments(rtc_engine, output_dir, _transcoding?) do
+    mixer_config = %MixerConfig{
+      video: %CompositorConfig{
+        background: %Membrane.BlankVideoGenerator{
+          stream_format: %CompositorConfig{}.stream_format,
+          duration: Membrane.Time.seconds(10)
+        }
+      },
+      audio: %AudioMixerConfig{
+        background: %Membrane.SilenceGenerator{
+          stream_format: %AudioMixerConfig{}.stream_format,
+          duration: Membrane.Time.seconds(10),
+          frames_per_buffer: 960
+        }
+      }
+    }
+
     %HLS{
       rtc_engine: rtc_engine,
       owner: self(),
       output_directory: output_dir,
-      mixer_config: %{audio: %AudioMixerConfig{}, video: %CompositorConfig{}},
+      mixer_config: mixer_config,
+      segment_duration: SegmentDuration.new(Membrane.Time.seconds(2), Membrane.Time.seconds(3)),
       sink_bin_config: %SinkBinConfig{
         hls_mode: :muxed_av,
         mode: :vod,
@@ -417,7 +452,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
         90_000,
         nil,
         id: video_track_id,
-        metadata: %{"mainPresenter" => false}
+        metadata: %{"mainPresenter" => true}
       )
 
     %FileEndpoint{
