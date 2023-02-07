@@ -111,7 +111,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       track = build_h264_track([:high])
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
 
-      Pipeline.execute_actions(pipeline, forward: {{:source, :high}, {:set_active, false}})
+      Pipeline.execute_actions(pipeline, notify_child: {{:source, :high}, {:set_active, false}})
       refute_sink_event(pipeline, {:sink, :high}, %TrackVariantPaused{}, 5_000)
 
       Pipeline.terminate(pipeline, blocking?: true)

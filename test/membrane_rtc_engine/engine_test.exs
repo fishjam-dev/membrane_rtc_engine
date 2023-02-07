@@ -166,7 +166,7 @@ defmodule Membrane.RTC.EngineTest do
   end
 
   test "engine sends EndpointCrashed message", %{rtc_engine: rtc_engine} do
-    endpoint = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+    endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
     endpoint_id = :test_endpoint
     :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
     msg = {:execute_actions, [:some_invalid_action]}

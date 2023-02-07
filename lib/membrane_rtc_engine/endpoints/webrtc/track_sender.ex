@@ -68,7 +68,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     Membrane.RTC.Utils.telemetry_register(telemetry_label)
 
     {actions, state} =
-      if playback_state == :playing and Track.is_simulcast?(state.track) do
+      if playback == :playing and Track.is_simulcast?(state.track) do
         # we need to reset timer and all existing variant
         # trackers to ensure that new tracker's state won't
         # be checked too fast
