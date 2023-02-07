@@ -165,6 +165,15 @@ defmodule Membrane.RTC.EngineTest do
     end
   end
 
+  test "engine sends EndpointCrashed message", %{rtc_engine: rtc_engine} do
+    endpoint = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+    endpoint_id = :test_endpoint
+    :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
+    msg = {:execute_actions, [:some_invalid_action]}
+    :ok = Engine.message_endpoint(rtc_engine, :test_endpoint, msg)
+    assert_receive %Membrane.RTC.Engine.Message.EndpointCrashed{endpoint_id: :test_endpoint}
+  end
+
   defp video_track(peer_id, track_id, metadata, stream_id \\ "test-stream") do
     Engine.Track.new(:video, stream_id, peer_id, :VP8, nil, nil,
       id: track_id,

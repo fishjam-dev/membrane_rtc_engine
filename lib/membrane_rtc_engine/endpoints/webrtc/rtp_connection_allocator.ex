@@ -108,10 +108,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def handle_cast({:bandwidth_estimation, estimation}, state) do
-    Logger.info("Received bandwidth estimation of #{estimation / 1024} kbps")
+    Logger.debug("Received bandwidth estimation of #{estimation / 1024} kbps")
 
     estimation_increasing? =
       state.available_bandwidth == :unknown or estimation >= state.available_bandwidth
+
+    overuse_allowed? = estimation_increasing? or state.prober_status != :allowed_overuse
 
     state =
       state
@@ -120,7 +122,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       # Check if we can change it before updating allocations
       # This function call also implements changing from :allowed_overuse
       # to :disallowed_overuse when estimation isn't increasing
-      |> maybe_change_overuse_status(estimation_increasing?)
+      |> maybe_change_overuse_status(overuse_allowed?)
       |> update_allocations()
       # After updating the allocations, check probing statuses to check if
       # we're still deficient or in one of the overuse statuses
@@ -195,8 +197,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
           state
           |> put_in([:track_receivers, pid, :negotiable?], value)
-          # We shouldn't go into allowed_overuse mode, but we also shouldn't swap disallowed_overuse for allowed_overuse
-          |> maybe_change_overuse_status(state.prober_status != :disallowed_overuse)
+          # We should maintain overuse status if we're already in it, but we shouldn't switch to it because of the change
+          |> maybe_change_overuse_status(state.prober_status == :allowed_overuse)
           |> update_allocations()
           |> maybe_change_probing_status()
           |> maybe_update_probing_target(state)
@@ -228,7 +230,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           })
           |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
           |> update_allocations()
-          |> update_status(overuse_allowed?: not receiver.negotiable?)
+          |> update_status(
+            overuse_allowed?: state.prober_status == :allowed_overuse or not receiver.negotiable?
+          )
 
         true ->
           # Receiver raises its allocation. This might not be instantly granted
@@ -376,7 +380,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   defp update_status(state, options \\ []) do
-    overuse_allowed? = Keyword.get(options, :overuse_allowed?, false)
+    overuse_allowed? =
+      Keyword.get(options, :overuse_allowed?, state.prober_status == :allowed_overuse)
 
     state
     |> maybe_change_overuse_status(overuse_allowed?)
@@ -511,7 +516,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     target_updated? = new_probing_target != old_probing_target
 
     if target_updated? do
-      Logger.info("New probing target: #{new_probing_target}")
+      Logger.debug("New probing target: #{new_probing_target}")
 
       %{
         new_state

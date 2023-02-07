@@ -522,6 +522,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
+    dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id})
     {_status, actions, state} = handle_remove_endpoint(endpoint_id, ctx, state)
     {actions, state}
   end

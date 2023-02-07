@@ -47,6 +47,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   * [Typescript library intended for use in web browsers](https://github.com/membraneframework/membrane-webrtc-js)
   * [Android native library](https://github.com/membraneframework/membrane-webrtc-android)
   * [IOS native library](https://github.com/membraneframework/membrane-webrtc-ios)
+
+  ## Monitoring track activity
+  WebRTC Endpoint only monitors simulcast tracks activity, meaning that it never emits `Membrane.RTC.Engine.Event.TrackVariantPaused` event
+  for non-simulcast tracks. The main reason is that it's impossible to tell if the screensharing track is inactive or not sending any packets because it contains static content.
   """
   use Membrane.Bin
 
@@ -213,6 +217,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 spec: Membrane.TelemetryMetrics.label(),
                 default: [],
                 description: "Label passed to Membrane.TelemetryMetrics functions"
+              ],
+              toilet_capacity: [
+                spec: pos_integer(),
+                default: 200,
+                description: "TrackReceiver toilet capacity"
               ]
 
   def_input_pad :input,
@@ -597,6 +606,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_parent_notification({:remove_tracks, tracks} = msg, ctx, state) do
+    media_event_actions =
+      tracks
+      |> Enum.group_by(& &1.origin)
+      |> Enum.map(fn {origin, tracks} ->
+        ids = Enum.map(tracks, & &1.id)
+        event = origin |> MediaEvent.tracks_removed(ids) |> MediaEvent.encode()
+        {:notify, {:forward_to_parent, {:media_event, event}}}
+      end)
+
+    {{:ok, media_event_actions ++ forward(:endpoint_bin, msg, ctx)}, state}
+  end
+
+  @impl true
   def handle_parent_notification({:display_manager, display_manager_pid}, ctx, state) do
     send_if_not_nil(
       display_manager_pid,
@@ -668,7 +691,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         connection_allocator_module: state.connection_allocator_module,
         telemetry_label: state.telemetry_label
       })
-      |> via_in(pad, options: [use_payloader?: false])
+      |> via_in(pad, options: [use_payloader?: false], toilet_capacity: state.toilet_capacity)
       |> get_child(:endpoint_bin),
       log_metadata: state.log_metadata
     }
