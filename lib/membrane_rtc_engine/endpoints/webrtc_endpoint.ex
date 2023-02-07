@@ -613,10 +613,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> Enum.map(fn {origin, tracks} ->
         ids = Enum.map(tracks, & &1.id)
         event = origin |> MediaEvent.tracks_removed(ids) |> MediaEvent.encode()
-        {:notify, {:forward_to_parent, {:media_event, event}}}
+        {:notify_parent, {:forward_to_parent, {:media_event, event}}}
       end)
 
-    {{:ok, media_event_actions ++ forward(:endpoint_bin, msg, ctx)}, state}
+    {media_event_actions ++ forward(:endpoint_bin, msg, ctx), state}
   end
 
   @impl true
