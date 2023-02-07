@@ -163,6 +163,90 @@ defmodule Membrane.RTC.EngineTest do
     assert_receive %Membrane.RTC.Engine.Message.EndpointCrashed{endpoint_id: :test_endpoint}
   end
 
+  test "Engine.Message.TrackPublished", %{rtc_engine: rtc_engine} do
+    track = video_track("track-endpoint", "track1", "track-metadata")
+
+    peer = %Peer{
+      id: "track-endpoint",
+      metadata: "original-metadata"
+    }
+
+    track_endpoint = %TrackEndpoint{
+      rtc_engine: rtc_engine,
+      track: track,
+      peer_metadata: peer.metadata
+    }
+
+    Engine.add_endpoint(rtc_engine, track_endpoint, peer_id: peer.id)
+
+    assert_receive %Membrane.RTC.Engine.Message.TrackPublished{
+      endpoint_id: "track-endpoint",
+      track: ^track
+    }
+  end
+
+  test "Engine.Message.TrackUnpublished", %{rtc_engine: rtc_engine} do
+    track = video_track("track-endpoint", "track1", "track-metadata")
+
+    peer = %Peer{
+      id: "track-endpoint",
+      metadata: "original-metadata"
+    }
+
+    track_endpoint = %TrackEndpoint{
+      rtc_engine: rtc_engine,
+      track: track,
+      peer_metadata: peer.metadata
+    }
+
+    Engine.add_endpoint(rtc_engine, track_endpoint, peer_id: peer.id)
+
+    assert_receive %Membrane.RTC.Engine.Message.TrackPublished{
+      endpoint_id: "track-endpoint",
+      track: ^track
+    }
+
+    Engine.remove_endpoint(rtc_engine, peer.id)
+
+    assert_receive %Membrane.RTC.Engine.Message.TrackUnpublished{
+      endpoint_id: "track-endpoint",
+      track: ^track
+    }
+  end
+
+  test "Engine.Message.TrackUnpublished 2", %{rtc_engine: rtc_engine} do
+    track = video_track("track-endpoint", "track1", "track-metadata")
+
+    peer = %Peer{
+      id: "track-endpoint",
+      metadata: "original-metadata"
+    }
+
+    track_endpoint = %TrackEndpoint{
+      rtc_engine: rtc_engine,
+      track: track,
+      peer_metadata: peer.metadata
+    }
+
+    Engine.add_endpoint(rtc_engine, track_endpoint, peer_id: peer.id)
+
+    assert_receive %Membrane.RTC.Engine.Message.TrackPublished{
+      endpoint_id: "track-endpoint",
+      track: ^track
+    }
+
+    Engine.message_endpoint(
+      rtc_engine,
+      "track-endpoint",
+      {:execute_actions, [notify: {:publish, {:removed_tracks, [track]}}]}
+    )
+
+    assert_receive %Membrane.RTC.Engine.Message.TrackUnpublished{
+      endpoint_id: "track-endpoint",
+      track: ^track
+    }
+  end
+
   defp video_track(peer_id, track_id, metadata, stream_id \\ "test-stream") do
     Engine.Track.new(:video, stream_id, peer_id, :VP8, nil, nil,
       id: track_id,

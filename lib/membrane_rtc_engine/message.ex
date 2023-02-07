@@ -45,4 +45,44 @@ defmodule Membrane.RTC.Engine.Message do
     @enforce_keys [:endpoint_id]
     defstruct @enforce_keys
   end
+
+  defmodule TrackPublished do
+    @moduledoc """
+    Message emitted when an endpoint publishes a track.
+    """
+
+    @typedoc """
+    Describes NewTrack Message structure.
+
+    * `endpoint_id` - id of an endpoint that published a track
+    * `track` - track that was published
+    """
+    @type t() :: %__MODULE__{
+            endpoint_id: any(),
+            track: Membrane.RTC.Engine.Track.t()
+          }
+
+    @enforce_keys [:endpoint_id, :track]
+    defstruct @enforce_keys
+  end
+
+  defmodule TrackUnpublished do
+    @moduledoc """
+    Message emitted when an endpoint unpublishes a track.
+    """
+
+    @typedoc """
+    Describes TrackUnpublished Message structure.
+
+    * `endpoint_id` - id of an endpoint that unpublishes a track
+    * `track` - track that was unpublished
+    """
+    @type t() :: %__MODULE__{
+            endpoint_id: any(),
+            track: Membrane.RTC.Engine.Track.t()
+          }
+
+    @enforce_keys [:endpoint_id, :track]
+    defstruct @enforce_keys
+  end
 end

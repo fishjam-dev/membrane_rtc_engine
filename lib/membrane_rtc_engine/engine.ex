@@ -907,23 +907,37 @@ defmodule Membrane.RTC.Engine do
   #
 
   defp build_track_added_actions(tracks, endpoint_id, state) do
-    state.endpoints
-    |> Map.delete(endpoint_id)
-    |> Map.keys()
-    |> Enum.flat_map(fn endpoint_id ->
-      [forward: {{:endpoint, endpoint_id}, {:new_tracks, tracks}}]
+    actions1 =
+      state.endpoints
+      |> Map.delete(endpoint_id)
+      |> Map.keys()
+      |> Enum.flat_map(fn endpoint_id ->
+        [forward: {{:endpoint, endpoint_id}, {:new_tracks, tracks}}]
+      end)
+
+    Enum.each(tracks, fn track ->
+      dispatch(%Message.TrackPublished{endpoint_id: endpoint_id, track: track})
     end)
+
+    actions1
   end
 
   defp build_track_removed_actions(tracks, from_endpoint_id, state) do
-    state.endpoints
-    |> Stream.reject(&(elem(&1, 0) == from_endpoint_id))
-    |> Stream.reject(&is_nil(elem(&1, 1)))
-    |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
-      subscriptions = state.subscriptions[endpoint_id]
-      tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
-      [forward: {{:endpoint, endpoint_id}, {:remove_tracks, tracks}}]
+    actions1 =
+      state.endpoints
+      |> Stream.reject(&(elem(&1, 0) == from_endpoint_id))
+      |> Stream.reject(&is_nil(elem(&1, 1)))
+      |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
+        subscriptions = state.subscriptions[endpoint_id]
+        tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
+        [forward: {{:endpoint, endpoint_id}, {:remove_tracks, tracks}}]
+      end)
+
+    Enum.each(tracks, fn track ->
+      dispatch(%Message.TrackUnpublished{endpoint_id: from_endpoint_id, track: track})
     end)
+
+    actions1
   end
 
   #
