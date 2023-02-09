@@ -86,6 +86,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   """
   @type voice_activity_changed() :: {:voice_activity_changed, :silence | :speech}
 
+  @max_paddings 30
+
   def_options track: [
                 type: :struct,
                 spec: Track.t(),
@@ -185,7 +187,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       keyframe_request_interval: keyframe_request_interval,
       connection_allocator: connection_allocator,
       connection_allocator_module: connection_allocator_module,
-      telemetry_label: telemetry_label
+      telemetry_label: telemetry_label,
+      enqueued_paddings_count: 0
     }
 
     {:ok, state}
@@ -261,17 +264,29 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         else: state.forwarder
 
     {forwarder, buffer} = Forwarder.align(forwarder, buffer)
+    state = %{state | forwarder: forwarder, needs_reconfiguration: false}
 
-    state = %{
-      state
-      | forwarder: forwarder,
-        needs_reconfiguration: false
-    }
+    {paddings, state} =
+      if state.enqueued_paddings_count > 0 and Forwarder.can_generate_padding_packet?(forwarder) do
+        if state.enqueued_paddings_count > @max_paddings do
+          Membrane.Logger.warn(
+            "Sending only #{@max_paddings} enqueued paddings out of #{state.enqueued_paddings_count}"
+          )
+        end
+
+        Enum.map_reduce(
+          1..min(state.enqueued_paddings_count, @max_paddings)//1,
+          %{state | enqueued_paddings_count: 0},
+          fn _i, state -> generate_padding_packet(state) end
+        )
+      else
+        {[], state}
+      end
 
     actions =
       if buffer do
         state.connection_allocator_module.buffer_sent(state.connection_allocator, buffer)
-        [buffer: {:output, buffer}]
+        [buffer: {:output, [buffer | paddings]}]
       else
         []
       end
@@ -307,22 +322,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def handle_other(:send_padding_packet, ctx, state)
       when not ctx.pads.output.end_of_stream? and ctx.playback_state == :playing and
              ctx.pads.output.caps != nil do
-    {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
-
-    {actions, state} =
-      if buffer do
-        state.connection_allocator_module.probe_sent(state.connection_allocator)
-        {[buffer: {:output, buffer}], update_bandwidth(buffer, :padding, state)}
-      else
-        {[], state}
-      end
-
-    {{:ok, actions}, %{state | forwarder: forwarder}}
+    if Forwarder.can_generate_padding_packet?(state.forwarder) do
+      {buffer, state} = generate_padding_packet(state)
+      {{:ok, buffer: {:output, buffer}}, state}
+    else
+      {:ok, Map.update!(state, :enqueued_paddings_count, &(&1 + 1))}
+    end
   end
 
   @impl true
   def handle_other(:send_padding_packet, _ctx, state) do
-    Process.send_after(self(), :send_padding_packet, 100)
     {:ok, state}
   end
 
@@ -368,6 +377,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   defp handle_selector_action(_other_action), do: []
 
+  defp generate_padding_packet(state) do
+    {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
+    state = update_bandwidth(buffer, :padding, state)
+    {buffer, %{state | forwarder: forwarder}}
+  end
+
   defp update_bandwidth(buffer, id, state) do
     require Membrane.Core.Metrics
 
@@ -387,11 +402,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     |> tap(
       &Membrane.Core.Metrics.report(
         :bandwidth,
-        if &1.bandwidth_time > 0 do
-          &1.bandwidth / 1024 / (&1.bandwidth_time / Membrane.Time.second())
-        else
-          0
-        end,
+        &1.bandwidth / 1024 * 2,
         id: id
       )
     )

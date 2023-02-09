@@ -126,6 +126,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
 
   def generate_padding_packet(rtp_munger, _track), do: {rtp_munger, nil}
 
+  def can_generate_padding_packet?(rtp_munger), do: rtp_munger.last_marker
+
   @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t() | nil}
   def munge(rtp_munger, buffer) do
     # TODO we should use Sender Reports instead

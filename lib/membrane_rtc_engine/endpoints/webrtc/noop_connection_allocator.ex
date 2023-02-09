@@ -21,9 +21,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator do
   def update_bandwidth_estimation(_manager, _estimation), do: :ok
 
   @impl true
-  def probe_sent(_manager), do: :ok
-
-  @impl true
   def buffer_sent(_manager, _buffer), do: :ok
 
   @impl true
