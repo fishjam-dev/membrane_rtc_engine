@@ -253,6 +253,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_process(_pad, buffer, _ctx, state) do
+    state = update_bandwidth(buffer, :input, state)
+
     forwarder =
       if state.needs_reconfiguration,
         do: Forwarder.reconfigure(state.forwarder, buffer),
@@ -307,12 +309,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
              ctx.pads.output.caps != nil do
     {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track)
 
-    actions =
+    {actions, state} =
       if buffer do
         state.connection_allocator_module.probe_sent(state.connection_allocator)
-        [buffer: {:output, buffer}]
+        {[buffer: {:output, buffer}], update_bandwidth(buffer, :padding, state)}
       else
-        []
+        Membrane.Logger.warn("Padding miss")
+        {[], state}
       end
 
     {{:ok, actions}, %{state | forwarder: forwarder}}
@@ -320,7 +323,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_other(:send_padding_packet, _ctx, state) do
-    Process.send_after(self(), :send_padding_packet, 100)
+    # Process.send_after(self(), :send_padding_packet, 100)
     {:ok, state}
   end
 
@@ -365,4 +368,40 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     do: [event: {:input, %RequestTrackVariant{variant: variant, reason: reason}}]
 
   defp handle_selector_action(_other_action), do: []
+
+  defp update_bandwidth(buffer, id, state) do
+    require Membrane.Core.Metrics
+
+    %{bandwidth: bandwidth, bandwidth_queue: queue} =
+      Map.get(state, {:bandwidth, id}, %{bandwidth: 0, bandwidth_queue: Qex.new()})
+
+    buffer_size = bit_size(buffer.payload) + buffer.metadata.rtp.padding_size * 8
+    buffer_time = Membrane.Time.monotonic_time()
+    queue = Qex.push(queue, {buffer_size, buffer_time})
+    {popped_size, first_buffer_time, queue} = pop_until(queue, buffer_time)
+
+    %{
+      bandwidth: bandwidth - popped_size + buffer_size,
+      bandwidth_time: buffer_time - first_buffer_time,
+      bandwidth_queue: queue
+    }
+    |> tap(
+      &Membrane.Core.Metrics.report(
+        :bandwidth,
+        &1.bandwidth / 1024 * 2,
+        id: id
+      )
+    )
+    |> then(&Map.put(state, {:bandwidth, id}, &1))
+  end
+
+  defp pop_until(queue, time, size \\ 0) do
+    {{buffer_size, buffer_time}, new_queue} = Qex.pop!(queue)
+
+    if time - buffer_time < Membrane.Time.milliseconds(500) do
+      {size, buffer_time, queue}
+    else
+      pop_until(new_queue, time, size + buffer_size)
+    end
+  end
 end
