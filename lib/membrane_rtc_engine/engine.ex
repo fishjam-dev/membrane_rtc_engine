@@ -656,6 +656,7 @@ defmodule Membrane.RTC.Engine do
           state.subscriptions
           |> Map.values()
           |> Enum.flat_map(&Map.values/1)
+          |> then(&(&1 ++ state.pending_subscriptions))
           |> Enum.filter(&(&1.track_id == track_id))
           |> Enum.map(& &1.endpoint_id)
           |> Enum.map(

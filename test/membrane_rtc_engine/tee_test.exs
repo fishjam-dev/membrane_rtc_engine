@@ -62,7 +62,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     refute_sink_event(pipeline, :other_sink, %TrackVariantResumed{variant: :high}, 0)
     refute_sink_event(pipeline, :other_sink, %TrackVariantResumed{variant: :medium}, 0)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    :ok = Pipeline.terminate(pipeline, blocking?: true)
   end
 
   test "Tee forwards TrackVariantPaused" do
@@ -81,7 +81,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
     refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :medium}, 0)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    :ok = Pipeline.terminate(pipeline, blocking?: true)
   end
 
   test "Tee generates KeyframeRequestEvent on receiving RequestTrackVariant event" do
@@ -104,7 +104,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     refute_sink_event(pipeline, {:source, :medium}, %Membrane.KeyframeRequestEvent{}, 0)
     refute_sink_event(pipeline, {:source, :low}, %Membrane.KeyframeRequestEvent{}, 0)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    :ok = Pipeline.terminate(pipeline, blocking?: true)
   end
 
   test "Tee raises on receiving invalid RequestTrackVariant event" do
@@ -188,7 +188,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
     request_and_check_high.(pipeline)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    :ok = Pipeline.terminate(pipeline, blocking?: true)
   end
 
   test "Tee raises on receiving data from inactive track variant" do
@@ -216,7 +216,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     refute_sink_event(pipeline, {:source, :medium}, %Membrane.KeyframeRequestEvent{}, 0)
     refute_sink_event(pipeline, {:source, :low}, %Membrane.KeyframeRequestEvent{}, 0)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    :ok = Pipeline.terminate(pipeline, blocking?: true)
   end
 
   test "Tee forwards KeyframeRequestEvent when there is some variant being forwarded" do
@@ -240,7 +240,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     refute_sink_event(pipeline, {:source, :medium}, %Membrane.KeyframeRequestEvent{})
     refute_sink_event(pipeline, {:source, :low}, %Membrane.KeyframeRequestEvent{}, 0)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    :ok = Pipeline.terminate(pipeline, blocking?: true)
   end
 
   test "forwards VoiceActivityChanged" do
@@ -269,7 +269,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     # We're already on high, so we expect the event to be forwarded
     assert_sink_event(pipeline, :sink, ^event)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    :ok = Pipeline.terminate(pipeline, blocking?: true)
   end
 
   test "forwards VoiceActivityChanged after TrackVariantSwitched" do
