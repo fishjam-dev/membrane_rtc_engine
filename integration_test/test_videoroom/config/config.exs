@@ -31,7 +31,7 @@ config :logger,
     [module: Membrane.ICE, level_lower_than: :error]
   ]
 
-config :logger, level: :info
+config :logger, level: :debug
 
 config :phoenix, :json_library, Jason
 

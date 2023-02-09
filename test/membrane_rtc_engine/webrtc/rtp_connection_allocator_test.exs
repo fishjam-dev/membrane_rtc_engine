@@ -181,7 +181,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
   describe "RTPConnectionAllocator prober state" do
     setup %{track: track} = _context do
-      prober = %RTPConnectionAllocator{}
+      prober = RTPConnectionAllocator.create()
 
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
