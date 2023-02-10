@@ -107,6 +107,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def handle_cast({:bandwidth_estimation, estimation}, state) do
+    estimation = max(estimation, 300 * 1024)
     Logger.debug("Received bandwidth estimation of #{estimation / 1024} kbps")
 
     estimation_increasing? =
