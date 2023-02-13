@@ -518,6 +518,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           [:track_receivers, pid],
           &%{&1 | target_allocation: nil, current_allocation: &1.target_allocation}
         )
+        |> Map.update!(
+          :estimated_sender_rate,
+          &(&1 + receiver.target_allocation - receiver.estimated_sender_rate)
+        )
         |> update_allocations()
     end
   end

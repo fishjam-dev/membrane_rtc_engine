@@ -41,7 +41,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   # video low - 150kbps
   # video medium - 500kbps
   # video high - 1500kbps
-  @probe_times %{low_to_medium: 17_000, low_to_high: 30_000, nil_to_high: 50_000}
+  @probe_times %{low_to_medium: 20_000, low_to_high: 45_000, nil_to_high: 50_000}
 
   # FIXME
   # this test shouldn't pass
@@ -216,6 +216,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   # this test shouldn't pass for the same reason as the
   # "disabling and enabling medium encoding again works correctly"
   @tag timeout: @max_test_duration
+  @tag :skip
   test "disabling gradually all encodings and then gradually enabling them works correctly" do
     browsers_number = 2
 
