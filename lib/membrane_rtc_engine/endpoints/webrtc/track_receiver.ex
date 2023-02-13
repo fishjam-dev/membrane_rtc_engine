@@ -382,7 +382,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       MapSet.size(state.selector.active_variants) == 0 or
         state.selector.current_variant == :no_variant
 
-    {forwarder, buffer} = Forwarder.generate_padding_packet(state.forwarder, state.track, force_marker?)
+    {forwarder, buffer} =
+      Forwarder.generate_padding_packet(state.forwarder, state.track, force_marker?)
+
     state = update_bandwidth(buffer, :padding, state)
     {buffer, %{state | forwarder: forwarder}}
   end
