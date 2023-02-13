@@ -40,30 +40,16 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.StreamFormatUpdater do
 
   @impl true
   def handle_process(_pad, buffer, _ctx, state) do
-    new_buffers =
-      state
-      |> get_in([:buffers, state.update_queue])
-      |> then(&[buffer | &1])
-
-    state = put_in(state, [:buffers, state.update_queue], new_buffers)
+    state = update_in(state, [:buffers, state.update_queue], &[buffer | &1])
     {[], state}
   end
 
   @impl true
   def handle_parent_notification(:layout_updated, _ctx, state) do
-    buffers =
-      state
-      |> get_in([:buffers, state.update_queue])
-      |> Enum.reverse()
-
+    {buffers, state} = pop_in(state, [:buffers, state.update_queue])
+    buffers = Enum.reverse(buffers)
     actions = [buffer: {:output, buffers}] ++ maybe_notify_end_of_stream(state)
-
-    new_buffers =
-      state
-      |> Map.get(:buffers)
-      |> Map.delete(state.update_queue)
-
-    {actions, %{state | buffers: new_buffers, update_queue: state.update_queue - 1}}
+    {actions, %{state | update_queue: state.update_queue - 1}}
   end
 
   defp maybe_notify_end_of_stream(%{end_of_stream: true, update_queue: 0}),

@@ -40,7 +40,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       dialyzer: [
         plt_add_apps: [
           :membrane_http_adaptive_stream_plugin,
-          :membrane_video_compositor_plugin
+          :membrane_video_compositor_plugin,
+          :membrane_raw_audio_format
         ]
       ]
     ]
@@ -86,7 +87,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_audio_mix_plugin, "~> 0.12.0", optional: true},
       {:membrane_generator_plugin, "~> 0.8.0", optional: true},
       {:membrane_realtimer_plugin, "~> 0.6.0", optional: true},
-      {:membrane_audio_filler_plugin, "~> 0.1.0"},
+      {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
+      {:membrane_raw_audio_format, "~> 0.10.0", optional: true},
 
       # Test deps
       {:membrane_file_plugin, "~> 0.13.0"},

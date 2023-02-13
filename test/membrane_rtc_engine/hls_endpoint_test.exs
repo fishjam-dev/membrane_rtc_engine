@@ -150,11 +150,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       assert output_files == reference_files
 
-      for output_file <- output_files do
-        output_path = Path.join(output_dir, output_file)
-        %{size: size} = File.stat!(output_path)
-        assert size > 0
-      end
+      check_if_files_are_not_empty(output_files, output_dir)
 
       Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
       Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
@@ -225,11 +221,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       assert output_files == reference_files
 
-      for output_file <- output_files do
-        output_path = Path.join(output_dir, output_file)
-        %{size: size} = File.stat!(output_path)
-        assert size > 0
-      end
+      check_if_files_are_not_empty(output_files, output_dir)
     end
 
     test "video mixer works properly", %{
@@ -296,11 +288,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       assert Enum.sort(output_files) == reference_dir |> File.ls!() |> Enum.sort()
 
-      for output_file <- output_files do
-        output_path = Path.join(output_dir, output_file)
-        %{size: size} = File.stat!(output_path)
-        assert size > 0
-      end
+      check_if_files_are_not_empty(output_files, output_dir)
 
       # if number of header files is greater than 1, video mixer is not working properly
       assert Enum.count(output_files, &String.starts_with?(&1, "video_header")) == 1
@@ -361,11 +349,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       assert Enum.sort(output_files) == reference_dir |> File.ls!() |> Enum.sort()
 
-      for output_file <- output_files do
-        output_path = Path.join(output_dir, output_file)
-        %{size: size} = File.stat!(output_path)
-        assert size > 0
-      end
+      check_if_files_are_not_empty(output_files, output_dir)
     end
   end
 
@@ -483,5 +467,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
       ssrc: 2345,
       payload_type: 108
     }
+  end
+
+  defp check_if_files_are_not_empty(output_files, output_dir) do
+    for output_file <- output_files do
+      output_path = Path.join(output_dir, output_file)
+      %{size: size} = File.stat!(output_path)
+      assert size > 0
+    end
   end
 end

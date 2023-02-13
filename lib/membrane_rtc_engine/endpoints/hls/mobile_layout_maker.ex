@@ -2,13 +2,43 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
   defmodule Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker do
     @moduledoc """
     Module representing function for updating video layout for the HLS stream.
+
+    1) Only main presenter
+         _ _ _ _
+        |       |
+        |       |
+        |       |
+        |       |
+        |       |
+         - - - -
+    2) Main presenter and one side presenter
+         _ _ _ _
+        |       |
+        |       |
+        |       |
+         - -    |
+        |   |   |
+         - - - -
+
+    3) Main presenter and two side presenters
+         _ _ _ _
+        |       |
+        |       |
+        |       |
+         - - - -
+        |   |   |
+         - - - -
     """
+
     @behaviour Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker
 
     alias Membrane.VideoCompositor.RustStructs.BaseVideoPlacement
     alias Membrane.VideoCompositor.VideoTransformations
     alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.CornersRounding
     alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.Cropping
+
+    @main_stream %{position: {0, 0}, z_value: 0.1, corner_radius: 0}
+    @side_stream %{z_value: 0.3, corner_radius: 20, padding: 5}
 
     @impl true
     def init(output_stream_format), do: %{tracks: %{}, output_stream_format: output_stream_format}
@@ -50,7 +80,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       |> Enum.with_index()
       |> Enum.flat_map(fn {{_id, {track, stream_format}}, index} ->
         {layout, transcoding} =
-          get_track_layout(:basic, index, stream_format, output_stream_format)
+          get_track_layout(:side, index, stream_format, output_stream_format)
 
         [
           {track.id, layout, transcoding}
@@ -59,22 +89,38 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     end
 
     defp get_track_layout(:main, _index, stream_format, output_stream_format) do
-      placement = get_placement(output_stream_format, stream_format, {0, 0}, 0.1)
-      transformations = get_transformations(output_stream_format, placement.size, 0)
+      placement =
+        get_placement(
+          output_stream_format,
+          stream_format,
+          @main_stream.position,
+          @main_stream.z_value
+        )
+
+      transformations =
+        get_transformations(output_stream_format, placement.size, @main_stream.corner_radius)
 
       {placement, transformations}
     end
 
-    defp get_track_layout(:basic, index, stream_format, %{width: width, height: height}) do
+    defp get_track_layout(:side, index, stream_format, %{width: width, height: height}) do
+      # side track layout is a thumbnail that is placed on the bottom of the main stream.
       output_stream_format = %{
-        width: round(1 / 2 * width) - 10,
-        height: round(1 / 4 * height) - 10
+        width: round(1 / 2 * width) - @side_stream.padding * 2,
+        height: round(1 / 4 * height) - @side_stream.padding * 2
       }
 
-      position = {round(index / 2 * width) + 5, height - round(1 / 4 * height) + 5}
+      # x coordinate of a thumbnail can differ depends on which index they have, y coordinate is always the same.
+      position_x = round(index / 2 * width) + @side_stream.padding
+      position_y = height - round(1 / 4 * height) + @side_stream.padding
 
-      placement = get_placement(output_stream_format, stream_format, position, 0.3)
-      transformations = get_transformations(output_stream_format, placement.size, 20)
+      position = {position_x, position_y}
+
+      placement =
+        get_placement(output_stream_format, stream_format, position, @side_stream.z_value)
+
+      transformations =
+        get_transformations(output_stream_format, placement.size, @side_stream.corner_radius)
 
       {placement, transformations}
     end

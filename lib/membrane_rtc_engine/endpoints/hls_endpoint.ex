@@ -148,7 +148,6 @@ if Enum.all?(
           tracks: %{},
           stream_beginning: nil,
           video_layout_state: nil,
-          stream_ids: MapSet.new(),
           video_layout_tracks_added: %{}
         })
 
@@ -203,8 +202,7 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      {update_layout_actions, state} =
-        compositor_update_layout(:remove, removed_track, nil, state)
+      {update_layout_actions, state} = compositor_update_layout(:remove, removed_track, state)
 
       result_actions = [remove_child: children_to_remove] ++ update_layout_actions
 
@@ -247,7 +245,7 @@ if Enum.all?(
       action = if is_map_key(state.video_layout_tracks_added, track_id), do: :update, else: :add
 
       {update_layout_action, state} =
-        compositor_update_layout(action, track, stream_format, state)
+        compositor_update_layout(action, track, state, stream_format)
 
       result_actions = update_layout_action ++ [notify_child: {child, :layout_updated}]
       {_poped_value, state} = pop_in(state, [:video_layout_tracks_added, track_id])
@@ -558,7 +556,7 @@ if Enum.all?(
     end
 
     defp get_track_offset(%{stream_beginning: nil} = state),
-      do: {0, Map.put(state, :stream_beginning, System.monotonic_time())}
+      do: {0, %{state | stream_beginning: System.monotonic_time()}}
 
     defp get_track_offset(state), do: {System.monotonic_time() - state.stream_beginning, state}
 
@@ -578,17 +576,19 @@ if Enum.all?(
 
     defp get_hls_stream_directory(state, _track), do: state.output_directory
 
-    defp compositor_update_layout(_action, %{type: :audio}, _stream_format, state),
+    defp compositor_update_layout(_action, _track, _state, _stream_format \\ nil)
+
+    defp compositor_update_layout(_action, %{type: :audio}, state, _stream_format),
       do: {[], state}
 
-    defp compositor_update_layout(_action, _track, _stream_format, %{mixer_config: nil} = state),
+    defp compositor_update_layout(_action, _track, %{mixer_config: nil} = state, _stream_format),
       do: {[], state}
 
     defp compositor_update_layout(
            action,
            track,
-           stream_format,
-           %{video_layout_state: video_layout_state} = state
+           %{video_layout_state: video_layout_state} = state,
+           stream_format
          ) do
       {updated_layout, video_layout_state} =
         case action do

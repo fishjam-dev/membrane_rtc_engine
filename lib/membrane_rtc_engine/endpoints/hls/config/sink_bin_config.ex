@@ -4,15 +4,14 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
     Module representing Membrane.HTTPAdaptiveStream.SinkBin configuration for the HLS endpoint.
     """
 
+    alias Membrane.HTTPAdaptiveStream.{Manifest, Storage}
+
     @typedoc """
       To read more about config options go to module Membrane.HTTPAdaptiveStream.SinkBin and read options descriptions.
     """
-
-    alias Membrane.HTTPAdaptiveStream.{Manifest, Storage}
-
     @type t() :: %__MODULE__{
             manifest_name: String.t(),
-            manifest_module: (Path.t() -> module),
+            manifest_module: Manifest.t(),
             storage: (Path.t() -> Storage.config_t()),
             target_window_duration: pos_integer | :infinity,
             persist?: boolean,
