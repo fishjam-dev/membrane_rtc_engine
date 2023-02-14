@@ -94,11 +94,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def buffer_sent(prober, %Buffer{payload: payload}),
-    do: GenServer.cast(prober, {:bits_sent, self(), bit_size(payload)})
+    do: GenServer.cast(prober, {:buffer_sent, self(), bit_size(payload)})
 
   @impl true
   def probe_sent(prober),
-    do: GenServer.cast(prober, {:padding_bits_sent, @padding_packet_size})
+    do: GenServer.cast(prober, {:probe_sent, @padding_packet_size})
 
   @impl true
   def set_negotiability_status(allocator, value),
@@ -111,7 +111,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def handle_cast({:bandwidth_estimation, estimation}, state) do
-    Logger.error("Received bandwidth estimation of #{estimation / 1024} kbps")
+    Logger.debug("Received bandwidth estimation of #{estimation / 1024} kbps")
 
     estimation_increasing? =
       state.available_bandwidth == :unknown or estimation >= state.available_bandwidth
@@ -138,7 +138,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   @impl true
-  def handle_cast({:bits_sent, pid, size}, state) do
+  def handle_cast({:buffer_sent, pid, size}, state) do
     state =
       state
       |> Map.update!(:bits_sent, &(&1 + size))
@@ -148,10 +148,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   @impl true
-  def handle_cast({:padding_bits_sent, size}, state) do
-    state =
-      state
-      |> Map.update!(:bits_sent, &(&1 + size))
+  def handle_cast({:probe_sent, size}, state) do
+    state = Map.update!(state, :bits_sent, &(&1 + size))
 
     {:noreply, state}
   end
@@ -464,11 +462,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
           receive do
             {^pid, {:decrease_allocation_request, :accept}} ->
-              Logger.debug("Receiver #{inspect(pid)} accepted the request")
               true
 
             {^pid, {:decrease_allocation_request, :reject}} ->
-              Logger.debug("Receiver #{inspect(pid)} rejected the request")
               false
 
             {^pid, {:decrease_allocation_request, _other_reply}} ->
