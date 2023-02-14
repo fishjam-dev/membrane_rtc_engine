@@ -11,7 +11,7 @@ defmodule Membrane.RTC.EngineTest do
       id: "test_rtc"
     ]
 
-    {:ok, _supervisor, pid} = Engine.start_link(options, [])
+    {:ok, pid} = Engine.start_link(options, [])
 
     Engine.register(pid, self())
 
