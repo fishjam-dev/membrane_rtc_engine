@@ -275,7 +275,11 @@ defmodule Membrane.RTC.Engine do
     options = Keyword.put(options, :id, id)
     options = Keyword.put(options, :display_manager?, display_manager?)
     Membrane.Logger.info("Starting a new RTC Engine instance with id: #{id}")
-    apply(Membrane.Pipeline, func, [__MODULE__, options, process_options])
+
+    with {:ok, _supervisor, pipeline} <-
+           apply(Membrane.Pipeline, func, [__MODULE__, options, process_options]) do
+      {:ok, pipeline}
+    end
   end
 
   @spec get_registry_name() :: atom()
@@ -530,6 +534,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
+    dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id})
     {_status, actions, state} = handle_remove_endpoint(endpoint_id, ctx, state)
     {actions, state}
   end

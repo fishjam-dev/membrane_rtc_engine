@@ -68,7 +68,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     Membrane.RTC.Utils.telemetry_register(telemetry_label)
 
     {actions, state} =
-      if playback == :playing do
+      if playback == :playing and Track.is_simulcast?(state.track) do
         # we need to reset timer and all existing variant
         # trackers to ensure that new tracker's state won't
         # be checked too fast
@@ -85,10 +85,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         {[], state}
       end
 
+    tracker =
+      if Track.is_simulcast?(state.track) do
+        VariantTracker.new(variant)
+      else
+        # assume that non-simulcast tracks are always active
+        # we also don't start variant tracker timer
+        # and don't increment samples for them
+        VariantTracker.new(variant, 0)
+      end
+
     state =
       state
       |> put_in([:bitrate_estimators, variant], BitrateEstimator.new())
-      |> put_in([:trackers, variant], VariantTracker.new(variant))
+      |> put_in([:trackers, variant], tracker)
 
     {actions, state}
   end
@@ -129,7 +139,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       |> Enum.filter(fn {_pad_id, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad) end)
 
-    actions = actions ++ [@start_variant_check_timer, @start_bitrate_estimation_timer]
+    actions =
+      if Track.is_simulcast?(state.track) do
+        actions ++ [@start_variant_check_timer, @start_bitrate_estimation_timer]
+      else
+        actions ++ [@start_bitrate_estimation_timer]
+      end
 
     {actions, state}
   end
@@ -247,9 +262,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     )
 
     state =
-      state
+      if Track.is_simulcast?(track) do
+        update_in(state, [:trackers, variant], &VariantTracker.increment_samples(&1))
+      else
+        state
+      end
       |> update_in([:bitrate_estimators, variant], &BitrateEstimator.process(&1, buffer))
-      |> update_in([:trackers, variant], &VariantTracker.increment_samples(&1))
 
     buffer = add_is_keyframe_flag(buffer, track)
 

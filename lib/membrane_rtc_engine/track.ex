@@ -190,4 +190,10 @@ defmodule Membrane.RTC.Engine.Track do
         }
     end
   end
+
+  @doc """
+  Checks whether track is a simulcast one or not.
+  """
+  @spec is_simulcast?(t()) :: boolean()
+  def is_simulcast?(%__MODULE__{} = track), do: track.variants != [:high]
 end

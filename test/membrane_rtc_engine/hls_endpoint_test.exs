@@ -23,7 +23,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       id: "test_rtc"
     ]
 
-    {:ok, _supervisor_pid, pid} = Engine.start_link(options, [])
+    {:ok, pid} = Engine.start_link(options, [])
 
     Engine.register(pid, self())
 

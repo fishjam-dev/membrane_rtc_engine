@@ -107,6 +107,16 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       Pipeline.terminate(pipeline, blocking?: true)
     end
 
+    test "doesn't send TrackVariantPaused event when track is not a simulcast one" do
+      track = build_h264_track([:high])
+      pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
+
+      Pipeline.execute_actions(pipeline, notify_child: {{:source, :high}, {:set_active, false}})
+      refute_sink_event(pipeline, {:sink, :high}, %TrackVariantPaused{}, 5_000)
+
+      Pipeline.terminate(pipeline, blocking?: true)
+    end
+
     test "sends TrackVariantResumed event when variant becomes active" do
       track = build_h264_track()
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
@@ -161,10 +171,10 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     Pipeline.terminate(pipeline, blocking?: true)
   end
 
-  defp build_h264_track() do
+  defp build_h264_track(variants \\ @variants) do
     Track.new(:video, @stream_id, @track_origin, :H264, 90_000, nil,
       id: @track_id,
-      variants: @variants
+      variants: variants
     )
   end
 
