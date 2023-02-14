@@ -398,8 +398,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_other({:add_endpoint, endpoint, opts}, ctx, state) do
-    IO.inspect(ctx.children)
+  def handle_other({:add_endpoint, endpoint, opts}, _ctx, state) do
     peer_id = opts[:peer_id]
     endpoint_id = opts[:endpoint_id] || opts[:peer_id]
 
