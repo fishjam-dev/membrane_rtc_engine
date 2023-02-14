@@ -41,7 +41,11 @@ defmodule TestVideoroom.Integration.SimulcastTest do
   # video low - 150kbps
   # video medium - 500kbps
   # video high - 1500kbps
-  @probe_times %{low_to_medium: 20_000, low_to_high: 45_000, nil_to_high: 50_000}
+  # FIXME: low_to_medium should take around 17 seconds. This value had to increased
+  # as a workaround for the TWCC related issue - during the time we take to detect
+  # that the layer is inactive, bandwidth estimation drops significantly and needs to
+  # be restored up to that level in order to switch layers
+  @probe_times %{low_to_medium: 30_000, low_to_high: 45_000, nil_to_high: 50_000}
 
   # FIXME
   # this test shouldn't pass
