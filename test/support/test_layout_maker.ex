@@ -1,6 +1,6 @@
 defmodule Membrane.RTC.Engine.Support.TestLayoutMaker do
   @moduledoc false
-  
+
   @behaviour Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker
 
   @impl true
