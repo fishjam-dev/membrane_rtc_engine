@@ -1,4 +1,4 @@
-if Code.ensure_loaded?(Membrane.RawAudio) do
+if Enum.all?([Membrane.RawAudio, Membrane.RawVideo], &Code.ensure_loaded?/1) do
   defmodule Membrane.RTC.Engine.Endpoint.HLS.MixerConfig do
     @moduledoc """
     Module representing mixer configuration for the HLS endpoint.

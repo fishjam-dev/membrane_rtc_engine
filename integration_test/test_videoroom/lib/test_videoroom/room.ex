@@ -57,7 +57,7 @@ defmodule TestVideoroom.Room do
       id: room_id
     ]
 
-    {:ok, _supervisor, pid} = Membrane.RTC.Engine.start(rtc_engine_options, [])
+    {:ok, pid} = Membrane.RTC.Engine.start(rtc_engine_options, [])
     Process.monitor(pid)
     Engine.register(pid, self())
 
