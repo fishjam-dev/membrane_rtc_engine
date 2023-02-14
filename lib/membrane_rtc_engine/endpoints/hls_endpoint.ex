@@ -248,7 +248,7 @@ if Enum.all?(
         compositor_update_layout(action, track, state, stream_format)
 
       result_actions = update_layout_action ++ [notify_child: {child, :layout_updated}]
-      {_poped_value, state} = pop_in(state, [:video_layout_tracks_added, track_id])
+      state = put_in(state, [:video_layout_tracks_added, track_id], true)
 
       {result_actions, state}
     end
