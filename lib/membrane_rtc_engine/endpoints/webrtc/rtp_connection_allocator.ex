@@ -161,8 +161,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     # without question
     Process.monitor(pid)
 
-    Logger.debug("Track receiver registered")
-
     negotiable? =
       if Keyword.has_key?(options, :negotiable?),
         do: options[:negotiable?],
