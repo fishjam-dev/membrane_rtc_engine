@@ -333,6 +333,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   @impl true
+  def handle_info(:update_probing_status, state) do
+    state = maybe_change_probing_status(state)
+    {:noreply, state}
+  end
+
+  @impl true
   def terminate(_reason, state) do
     if state.probing_timer, do: :timer.cancel(state.probing_timer)
 
@@ -353,6 +359,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   # Checks and updates probing statuses
+  # credo:disable-for-lines:37
   defp maybe_change_probing_status(state) do
     cond do
       state.available_bandwidth == :unknown ->
@@ -370,6 +377,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       is_deficient?(state) and state.prober_status != :increase_estimation and
           can_start_probing?(state) ->
         Logger.debug("Switching prober state to increase estimation")
+
+        Process.send_after(self(), :update_probing_status, div(@max_probing_time, 1_000_000))
 
         state
         |> Map.put(:prober_status, :increase_estimation)
