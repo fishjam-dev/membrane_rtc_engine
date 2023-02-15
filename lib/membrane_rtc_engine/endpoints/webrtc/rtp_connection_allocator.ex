@@ -56,24 +56,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
             bits_sent: non_neg_integer(),
             prev_probing_epochs_overflow: integer(),
             estimated_sender_rate: non_neg_integer() | nil,
-            last_probing_ts: integer(),
+            last_probing_ts: integer() | nil,
             last_probing_objective: non_neg_integer() | nil
           }
 
-  @enforce_keys [:last_probing_ts]
-  defstruct @enforce_keys ++
-              [
-                :probing_timer,
-                available_bandwidth: :unknown,
-                prober_status: :allowed_overuse,
-                track_receivers: %{},
-                probing_epoch_start: 0,
-                bits_sent: 0,
-                probing_queue: Qex.new(),
-                prev_probing_epochs_overflow: 0,
-                estimated_sender_rate: 0,
-                last_probing_objective: nil
-              ]
+  defstruct [
+    :probing_timer,
+    available_bandwidth: :unknown,
+    prober_status: :allowed_overuse,
+    track_receivers: %{},
+    probing_epoch_start: 0,
+    bits_sent: 0,
+    probing_queue: Qex.new(),
+    prev_probing_epochs_overflow: 0,
+    estimated_sender_rate: 0,
+    last_probing_objective: nil,
+    last_probing_ts: nil
+  ]
 
   @padding_packet_size 8 * 256
 
@@ -115,13 +114,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def init(_opts) do
-    {:ok, %__MODULE__{last_probing_ts: get_timestamp() - @probing_interval}}
+    {:ok, %__MODULE__{}}
   end
 
   @impl true
   def handle_cast({:bandwidth_estimation, estimation}, state) do
-    Logger.debug("Received bandwidth estimation of #{estimation / 1024} kbps")
-
     estimation_increasing? =
       state.available_bandwidth == :unknown or estimation >= state.available_bandwidth
 
@@ -369,6 +366,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       state.prober_status in [:allowed_overuse, :disallowed_overuse] ->
         state
 
+      not is_deficient?(state) and state.prober_status == :increase_estimation ->
+        Logger.debug(
+          "Swtiching prober state to maintain estimation after successfully probing the connection"
+        )
+
+        state
+        |> Map.put(:prober_status, :maintain_allocation)
+        |> Map.put(:last_probing_ts, nil)
+
       not is_deficient?(state) and state.prober_status != :maintain_allocation ->
         Logger.debug("Switching prober state to maintain estimation")
 
@@ -523,7 +529,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   defp update_allocations(%__MODULE__{available_bandwidth: bandwidth} = state) do
     free_bandwidth = bandwidth - state.estimated_sender_rate
-    Logger.debug("We have #{free_bandwidth / 1024} kbps of free bandwidth")
 
     state.track_receivers
     |> Map.values()
@@ -629,7 +634,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   defp can_start_probing?(state) do
     now = get_timestamp()
 
-    state.last_probing_ts < now - @probing_interval or is_nil(state.last_probing_objective) or
+    is_nil(state.last_probing_ts) or state.last_probing_ts < now - @probing_interval or
+      is_nil(state.last_probing_objective) or
       estimated_probing_objective(state) < 0.9 * state.last_probing_objective
   end
 
