@@ -55,22 +55,31 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
             probing_epoch_start: integer(),
             bits_sent: non_neg_integer(),
             prev_probing_epochs_overflow: integer(),
-            estimated_sender_rate: non_neg_integer() | nil
+            estimated_sender_rate: non_neg_integer() | nil,
+            last_probing_ts: integer(),
+            last_probing_objective: non_neg_integer() | nil
           }
 
-  defstruct [
-    :probing_timer,
-    available_bandwidth: :unknown,
-    prober_status: :allowed_overuse,
-    track_receivers: %{},
-    probing_epoch_start: 0,
-    bits_sent: 0,
-    probing_queue: Qex.new(),
-    prev_probing_epochs_overflow: 0,
-    estimated_sender_rate: 0
-  ]
+  @enforce_keys [:last_probing_ts]
+  defstruct @enforce_keys ++
+              [
+                :probing_timer,
+                available_bandwidth: :unknown,
+                prober_status: :allowed_overuse,
+                track_receivers: %{},
+                probing_epoch_start: 0,
+                bits_sent: 0,
+                probing_queue: Qex.new(),
+                prev_probing_epochs_overflow: 0,
+                estimated_sender_rate: 0,
+                last_probing_objective: nil
+              ]
 
   @padding_packet_size 8 * 256
+
+  # nanoseconds
+  @max_probing_time 20_000_000_000
+  @probing_interval 60_000_000_000 + @max_probing_time
 
   @impl true
   def create(), do: GenServer.start_link(__MODULE__, [], [])
@@ -106,7 +115,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def init(_opts) do
-    {:ok, %__MODULE__{}}
+    {:ok, %__MODULE__{last_probing_ts: get_timestamp() - @probing_interval}}
   end
 
   @impl true
@@ -358,10 +367,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
         Map.put(state, :prober_status, :maintain_allocation)
 
-      is_deficient?(state) and state.prober_status != :increase_estimation ->
+      is_deficient?(state) and state.prober_status != :increase_estimation and
+          can_start_probing?(state) ->
         Logger.debug("Switching prober state to increase estimation")
 
-        Map.put(state, :prober_status, :increase_estimation)
+        state
+        |> Map.put(:prober_status, :increase_estimation)
+        |> Map.put(:last_probing_ts, get_timestamp())
+        |> Map.put(:last_probing_objective, estimated_probing_objective(state))
+
+      state.prober_status == :increase_estimation and
+          state.last_probing_ts < get_timestamp() - @max_probing_time ->
+        Logger.debug(
+          "Didn't manage to finish probing in time. Reverting back to :maintain_estimation"
+        )
+
+        Map.put(state, :prober_status, :maintain_estimation)
 
       true ->
         state
@@ -594,5 +615,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         estimated_sender_rate:
           receivers |> Enum.map(fn {_key, value} -> value.estimated_sender_rate end) |> Enum.sum()
     }
+  end
+
+  defp can_start_probing?(state) do
+    now = get_timestamp()
+
+    state.last_probing_ts < now - @probing_interval or is_nil(state.last_probing_objective) or
+      estimated_probing_objective(state) < 0.9 * state.last_probing_objective
+  end
+
+  defp estimated_probing_objective(state) do
+    min_overhead =
+      state.track_receivers
+      |> Map.values()
+      |> Enum.reject(&is_nil(&1.target_allocation))
+      |> Enum.map(&(&1.target_allocation - &1.estimated_sender_rate))
+      |> Enum.min()
+
+    state.estimated_sender_rate + min_overhead
   end
 end
