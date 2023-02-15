@@ -61,9 +61,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_opentelemetry, "~> 0.1.0"},
-      # {:membrane_core, "~> 0.10.0"},
-      {:membrane_core,
-       github: "membraneframework/membrane_core", branch: "poc-fake-push", override: true},
+      {:membrane_core, "~> 0.10.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:membrane_webrtc_plugin, "~> 0.11.0"},
       {:membrane_rtp_format, "~> 0.5.0"},

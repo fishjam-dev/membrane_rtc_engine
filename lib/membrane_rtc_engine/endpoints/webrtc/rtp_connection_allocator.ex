@@ -301,15 +301,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
         no_padding_packets = ceil(missing / @padding_packet_size)
         state = send_padding_packets(state, no_padding_packets)
-        require Membrane.Core.Metrics
-
-        Membrane.Core.Metrics.report_update(
-          :allocator_total_paddings,
-          0,
-          &(&1 + no_padding_packets),
-          component_path: inspect(self())
-        )
-
         Map.update!(state, :bits_sent, &(&1 + no_padding_packets * @padding_packet_size))
       else
         state

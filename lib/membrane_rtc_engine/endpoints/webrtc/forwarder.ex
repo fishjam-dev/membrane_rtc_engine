@@ -93,6 +93,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
     {%{forwarder | rtp_munger: rtp_munger}, buffer}
   end
 
+  @spec can_generate_padding_packet?(t()) :: boolean()
   def can_generate_padding_packet?(%__MODULE__{} = forwarder) do
     RTPMunger.can_generate_padding_packet?(forwarder.rtp_munger)
   end

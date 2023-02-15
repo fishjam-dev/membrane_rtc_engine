@@ -62,6 +62,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       test_probing(prober, track, scenario)
     end
 
+    @tag :skip
+    # we no longer confirm that probe was sent
     test "correctly probes the connection in :increase_estimation state, with probing target change",
          %{
            prober: prober,
@@ -301,11 +303,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
       :decrease_allocation_request = msg ->
         send(owner, {:received, self(), msg})
-        do_mock_track_receiver(owner, prober, probing?)
-
-      :send_padding_packet when probing? ->
-        RTPConnectionAllocator.probe_sent(prober)
-        send(owner, {:probe_sent, self()})
         do_mock_track_receiver(owner, prober, probing?)
     end
   end

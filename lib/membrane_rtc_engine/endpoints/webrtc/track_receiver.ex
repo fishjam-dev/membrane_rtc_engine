@@ -384,29 +384,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   defp update_bandwidth(buffer, id, state) do
-    require Membrane.Core.Metrics
-
     %{bandwidth: bandwidth, bandwidth_queue: queue} =
       Map.get(state, {:bandwidth, id}, %{bandwidth: 0, bandwidth_queue: Qex.new()})
 
-    buffer_size = bit_size(buffer.payload) + buffer.metadata.rtp.padding_size * 8
+    padding_size = Map.get(buffer.metadata.rtp, :padding_size, 0)
+    buffer_size = bit_size(buffer.payload) + padding_size * 8
     buffer_time = Membrane.Time.monotonic_time()
     queue = Qex.push(queue, {buffer_size, buffer_time})
     {popped_size, first_buffer_time, queue} = pop_until(queue, buffer_time)
 
-    %{
+    bandwidth = %{
       bandwidth: bandwidth - popped_size + buffer_size,
       bandwidth_time: buffer_time - first_buffer_time,
       bandwidth_queue: queue
     }
-    |> tap(
-      &Membrane.Core.Metrics.report(
-        :bandwidth,
-        &1.bandwidth / 1024 * 2,
-        id: id
-      )
-    )
-    |> then(&Map.put(state, {:bandwidth, id}, &1))
+
+    Map.put(state, {:bandwidth, id}, bandwidth)
   end
 
   defp pop_until(queue, time, size \\ 0) do

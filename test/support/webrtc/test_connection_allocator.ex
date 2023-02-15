@@ -31,11 +31,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TestConnectionAllocator do
   end
 
   @impl true
-  def probe_sent(_allocator) do
-    :ok
-  end
-
-  @impl true
   def set_negotiability_status(_allocator, _value) do
     raise "unimplemented!"
   end

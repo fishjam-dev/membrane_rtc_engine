@@ -126,6 +126,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
 
   def generate_padding_packet(rtp_munger, _track), do: {rtp_munger, nil}
 
+  @spec can_generate_padding_packet?(t()) :: boolean()
   def can_generate_padding_packet?(rtp_munger), do: rtp_munger.last_marker
 
   @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t() | nil}
