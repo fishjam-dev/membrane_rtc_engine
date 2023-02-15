@@ -97,10 +97,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     do: GenServer.cast(prober, {:buffer_sent, self(), bit_size(payload)})
 
   @impl true
-  def probe_sent(prober),
-    do: GenServer.cast(prober, {:probe_sent, @padding_packet_size})
-
-  @impl true
   def set_negotiability_status(allocator, value),
     do: GenServer.cast(allocator, {:set_negotiability_status, self(), value})
 
@@ -297,20 +293,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     # that should have been sent up to this point.
     # If we didn't send enough, send enough probes to fill the missing part
 
-    use Numbers, overload_operators: true
-
     missing = expected_bits(state) - state.bits_sent
 
     state =
       if missing > 0 do
         # Send paddings
 
-        no_padding_packets =
-          missing
-          |> Ratio.new(@padding_packet_size)
-          |> Ratio.ceil()
-
-        send_padding_packets(state, no_padding_packets)
+        no_padding_packets = ceil(missing / @padding_packet_size)
+        state = send_padding_packets(state, no_padding_packets)
+        Map.update!(state, :bits_sent, &(&1 + no_padding_packets * @padding_packet_size))
       else
         state
       end
@@ -531,12 +522,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     probing_target = probing_target(state)
 
     now = get_timestamp()
-    elapsed_time_in_s = Time.as_seconds(now - state.probing_epoch_start)
-
-    elapsed_time_in_s
-    |> Ratio.mult(probing_target)
-    |> Ratio.add(state.prev_probing_epochs_overflow)
-    |> Ratio.floor()
+    elapsed_time_in_s = (now - state.probing_epoch_start) / Time.second()
+    floor(elapsed_time_in_s * probing_target + state.prev_probing_epochs_overflow)
   end
 
   defp maybe_update_probing_target(new_state, old_state) do
