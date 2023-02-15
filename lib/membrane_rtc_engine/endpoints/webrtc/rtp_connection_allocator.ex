@@ -57,7 +57,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
             prev_probing_epochs_overflow: integer(),
             estimated_sender_rate: non_neg_integer() | nil,
             last_probing_ts: integer() | nil,
-            last_probing_objective: non_neg_integer() | nil
+            last_failed_probing_end_estimation: non_neg_integer() | nil
           }
 
   defstruct [
@@ -70,7 +70,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     probing_queue: Qex.new(),
     prev_probing_epochs_overflow: 0,
     estimated_sender_rate: 0,
-    last_probing_objective: nil,
+    last_failed_probing_end_estimation: nil,
     last_probing_ts: nil
   ]
 
@@ -389,7 +389,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         state
         |> Map.put(:prober_status, :increase_estimation)
         |> Map.put(:last_probing_ts, get_timestamp())
-        |> Map.put(:last_probing_objective, estimated_probing_objective(state))
 
       state.prober_status == :increase_estimation and
           state.last_probing_ts < get_timestamp() - @max_probing_time ->
@@ -397,7 +396,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           "Didn't manage to finish probing in time. Reverting back to :maintain_estimation"
         )
 
-        Map.put(state, :prober_status, :maintain_estimation)
+        state
+        |> Map.put(:prober_status, :maintain_estimation)
+        |> Map.put(:last_failed_probing_end_estimation, state.available_bandwidth)
 
       true ->
         state
@@ -635,8 +636,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     now = get_timestamp()
 
     is_nil(state.last_probing_ts) or state.last_probing_ts < now - @probing_interval or
-      is_nil(state.last_probing_objective) or
-      estimated_probing_objective(state) < 0.9 * state.last_probing_objective
+      is_nil(state.last_failed_probing_end_estimation) or
+      estimated_probing_objective(state) < state.last_failed_probing_end_estimation
   end
 
   defp estimated_probing_objective(state) do
