@@ -88,6 +88,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       test_probing(prober, track, scenario)
     end
 
+    test "stops probing after 20 seconds",
+         %{
+           prober: prober,
+           track: track
+         } do
+      scenario = [
+        %{
+          duration: Time.seconds(20),
+          on_start: fn task -> send(task, {:request, 999_999_999_999_999_999}) end,
+          expected_probing_rate: @initial_bandwidth_estimation + 200_000
+        },
+        %{
+          duration: Time.seconds(5),
+          on_start: fn _task -> :ok end,
+          expected_probing_rate: 0
+        }
+      ]
+
+      test_probing(prober, track, scenario)
+    end
+
     test "Grants allocations if it has bandwidth for it", %{prober: prober, track: track} do
       allocation = 1_000
       RTPConnectionAllocator.register_track_receiver(prober, 0, track)
