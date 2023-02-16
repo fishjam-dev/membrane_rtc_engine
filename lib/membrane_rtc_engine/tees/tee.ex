@@ -28,15 +28,15 @@ defmodule Membrane.RTC.Engine.Tee do
     availability: :on_request,
     mode: :pull,
     demand_mode: :auto,
-    accepted_format: Membrane.RTP
+    caps: Membrane.RTP
 
   def_output_pad :output,
     availability: :on_request,
     mode: :push,
-    accepted_format: Membrane.RTP
+    caps: Membrane.RTP
 
   @impl true
-  def handle_init(_ctx, opts) do
+  def handle_init(opts) do
     if opts.track.encoding not in @supported_codecs do
       raise("""
       #{inspect(__MODULE__)} does not support codec #{inspect(opts.track.encoding)}.
@@ -44,7 +44,7 @@ defmodule Membrane.RTC.Engine.Tee do
       """)
     end
 
-    {[],
+    {:ok,
      %{
        track: opts.track,
        routes: %{},
@@ -55,13 +55,13 @@ defmodule Membrane.RTC.Engine.Tee do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, {_track_id, _variant}), _ctx, state) do
-    {[], state}
+    {:ok, state}
   end
 
   @impl true
   def handle_pad_added(
         Pad.ref(:output, {:endpoint, _endpoint_id}) = pad,
-        %{playback: playback},
+        %{playback_state: playback_state},
         state
       ) do
     state =
@@ -71,46 +71,46 @@ defmodule Membrane.RTC.Engine.Tee do
       })
 
     actions =
-      if playback == :playing do
+      if playback_state == :playing do
         actions =
           state
           |> active_variants()
           |> Enum.flat_map(&[event: {pad, %TrackVariantResumed{variant: &1}}])
 
-        [stream_format: {pad, %Membrane.RTP{}}] ++ actions
+        [caps: {pad, %Membrane.RTP{}}] ++ actions
       else
         []
       end
 
-    {actions, state}
+    {{:ok, actions}, state}
   end
 
   @impl true
   def handle_pad_added(pad, _ctx, _state) do
-    raise "Pad #{inspect(pad)} not allowed for #{inspect(__MODULE__)}"
+    raise("Pad #{inspect(pad)} not allowed for #{inspect(__MODULE__)}")
   end
 
   @impl true
   def handle_pad_removed(Pad.ref(:output, {:endpoint, _endpoint_id}) = pad, _ctx, state) do
     {_route, state} = pop_in(state, [:routes, pad])
-    {[], state}
+    {:ok, state}
   end
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, {_track_id, _rid}), _ctx, state) do
-    {[], state}
+    {:ok, state}
   end
 
   @impl true
-  def handle_playing(ctx, state) do
+  def handle_prepared_to_playing(ctx, state) do
     actions =
       ctx.pads
       |> Enum.filter(fn {_pad, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} ->
-        [stream_format: {pad, %Membrane.RTP{}}]
+        [caps: {pad, %Membrane.RTP{}}]
       end)
 
-    {actions, state}
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -133,7 +133,7 @@ defmodule Membrane.RTC.Engine.Tee do
       |> Enum.filter(fn {_pad, config} -> config.current_variant == variant end)
       |> Enum.map(fn {pad, _config} -> {:event, {pad, event}} end)
 
-    {actions, state}
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -157,7 +157,7 @@ defmodule Membrane.RTC.Engine.Tee do
           state
       end)
 
-    {[forward: event], state}
+    {{:ok, forward: event}, state}
   end
 
   @impl true
@@ -165,7 +165,7 @@ defmodule Membrane.RTC.Engine.Tee do
     Membrane.Logger.info("Track variant #{inspect(id)} resumed.")
     {_track_id, variant} = id
     state = Map.update!(state, :inactive_variants, &MapSet.delete(&1, variant))
-    {[forward: event], state}
+    {{:ok, forward: event}, state}
   end
 
   @impl true
@@ -188,7 +188,7 @@ defmodule Membrane.RTC.Engine.Tee do
         Ignoring.\
         """)
 
-        {[], state}
+        {:ok, state}
 
       true ->
         Membrane.Logger.debug("""
@@ -210,13 +210,13 @@ defmodule Membrane.RTC.Engine.Tee do
     %{current_variant: current_variant} = state.routes[pad]
 
     if current_variant do
-      {[event: {Pad.ref(:input, {state.track.id, current_variant}), event}], state}
+      {{:ok, event: {Pad.ref(:input, {state.track.id, current_variant}), event}}, state}
     else
       Membrane.Logger.warn("""
       Endpoint #{endpoint_id} requested keyframe but we don't send any variant to it. Ignoring.
       """)
 
-      {[], state}
+      {:ok, state}
     end
   end
 
@@ -231,9 +231,12 @@ defmodule Membrane.RTC.Engine.Tee do
       raise TrackVariantStateError, track: state.track, variant: variant
     end
 
-    Enum.flat_map_reduce(state.routes, state, fn route, state ->
-      handle_route(buffer, variant, route, ctx, state)
-    end)
+    {actions, state} =
+      Enum.flat_map_reduce(state.routes, state, fn route, state ->
+        handle_route(buffer, variant, route, ctx, state)
+      end)
+
+    {{:ok, actions}, state}
   end
 
   @impl true
@@ -248,9 +251,9 @@ defmodule Membrane.RTC.Engine.Tee do
       end)
 
     if all_end_of_streams? do
-      {[forward: :end_of_stream], state}
+      {{:ok, forward: :end_of_stream}, state}
     else
-      {[], state}
+      {:ok, state}
     end
   end
 
@@ -265,7 +268,7 @@ defmodule Membrane.RTC.Engine.Tee do
       |> put_in([:routes, output_pad, :target_variant], requested_variant)
       |> put_in([:routes, output_pad, :reason], reason)
 
-    {actions, state}
+    {{:ok, actions}, state}
   end
 
   defp handle_route(buffer, variant, {output_pad, %{current_variant: variant}}, _ctx, state) do

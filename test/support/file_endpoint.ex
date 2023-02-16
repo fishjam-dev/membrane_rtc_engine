@@ -42,24 +42,23 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   def_output_pad :output,
     demand_unit: :buffers,
-    accepted_format: _any,
+    caps: :any,
     availability: :on_request
 
   @impl true
-  def handle_init(_ctx, opts) do
+  def handle_init(opts) do
     if opts.track.encoding != :H264 do
       raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codec is :H264."
     end
 
-    {[], Map.from_struct(opts)}
+    {:ok, Map.from_struct(opts)}
   end
 
   @impl true
-  def handle_playing(_ctx, state) do
-    {[
-       notify_parent: {:publish, {:new_tracks, [state.track]}},
-       notify_parent: {:forward_to_parent, :tracks_added}
-     ], state}
+  def handle_prepared_to_playing(_ctx, state) do
+    {{:ok,
+      notify: {:publish, {:new_tracks, [state.track]}},
+      notify: {:forward_to_parent, :tracks_added}}, state}
   end
 
   @impl true
@@ -73,29 +72,40 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       clock_rate: state.track.clock_rate
     }
 
-    spec =
-      child(:source, %Membrane.File.Source{location: state.file_path})
-      |> child(:parser, %Membrane.H264.FFmpeg.Parser{framerate: state.framerate, alignment: :nal})
-      |> child(:payloader, payloader_bin)
-      |> child(:track_sender, %StaticTrackSender{track: state.track})
-      |> bin_output(pad)
+    spec = %ParentSpec{
+      children: %{
+        source: %Membrane.File.Source{
+          location: state.file_path
+        },
+        parser: %Membrane.H264.FFmpeg.Parser{framerate: state.framerate, alignment: :nal},
+        payloader: payloader_bin,
+        track_sender: %StaticTrackSender{track: state.track}
+      },
+      links: [
+        link(:source)
+        |> to(:parser)
+        |> to(:payloader)
+        |> to(:track_sender)
+        |> to_bin_output(pad)
+      ]
+    }
 
-    {[spec: spec], state}
+    {{:ok, spec: spec}, state}
   end
 
   @impl true
-  def handle_parent_notification({:new_tracks, _list}, _ctx, state) do
-    {[], state}
+  def handle_other({:new_tracks, _list}, _ctx, state) do
+    {:ok, state}
   end
 
   @impl true
-  def handle_parent_notification({:remove_tracks, _list}, _ctx, state) do
-    {[], state}
+  def handle_other({:remove_tracks, _list}, _ctx, state) do
+    {:ok, state}
   end
 
   @impl true
-  def handle_parent_notification(:start, _ctx, state) do
+  def handle_other(:start, _ctx, state) do
     track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
-    {[notify_parent: track_ready], state}
+    {{:ok, notify: track_ready}, state}
   end
 end

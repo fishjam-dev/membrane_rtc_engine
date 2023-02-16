@@ -36,12 +36,12 @@ Pads should be in the following form
 ```elixir
 def_input_pad :input,
     demand_unit: :buffers,
-    stream_format: Membrane.RTP,
+    caps: Membrane.RTP,
     availability: :on_request
 
 def_output_pad :output,
     demand_unit: :buffers,
-    stream_format: Membrane.RTP,
+    caps: Membrane.RTP,
     availability: :on_request
 ```
 
@@ -73,17 +73,17 @@ defmodule RecordingEndpoint do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    accepted_format: _any,
+    caps: :any,
     availability: :on_request
 
   @impl true
-  def handle_init(_ctx, opts) do
+  def handle_init(opts) do
     state = %{
-      output_dir_path: opts.output_dir_path,
-      rtc_engine: opts.rtc_engine,
+      directory_path: opts.directory_path,
+      rtc_engine: opts.rtc_engine
     }
 
-    {[], state}
+    {:ok, state}
   end
 end
 ```
@@ -103,40 +103,46 @@ used for serializing incoming Membrane stream
 
 For each incoming track we will create separate serializer and sink.
 
-## Subscribing to a track
+## Subscribing for a track
 
 Whenever some endpoint publishes its tracks, all other endpoints receive a message
 in form of `{:new_tracks, tracks}` where `tracks` is a list of `t:Membrane.RTC.Engine.Track.t/0`.
 
 To subscribe to any of the published tracks, an endpoint has to call `Membrane.RTC.Engine.subscribe/4`. 
 
-After subscribing to a track, the endpoint will be notified about its readiness in
+After subscribing for a track the endpoint will be notified about its readiness in
 `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
 callback can look like this
 
 ```elixir
 @impl true
 def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-  structure = [
-    bin_input(pad)
-    |> child({:track_receiver, track_id}, %TrackReceiver{
+  children = %{
+    {:track_receiver, track_id} => %TrackReceiver{
       track: Map.fetch!(state.tracks, track_id),
       initial_target_variant: :high
-    })
-    |> child({:serializer, track_id}, Membrane.Stream.Serializer)
-    |> child({:sink, track_id}, %Membrane.File.Sink{
+    },
+    {:serializer, track_id} => Membrane.Stream.Serializer,
+    {:sink, track_id} => %Membrane.File.Sink{
       location: Path.join(state.output_dir_path, track_id)
-    })
+    }
+  }
+
+  links = [
+    link_bin_input(pad)
+    |> to({:track_receiver, track_id})
+    |> to({:serializer, track_id})
+    |> to({:sink, track_id})
   ]
 
-  {[spec: structure], state}
+  {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
 end
 ```
 
 We simply link our input pad on which we will receive media data to the track receiver, 
 serializer and then to the sink.
 
-The endpoint will be also notified when some tracks it subscribed to are removed with
+The endpoint will be also notified when some tracks it subscribed for are removed with
 `{:removed_tracks, tracks}` message.
 
 > #### Deeper dive into TrackReciver {: .tip}
@@ -195,56 +201,62 @@ defmodule RecordingEndpoint do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    accepted_format: _any,
+    caps: :any,
     availability: :on_request
 
   @impl true
-  def handle_init(_ctx, opts) do
+  def handle_init(opts) do
     state = %{
       output_dir_path: opts.output_dir_path,
       rtc_engine: opts.rtc_engine,
       tracks: %{}
     }
 
-    {[], state}
+    {:ok, state}
   end
 
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-    structure = [
-      bin_input(pad)
-      |> child({:track_receiver, track_id}, %TrackReceiver{
+    children = %{
+      {:track_receiver, track_id} => %TrackReceiver{
         track: Map.fetch!(state.tracks, track_id),
         initial_target_variant: :high
-      })
-      |> child({:serializer, track_id}, Membrane.Stream.Serializer)
-      |> child({:sink, track_id}, %Membrane.File.Sink{
+      },
+      {:serializer, track_id} => Membrane.Stream.Serializer,
+      {:sink, track_id} => %Membrane.File.Sink{
         location: Path.join(state.output_dir_path, track_id)
-      })
+      }
+    }
+
+    links = [
+      link_bin_input(pad)
+      |> to({:track_receiver, track_id})
+      |> to({:serializer, track_id})
+      |> to({:sink, track_id})
     ]
 
-    {[spec: structure], state}
+    {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
+  def handle_pad_removed(Pad.ref(:output, track_id), _ctx, state) do
     children = [
       {:track_receiver, track_id},
-      {:serializer, track_id},
+      {:serialized, track_id},
       {:sink, track_id}
     ]
 
-    {[remove_child: children], state}
+    {{:ok, remove_child: children}, state}
   end
 
   @impl true
-  def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
+  def handle_other({:new_tracks, tracks}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
-    Enum.reduce_while(tracks, {[], state}, fn track, {[], state} ->
+    Enum.reduce_while(tracks, {:ok, state}, fn track, {:ok, state} ->
       case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
         :ok ->
-          {:cont, {[], update_in(state, [:tracks], &Map.put(&1, track.id, track))}}
+          {:cont, {:ok, update_in(state, [:tracks], &Map.put(&1, track.id, track))}}
 
         {:error, :invalid_track_id} ->
           Membrane.Logger.warn("""
@@ -252,7 +264,7 @@ defmodule RecordingEndpoint do
           It had to be removed just after publishing it. Ignoring.
           """)
 
-          {:cont, {[], state}}
+          {:cont, {:ok, state}}
 
         {:error, reason} ->
           raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
@@ -261,14 +273,8 @@ defmodule RecordingEndpoint do
   end
 
   @impl true
-  def handle_parent_notification({:remove_tracks, _tracks}, _ctx, state) do
-    {[], state}
-  end
-
-  @impl true
-  def handle_parent_notification(_msg, _ctx, state) do
-    # ignore all other notifications
-    {[], state}
+  def handle_other({:remove_tracks, []}, _ctx, state) do
+    {:ok, state}
   end
 end
 ```

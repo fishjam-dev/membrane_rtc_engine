@@ -10,7 +10,7 @@ defmodule Membrane.RTC.Engine.Support.TestSink do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    accepted_format: _any
+    caps: :any
 
   def_options autodemand: [
                 type: :boolean,
@@ -22,52 +22,52 @@ defmodule Membrane.RTC.Engine.Support.TestSink do
               ]
 
   @impl true
-  def handle_init(_ctx, opts) do
-    {[], opts}
+  def handle_init(opts) do
+    {:ok, opts}
   end
 
   @impl true
-  def handle_playing(_context, %{autodemand: true} = state),
-    do: {[demand: :input], state}
+  def handle_prepared_to_playing(_context, %{autodemand: true} = state),
+    do: {{:ok, demand: :input}, state}
 
-  def handle_playing(_context, state), do: {[], state}
+  def handle_prepared_to_playing(_context, state), do: {:ok, state}
 
   @impl true
   def handle_event(:input, event, _context, state) do
-    {notify({:event, event}), state}
+    {{:ok, notify({:event, event})}, state}
   end
 
   @impl true
   def handle_start_of_stream(pad, _ctx, state),
-    do: {notify({:start_of_stream, pad}), state}
+    do: {{:ok, notify({:start_of_stream, pad})}, state}
 
   @impl true
   def handle_end_of_stream(pad, _ctx, state),
-    do: {notify({:end_of_stream, pad}), state}
+    do: {{:ok, notify({:end_of_stream, pad})}, state}
 
   @impl true
-  def handle_stream_format(pad, format, _context, state),
-    do: {notify({:stream_format, pad, format}), state}
+  def handle_caps(pad, caps, _context, state),
+    do: {{:ok, notify({:caps, pad, caps})}, state}
 
   @impl true
-  def handle_parent_notification({:make_demand, size}, _ctx, %{autodemand: false} = state) do
-    {[demand: {:input, size}], state}
+  def handle_other({:make_demand, size}, _ctx, %{autodemand: false} = state) do
+    {{:ok, demand: {:input, size}}, state}
   end
 
   @impl true
-  def handle_parent_notification({:execute_actions, actions}, _ctx, state) do
-    {actions, state}
+  def handle_other({:execute_actions, actions}, _ctx, state) do
+    {{:ok, actions}, state}
   end
 
   @impl true
   def handle_write(:input, buf, _ctx, state) do
     case state do
-      %{autodemand: false} -> {notify({:buffer, buf}), state}
-      %{autodemand: true} -> {[demand: :input] ++ notify({:buffer, buf}), state}
+      %{autodemand: false} -> {{:ok, notify({:buffer, buf})}, state}
+      %{autodemand: true} -> {{:ok, [demand: :input] ++ notify({:buffer, buf})}, state}
     end
   end
 
   defp notify(payload) do
-    [notify_parent: %Notification{payload: payload}]
+    [notify: %Notification{payload: payload}]
   end
 end

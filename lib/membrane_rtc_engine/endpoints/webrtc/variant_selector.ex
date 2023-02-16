@@ -60,7 +60,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
             current_variant: Track.variant() | :no_variant,
             queued_variant: Track.variant() | :no_variant,
             active_variants: MapSet.t(Track.variant()),
-            current_allocation: float(),
+            current_allocation: non_neg_integer(),
             variant_bitrates: bitrates_t(),
             connection_allocator: pid(),
             connection_allocator_module: module()

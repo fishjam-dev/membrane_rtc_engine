@@ -19,9 +19,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
     Engine.register(pid, self())
 
-    on_exit(fn ->
-      Engine.terminate(pid, blocking?: true)
-    end)
+    on_exit(fn -> Engine.terminate(pid, blocking?: true) end)
 
     [rtc_engine: pid]
   end
@@ -59,7 +57,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      assert_receive {:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 5_000
+      assert_receive({:playlist_playable, :video, ^stream_id, ^file_endpoint_id}, 5_000)
 
       Process.sleep(15_000)
 
@@ -78,6 +76,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
         assert File.read!(output_path) == File.read!(reference_path)
       end
+
+      assert_receive {:cleanup, _cleanup_function, ^stream_id}
     end
 
     @tag :skip
@@ -154,6 +154,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
       Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
+
+      assert_receive({:cleanup, _cleanup_function, ^stream_id})
+      refute_received({:cleanup, _cleanup_function, ^stream_id})
     end
 
     test "number of headers is reduced to 1 when resolution is not stable", %{
@@ -196,6 +199,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       # if number of header files is greater than 1, transcoding is not working properly
       assert Enum.count(directory_files, &String.starts_with?(&1, "video_header")) == 1
+
+      assert_receive {:cleanup, _cleanup_function, ^stream_id}
     end
   end
 

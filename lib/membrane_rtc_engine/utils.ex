@@ -49,12 +49,12 @@ defmodule Membrane.RTC.Utils do
           child_name :: any(),
           msg :: any(),
           ctx :: ctx()
-        ) :: [Membrane.Pipeline.Action.notify_child_t()]
+        ) :: [Membrane.Pipeline.Action.forward_t()]
   def forward(child_name, msg, ctx) do
     child = find_child(ctx, pattern: ^child_name)
 
     if child do
-      [notify_child: {child_name, msg}]
+      [forward: {child_name, msg}]
     else
       []
     end
@@ -68,7 +68,6 @@ defmodule Membrane.RTC.Utils do
   end
 
   @spec create_otel_context(name :: String.t(), metadata :: [{atom(), any()}]) :: any()
-  @dialyzer {:nowarn_function, create_otel_context: 1, create_otel_context: 2}
   def create_otel_context(name, metadata \\ []) do
     metadata =
       [

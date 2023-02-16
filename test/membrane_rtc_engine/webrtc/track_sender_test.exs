@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   use ExUnit.Case, async: true
 
-  import Membrane.ChildrenSpec
+  import Membrane.ParentSpec
   import Membrane.Testing.Assertions
 
   require Membrane.Pad
@@ -36,30 +36,32 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       end)
     end
 
-    test "sends stream_format just once on given output pad" do
+    test "sends caps just once on given output pad" do
       track = build_h264_track()
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 2)
 
-      assert_sink_stream_format(pipeline, {:sink, :high}, %Membrane.RTP{})
-      assert_sink_stream_format(pipeline, {:sink, :medium}, %Membrane.RTP{})
+      assert_sink_caps(pipeline, {:sink, :high}, %Membrane.RTP{})
+      assert_sink_caps(pipeline, {:sink, :medium}, %Membrane.RTP{})
 
-      refute_sink_stream_format(pipeline, {:sink, :high}, %Membrane.RTP{}, 0)
-      refute_sink_stream_format(pipeline, {:sink, :medium}, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, :high}, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, :medium}, %Membrane.RTP{}, 0)
 
-      spec =
-        child({:source, :low}, %Source{stream_format: %Membrane.RTP{}, output: []})
+      links = [
+        link({:source, :low}, %Source{caps: %Membrane.RTP{}, output: []})
         |> via_in(Pad.ref(:input, {@track_id, :low}))
-        |> get_child(:track_sender)
+        |> to(:track_sender)
         |> via_out(Pad.ref(:output, {@track_id, :low}))
-        |> child({:sink, :low}, Sink)
+        |> to({:sink, :low}, Sink)
+      ]
 
-      Pipeline.execute_actions(pipeline, spec: spec)
+      actions = [{:spec, %Membrane.ParentSpec{links: links}}]
+      Pipeline.execute_actions(pipeline, actions)
 
-      assert_sink_stream_format(pipeline, {:sink, :low}, %Membrane.RTP{})
+      assert_sink_caps(pipeline, {:sink, :low}, %Membrane.RTP{})
 
-      refute_sink_stream_format(pipeline, {:sink, :high}, %Membrane.RTP{}, 0)
-      refute_sink_stream_format(pipeline, {:sink, :medium}, %Membrane.RTP{}, 0)
-      refute_sink_stream_format(pipeline, {:sink, :low}, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, :high}, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, :medium}, %Membrane.RTP{}, 0)
+      refute_sink_caps(pipeline, {:sink, :low}, %Membrane.RTP{}, 0)
 
       Pipeline.terminate(pipeline, blocking?: true)
     end
@@ -75,14 +77,16 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       refute_sink_event(pipeline, {:sink, :high}, %TrackVariantResumed{variant: :high})
       refute_sink_event(pipeline, {:sink, :medium}, %TrackVariantResumed{variant: :medium}, 0)
 
-      spec =
-        child({:source, :low}, %Source{stream_format: %Membrane.RTP{}, output: []})
+      links = [
+        link({:source, :low}, %Source{caps: %Membrane.RTP{}, output: []})
         |> via_in(Pad.ref(:input, {@track_id, :low}))
-        |> get_child(:track_sender)
+        |> to(:track_sender)
         |> via_out(Pad.ref(:output, {@track_id, :low}))
-        |> child({:sink, :low}, Sink)
+        |> to({:sink, :low}, Sink)
+      ]
 
-      Pipeline.execute_actions(pipeline, spec: spec)
+      actions = [{:spec, %Membrane.ParentSpec{links: links}}]
+      Pipeline.execute_actions(pipeline, actions)
 
       assert_sink_event(pipeline, {:sink, :low}, %TrackVariantResumed{variant: :low})
       refute_sink_event(pipeline, {:sink, :low}, %TrackVariantResumed{variant: :low})
@@ -95,9 +99,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
 
       Enum.each(@variants, fn variant ->
-        Pipeline.execute_actions(pipeline,
-          notify_child: {{:source, variant}, {:set_active, false}}
-        )
+        Pipeline.execute_actions(pipeline, forward: {{:source, variant}, {:set_active, false}})
       end)
 
       Enum.each(@variants, fn variant ->
@@ -111,7 +113,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       track = build_h264_track([:high])
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
 
-      Pipeline.execute_actions(pipeline, notify_child: {{:source, :high}, {:set_active, false}})
+      Pipeline.execute_actions(pipeline, forward: {{:source, :high}, {:set_active, false}})
       refute_sink_event(pipeline, {:sink, :high}, %TrackVariantPaused{}, 5_000)
 
       Pipeline.terminate(pipeline, blocking?: true)
@@ -122,9 +124,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
 
       Enum.each(@variants, fn variant ->
-        Pipeline.execute_actions(pipeline,
-          notify_child: {{:source, variant}, {:set_active, false}}
-        )
+        Pipeline.execute_actions(pipeline, forward: {{:source, variant}, {:set_active, false}})
       end)
 
       Enum.each(@variants, fn variant ->
@@ -132,7 +132,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       end)
 
       Enum.each(@variants, fn variant ->
-        Pipeline.execute_actions(pipeline, notify_child: {{:source, variant}, {:set_active, true}})
+        Pipeline.execute_actions(pipeline, forward: {{:source, variant}, {:set_active, true}})
       end)
 
       Enum.each(@variants, fn variant ->
@@ -179,16 +179,25 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   end
 
   defp build_audio_pipeline(track, source_buffers) do
-    pipeline = Pipeline.start_link_supervised!()
+    {:ok, pipeline} = Pipeline.start_link(links: [])
+    assert_pipeline_playback_changed(pipeline, :prepared, :playing)
 
-    spec =
-      child(:source, %Source{stream_format: %Membrane.RTP{}, output: source_buffers})
+    children = [
+      source: %Source{caps: %Membrane.RTP{}, output: source_buffers},
+      track_sender: %TrackSender{track: track},
+      sink: Sink
+    ]
+
+    links = [
+      link(:source)
       |> via_in(Pad.ref(:input, {@track_id, nil}))
-      |> child(:track_sender, %TrackSender{track: track})
+      |> to(:track_sender)
       |> via_out(Pad.ref(:output, {@track_id, nil}))
-      |> child(:sink, Sink)
+      |> to(:sink)
+    ]
 
-    Pipeline.execute_actions(pipeline, spec: spec)
+    actions = [spec: %Membrane.ParentSpec{children: children, links: links}]
+    Pipeline.execute_actions(pipeline, actions)
 
     pipeline
   end
@@ -196,31 +205,33 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   defp build_video_pipeline(track, output, num_of_variants \\ 3) do
     variants = Enum.take(track.variants, num_of_variants)
 
-    pipeline = Pipeline.start_link_supervised!()
+    {:ok, pipeline} = Pipeline.start_link(links: [])
+    assert_pipeline_playback_changed(pipeline, :prepared, :playing)
 
-    variant_spec =
+    variant_links =
       for variant <- variants do
-        source = %TestSource{stream_format: %Membrane.RTP{}, output: output}
+        source = %TestSource{caps: %Membrane.RTP{}, output: output}
 
-        child({:source, variant}, source)
+        link({:source, variant}, source)
         |> via_in(Pad.ref(:input, {@track_id, variant}))
-        |> get_child(:track_sender)
+        |> to(:track_sender)
       end
 
-    track_sender_spec =
+    track_sender_links =
       for variant <- variants do
-        get_child(:track_sender)
+        link(:track_sender)
         |> via_out(Pad.ref(:output, {@track_id, variant}))
-        |> child({:sink, variant}, Sink)
+        |> to({:sink, variant}, Sink)
       end
 
-    track_sender = child(:track_sender, %TrackSender{track: track})
+    actions = [
+      spec: %Membrane.ParentSpec{
+        children: [track_sender: %TrackSender{track: track}],
+        links: variant_links ++ track_sender_links
+      }
+    ]
 
-    Pipeline.execute_actions(pipeline, spec: [variant_spec, track_sender_spec, track_sender])
-
-    for variant <- variants do
-      assert_pipeline_notified(pipeline, {:source, variant}, :playing)
-    end
+    Pipeline.execute_actions(pipeline, actions)
 
     pipeline
   end
