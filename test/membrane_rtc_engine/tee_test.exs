@@ -2,7 +2,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
   use ExUnit.Case, async: true
 
   import Membrane.Testing.Assertions
-  import Membrane.ParentSpec
+  import Membrane.ChildrenSpec
 
   require Membrane.Pad
 
@@ -43,14 +43,12 @@ defmodule Membrane.RTC.Engine.TeeTest do
     refute_sink_event(pipeline, :sink, %TrackVariantResumed{variant: :medium}, 0)
     refute_sink_event(pipeline, :sink, %TrackVariantResumed{variant: :low}, 0)
 
-    links = [
-      link(:tee)
+    spec =
+      get_child(:tee)
       |> via_out(Pad.ref(:output, {:endpoint, :other_endpoint}))
-      |> to(:other_sink, TestSink)
-    ]
+      |> child(:other_sink, TestSink)
 
-    actions = [spec: %Membrane.ParentSpec{links: links}]
-    Pipeline.execute_actions(pipeline, actions)
+    Pipeline.execute_actions(pipeline, spec: spec)
 
     Enum.each(track.variants, fn variant ->
       assert_sink_event(pipeline, :other_sink, %TrackVariantResumed{variant: ^variant})
@@ -113,12 +111,12 @@ defmodule Membrane.RTC.Engine.TeeTest do
     track = build_h264_track()
     pipeline = build_pipeline(track, [])
 
-    Process.monitor(pipeline)
+    Process.flag(:trap_exit, true)
 
     actions = [event: {:input, %RequestTrackVariant{variant: "invalid_track_variant"}}]
-    Pipeline.execute_actions(pipeline, forward: {:sink, {:execute_actions, actions}})
+    Pipeline.execute_actions(pipeline, notify_child: {:sink, {:execute_actions, actions}})
 
-    assert_receive {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}}
+    assert_receive {:EXIT, ^pipeline, {:shutdown, :child_crash}}
   end
 
   test "Tee correcly forwards variants" do
@@ -200,12 +198,12 @@ defmodule Membrane.RTC.Engine.TeeTest do
     mark_variant_as_paused(pipeline, :high)
     assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
 
-    Process.monitor(pipeline)
+    Process.flag(:trap_exit, true)
 
     buffer = %Buffer{payload: <<1, 2, 3, 4, 5>>, metadata: %{is_keyframe: false}}
     send_buffer(pipeline, :high, buffer)
 
-    assert_receive {:DOWN, _ref, :process, ^pipeline, {:shutdown, :child_crash}}
+    assert_receive {:EXIT, ^pipeline, {:shutdown, :child_crash}}
   end
 
   test "Tee ignores KeyframeRequestEvent when there is no variant being forwarded" do
@@ -265,7 +263,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     event = %VoiceActivityChanged{voice_activity: :speech}
 
     Pipeline.execute_actions(pipeline,
-      forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
+      notify_child: {{:source, :high}, {:execute_actions, event: {:output, event}}}
     )
 
     # We're already on high, so we expect the event to be forwarded
@@ -287,7 +285,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     event = %VoiceActivityChanged{voice_activity: :speech}
 
     Pipeline.execute_actions(pipeline,
-      forward: {{:source, :high}, {:execute_actions, event: {:output, event}}}
+      notify_child: {{:source, :high}, {:execute_actions, event: {:output, event}}}
     )
 
     request_track_variant(pipeline, :high)
@@ -336,62 +334,70 @@ defmodule Membrane.RTC.Engine.TeeTest do
   defp build_pipeline(track, output, num_of_variants \\ 3, fast_start \\ true) do
     variants = Enum.take(track.variants, num_of_variants)
 
-    # TODO start/start_link?
-    {:ok, pipeline} = Pipeline.start(links: [])
+    pipeline = Pipeline.start_link_supervised!()
 
-    assert_pipeline_playback_changed(pipeline, :prepared, :playing)
+    tee_spec =
+      child(:tee, %Tee{track: track})
+      |> via_out(Pad.ref(:output, {:endpoint, @endpoint_id}))
+      |> child(:sink, TestSink)
 
-    variant_links =
+    variant_specs =
       for variant <- variants do
-        source = %TestSource{caps: %Membrane.RTP{}, output: output, fast_start: fast_start}
+        source = %TestSource{
+          stream_format: %Membrane.RTP{},
+          output: output,
+          fast_start: fast_start
+        }
 
-        link({:source, variant}, source)
+        child({:source, variant}, source)
         |> via_in(Pad.ref(:input, {track.id, variant}))
-        |> to(:tee)
+        |> get_child(:tee)
       end
 
-    tee_link =
-      link(:tee)
-      |> via_out(Pad.ref(:output, {:endpoint, @endpoint_id}))
-      |> to(:sink, TestSink)
+    Pipeline.execute_actions(pipeline, spec: [tee_spec | variant_specs])
 
-    actions = [
-      spec: %Membrane.ParentSpec{
-        children: [tee: %Tee{track: track}],
-        links: variant_links ++ [tee_link]
-      }
-    ]
+    for variant <- variants do
+      assert_pipeline_notified(pipeline, {:source, variant}, :playing)
+    end
 
-    Pipeline.execute_actions(pipeline, actions)
     pipeline
   end
 
   defp mark_variant_as_resumed(pipeline, variant) do
     actions = [event: {:output, %TrackVariantResumed{variant: variant}}]
-    Pipeline.execute_actions(pipeline, forward: {{:source, variant}, {:execute_actions, actions}})
+
+    Pipeline.execute_actions(pipeline,
+      notify_child: {{:source, variant}, {:execute_actions, actions}}
+    )
   end
 
   defp mark_variant_as_paused(pipeline, variant) do
     actions = [event: {:output, %TrackVariantPaused{variant: variant}}]
-    Pipeline.execute_actions(pipeline, forward: {{:source, variant}, {:execute_actions, actions}})
+
+    Pipeline.execute_actions(pipeline,
+      notify_child: {{:source, variant}, {:execute_actions, actions}}
+    )
   end
 
   defp request_track_variant(pipeline, variant) do
     actions = [event: {:input, %RequestTrackVariant{variant: variant}}]
-    Pipeline.execute_actions(pipeline, forward: {:sink, {:execute_actions, actions}})
+    Pipeline.execute_actions(pipeline, notify_child: {:sink, {:execute_actions, actions}})
   end
 
   defp send_buffer(pipeline, variant, buffer) do
     actions = [buffer: {:output, buffer}]
-    Pipeline.execute_actions(pipeline, forward: {{:source, variant}, {:execute_actions, actions}})
+
+    Pipeline.execute_actions(pipeline,
+      notify_child: {{:source, variant}, {:execute_actions, actions}}
+    )
   end
 
   defp activate_source(pipeline, variant) do
-    Pipeline.execute_actions(pipeline, forward: {{:source, variant}, {:set_active, true}})
+    Pipeline.execute_actions(pipeline, notify_child: {{:source, variant}, {:set_active, true}})
   end
 
   defp request_keyframe(pipeline) do
     actions = [event: {:input, %Membrane.KeyframeRequestEvent{}}]
-    Pipeline.execute_actions(pipeline, forward: {:sink, {:execute_actions, actions}})
+    Pipeline.execute_actions(pipeline, notify_child: {:sink, {:execute_actions, actions}})
   end
 end
