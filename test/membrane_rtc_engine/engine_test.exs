@@ -4,10 +4,7 @@ defmodule Membrane.RTC.EngineTest do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.{Peer, Track}
 
-  alias Membrane.RTC.Engine.Support.{
-    MessageEndpoint,
-    TrackEndpoint
-  }
+  alias Membrane.RTC.Engine.Support.TestEndpoint
 
   setup do
     options = [
@@ -23,7 +20,7 @@ defmodule Membrane.RTC.EngineTest do
 
   describe ":ready message" do
     test "triggers :new_peer", %{rtc_engine: rtc_engine} do
-      endpoint_spec = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+      endpoint_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
 
       Engine.add_endpoint(rtc_engine, endpoint_spec)
       Engine.add_endpoint(rtc_engine, endpoint_spec, peer_id: "peer")
@@ -32,7 +29,7 @@ defmodule Membrane.RTC.EngineTest do
       Engine.message_endpoint(
         rtc_engine,
         "peer",
-        {:execute_actions, [notify: {:ready, "metadata"}]}
+        {:execute_actions, [notify_parent: {:ready, "metadata"}]}
       )
 
       assert_receive {:new_peer, %Peer{id: "peer", metadata: "metadata"}}
@@ -40,7 +37,7 @@ defmodule Membrane.RTC.EngineTest do
     end
 
     test "is ignored for non-peers", %{rtc_engine: rtc_engine} do
-      endpoint_spec = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+      endpoint_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
 
       Engine.add_endpoint(rtc_engine, endpoint_spec)
       Engine.add_endpoint(rtc_engine, endpoint_spec, endpoint_id: "not-a-peer")
@@ -48,7 +45,7 @@ defmodule Membrane.RTC.EngineTest do
       Engine.message_endpoint(
         rtc_engine,
         "not-a-peer",
-        {:execute_actions, [notify: {:ready, "metadata"}]}
+        {:execute_actions, [notify_parent: {:ready, "metadata"}]}
       )
 
       refute_receive {:new_peer, _peer}
@@ -56,21 +53,30 @@ defmodule Membrane.RTC.EngineTest do
     end
 
     test "reports other peers", %{rtc_engine: rtc_engine} do
-      peer1_spec = %TrackEndpoint{
-        rtc_engine: rtc_engine,
-        track: video_track("peer1", "track1", "track1-metadata", "stream1"),
-        peer_metadata: "peer1-metadata"
-      }
-
-      msg_endpoint_spec = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+      peer1_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
+      peer1_track = video_track("peer1", "track1", "track1-metadata", "stream1")
+      peer2_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
 
       Engine.add_endpoint(rtc_engine, peer1_spec, peer_id: "peer1")
-      Engine.add_endpoint(rtc_engine, msg_endpoint_spec, peer_id: "peer2")
+
+      Engine.message_endpoint(
+        rtc_engine,
+        "peer1",
+        {:execute_actions,
+         [
+           notify_parent: {:ready, "peer1-metadata"},
+           notify_parent: {:publish, {:new_tracks, [peer1_track]}}
+         ]}
+      )
+
+      assert_receive {:ready, []}
+
+      Engine.add_endpoint(rtc_engine, peer2_spec, peer_id: "peer2")
 
       Engine.message_endpoint(
         rtc_engine,
         "peer2",
-        {:execute_actions, [notify: {:ready, "metadata"}]}
+        {:execute_actions, [notify_parent: {:ready, "peer2-metadata"}]}
       )
 
       assert_receive {:ready, peers_in_room}
@@ -92,22 +98,27 @@ defmodule Membrane.RTC.EngineTest do
 
     test "triggers :track_metadata_updated", %{
       rtc_engine: rtc_engine,
-      track: %Track{id: track_id}
+      track: %Track{id: track_id},
+      peer: %{id: peer_id}
     } do
       Engine.message_endpoint(
         rtc_engine,
-        "track-endpoint",
-        {:execute_actions, [notify: {:update_track_metadata, track_id, "new-metadata"}]}
+        peer_id,
+        {:execute_actions, [notify_parent: {:update_track_metadata, track_id, "new-metadata"}]}
       )
 
       assert_receive {:track_metadata_updated, %Track{id: ^track_id, metadata: "new-metadata"}}
     end
 
-    test "ignores identical metadata", %{rtc_engine: rtc_engine, track: track} do
+    test "ignores identical metadata", %{
+      rtc_engine: rtc_engine,
+      track: track,
+      peer: %{id: peer_id}
+    } do
       Engine.message_endpoint(
         rtc_engine,
-        "track-endpoint",
-        {:execute_actions, [notify: {:update_track_metadata, track.id, track.metadata}]}
+        peer_id,
+        {:execute_actions, [notify_parent: {:update_track_metadata, track.id, track.metadata}]}
       )
 
       refute_receive {:track_metadata_updated, _track}
@@ -120,8 +131,8 @@ defmodule Membrane.RTC.EngineTest do
     test "triggers :peer_metadata_updated", %{rtc_engine: rtc_engine, peer: %{id: peer_id}} do
       Engine.message_endpoint(
         rtc_engine,
-        "track-endpoint",
-        {:execute_actions, [notify: {:update_peer_metadata, "new-metadata"}]}
+        peer_id,
+        {:execute_actions, [notify_parent: {:update_peer_metadata, "new-metadata"}]}
       )
 
       assert_receive {:peer_metadata_updated, %Peer{id: ^peer_id, metadata: "new-metadata"}}
@@ -130,8 +141,8 @@ defmodule Membrane.RTC.EngineTest do
     test "ignores identical metadata", %{rtc_engine: rtc_engine, peer: peer} do
       Engine.message_endpoint(
         rtc_engine,
-        "track-endpoint",
-        {:execute_actions, [notify: {:update_peer_metadata, peer.metadata}]}
+        peer.id,
+        {:execute_actions, [notify_parent: {:update_peer_metadata, peer.metadata}]}
       )
 
       refute_receive {:peer_metadata_updated, _track}
@@ -140,7 +151,7 @@ defmodule Membrane.RTC.EngineTest do
 
   describe "Engine.message_endpoint/3" do
     test "forwards message to endpoint", %{rtc_engine: rtc_engine} do
-      endpoint = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+      endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
       endpoint_id = :test_endpoint
       :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
       :ok = Engine.message_endpoint(rtc_engine, endpoint_id, :message)
@@ -155,7 +166,7 @@ defmodule Membrane.RTC.EngineTest do
   end
 
   test "engine sends EndpointCrashed message", %{rtc_engine: rtc_engine} do
-    endpoint = %MessageEndpoint{rtc_engine: rtc_engine, owner: self()}
+    endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
     endpoint_id = :test_endpoint
     :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
     msg = {:execute_actions, [:some_invalid_action]}
@@ -178,27 +189,32 @@ defmodule Membrane.RTC.EngineTest do
       metadata: "original-metadata"
     }
 
-    track_endpoint = %TrackEndpoint{
-      rtc_engine: rtc_engine,
-      track: track,
-      peer_metadata: peer.metadata
-    }
+    track_endpoint = %TestEndpoint{rtc_engine: rtc_engine}
 
-    msg_endpoint = %MessageEndpoint{
+    server_endpoint = %TestEndpoint{
       rtc_engine: rtc_engine,
       owner: self()
     }
 
     Engine.add_endpoint(rtc_engine, track_endpoint, peer_id: peer.id)
-    Engine.add_endpoint(rtc_engine, msg_endpoint, endpoint_id: "message-endpoint")
-
-    assert_receive {:new_tracks, [%Track{id: "track1"}]}
-    assert :ok = Engine.subscribe(rtc_engine, "message-endpoint", "track1")
 
     Engine.message_endpoint(
       rtc_engine,
-      "track-endpoint",
-      {:execute_actions, [notify: {:track_ready, track.id, hd(track.variants), track.encoding}]}
+      peer.id,
+      {:execute_actions,
+       notify_parent: {:ready, peer.metadata}, notify_parent: {:publish, {:new_tracks, [track]}}}
+    )
+
+    Engine.add_endpoint(rtc_engine, server_endpoint, endpoint_id: "server-endpoint")
+
+    assert_receive {:new_tracks, [%Track{id: "track1"}]}
+    assert :ok = Engine.subscribe(rtc_engine, "server-endpoint", "track1")
+
+    Engine.message_endpoint(
+      rtc_engine,
+      peer.id,
+      {:execute_actions,
+       [notify_parent: {:track_ready, track.id, hd(track.variants), track.encoding}]}
     )
 
     [

@@ -226,16 +226,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    caps: :any,
+    accepted_format: _any,
     availability: :on_request
 
   def_output_pad :output,
     demand_unit: :buffers,
-    caps: :any,
+    accepted_format: _any,
     availability: :on_request
 
   @impl true
-  def handle_init(opts) do
+  def handle_init(ctx, opts) do
     Membrane.TelemetryMetrics.register(@peer_metadata_event, opts.telemetry_label)
     Membrane.RTC.Utils.register_bandwidth_event(opts.telemetry_label)
 
@@ -278,13 +278,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         connection_allocator_module: connection_allocator_module
       })
 
-    {:ok, state}
-  end
-
-  @impl true
-  def handle_prepared_to_playing(ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
     {:ok, connection_prober} = state.connection_allocator_module.create()
+
+    Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
+      state.connection_allocator_module.destroy(connection_prober)
+    end)
 
     log_metadata = state.log_metadata ++ [webrtc_endpoint: endpoint_id]
 
@@ -306,45 +305,38 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       telemetry_label: state.telemetry_label
     }
 
-    spec = %ParentSpec{
-      children: %{endpoint_bin: endpoint_bin},
-      log_metadata: log_metadata
-    }
-
-    {{:ok, spec: spec},
-     %{state | log_metadata: log_metadata, connection_prober: connection_prober}}
+    spec = {child(:endpoint_bin, endpoint_bin), log_metadata: log_metadata}
+    {[spec: spec], %{state | log_metadata: log_metadata, connection_prober: connection_prober}}
   end
 
   @impl true
-  def handle_playing_to_prepared(_ctx, state) do
-    state.connection_allocator_module.destroy(state.connection_prober)
-
-    {:ok, state}
-  end
-
-  @impl true
-  def handle_notification(
+  def handle_child_notification(
         {:voice_activity_changed, vad},
         {:track_receiver, track_id},
         _ctx,
         state
       ) do
     event = to_media_event({:voice_activity, track_id, vad}) |> MediaEvent.encode()
-    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_notification({:estimation, estimations}, {:track_sender, track_id}, _ctx, state) do
+  def handle_child_notification(
+        {:estimation, estimations},
+        {:track_sender, track_id},
+        _ctx,
+        state
+      ) do
     notification = %TrackNotification{
       track_id: track_id,
       notification: bitrate_notification(estimations)
     }
 
-    {{:ok, notify: {:publish, notification}}, state}
+    {[notify_parent: {:publish, notification}], state}
   end
 
   @impl true
-  def handle_notification({:new_tracks, tracks}, :endpoint_bin, ctx, state) do
+  def handle_child_notification({:new_tracks, tracks}, :endpoint_bin, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
     tracks =
@@ -361,11 +353,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       tracks_ids: Enum.map(tracks, & &1.id)
     )
 
-    {{:ok, notify: {:publish, {:new_tracks, tracks}}}, %{state | inbound_tracks: inbound_tracks}}
+    {[notify_parent: {:publish, {:new_tracks, tracks}}],
+     %{state | inbound_tracks: inbound_tracks}}
   end
 
   @impl true
-  def handle_notification({:removed_tracks, tracks}, :endpoint_bin, ctx, state) do
+  def handle_child_notification({:removed_tracks, tracks}, :endpoint_bin, ctx, state) do
     tracks = Enum.map(tracks, &to_rtc_track(&1, Map.get(state.inbound_tracks, &1.id)))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
@@ -376,14 +369,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     actions = [
       remove_child: track_senders,
-      notify: {:publish, {:removed_tracks, tracks}}
+      notify_parent: {:publish, {:removed_tracks, tracks}}
     ]
 
-    {{:ok, actions}, %{state | inbound_tracks: inbound_tracks}}
+    {actions, %{state | inbound_tracks: inbound_tracks}}
   end
 
   @impl true
-  def handle_notification(
+  def handle_child_notification(
         {:new_track, track_id, rid, encoding, _depayloading_filter},
         _from,
         _ctx,
@@ -407,11 +400,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     variant = to_track_variant(rid)
 
-    {{:ok, notify: {:track_ready, track_id, variant, encoding}}, state}
+    {[notify_parent: {:track_ready, track_id, variant, encoding}], state}
   end
 
   @impl true
-  def handle_notification({:negotiation_done, new_outbound_tracks}, _from, ctx, state) do
+  def handle_child_notification({:negotiation_done, new_outbound_tracks}, _from, ctx, state) do
     new_outbound_tracks =
       Enum.map(new_outbound_tracks, &to_rtc_track(&1, Map.get(state.outbound_tracks, &1.id)))
 
@@ -443,11 +436,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     end)
 
     send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_notification(
+  def handle_child_notification(
         {:signal, {:offer_data, media_count, turns}},
         _element,
         _ctx,
@@ -463,11 +456,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       event: inspect(media_event)
     )
 
-    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, media_event}}], state}
   end
 
   @impl true
-  def handle_notification(
+  def handle_child_notification(
         {:signal, _notification} = media_event_data,
         _element,
         _ctx,
@@ -479,11 +472,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       event: inspect(media_event)
     )
 
-    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, media_event}}], state}
   end
 
   @impl true
-  def handle_notification(
+  def handle_child_notification(
         {:variant_switched, new_variant, reason},
         {:track_receiver, track_id},
         _ctx,
@@ -498,11 +491,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> MediaEvent.encoding_switched(track_id, to_rid(new_variant), reason)
       |> MediaEvent.encode()
 
-    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, media_event}}], state}
   end
 
   @impl true
-  def handle_notification({:bandwidth_estimation, estimation} = msg, _from, _ctx, state) do
+  def handle_child_notification({:bandwidth_estimation, estimation} = msg, _from, _ctx, state) do
     Membrane.RTC.Utils.emit_bandwidth_event(estimation, state.telemetry_label)
 
     state.connection_allocator_module.update_bandwidth_estimation(
@@ -516,11 +509,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       event: inspect(media_event)
     )
 
-    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, media_event}}], state}
   end
 
   @impl true
-  def handle_other({:ready, peers_in_room}, ctx, state) do
+  def handle_parent_notification({:ready, peers_in_room}, ctx, state) do
     # We've received confirmation from the RTC Engine that our peer is ready
     # alongside information about peers and tracks present in the room.
     # Forward this information to the client
@@ -529,53 +522,41 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {:endpoint, peer_id} = ctx.name
     event = MediaEvent.peer_accepted(peer_id, peers_in_room) |> MediaEvent.encode()
 
-    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_other({:new_peer, peer}, _ctx, state) do
+  def handle_parent_notification({:new_peer, peer}, _ctx, state) do
     event = MediaEvent.peer_joined(peer) |> MediaEvent.encode()
-    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_other({:peer_left, peer_id}, _ctx, state) do
+  def handle_parent_notification({:peer_left, peer_id}, _ctx, state) do
     event = MediaEvent.peer_left(peer_id) |> MediaEvent.encode()
-    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_other({:track_metadata_updated, track}, _ctx, state) do
+  def handle_parent_notification({:track_metadata_updated, track}, _ctx, state) do
     event =
       MediaEvent.track_updated(track.origin, track.id, track.metadata)
       |> MediaEvent.encode()
 
     state = put_in(state, [:outbound_tracks, track.id, :metadata], track.metadata)
 
-    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_other({:peer_metadata_updated, peer}, _ctx, state) do
+  def handle_parent_notification({:peer_metadata_updated, peer}, _ctx, state) do
     event = MediaEvent.peer_updated(peer) |> MediaEvent.encode()
     # TODO: update metadata in the state
-    {{:ok, notify: {:forward_to_parent, {:media_event, event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_other({:enable_negotiability, track_id}, ctx, state) do
-    track_receiver = {:track_receiver, track_id}
-
-    forward_actions =
-      if Map.has_key?(ctx.children, track_receiver),
-        do: [forward: {track_receiver, {:set_negotiable, true}}],
-        else: []
-
-    {{:ok, forward_actions}, state}
-  end
-
-  @impl true
-  def handle_other(
+  def handle_parent_notification(
         %TrackNotification{
           track_id: track_id,
           notification: bitrate_notification(_estimation) = notification
@@ -584,17 +565,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         state
       ) do
     # Forward the data to the Track Receiver
-    {{:ok, forward: {{:track_receiver, track_id}, notification}}, state}
+    {[notify_child: {{:track_receiver, track_id}, notification}], state}
   end
 
   @impl true
-  def handle_other({:tracks_priority, tracks}, _ctx, state) do
+  def handle_parent_notification({:tracks_priority, tracks}, _ctx, state) do
     media_event = MediaEvent.tracks_priority(tracks) |> MediaEvent.encode()
-    {{:ok, notify: {:forward_to_parent, {:media_event, media_event}}}, state}
+    {[notify_parent: {:forward_to_parent, {:media_event, media_event}}], state}
   end
 
   @impl true
-  def handle_other({:new_tracks, tracks}, ctx, state) do
+  def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
     # Don't subscribe to new tracks yet.
     # We will do this after ice restart is finished.
     # Notification :negotiation_done will inform us about it
@@ -617,41 +598,39 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
           |> MediaEvent.tracks_added(track_id_to_metadata)
           |> MediaEvent.encode()
 
-        {:notify, {:forward_to_parent, {:media_event, media_event}}}
+        {:notify_parent, {:forward_to_parent, {:media_event, media_event}}}
       end)
 
-    {{:ok,
-      media_event_actions ++
-        forward(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx)},
-     %{state | outbound_tracks: outbound_tracks}}
+    state = %{state | outbound_tracks: outbound_tracks}
+    {media_event_actions ++ forward(:endpoint_bin, {:add_tracks, webrtc_tracks}, ctx), state}
   end
 
   @impl true
-  def handle_other({:remove_tracks, tracks} = msg, ctx, state) do
+  def handle_parent_notification({:remove_tracks, tracks} = msg, ctx, state) do
     media_event_actions =
       tracks
       |> Enum.group_by(& &1.origin)
       |> Enum.map(fn {origin, tracks} ->
         ids = Enum.map(tracks, & &1.id)
         event = origin |> MediaEvent.tracks_removed(ids) |> MediaEvent.encode()
-        {:notify, {:forward_to_parent, {:media_event, event}}}
+        {:notify_parent, {:forward_to_parent, {:media_event, event}}}
       end)
 
-    {{:ok, media_event_actions ++ forward(:endpoint_bin, msg, ctx)}, state}
+    {media_event_actions ++ forward(:endpoint_bin, msg, ctx), state}
   end
 
   @impl true
-  def handle_other({:display_manager, display_manager_pid}, ctx, state) do
+  def handle_parent_notification({:display_manager, display_manager_pid}, ctx, state) do
     send_if_not_nil(
       display_manager_pid,
       {:register_endpoint, ctx.name, state.video_tracks_limit}
     )
 
-    {:ok, %{state | display_manager: display_manager_pid}}
+    {[], %{state | display_manager: display_manager_pid}}
   end
 
   @impl true
-  def handle_other({:media_event, event}, ctx, state) do
+  def handle_parent_notification({:media_event, event}, ctx, state) do
     case deserialize(event) do
       {:ok, data} ->
         Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_received,
@@ -667,13 +646,35 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         )
 
         Membrane.Logger.warn("Invalid media event #{inspect(event)}. Ignoring.")
-        {:ok, state}
+        {[], state}
     end
   end
 
   @impl true
-  def handle_other(msg, ctx, state) do
-    {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+  def handle_parent_notification(msg, ctx, state) do
+    {forward(:endpoint_bin, msg, ctx), state}
+  end
+
+  @impl true
+  def handle_info({:display_manager, display_manager_pid}, ctx, state) do
+    send_if_not_nil(
+      display_manager_pid,
+      {:register_endpoint, ctx.name, state.video_tracks_limit}
+    )
+
+    {[], %{state | display_manager: display_manager_pid}}
+  end
+
+  @impl true
+  def handle_info({:enable_negotiability, track_id}, ctx, state) do
+    track_receiver = {:track_receiver, track_id}
+
+    forward_actions =
+      if Map.has_key?(ctx.children, track_receiver),
+        do: [notify_child: {track_receiver, {:set_negotiable, true}}],
+        else: []
+
+    {forward_actions, state}
   end
 
   @impl true
@@ -681,58 +682,49 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     track = Map.fetch!(state.outbound_tracks, track_id)
     initial_target_variant = state.simulcast_config.initial_target_variant.(track)
 
-    links = [
-      link_bin_input(pad)
-      |> to({:track_receiver, track_id}, %TrackReceiver{
+    spec = {
+      bin_input(pad)
+      |> child({:track_receiver, track_id}, %TrackReceiver{
         track: track,
         initial_target_variant: initial_target_variant,
         connection_allocator: state.connection_prober,
         connection_allocator_module: state.connection_allocator_module,
         telemetry_label: state.telemetry_label
       })
-      |> via_in(pad, toilet_capacity: state.toilet_capacity, options: [use_payloader?: false])
-      |> to(:endpoint_bin)
-    ]
+      |> via_in(pad, options: [use_payloader?: false], toilet_capacity: state.toilet_capacity)
+      |> get_child(:endpoint_bin),
+      log_metadata: state.log_metadata
+    }
 
-    {{:ok, spec: %ParentSpec{log_metadata: state.log_metadata, links: links}}, state}
+    {[spec: spec], state}
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, {track_id, variant}) = pad, ctx, state) do
+  def handle_pad_added(Pad.ref(:output, {track_id, variant}) = pad, _ctx, state) do
     %Track{encoding: encoding} = track = Map.get(state.inbound_tracks, track_id)
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
-    track_sender = {:track_sender, track_id}
-
-    link_to_track_sender =
-      if Map.has_key?(ctx.children, track_sender) do
-        &to(&1, track_sender)
-      else
-        &to(&1, track_sender, %TrackSender{track: track})
-      end
 
     # EndpointBin expects `rid` to be nil for non simulcast tracks
     # assume that tracks with [:high] variants are non-simulcast
     rid = if state.inbound_tracks[track_id].variants == [:high], do: nil, else: to_rid(variant)
 
-    spec = %ParentSpec{
-      links: [
-        link(:endpoint_bin)
-        |> via_out(Pad.ref(:output, {track_id, rid}),
-          options: [extensions: extensions, use_depayloader?: false]
-        )
-        |> via_in(Pad.ref(:input, {track_id, variant}))
-        |> then(link_to_track_sender)
-        |> via_out(pad)
-        |> to_bin_output(pad)
-      ],
+    spec = {
+      get_child(:endpoint_bin)
+      |> via_out(Pad.ref(:output, {track_id, rid}),
+        options: [extensions: extensions, use_depayloader?: false]
+      )
+      |> via_in(Pad.ref(:input, {track_id, variant}))
+      |> child({:track_sender, track_id}, %TrackSender{track: track}, get_if_exists: true)
+      |> via_out(pad)
+      |> bin_output(pad),
       log_metadata: state.log_metadata
     }
 
-    {{:ok, spec: spec}, state}
+    {[spec: spec], state}
   end
 
   @impl true
-  def handle_element_start_of_stream({{:track_receiver, track_id}, _pad}, _ctx, state) do
+  def handle_element_start_of_stream({:track_receiver, track_id}, _pad, _ctx, state) do
     track = Map.fetch!(state.outbound_tracks, track_id)
 
     if length(track.variants) > 1 do
@@ -744,30 +736,30 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       Process.send_after(self(), {:enable_negotiability, track_id}, 500)
     end
 
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_element_start_of_stream(_element, _ctx, state) do
-    {:ok, state}
+  def handle_element_start_of_stream(_element, _pad, _ctx, state) do
+    {[], state}
   end
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
-    {{:ok, remove_child: {:track_receiver, track_id}}, state}
+    {[remove_child: {:track_receiver, track_id}], state}
   end
 
   @impl true
   def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
-    {:ok, state}
+    {[], state}
   end
 
   defp handle_media_event(%{type: :join, data: %{metadata: metadata}}, _ctx, state) do
-    {{:ok, notify: {:ready, metadata}}, state}
+    {[notify_parent: {:ready, metadata}], state}
   end
 
   defp handle_media_event(%{type: :leave}, _ctx, state) do
-    {:ok, state}
+    {[], state}
   end
 
   defp handle_media_event(
@@ -776,7 +768,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
          state
        ) do
     state = put_in(state, [:inbound_tracks, track_id, :metadata], metadata)
-    {{:ok, notify: {:update_track_metadata, track_id, metadata}}, state}
+    {[notify_parent: {:update_track_metadata, track_id, metadata}], state}
   end
 
   defp handle_media_event(
@@ -784,40 +776,40 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
          _ctx,
          state
        ) do
-    {{:ok, notify: {:update_peer_metadata, metadata}}, state}
+    {[notify_parent: {:update_peer_metadata, metadata}], state}
   end
 
   defp handle_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
     state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
     msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
-    {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+    {forward(:endpoint_bin, msg, ctx), state}
   end
 
   defp handle_media_event(%{type: :candidate, data: data}, ctx, state) do
     msg = {:signal, {:candidate, data.candidate}}
-    {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+    {forward(:endpoint_bin, msg, ctx), state}
   end
 
   defp handle_media_event(%{type: :renegotiate_tracks}, ctx, state) do
     msg = {:signal, :renegotiate_tracks}
-    {{:ok, forward(:endpoint_bin, msg, ctx)}, state}
+    {forward(:endpoint_bin, msg, ctx), state}
   end
 
   defp handle_media_event(%{type: :set_target_track_variant, data: data}, ctx, state) do
     msg = {:set_target_variant, to_track_variant(data.variant)}
-    {{:ok, forward({:track_receiver, data.track_id}, msg, ctx)}, state}
+    {forward({:track_receiver, data.track_id}, msg, ctx), state}
   end
 
   defp handle_media_event(%{type: :prioritize_track, data: data}, ctx, state) do
     msg = {:prioritize_track, ctx.name, data.track_id}
     send_if_not_nil(state.display_manager, msg)
-    {:ok, state}
+    {[], state}
   end
 
   defp handle_media_event(%{type: :unprioritize_track, data: data}, ctx, state) do
     msg = {:unprioritize_track, ctx.name, data.track_id}
     send_if_not_nil(state.display_manager, msg)
-    {:ok, state}
+    {[], state}
   end
 
   defp handle_media_event(%{type: :prefered_video_sizes, data: data}, _ctx, state) do
@@ -826,7 +818,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
        data.same_size?}
 
     send_if_not_nil(state.display_manager, msg)
-    {:ok, state}
+    {[], state}
   end
 
   defp get_turn_configs(turn_servers, state) do
