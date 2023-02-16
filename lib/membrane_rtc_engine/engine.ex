@@ -132,13 +132,15 @@ defmodule Membrane.RTC.Engine do
   * `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
   Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
   * `display_manager?` - set to `true` if you want to limit number of tracks sent from `#{inspect(__MODULE__)}.Endpoint.WebRTC` to a browser.
+  * `toilet_capacity` - sets capacity of buffer between engine and endpoints. Use it when you expect bursts of data for your tracks. If not provided it will be set to 200.
   """
 
   @type options_t() :: [
           id: String.t(),
           trace_ctx: map(),
           telemetry_label: Membrane.TelemetryMetrics.label(),
-          display_manager?: boolean()
+          display_manager?: boolean(),
+          toilet_capacity: pos_integer() | nil
         ]
 
   defmodule State do
@@ -154,7 +156,8 @@ defmodule Membrane.RTC.Engine do
                   pending_subscriptions: [],
                   pending_peers: %{},
                   subscriptions: %{},
-                  display_manager: nil
+                  display_manager: nil,
+                  toilet_capacity: 200
                 ]
 
     @type t() :: %__MODULE__{
@@ -167,7 +170,8 @@ defmodule Membrane.RTC.Engine do
             endpoints: %{Endpoint.id() => Endpoint.t()},
             subscriptions: %{Endpoint.id() => %{Track.id() => Subscription.t()}},
             pending_subscriptions: [Subscription.t()],
-            pending_peers: %{Endpoint.id() => %{peer: Peer.t(), endpoint: Endpoint.t()}}
+            pending_peers: %{Endpoint.id() => %{peer: Peer.t(), endpoint: Endpoint.t()}},
+            toilet_capacity: pos_integer()
           }
   end
 
@@ -391,13 +395,17 @@ defmodule Membrane.RTC.Engine do
 
     telemetry_label = (options[:telemetry_label] || []) ++ [room_id: options[:id]]
 
+    toilet_capacity = options[:toilet_capacity] || 200
+    if toilet_capacity < 0, do: raise("toilet_capacity has to be a positive integer")
+
     {[playback: :playing],
      %State{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
        trace_context: options[:trace_ctx],
        telemetry_label: telemetry_label,
-       display_manager: display_manager
+       display_manager: display_manager,
+       toilet_capacity: toilet_capacity
      }}
   end
 
@@ -956,7 +964,9 @@ defmodule Membrane.RTC.Engine do
   defp build_track_link(variant, track, endpoint_id, state) do
     get_child({:endpoint, endpoint_id})
     |> via_out(Pad.ref(:output, {track.id, variant}))
-    |> via_in(Pad.ref(:input, {track.id, variant}))
+    |> via_in(Pad.ref(:input, {track.id, variant}),
+      toilet_capacity: state.toilet_capacity
+    )
     |> child({:tee, track.id}, build_track_tee(track.id, variant, track, state),
       get_if_exists: true
     )
@@ -1016,7 +1026,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp fulfill_subscriptions(subscriptions, state) do
-    links = build_subscription_links(subscriptions)
+    links = build_subscription_links(subscriptions, state)
 
     Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
       endpoint_id = subscription.endpoint_id
@@ -1027,14 +1037,16 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp build_subscription_links(subscriptions) do
-    Enum.map(subscriptions, &build_subscription_link(&1))
+  defp build_subscription_links(subscriptions, state) do
+    Enum.map(subscriptions, &build_subscription_link(&1, state))
   end
 
-  defp build_subscription_link(subscription) do
+  defp build_subscription_link(subscription, state) do
     get_child({:tee, subscription.track_id})
     |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
-    |> via_in(Pad.ref(:input, subscription.track_id))
+    |> via_in(Pad.ref(:input, subscription.track_id),
+      toilet_capacity: state.toilet_capacity
+    )
     |> get_child({:endpoint, subscription.endpoint_id})
   end
 

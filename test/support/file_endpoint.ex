@@ -26,11 +26,6 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
                 spec: Engine.Track.t(),
                 description: "Track to publish"
               ],
-              framerate: [
-                spec: {frames :: pos_integer, seconds :: pos_integer} | nil,
-                default: nil,
-                description: "Framerate in case of video track"
-              ],
               ssrc: [
                 spec: RTP.ssrc_t(),
                 description: "SSRC of RTP packets"
@@ -47,8 +42,8 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   @impl true
   def handle_init(_ctx, opts) do
-    if opts.track.encoding != :H264 do
-      raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codec is :H264."
+    if opts.track.encoding != :H264 and opts.track.encoding != :OPUS do
+      raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codecs are :H264 and :OPUS."
     end
 
     {[], Map.from_struct(opts)}
@@ -73,12 +68,15 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       clock_rate: state.track.clock_rate
     }
 
-    spec =
+    parser = convert_to_payloader_format(state.track.encoding)
+
+    spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
-      |> child(:parser, %Membrane.H264.FFmpeg.Parser{framerate: state.framerate, alignment: :nal})
+      |> then(parser)
       |> child(:payloader, payloader_bin)
       |> child(:track_sender, %StaticTrackSender{track: state.track})
       |> bin_output(pad)
+    ]
 
     {[spec: spec], state}
   end
@@ -97,5 +95,28 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   def handle_parent_notification(:start, _ctx, state) do
     track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
     {[notify_parent: track_ready], state}
+  end
+
+  defp convert_to_payloader_format(:OPUS) do
+    fn link_builder ->
+      child(link_builder, :decoder, Membrane.AAC.FDK.Decoder)
+      |> child(:encoder, %Membrane.Opus.Encoder{
+        input_stream_format: %Membrane.RawAudio{
+          channels: 1,
+          sample_rate: 48_000,
+          sample_format: :s16le
+        }
+      })
+      |> child(:parser, %Membrane.Opus.Parser{})
+    end
+  end
+
+  defp convert_to_payloader_format(:H264) do
+    fn link_builder ->
+      child(link_builder, :parser, %Membrane.H264.FFmpeg.Parser{
+        framerate: {60, 1},
+        alignment: :nal
+      })
+    end
   end
 end

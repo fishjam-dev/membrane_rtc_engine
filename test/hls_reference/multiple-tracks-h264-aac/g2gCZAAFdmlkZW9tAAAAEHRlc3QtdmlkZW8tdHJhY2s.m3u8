@@ -6,4 +6,8 @@
 #EXT-X-MAP:URI="video_header_g2gCZAAFdmlkZW9tAAAAEHRlc3QtdmlkZW8tdHJhY2s_part_0.mp4"
 #EXTINF:0.4,
 video_segment_0_g2gCZAAFdmlkZW9tAAAAEHRlc3QtdmlkZW8tdHJhY2s.m4s
+#EXTINF:4.166666666,
+video_segment_1_g2gCZAAFdmlkZW9tAAAAEHRlc3QtdmlkZW8tdHJhY2s.m4s
+#EXTINF:1.716666668,
+video_segment_2_g2gCZAAFdmlkZW9tAAAAEHRlc3QtdmlkZW8tdHJhY2s.m4s
 #EXT-X-ENDLIST

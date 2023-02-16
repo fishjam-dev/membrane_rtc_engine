@@ -39,7 +39,9 @@ defmodule Membrane.RTC.Engine.MixProject do
       # they are not included in PLT
       dialyzer: [
         plt_add_apps: [
-          :membrane_http_adaptive_stream_plugin
+          :membrane_http_adaptive_stream_plugin,
+          :membrane_raw_audio_format,
+          :membrane_video_compositor_plugin
         ]
       ]
     ]
@@ -57,42 +59,44 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_core, "~> 0.11.2"},
-      {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
       {:membrane_rtp_format, "~> 0.6.0"},
+      {:membrane_tee_plugin, "~> 0.10.0"},
+      {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.7.0"},
       {:membrane_rtp_opus_plugin, "~> 0.7.0"},
       {:membrane_rtp_h264_plugin, "~> 0.14.0"},
-      {:membrane_tee_plugin, "~> 0.10.0"},
-      {:uuid, "~> 1.1"},
+      {:membrane_telemetry_metrics, "~> 0.1.0"},
+      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
       {:qex, "~> 0.5"},
+      {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},
       {:unifex, "~> 1.0"},
-      {:dialyxir, "1.1.0", only: :dev, runtime: false},
-      {:ex_doc, "0.28.3", only: :dev, runtime: false},
-      {:credo, "~> 1.6", only: :dev, runtime: false},
       {:statistics, "~> 0.6.0"},
+      {:credo, "~> 1.6", only: :dev, runtime: false},
+      {:ex_doc, "0.28.3", only: :dev, runtime: false},
+      {:dialyxir, "1.1.0", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
-      {:membrane_http_adaptive_stream_plugin, "~> 0.10.0", optional: true},
-      {:membrane_mp4_plugin, "~> 0.18.0", optional: true},
       {:membrane_aac_plugin, "~> 0.13.0", optional: true},
-      {:membrane_aac_fdk_plugin, "~> 0.14.0", optional: true},
       {:membrane_opus_plugin, "~> 0.16.0", optional: true},
+      {:membrane_aac_fdk_plugin, "~> 0.14.0", optional: true},
+      {:membrane_generator_plugin, "~> 0.8.0", optional: true},
+      {:membrane_realtimer_plugin, "~> 0.6.0", optional: true},
+      {:membrane_audio_mix_plugin, "~> 0.12.0", optional: true},
+      {:membrane_raw_audio_format, "~> 0.10.0", optional: true},
       {:membrane_h264_ffmpeg_plugin, "~> 0.25.2", optional: true},
-      {:membrane_framerate_converter_plugin, "~> 0.6.0", optional: true},
-      {:membrane_ffmpeg_swscale_plugin, "~> 0.11.0", optional: true},
+      {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
+      {:membrane_video_compositor_plugin, "~> 0.1.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.10.0", optional: true},
 
       # Test deps
       {:membrane_file_plugin, "~> 0.13.0"},
-      {:membrane_realtimer_plugin, "~> 0.6.0", only: :test, runtime: false},
       {:excoveralls, "~> 0.15.0", only: :test, runtime: false},
 
       # Otel
-      {:opentelemetry_api, "~> 1.0.0"},
-      {:opentelemetry, "~> 1.0.0"}
+      {:opentelemetry, "~> 1.0.0"},
+      {:opentelemetry_api, "~> 1.0.0"}
     ]
   end
 
@@ -132,8 +136,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       groups_for_modules: [
         Engine: [
           Membrane.RTC.Engine,
-          Membrane.RTC.Engine.Metrics,
           Membrane.RTC.Engine.Message,
+          Membrane.RTC.Engine.Metrics,
           Membrane.RTC.Engine.Notifications.TrackNotification,
           Membrane.RTC.Engine.Peer,
           Membrane.RTC.Engine.Track,
