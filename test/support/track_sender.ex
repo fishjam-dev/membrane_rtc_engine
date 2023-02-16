@@ -32,42 +32,42 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
     mode: :pull,
     demand_unit: :buffers,
     demand_mode: :manual,
-    accepted_format: Membrane.RTP
+    caps: Membrane.RTP
 
   def_output_pad :output,
     mode: :pull,
     demand_mode: :manual,
-    accepted_format: Membrane.RTP
+    caps: Membrane.RTP
 
   @impl true
-  def handle_init(_ctx, %__MODULE__{track: track}) do
-    {[], %{track: track, started?: false}}
+  def handle_init(%__MODULE__{track: track}) do
+    {:ok, %{track: track, started?: false}}
   end
 
   @impl true
   def handle_demand(:output, _size, :buffers, _ctx, %{started?: false} = state) do
-    {[], state}
+    {:ok, state}
   end
 
   @impl true
   def handle_demand(:output, size, :buffers, _ctx, %{started?: true} = state) do
-    {[demand: {:input, size}], state}
+    {{:ok, demand: {:input, size}}, state}
   end
 
   @impl true
-  def handle_playing(_ctx, state) do
-    {[event: {:output, %TrackVariantResumed{variant: :high}}], state}
+  def handle_prepared_to_playing(_ctx, state) do
+    {{:ok, event: {:output, %TrackVariantResumed{variant: :high}}}, state}
   end
 
   @impl true
   def handle_event(:output, %Membrane.KeyframeRequestEvent{}, _ctx, state) do
-    {[redemand: :output], %{state | started?: true}}
+    {{:ok, redemand: :output}, %{state | started?: true}}
   end
 
   @impl true
   def handle_process(:input, buffer, _ctx, state) do
     buffer = add_is_keyframe_flag(buffer, state.track)
-    {[buffer: {:output, buffer}, redemand: :output], state}
+    {{:ok, buffer: {:output, buffer}, redemand: :output}, state}
   end
 
   defp add_is_keyframe_flag(buffer, %Track{encoding: encoding}) do

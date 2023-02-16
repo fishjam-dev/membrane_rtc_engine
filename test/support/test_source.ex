@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
   @type generator ::
           (state :: any(), buffers_cnt :: pos_integer -> {[Action.t()], state :: any()})
 
-  def_output_pad :output, accepted_format: _any
+  def_output_pad :output, caps: :any
 
   def_options output: [
                 spec: {initial_state :: any(), generator} | Enum.t(),
@@ -29,11 +29,11 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
                 used for the next call.
                 """
               ],
-              stream_format: [
+              caps: [
                 spec: struct(),
                 default: %Membrane.RemoteStream{},
                 description: """
-                stream_format to be sent before the `output`.
+                Caps to be sent before the `output`.
                 """
               ],
               fast_start: [
@@ -47,51 +47,53 @@ defmodule Membrane.RTC.Engine.Support.TestSource do
               ]
 
   @impl true
-  def handle_init(_ctx, opts) do
+  def handle_init(opts) do
     opts = Map.from_struct(opts)
 
     case opts.output do
       {initial_state, generator} when is_function(generator) ->
-        {[],
-         Map.merge(opts, %{
+        {:ok,
+         opts
+         |> Map.merge(%{
            generator_state: initial_state,
            output: generator,
            active?: opts.fast_start
          })}
 
       _enumerable_output ->
-        {[], opts}
+        {:ok, opts}
     end
   end
 
   @impl true
-  def handle_playing(_ctx, state) do
-    {[notify_parent: :playing, stream_format: {:output, state.stream_format}], state}
+  def handle_prepared_to_playing(_ctx, state) do
+    {{:ok, caps: {:output, state.caps}}, state}
   end
 
   @impl true
   def handle_demand(:output, size, :buffers, _ctx, %{active?: true} = state) do
-    get_actions(state, size)
+    {actions, state} = get_actions(state, size)
+    {{:ok, actions}, state}
   end
 
   @impl true
   def handle_demand(:output, _size, :buffers, _ctx, state) do
-    {[], state}
+    {:ok, state}
   end
 
   @impl true
   def handle_event(:output, event, _ctx, state) do
-    {[notify_parent: %Membrane.Testing.Notification{payload: {:event, event}}], state}
+    {{:ok, notify: %Membrane.Testing.Notification{payload: {:event, event}}}, state}
   end
 
   @impl true
-  def handle_parent_notification({:execute_actions, actions}, _ctx, state) do
-    {actions, state}
+  def handle_other({:execute_actions, actions}, _ctx, state) do
+    {{:ok, actions}, state}
   end
 
   @impl true
-  def handle_parent_notification({:set_active, active?}, _ctx, state) do
-    {[redemand: :output], %{state | active?: active?}}
+  def handle_other({:set_active, active?}, _ctx, state) do
+    {{:ok, redemand: :output}, %{state | active?: active?}}
   end
 
   @spec default_buf_gen(integer(), integer()) :: {[Action.t()], integer()}

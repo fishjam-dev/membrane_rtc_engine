@@ -69,7 +69,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     })
   end
 
-  @spec sdp_answer(String.t(), %{String.t() => non_neg_integer()}) :: t()
+  @spec sdp_answer(Strint.t(), %{String.t() => non_neg_integer()}) :: t()
   def sdp_answer(answer, mid_to_track_id) do
     as_custom(%{
       type: "sdpAnswer",

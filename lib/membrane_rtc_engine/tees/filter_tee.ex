@@ -37,38 +37,46 @@ defmodule Membrane.RTC.Engine.FilterTee do
     availability: :always,
     mode: :pull,
     demand_mode: :auto,
-    accepted_format: _any
+    caps: :any
 
   def_output_pad :output,
     availability: :on_request,
     mode: :push,
-    accepted_format: _any
+    caps: :any
 
   @impl true
-  def handle_init(_ctx, opts) do
+  def handle_init(opts) do
     state = %{
       ets_name: :"#{opts.ets_name}",
       track_id: opts.track_id,
       counter: 0,
       type: opts.type,
       forward_to: MapSet.new(),
-      codec: opts.codec
+      codec: opts.codec,
+      caps: nil
     }
 
-    {[], state}
+    {:ok, state}
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, _ref) = pad, ctx, state) do
-    case ctx.pads.input.stream_format do
-      nil -> {[], state}
-      format -> {[stream_format: {pad, format}], state}
-    end
+  def handle_caps(_pad, caps, _ctx, state) do
+    {{:ok, forward: caps}, %{state | caps: caps}}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:output, _ref), _ctx, %{caps: nil} = state) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_pad_added(Pad.ref(:output, _ref) = pad, _ctx, %{caps: caps} = state) do
+    {{:ok, caps: {pad, caps}}, state}
   end
 
   @impl true
   def handle_process(:input, %Membrane.Buffer{} = buffer, _ctx, %{type: :audio} = state) do
-    {[forward: buffer], state}
+    {{:ok, forward: buffer}, state}
   end
 
   @impl true
@@ -78,7 +86,7 @@ defmodule Membrane.RTC.Engine.FilterTee do
         _ctx,
         %{type: :video, counter: 1000} = state
       ) do
-    {[forward: buffer], %{state | counter: 0}}
+    {{:ok, forward: buffer}, %{state | counter: 0}}
   end
 
   @impl true
@@ -98,11 +106,11 @@ defmodule Membrane.RTC.Engine.FilterTee do
       end)
 
     actions = Enum.map(pads, &{:buffer, {&1, buffer}})
-    {actions, %{state | counter: state.counter + 1}}
+    {{:ok, actions}, %{state | counter: state.counter + 1}}
   end
 
   @impl true
-  def handle_parent_notification(:track_priorities_updated, _ctx, state) do
+  def handle_other(:track_priorities_updated, _ctx, state) do
     forward_to =
       case :ets.lookup(state.ets_name, state.track_id) do
         [{_track_id, endpoint_names} | _] ->
@@ -114,11 +122,11 @@ defmodule Membrane.RTC.Engine.FilterTee do
 
     new_forwards = MapSet.difference(forward_to, state.forward_to)
 
-    actions =
+    action =
       if MapSet.size(new_forwards) != 0,
         do: [event: {:input, %Membrane.KeyframeRequestEvent{}}],
         else: []
 
-    {actions, %{state | forward_to: forward_to}}
+    {{:ok, action}, %{state | forward_to: forward_to}}
   end
 end

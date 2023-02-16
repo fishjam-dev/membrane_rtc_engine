@@ -91,8 +91,7 @@ defmodule Membrane.RTC.Engine.Track do
           active?: boolean(),
           variants: [variant()],
           metadata: any(),
-          ctx: map(),
-          payload_type: non_neg_integer() | nil
+          ctx: map()
         ]
 
   @doc """
@@ -177,7 +176,7 @@ defmodule Membrane.RTC.Engine.Track do
         {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
       end
   """
-  @spec get_depayloader(t()) :: Membrane.ChildrenSpec.child_definition_t() | nil
+  @spec get_depayloader(t()) :: Membrane.ParentSpec.child_spec_t() | nil
   def get_depayloader(track) do
     case Membrane.RTP.PayloadFormat.get(track.encoding).depayloader do
       nil ->
