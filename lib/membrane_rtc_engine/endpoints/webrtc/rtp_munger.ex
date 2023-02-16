@@ -93,8 +93,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     }
   end
 
-  @spec generate_padding_packet(t(), Track.t()) :: {t(), Membrane.Buffer.t() | nil}
-  def generate_padding_packet(rtp_munger, track) when rtp_munger.last_marker do
+  @spec generate_padding_packet(t(), Track.t(), boolean()) :: {t(), Membrane.Buffer.t() | nil}
+  def generate_padding_packet(rtp_munger, track, force_marker?)
+      when rtp_munger.last_marker or force_marker? do
     # We can only generate padding packets at frame boundary
     buffer = %Membrane.Buffer{
       payload: <<>>,
@@ -105,7 +106,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
           extensions: [],
           csrcs: [],
           payload_type: track.payload_type,
-          marker: false,
+          marker: force_marker?,
           sequence_number: calculate_seq_num(rtp_munger.highest_incoming_seq_num + 1, rtp_munger),
           timestamp: rtp_munger.last_timestamp
         }
@@ -124,7 +125,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
     {rtp_munger, buffer}
   end
 
-  def generate_padding_packet(rtp_munger, _track), do: {rtp_munger, nil}
+  def generate_padding_packet(rtp_munger, _track, _force_marker?), do: {rtp_munger, nil}
+
+  @spec can_generate_padding_packet?(t()) :: boolean()
+  def can_generate_padding_packet?(rtp_munger), do: rtp_munger.last_marker
 
   @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t() | nil}
   def munge(rtp_munger, buffer) do

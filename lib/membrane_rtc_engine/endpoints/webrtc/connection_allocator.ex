@@ -75,11 +75,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
   @callback buffer_sent(allocator_ref(), Buffer.t()) :: :ok
 
   @doc """
-  Function invoked by the TrackReceiver whenever a padding packet is sent
-  """
-  @callback probe_sent(allocator_ref()) :: :ok
-
-  @doc """
   Function called by the TrackReceiver to register itself in the allocator
   """
   @callback register_track_receiver(allocator_ref(), number(), Track.t(), Keyword.t()) :: :ok
