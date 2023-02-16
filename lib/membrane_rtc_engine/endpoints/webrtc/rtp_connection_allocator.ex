@@ -18,7 +18,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
            pid: pid(),
            current_allocation: number(),
            target_allocation: number() | nil,
-           negotiable?: boolean()
+           negotiable?: boolean(),
+           last_estimation_ts: integer(),
+           bits_since_last_estimation: non_neg_integer(),
+           estimated_sender_rate: non_neg_integer()
          }
 
   # Type describing a status of RTPConnectionAllocator's prober part.
@@ -48,11 +51,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
             probing_queue: Qex.t(),
             prober_status: prober_status_t(),
             available_bandwidth: non_neg_integer() | :unknown,
-            allocated_bandwidth: non_neg_integer(),
             probing_timer: :timer.tref() | nil,
             probing_epoch_start: integer(),
             bits_sent: non_neg_integer(),
-            prev_probing_epochs_overflow: integer()
+            prev_probing_epochs_overflow: integer(),
+            estimated_sender_rate: non_neg_integer() | nil
           }
 
   defstruct [
@@ -60,11 +63,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     available_bandwidth: :unknown,
     prober_status: :allowed_overuse,
     track_receivers: %{},
-    allocated_bandwidth: 0,
     probing_epoch_start: 0,
     bits_sent: 0,
     probing_queue: Qex.new(),
-    prev_probing_epochs_overflow: 0
+    prev_probing_epochs_overflow: 0,
+    estimated_sender_rate: 0
   ]
 
   @padding_packet_size 8 * 256
@@ -91,11 +94,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def buffer_sent(prober, %Buffer{payload: payload}),
-    do: GenServer.cast(prober, {:bits_sent, bit_size(payload)})
-
-  @impl true
-  def probe_sent(prober),
-    do: GenServer.cast(prober, {:bits_sent, @padding_packet_size})
+    do: GenServer.cast(prober, {:buffer_sent, self(), bit_size(payload)})
 
   @impl true
   def set_negotiability_status(allocator, value),
@@ -117,6 +116,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
     state =
       state
+      |> calculate_estimated_sender_rate()
       |> Map.put(:available_bandwidth, estimation)
       # Allowed overuse status freezes all allocations
       # Check if we can change it before updating allocations
@@ -134,8 +134,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   end
 
   @impl true
-  def handle_cast({:bits_sent, size}, state) do
+  def handle_cast({:buffer_sent, pid, size}, state) do
+    state =
+      state
+      |> Map.update!(:bits_sent, &(&1 + size))
+      |> update_in([:track_receivers, pid, :bits_since_last_estimation], &(&1 + size))
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:probe_sent, size}, state) do
     state = Map.update!(state, :bits_sent, &(&1 + size))
+
     {:noreply, state}
   end
 
@@ -155,7 +166,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       pid: pid,
       current_allocation: bandwidth,
       target_allocation: nil,
-      negotiable?: negotiable?
+      negotiable?: negotiable?,
+      last_estimation_ts: get_timestamp(),
+      bits_since_last_estimation: 0,
+      estimated_sender_rate: bandwidth
     }
 
     state =
@@ -165,7 +179,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         state
       end
       |> put_in([:track_receivers, pid], receiver)
-      |> Map.update!(:allocated_bandwidth, &(&1 + bandwidth))
       |> update_status(overuse_allowed?: true)
       |> maybe_update_probing_target(state)
 
@@ -217,7 +230,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         receiver.current_allocation == target ->
           state
 
-        receiver.current_allocation > target or not receiver.negotiable? ->
+        receiver.estimated_sender_rate > target or not receiver.negotiable? ->
           # Receiver lowers its allocation or this TR has non-negotiable allocation. It is therefore always granted
 
           send(pid, %AllocationGrantedNotification{allocation: target})
@@ -226,9 +239,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           |> put_in([:track_receivers, pid], %{
             receiver
             | current_allocation: target,
-              target_allocation: nil
+              target_allocation: nil,
+              estimated_sender_rate: target
           })
-          |> Map.update!(:allocated_bandwidth, &(&1 - receiver.current_allocation + target))
+          |> Map.update!(:estimated_sender_rate, &(&1 - receiver.estimated_sender_rate + target))
+          |> maybe_change_overuse_status(
+            state.prober_status == :allowed_overuse or not receiver.negotiable?
+          )
           |> update_allocations()
           |> update_status(
             overuse_allowed?: state.prober_status == :allowed_overuse or not receiver.negotiable?
@@ -259,7 +276,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
     state =
       state
-      |> Map.update!(:allocated_bandwidth, &(&1 - tr_metadata.current_allocation))
+      |> Map.update!(:estimated_sender_rate, &(&1 - tr_metadata.estimated_sender_rate))
       |> maybe_change_overuse_status(state.prober_status == :allowed_overuse)
       |> update_allocations()
       |> maybe_change_probing_status()
@@ -276,20 +293,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     # that should have been sent up to this point.
     # If we didn't send enough, send enough probes to fill the missing part
 
-    use Numbers, overload_operators: true
-
     missing = expected_bits(state) - state.bits_sent
 
     state =
       if missing > 0 do
         # Send paddings
 
-        no_padding_packets =
-          missing
-          |> Ratio.new(@padding_packet_size)
-          |> Ratio.ceil()
-
-        send_padding_packets(state, no_padding_packets)
+        no_padding_packets = ceil(missing / @padding_packet_size)
+        state = send_padding_packets(state, no_padding_packets)
+        Map.update!(state, :bits_sent, &(&1 + no_padding_packets * @padding_packet_size))
       else
         state
       end
@@ -359,13 +371,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         state
 
       state.prober_status != overuse_status and
-          state.allocated_bandwidth > state.available_bandwidth ->
+          state.available_bandwidth < 0.8 * state.estimated_sender_rate ->
         Logger.debug("Switching prober state to #{overuse_status}")
 
         Map.put(state, :prober_status, overuse_status)
 
       state.prober_status in [:allowed_overuse, :disallowed_overuse] and
-          state.allocated_bandwidth <= state.available_bandwidth ->
+          state.estimated_sender_rate <= state.available_bandwidth ->
         new_status = if is_deficient?(state), do: :increase_estimation, else: :maintain_allocation
 
         Logger.debug(
@@ -418,8 +430,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   defp update_allocations(%__MODULE__{available_bandwidth: :unknown} = state), do: state
 
-  defp update_allocations(%__MODULE__{track_receivers: track_receivers} = state)
-       when state.allocated_bandwidth > state.available_bandwidth do
+  defp update_allocations(
+         %__MODULE__{track_receivers: track_receivers, prober_status: :disallowed_overuse} = state
+       ) do
+    Logger.debug("Requesting an allocation to be decreased")
+
     track_receivers
     |> Map.values()
     |> Enum.filter(& &1.negotiable?)
@@ -431,6 +446,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
         negotiable_trs
         |> Enum.sort_by(& &1.current_allocation)
         |> Enum.find(fn %{pid: pid} ->
+          Logger.debug("Sending decrease allocation request to #{inspect(pid)}")
           send(pid, :decrease_your_allocation)
 
           receive do
@@ -444,8 +460,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
               raise ArgumentError,
                 message: "Got illegal response from track receiver #{inspect(pid)}"
           after
+            # FIXME: we're fortunatelly not probing, but if we were, this is the same as the probing timeout
+            # So we would be delaying sending of the paddings significantly and stacking the calls, which may be a problem.
             10 ->
-              Logger.debug("Receiver #{inspect(pid)} didn't reply in time")
+              Logger.warn("Receiver #{inspect(pid)} didn't reply in time")
               false
           end
         end)
@@ -453,16 +471,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     |> case do
       nil ->
         Logger.warn("We're overusing the bandwidth, but we cannot decrease our usage")
+        state
 
       value when is_map(value) ->
-        :ok
-    end
+        Logger.debug(
+          "Transitioning back to :allowed_overuse after sending decrease allocation requests"
+        )
 
-    state
+        %{state | prober_status: :allowed_overuse}
+    end
   end
 
   defp update_allocations(%__MODULE__{available_bandwidth: bandwidth} = state) do
-    free_bandwidth = bandwidth - state.allocated_bandwidth
+    free_bandwidth = bandwidth - state.estimated_sender_rate
+    Logger.debug("We have #{free_bandwidth / 1024} kbps of free bandwidth")
 
     state.track_receivers
     |> Map.values()
@@ -482,8 +504,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
           &%{&1 | target_allocation: nil, current_allocation: &1.target_allocation}
         )
         |> Map.update!(
-          :allocated_bandwidth,
-          &(&1 + receiver.target_allocation - receiver.current_allocation)
+          :estimated_sender_rate,
+          &(&1 + receiver.target_allocation - receiver.estimated_sender_rate)
         )
         |> update_allocations()
     end
@@ -491,10 +513,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   defp probing_target(state) do
     case state.prober_status do
-      :maintain_allocation -> state.allocated_bandwidth
       :increase_estimation -> state.available_bandwidth + 200_000
-      :allowed_overuse -> state.allocated_bandwidth
-      :disallowed_overuse -> state.allocated_bandwidth
+      _otherwise -> 0
     end
   end
 
@@ -502,12 +522,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     probing_target = probing_target(state)
 
     now = get_timestamp()
-    elapsed_time_in_s = Time.as_seconds(now - state.probing_epoch_start)
-
-    elapsed_time_in_s
-    |> Ratio.mult(probing_target)
-    |> Ratio.add(state.prev_probing_epochs_overflow)
-    |> Ratio.floor()
+    elapsed_time_in_s = (now - state.probing_epoch_start) / Time.second()
+    floor(elapsed_time_in_s * probing_target + state.prev_probing_epochs_overflow)
   end
 
   defp maybe_update_probing_target(new_state, old_state) do
@@ -515,17 +531,55 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     old_probing_target = probing_target(old_state)
     target_updated? = new_probing_target != old_probing_target
 
-    if target_updated? do
-      Logger.debug("New probing target: #{new_probing_target}")
+    state =
+      if target_updated? do
+        Logger.debug("New probing target: #{new_probing_target}")
 
-      %{
+        %{
+          new_state
+          | prev_probing_epochs_overflow: expected_bits(old_state) - new_state.bits_sent,
+            bits_sent: 0,
+            probing_epoch_start: get_timestamp()
+        }
+      else
         new_state
-        | prev_probing_epochs_overflow: expected_bits(old_state) - new_state.bits_sent,
-          bits_sent: 0,
-          probing_epoch_start: get_timestamp()
-      }
-    else
-      new_state
+      end
+
+    cond do
+      new_probing_target == 0 and not is_nil(state.probing_timer) ->
+        :timer.cancel(state.probing_timer)
+        %{state | probing_timer: nil}
+
+      new_probing_target != 0 and old_probing_target == 0 ->
+        ensure_probing_timer_started(%{state | prev_probing_epochs_overflow: 0})
+
+      true ->
+        state
     end
+  end
+
+  defp calculate_estimated_sender_rate(state) do
+    now = get_timestamp()
+
+    receivers =
+      Map.new(state.track_receivers, fn {key, value} ->
+        duration_in_s = Time.as_seconds(now - value.last_estimation_ts)
+        sender_rate = value.bits_since_last_estimation |> Ratio.div(duration_in_s) |> Ratio.ceil()
+
+        {key,
+         %{
+           value
+           | estimated_sender_rate: sender_rate,
+             last_estimation_ts: now,
+             bits_since_last_estimation: 0
+         }}
+      end)
+
+    %{
+      state
+      | track_receivers: receivers,
+        estimated_sender_rate:
+          receivers |> Enum.map(fn {_key, value} -> value.estimated_sender_rate end) |> Enum.sum()
+    }
   end
 end

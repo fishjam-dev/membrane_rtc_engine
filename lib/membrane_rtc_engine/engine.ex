@@ -842,39 +842,50 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_remove_endpoint(endpoint_id, ctx, state) do
-    if Map.has_key?(state.endpoints, endpoint_id) do
-      pending_subscriptions_fun = fn subscriptions ->
-        Enum.filter(subscriptions, &(&1.endpoint_id != endpoint_id))
-      end
-
-      {endpoint, state} = pop_in(state, [:endpoints, endpoint_id])
-      {_, state} = pop_in(state, [:pending_peers, endpoint_id])
-      {_, state} = pop_in(state, [:subscriptions, endpoint_id])
-      state = update_in(state, [:pending_subscriptions], pending_subscriptions_fun)
-
-      tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
-      tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
-      endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
-
-      peer_left_msgs =
-        if Map.has_key?(state.peers, endpoint_id) do
-          state.endpoints
-          |> Map.keys()
-          |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:peer_left, endpoint_id}}})
-        else
-          []
+    cond do
+      Map.has_key?(state.endpoints, endpoint_id) ->
+        pending_subscriptions_fun = fn subscriptions ->
+          Enum.filter(subscriptions, &(&1.endpoint_id != endpoint_id))
         end
 
-      {_, state} = pop_in(state, [:peers, endpoint_id])
+        {endpoint, state} = pop_in(state, [:endpoints, endpoint_id])
+        {_, state} = pop_in(state, [:subscriptions, endpoint_id])
+        state = update_in(state, [:pending_subscriptions], pending_subscriptions_fun)
 
-      if endpoint_bin == nil or endpoint_bin.terminating? do
-        {:present, tracks_msgs ++ peer_left_msgs, state}
-      else
-        actions = [remove_child: find_children_for_endpoint(endpoint, ctx)]
-        {:present, tracks_msgs ++ peer_left_msgs ++ actions, state}
-      end
-    else
-      {:absent, [], state}
+        tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
+        tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
+        endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
+
+        peer_left_msgs =
+          if Map.has_key?(state.peers, endpoint_id) do
+            state.endpoints
+            |> Map.keys()
+            |> Enum.map(&{:forward, {{:endpoint, &1}, {:peer_left, endpoint_id}}})
+          else
+            []
+          end
+
+        {_, state} = pop_in(state, [:peers, endpoint_id])
+
+        if endpoint_bin == nil or endpoint_bin.terminating? do
+          {:present, tracks_msgs ++ peer_left_msgs, state}
+        else
+          actions = [remove_child: find_children_for_endpoint(endpoint, ctx)]
+          {:present, tracks_msgs ++ peer_left_msgs ++ actions, state}
+        end
+
+      Map.has_key?(state.pending_peers, endpoint_id) ->
+        {_pending_peer, state} = pop_in(state, [:pending_peers, endpoint_id])
+        endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
+
+        if endpoint_bin == nil or endpoint_bin.terminating? do
+          {:present, [], state}
+        else
+          {:present, [remove_child: {:endpoint, endpoint_id}], state}
+        end
+
+      true ->
+        {:absent, [], state}
     end
   end
 
