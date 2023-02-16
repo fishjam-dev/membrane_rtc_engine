@@ -347,8 +347,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   # we are doing something incorrectly
   @impl true
   def handle_info(:send_padding_packet, ctx, state)
-      when not ctx.pads.output.end_of_stream? and ctx.playback_state == :playing and
-             ctx.pads.output.caps != nil do
+      when not ctx.pads.output.end_of_stream? and ctx.playback == :playing and
+             ctx.pads.output.stream_format != nil do
     if Forwarder.can_generate_padding_packet?(state.forwarder) do
       {buffer, state} = generate_padding_packet(state)
       {[buffer: {:output, buffer}], state}
