@@ -860,7 +860,7 @@ defmodule Membrane.RTC.Engine do
           if Map.has_key?(state.peers, endpoint_id) do
             state.endpoints
             |> Map.keys()
-            |> Enum.map(&{:forward, {{:endpoint, &1}, {:peer_left, endpoint_id}}})
+            |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:peer_left, endpoint_id}}})
           else
             []
           end
