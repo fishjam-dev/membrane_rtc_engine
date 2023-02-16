@@ -9,9 +9,9 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
     alias Membrane.Time
 
     @typedoc """
-      To read more about config options go to module Membrane.HTTPAdaptiveStream.SinkBin and read options descriptions.
-      * `segment_duration` - The segment duration range  of the regular segments.
-      * `partial_segment_duration` - The segment duration range  of the partial segments. If not set then the bin won't produce any partial segments.
+    To read more about config options go to module `Membrane.HTTPAdaptiveStream.SinkBin` and read options descriptions.
+    * `segment_duration` - The segment duration range  of the regular segments.
+    * `partial_segment_duration` - The segment duration range  of the partial segments. If not set then the bin won't produce any partial segments.
     """
     @type t() :: %__MODULE__{
             manifest_name: String.t(),

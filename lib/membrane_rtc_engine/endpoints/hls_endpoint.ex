@@ -130,7 +130,7 @@ if Enum.all?(
                 ],
                 hls_config: [
                   spec: HLSConfig.t(),
-                  default: HLSConfig,
+                  default: %HLSConfig{},
                   description: """
                   HLS stream and playlist configuration.
                   """
