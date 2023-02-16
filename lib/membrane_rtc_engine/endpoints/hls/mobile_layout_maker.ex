@@ -44,7 +44,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     def init(output_stream_format), do: %{tracks: %{}, output_stream_format: output_stream_format}
 
     @impl true
-    def track_added(state, %{metadata: %{"mainPresenter" => true}} = track, stream_format) do
+    def track_added(%{metadata: %{"mainPresenter" => true}} = track, stream_format, state) do
       new_state = put_in(state, [:tracks, track.id], {track, stream_format})
 
       {layout, transformations} =
@@ -58,16 +58,16 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     end
 
     @impl true
-    def track_added(state, track, stream_format) do
+    def track_added(track, stream_format, state) do
       new_state = put_in(state, [:tracks, track.id], {track, stream_format})
       {update_layout(new_state), new_state}
     end
 
     @impl true
-    def track_updated(state, track, stream_format), do: track_added(state, track, stream_format)
+    def track_updated(track, stream_format, state), do: track_added(track, stream_format, state)
 
     @impl true
-    def track_removed(state, track) do
+    def track_removed(track, state) do
       {_, new_state} = pop_in(state, [:tracks, track.id])
       {update_layout(new_state), new_state}
     end

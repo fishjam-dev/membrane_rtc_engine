@@ -39,9 +39,9 @@ defmodule Membrane.RTC.Engine.MixProject do
       # they are not included in PLT
       dialyzer: [
         plt_add_apps: [
+          :membrane_http_adaptive_stream_plugin,
           :membrane_raw_audio_format,
-          :membrane_video_compositor_plugin,
-          :membrane_http_adaptive_stream_plugin
+          :membrane_video_compositor_plugin
         ]
       ]
     ]
@@ -127,21 +127,21 @@ defmodule Membrane.RTC.Engine.MixProject do
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [
         Membrane.RTC.Engine,
-        Membrane.RTC.Engine.Event,
-        Membrane.RTC.Engine.Message,
         Membrane.RTC.Engine.Endpoint,
-        Membrane.RTC.Engine.Exception
+        Membrane.RTC.Engine.Event,
+        Membrane.RTC.Engine.Exception,
+        Membrane.RTC.Engine.Message
       ],
       before_closing_body_tag: &before_closing_body_tag/1,
       groups_for_modules: [
         Engine: [
           Membrane.RTC.Engine,
+          Membrane.RTC.Engine.Message,
+          Membrane.RTC.Engine.Metrics,
+          Membrane.RTC.Engine.Notifications.TrackNotification,
           Membrane.RTC.Engine.Peer,
           Membrane.RTC.Engine.Track,
-          Membrane.RTC.Engine.Metrics,
-          Membrane.RTC.Engine.Message,
-          Membrane.RTC.Engine.Track.BitrateEstimation,
-          Membrane.RTC.Engine.Notifications.TrackNotification
+          Membrane.RTC.Engine.Track.BitrateEstimation
         ],
         Endpoints: [
           ~r/^Membrane\.RTC\.Engine\.Endpoint\.WebRTC($|\.)/,

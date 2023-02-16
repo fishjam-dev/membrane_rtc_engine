@@ -11,8 +11,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
   alias Membrane.RTC.Engine.Endpoint.HLS.{
     AudioMixerConfig,
     CompositorConfig,
-    MixerConfig,
-    SinkBinConfig
+    HLSConfig,
+    MixerConfig
   }
 
   @fixtures_dir "./test/fixtures/"
@@ -400,7 +400,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       rtc_engine: rtc_engine,
       owner: self(),
       output_directory: output_dir,
-      sink_bin_config: %SinkBinConfig{mode: :vod, target_window_duration: :infinity}
+      hls_config: %HLSConfig{mode: :vod, target_window_duration: :infinity}
     }
   end
 
@@ -426,8 +426,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
       owner: self(),
       output_directory: output_dir,
       mixer_config: mixer_config,
-      segment_duration: SegmentDuration.new(Membrane.Time.seconds(2), Membrane.Time.seconds(3)),
-      sink_bin_config: %SinkBinConfig{mode: :vod, target_window_duration: :infinity}
+      hls_config: %HLSConfig{
+        mode: :vod,
+        target_window_duration: :infinity,
+        segment_duration: SegmentDuration.new(Membrane.Time.seconds(2), Membrane.Time.seconds(3))
+      }
     }
   end
 
@@ -453,11 +456,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
       owner: self(),
       output_directory: output_dir,
       mixer_config: mixer_config,
-      segment_duration: SegmentDuration.new(Membrane.Time.seconds(2), Membrane.Time.seconds(3)),
-      sink_bin_config: %SinkBinConfig{
+      hls_config: %HLSConfig{
         hls_mode: :muxed_av,
         mode: :vod,
-        target_window_duration: :infinity
+        target_window_duration: :infinity,
+        segment_duration: SegmentDuration.new(Membrane.Time.seconds(2), Membrane.Time.seconds(3))
       }
     }
   end

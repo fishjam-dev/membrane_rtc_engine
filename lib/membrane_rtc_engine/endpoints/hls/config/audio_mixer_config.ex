@@ -4,14 +4,12 @@ if Code.ensure_loaded?(Membrane.RawAudio) do
     Module representing audio mixer configuration for the HLS endpoint.
     """
 
-    @typedoc """
-    * `channels` - number of channels inside a frame. Default value is 1.
-    * `sample_rate` - sample rate of the audio. Default value is 48_000.
-    * `sample_format` - format of samples. Default value is `:s16le`.
-    """
-
     alias Membrane.RawAudio
 
+    @typedoc """
+    * `stream_format` - defines audio mixer output stream_format.
+    * `background` - module generating background sound that will be played from the beginning of the stream.
+    """
     @type t() :: %__MODULE__{
             stream_format: RawAudio.t(),
             background: struct() | nil

@@ -1,6 +1,6 @@
 defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
   @moduledoc """
-  behaviour defining how VideoLayout should change when new video track is added or when it's removed.
+  Behaviour defining how VideoLayout should change when new video track is added, updated or removed.
   """
 
   alias Membrane.RTC.Engine.Track
@@ -9,17 +9,37 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
 
   @type state() :: any()
   @type stream_format() :: Membrane.H264.t()
-  @type output_format() :: Membrane.RawVideo.t()
-  @doc """
-  output format represents parameters of output video created by compositor.
+
+  @typedoc """
+  Represent returned value from callbacks. This type is a list consisting of tuples.
+  The first value of the tuple is a track id that helps to identify the tuple, then there is `BaseVideoPlacement`
+  which is a `Membrane.VideoCompositor` struct that allows changing the position and resolution of a video.
+  The last value is a `VideoTransformations` which is also a `Membrane.VideoCompositor` struct that allows to crop of video and rounding its corners. 
   """
   @type updated_layout() :: [{Track.id(), BaseVideoPlacement.t(), VideoTransformations.t()}]
 
-  @callback init(output_format()) :: state()
-  @callback track_added(state(), Track.t(), stream_format()) :: {updated_layout(), state()}
-  @doc """
-  track_updated is invoke when stream_format for a specific track has changed
+  @typedoc """
+  Represents parameters of output video created by compositor.
   """
-  @callback track_updated(state(), Track.t(), stream_format()) :: {updated_layout(), state()}
-  @callback track_removed(state(), Track.t()) :: {updated_layout(), state()}
+  @type output_format() :: Membrane.RawVideo.t()
+
+  @doc """
+  Called when hls endpoint is intialized
+  """
+  @callback init(output_format()) :: state()
+
+  @doc """
+  Called when new track has been added to hls endpoint
+  """
+  @callback track_added(Track.t(), stream_format(), state()) :: {updated_layout(), state()}
+
+  @doc """
+  Called when `stream_format` for a specific track has changed
+  """
+  @callback track_updated(Track.t(), stream_format(), state()) :: {updated_layout(), state()}
+
+  @doc """
+  Called when a track has been removed
+  """
+  @callback track_removed(Track.t(), state()) :: {updated_layout(), state()}
 end

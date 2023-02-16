@@ -41,7 +41,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
     availability: :on_request
 
   @impl true
-  def handle_init(opts) do
+  def handle_init(_ctx, opts) do
     if opts.track.encoding != :H264 and opts.track.encoding != :OPUS do
       raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codecs are :H264 and :OPUS."
     end
@@ -68,7 +68,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       clock_rate: state.track.clock_rate
     }
 
-    parser = parser_interceptor(state.track.encoding)
+    parser = convert_to_payloader_format(state.track.encoding)
 
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
@@ -97,7 +97,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
     {[notify_parent: track_ready], state}
   end
 
-  defp parser_interceptor(:OPUS) do
+  defp convert_to_payloader_format(:OPUS) do
     fn link_builder ->
       child(link_builder, :decoder, Membrane.AAC.FDK.Decoder)
       |> child(:encoder, %Membrane.Opus.Encoder{
@@ -111,26 +111,12 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
     end
   end
 
-  defp parser_interceptor(:H264) do
+  defp convert_to_payloader_format(:H264) do
     fn link_builder ->
       child(link_builder, :parser, %Membrane.H264.FFmpeg.Parser{
         framerate: {60, 1},
         alignment: :nal
       })
-    end
-  end
-
-  defp parser_interceptor(:OPUS) do
-    fn link_builder ->
-      child(link_builder, :decoder, Membrane.AAC.FDK.Decoder)
-      |> child(:encoder, %Membrane.Opus.Encoder{
-        input_stream_format: %Membrane.RawAudio{
-          channels: 1,
-          sample_rate: 48_000,
-          sample_format: :s16le
-        }
-      })
-      |> child(:parser, %Membrane.Opus.Parser{})
     end
   end
 end

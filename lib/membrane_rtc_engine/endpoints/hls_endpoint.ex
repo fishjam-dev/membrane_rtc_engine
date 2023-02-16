@@ -37,18 +37,16 @@ if Enum.all?(
 
     require Membrane.Logger
 
-    alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
     alias Membrane.RTC.Engine
 
     alias Membrane.RTC.Engine.Endpoint.HLS.{
+      HLSConfig,
       MixerConfig,
-      SinkBinConfig,
       StreamFormatUpdater
     }
 
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
-    alias Membrane.Time
     alias Membrane.VideoCompositor.RustStructs.BaseVideoPlacement
 
     @compositor_deps [
@@ -86,6 +84,20 @@ if Enum.all?(
       :stream_format_updater
     ]
 
+    @common_children [
+      :fake_source,
+      :video_realtimer,
+      :silence_generator,
+      :audio_realtimer,
+      :audio_mixer,
+      :aac_encoder,
+      :aac_parser,
+      :compositor,
+      :encoder,
+      :video_parser_out,
+      :hls_sink_bin
+    ]
+
     def_input_pad :input,
       demand_unit: :buffers,
       accepted_format: _any,
@@ -116,26 +128,11 @@ if Enum.all?(
                   Audio and video mixer configuration. If you don't want to use compositor pass nil.
                   """
                 ],
-                sink_bin_config: [
-                  spec: SinkBinConfig.t(),
-                  default: SinkBinConfig,
+                hls_config: [
+                  spec: HLSConfig.t(),
+                  default: HLSConfig,
                   description: """
-                  """
-                ],
-                segment_duration: [
-                  spec: SegmentDuration.t(),
-                  default: SegmentDuration.new(Time.seconds(4), Time.seconds(5)),
-                  description: """
-                  Expected length of each segment. Setting it is not necessary, but
-                  may help players achieve better UX.
-                  """
-                ],
-                partial_segment_duration: [
-                  spec: SegmentDuration.t() | nil,
-                  default: nil,
-                  description: """
-                  Expected length of each partial segment. Setting it is not necessary, but
-                  may help players achieve better UX.
+                  HLS stream and playlist configuration.
                   """
                 ]
 
@@ -194,7 +191,7 @@ if Enum.all?(
             {[{:hls_sink_bin, removed_track.stream_id}], state}
 
           {%{persist?: false}, _sink_bin_used?} when map_size(tracks) == 0 ->
-            {get_common_children(), %{state | stream_beginning: nil}}
+            {@common_children, %{state | stream_beginning: nil}}
 
           _else ->
             {[], state}
@@ -315,13 +312,12 @@ if Enum.all?(
       File.rm_rf(directory)
       File.mkdir_p!(directory)
 
-      config = %{
-        state.sink_bin_config
-        | storage: state.sink_bin_config.storage.(directory),
-          mp4_parameters_in_band?: is_nil(state.mixer_config)
-      }
+      config =
+        state.hls_config
+        |> Map.update!(:storage, fn storage -> storage.(directory) end)
+        |> Map.put(:mp4_parameters_in_band?, is_nil(state.mixer_config))
 
-      hls_sink = struct!(Membrane.HTTPAdaptiveStream.SinkBin, Map.from_struct(config))
+      hls_sink = struct(Membrane.HTTPAdaptiveStream.SinkBin, Map.from_struct(config))
 
       child_name =
         if is_nil(state.mixer_config), do: {:hls_sink_bin, track.stream_id}, else: :hls_sink_bin
@@ -369,8 +365,8 @@ if Enum.all?(
         |> via_in(Pad.ref(:input, {:audio, track.id}),
           options: [
             encoding: :AAC,
-            segment_duration: state.segment_duration,
-            partial_segment_duration: state.partial_segment_duration
+            segment_duration: state.hls_config.segment_duration,
+            partial_segment_duration: state.hls_config.partial_segment_duration
           ]
         )
         |> get_child({:hls_sink_bin, track.stream_id})
@@ -400,8 +396,8 @@ if Enum.all?(
         |> via_in(Pad.ref(:input, {:video, track.id}),
           options: [
             encoding: :H264,
-            segment_duration: state.segment_duration,
-            partial_segment_duration: state.partial_segment_duration
+            segment_duration: state.hls_config.segment_duration,
+            partial_segment_duration: state.hls_config.partial_segment_duration
           ]
         )
         |> get_child({:hls_sink_bin, track.stream_id})
@@ -503,7 +499,7 @@ if Enum.all?(
         }
 
         {frames_per_second, 1} = state.mixer_config.video.stream_format.framerate
-        seconds_number = Membrane.Time.as_seconds(state.segment_duration.target)
+        seconds_number = Membrane.Time.as_seconds(state.hls_config.segment_duration.target)
 
         [
           child(:compositor, compositor)
@@ -515,8 +511,8 @@ if Enum.all?(
           |> via_in(Pad.ref(:input, :video),
             options: [
               encoding: :H264,
-              segment_duration: state.segment_duration,
-              partial_segment_duration: state.partial_segment_duration
+              segment_duration: state.hls_config.segment_duration,
+              partial_segment_duration: state.hls_config.partial_segment_duration
             ]
           )
           |> get_child(:hls_sink_bin)
@@ -544,8 +540,8 @@ if Enum.all?(
           |> via_in(Pad.ref(:input, :audio),
             options: [
               encoding: :AAC,
-              segment_duration: state.segment_duration,
-              partial_segment_duration: state.partial_segment_duration
+              segment_duration: state.hls_config.segment_duration,
+              partial_segment_duration: state.hls_config.partial_segment_duration
             ]
           )
           |> get_child(:hls_sink_bin)
@@ -594,20 +590,20 @@ if Enum.all?(
         case action do
           :add ->
             state.mixer_config.video.layout_module.track_added(
-              video_layout_state,
               track,
-              stream_format
+              stream_format,
+              video_layout_state
             )
 
           :update ->
             state.mixer_config.video.layout_module.track_updated(
-              video_layout_state,
               track,
-              stream_format
+              stream_format,
+              video_layout_state
             )
 
           :remove ->
-            state.mixer_config.video.layout_module.track_removed(video_layout_state, track)
+            state.mixer_config.video.layout_module.track_removed(track, video_layout_state)
         end
 
       {layouts, transformations} =
@@ -624,21 +620,6 @@ if Enum.all?(
 
       {update_layout_actions, %{state | video_layout_state: video_layout_state}}
     end
-
-    defp get_common_children(),
-      do: [
-        :fake_source,
-        :video_realtimer,
-        :silence_generator,
-        :audio_realtimer,
-        :audio_mixer,
-        :aac_encoder,
-        :aac_parser,
-        :compositor,
-        :encoder,
-        :video_parser_out,
-        :hls_sink_bin
-      ]
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do
       defp merge_strings(strings), do: Enum.join(strings, ", ")

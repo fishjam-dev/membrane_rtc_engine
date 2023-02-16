@@ -1,13 +1,17 @@
 if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
-  defmodule Membrane.RTC.Engine.Endpoint.HLS.SinkBinConfig do
+  defmodule Membrane.RTC.Engine.Endpoint.HLS.HLSConfig do
     @moduledoc """
-    Module representing Membrane.HTTPAdaptiveStream.SinkBin configuration for the HLS endpoint.
+    Module representing `Membrane.HTTPAdaptiveStream.SinkBin` configuration for the HLS endpoint.
     """
 
     alias Membrane.HTTPAdaptiveStream.{Manifest, Storage}
+    alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
+    alias Membrane.Time
 
     @typedoc """
       To read more about config options go to module Membrane.HTTPAdaptiveStream.SinkBin and read options descriptions.
+      * `segment_duration` - The segment duration range  of the regular segments.
+      * `partial_segment_duration` - The segment duration range  of the partial segments. If not set then the bin won't produce any partial segments.
     """
     @type t() :: %__MODULE__{
             manifest_name: String.t(),
@@ -19,7 +23,8 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
             hls_mode: :muxed_av | :separate_av,
             header_naming_fun: (Manifest.Track.t(), counter :: non_neg_integer() -> String.t()),
             segment_naming_fun: (Manifest.Track.t() -> String.t()),
-            mp4_parameters_in_band?: boolean
+            segment_duration: SegmentDuration.t(),
+            partial_segment_duration: SegmentDuration.t() | nil
           }
 
     defstruct manifest_name: "index",
@@ -31,7 +36,8 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
               hls_mode: :separate_av,
               header_naming_fun: &Manifest.Track.default_header_naming_fun/2,
               segment_naming_fun: &Manifest.Track.default_segment_naming_fun/1,
-              mp4_parameters_in_band?: false
+              segment_duration: SegmentDuration.new(Time.seconds(4), Time.seconds(5)),
+              partial_segment_duration: nil
 
     @spec default_storage(String.t()) :: any
     def default_storage(directory),
