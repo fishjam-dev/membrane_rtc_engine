@@ -121,6 +121,9 @@ defmodule Membrane.RTC.Engine do
 
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
+  # `Membrane.Pipeline.call/3 currently has invalid typespec`
+  @dialyzer {:nowarn_function, get_endpoints: 1}
+
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @life_span_id "rtc_engine.life_span"
