@@ -21,7 +21,7 @@ if Enum.all?(
 
     def_output_pad :output,
       demand_unit: :buffers,
-      accepted_format: _any,
+      accepted_format: Membrane.RTP,
       availability: :on_request
 
     def_options rtc_engine: [
@@ -47,6 +47,36 @@ if Enum.all?(
     end
 
     @impl true
+    def handle_pad_added(Pad.ref(:output, {_track_id, _variant}) = _pad, _ctx, state) do
+      %Track{encoding: encoding} = track = state.track
+
+      structure = []
+
+      {[spec: structure], state}
+    end
+
+    @impl true
+    def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
+      {[], state}
+    end
+
+    @impl true
+    def handle_parent_notification({:new_tracks, _tracks}, _ctx, state) do
+      {[], state}
+    end
+
+    @impl true
+    def handle_parent_notification({:remove_tracks, _tracks}, _ctx, state) do
+      {[], state}
+    end
+
+    @impl true
+    def handle_parent_notification(msg, _ctx, state) do
+      Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
+      {[], state}
+    end
+
+    @impl true
     def handle_child_notification({:new_rtp_stream, _ssrc, _fmt, _extensions}, :rtp, _ctx, state)
         when state.track == nil do
       Membrane.Logger.debug(":new_rtp_stream")
@@ -62,8 +92,7 @@ if Enum.all?(
 
     @impl true
     def handle_child_notification({:new_rtp_stream, _ssrc, _fmt, _extensions}, :rtp, _ctx, state) do
-      Membrane.Logger.warn(":new_rtp_stream received with track already present. Ignoring.")
-      {[], state}
+      raise(":new_rtp_stream received with track already present")
     end
 
     @impl true
@@ -76,48 +105,8 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_parent_notification({:new_tracks, _tracks}, _ctx, state) do
-      {[], state}
-    end
-
-    @impl true
-    def handle_parent_notification({:remove_tracks, _tracks}, _ctx, state) do
-      {[], state}
-    end
-
-    @impl true
-    def handle_parent_notification({:media_event, _event}, _ctx, state) do
-      {[], state}
-    end
-
-    @impl true
-    def handle_parent_notification(msg, _ctx, state) do
-      Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
-      {[], state}
-    end
-
-    @impl true
     def handle_info(info, _ctx, state) do
       Membrane.Logger.warn("Unexpected info: #{inspect(info)}. Ignoring.")
-      {[], state}
-    end
-
-    @impl true
-    def handle_pad_added(Pad.ref(:output, {_track_id, _variant}) = _pad, _ctx, state) do
-      %Track{encoding: encoding} = track = state.track
-
-      structure = []
-
-      {[spec: structure], state}
-    end
-
-    @impl true
-    def handle_element_start_of_stream(_element, _pad, _ctx, state) do
-      {[], state}
-    end
-
-    @impl true
-    def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
       {[], state}
     end
   end
