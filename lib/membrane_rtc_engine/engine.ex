@@ -349,7 +349,7 @@ defmodule Membrane.RTC.Engine do
   @doc """
   Returns list of the RTC Engine's endpoints.
   """
-  @spec get_endpoints(rtc_engine :: pid()) :: {:ok, [%{id: Endpoint.id(), type: atom()}]} | :error
+  @spec get_endpoints(rtc_engine :: pid()) :: {:ok, [%{id: String.t(), type: atom()}]} | :error
   def get_endpoints(rtc_engine) do
     send(rtc_engine, {:get_endpoints, self()})
 
