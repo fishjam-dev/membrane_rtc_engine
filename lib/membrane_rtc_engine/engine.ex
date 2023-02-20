@@ -347,7 +347,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
-  Sends message to RTC Engine and engine responds with list of endpoints in engine.
+  Returns list of the RTC Engine's endpoints.
   """
   @spec get_endpoints(rtc_engine :: pid()) :: {:ok, [%{id: Endpoint.id(), type: atom()}]} | :error
   def get_endpoints(rtc_engine) do
