@@ -224,7 +224,7 @@ defmodule Membrane.RTC.Engine do
   @typedoc """
   Membrane action that will cause RTC Engine to forward supplied message to the business logic.
   """
-  @type forward_to_parent_action_t() :: {:notify, {:forward_to_parent, message :: any()}}
+  @type forward_to_parent_action_t() :: {:notify_parent, {:forward_to_parent, message :: any()}}
 
   @typedoc """
   Membrane action that will inform RTC Engine about track readiness.

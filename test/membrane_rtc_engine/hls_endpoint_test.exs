@@ -52,6 +52,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
       stream_id = "test-stream"
       reference_id = "single-track-h264"
 
+      output_dir = Path.join([tmp_dir, stream_id])
+      reference_dir = Path.join([@reference_dir, reference_id])
+
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, false)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
 
@@ -67,14 +70,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^stream_id}, 10_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
 
-      Process.sleep(15_000)
-
-      Engine.remove_endpoint(rtc_engine, file_endpoint_id)
-
-      output_dir = Path.join([tmp_dir, stream_id])
-      reference_dir = Path.join([@reference_dir, reference_id])
+      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
+                       endpoint_id: ^hls_endpoint_id,
+                       message: {:end_of_stream, ^stream_id}
+                     },
+                     15_000
 
       directory_files = File.ls!(output_dir)
 
@@ -102,6 +104,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
       audio_track_id = "test-audio-track"
       stream_id = "test-stream"
       reference_id = "multiple-tracks-h264-aac"
+
+      output_dir = Path.join([tmp_dir, stream_id])
+      reference_dir = Path.join([@reference_dir, reference_id])
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, false)
 
@@ -138,13 +143,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^stream_id}, 5_000)
-      assert_receive({:playlist_playable, :audio, ^stream_id}, 5_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :audio, ^output_dir}, 10_000)
 
-      Process.sleep(15_000)
-
-      output_dir = Path.join([tmp_dir, stream_id])
-      reference_dir = Path.join([@reference_dir, reference_id])
+      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
+                       endpoint_id: ^hls_endpoint_id,
+                       message: {:end_of_stream, ^stream_id}
+                     },
+                     15_000
 
       output_files = output_dir |> File.ls!() |> Enum.sort()
       reference_files = reference_dir |> File.ls!() |> Enum.sort()
@@ -152,9 +158,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert output_files == reference_files
 
       check_if_files_are_not_empty(output_files, output_dir)
-
-      Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
-      Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
     end
 
     test "creates correct hls stream from multiple (h264, opus) inputs belonging to the same stream, muxed segments plus mixer",
@@ -171,6 +174,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
       audio_track_id = "test-audio-track"
       stream_id = "test-stream"
       reference_id = "muxed-segments"
+
+      output_dir = tmp_dir
+      reference_dir = Path.join([@reference_dir, reference_id])
 
       hls_endpoint = create_hls_endpoint_with_muxed_segments(rtc_engine, tmp_dir, false)
 
@@ -207,15 +213,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
 
-      Process.sleep(15_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
 
-      assert_receive({:playlist_playable, :video, ""})
-
-      Engine.remove_endpoint(rtc_engine, video_file_endpoint_id)
-      Engine.remove_endpoint(rtc_engine, audio_file_endpoint_id)
-
-      output_dir = tmp_dir
-      reference_dir = Path.join([@reference_dir, reference_id])
+      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
+                       endpoint_id: ^hls_endpoint_id,
+                       message: {:end_of_stream, :muxed}
+                     },
+                     15_000
 
       output_files = output_dir |> File.ls!() |> Enum.sort()
       reference_files = reference_dir |> File.ls!() |> Enum.sort()
@@ -241,6 +245,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
       stream_id_2 = "video-mixer-test-stream_2"
       file_endpoint_id = "video-mixer-file-endpoint-id"
       file_endpoint_id_2 = "video-mixer-file-endpoint-id_2"
+
+      output_dir = tmp_dir
+      reference_dir = Path.join([@reference_dir, reference_id])
 
       hls_endpoint = create_hls_endpoint_with_mixer(rtc_engine, tmp_dir, true)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
@@ -274,16 +281,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      Process.sleep(20_000)
+      assert_receive({:playlist_playable, :audio, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
 
-      assert_receive({:playlist_playable, :audio, _playlist_idl}, 10_000)
-      assert_receive({:playlist_playable, :video, _playlist_idl}, 10_000)
-
-      Engine.remove_endpoint(rtc_engine, file_endpoint_id)
-      Engine.remove_endpoint(rtc_engine, file_endpoint_id_2)
-
-      output_dir = tmp_dir
-      reference_dir = Path.join([@reference_dir, reference_id])
+      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
+                       endpoint_id: ^hls_endpoint_id,
+                       message: {:end_of_stream, :muxed}
+                     },
+                     15_000
 
       output_files = File.ls!(output_dir)
 
@@ -308,6 +313,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
       stream_id_2 = "audio-mixer-test-stream_2"
       file_endpoint_id = "audio-mixer-file-endpoint-id"
       file_endpoint_id_2 = "audio-mixer-file-endpoint-id_2"
+
+      output_dir = tmp_dir
+      reference_dir = Path.join([@reference_dir, reference_id])
 
       hls_endpoint = create_hls_endpoint_with_mixer(rtc_engine, tmp_dir, true)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
@@ -335,16 +343,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      Process.sleep(15_000)
+      assert_receive({:playlist_playable, :audio, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
 
-      assert_receive({:playlist_playable, :audio, _playlist_idl}, 10_000)
-      assert_receive({:playlist_playable, :video, _playlist_idl}, 10_000)
-
-      Engine.remove_endpoint(rtc_engine, file_endpoint_id)
-      Engine.remove_endpoint(rtc_engine, file_endpoint_id_2)
-
-      output_dir = tmp_dir
-      reference_dir = Path.join([@reference_dir, reference_id])
+      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
+                       endpoint_id: ^hls_endpoint_id,
+                       message: {:end_of_stream, :muxed}
+                     },
+                     15_000
 
       output_files = File.ls!(output_dir)
 

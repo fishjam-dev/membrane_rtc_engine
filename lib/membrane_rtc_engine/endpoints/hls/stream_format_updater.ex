@@ -28,7 +28,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.StreamFormatUpdater do
   end
 
   @impl true
-  def handle_end_of_stream(_pad, _ctx, %{update__queue: 0} = state),
+  def handle_end_of_stream(_pad, _ctx, %{update_queue: 0} = state),
     do: {[end_of_stream: :output], state}
 
   @impl true
@@ -52,7 +52,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.StreamFormatUpdater do
     {actions, %{state | update_queue: state.update_queue - 1}}
   end
 
-  defp maybe_notify_end_of_stream(%{end_of_stream: true, update_queue: 0}),
+  defp maybe_notify_end_of_stream(%{end_of_stream: true, update_queue: 1}),
     do: [end_of_stream: :output]
 
   defp maybe_notify_end_of_stream(_state), do: []
