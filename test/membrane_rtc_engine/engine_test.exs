@@ -171,7 +171,7 @@ defmodule Membrane.RTC.EngineTest do
       endpoint_id = :test_endpoint
       :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
       endpoints = Engine.get_endpoints(rtc_engine)
-      assert {:ok, [%{id: ^endpoint_id, type: TestEndpoint}]} = endpoints
+      assert [%{id: ^endpoint_id, type: TestEndpoint}] = endpoints
     end
   end
 

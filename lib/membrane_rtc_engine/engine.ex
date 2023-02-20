@@ -349,16 +349,9 @@ defmodule Membrane.RTC.Engine do
   @doc """
   Returns list of the RTC Engine's endpoints.
   """
-  @spec get_endpoints(rtc_engine :: pid()) :: {:ok, [%{id: String.t(), type: atom()}]} | :error
+  @spec get_endpoints(rtc_engine :: pid()) :: [%{id: String.t(), type: atom()}]
   def get_endpoints(rtc_engine) do
-    send(rtc_engine, {:get_endpoints, self()})
-
-    receive do
-      endpoints -> {:ok, endpoints}
-    after
-      5_000 ->
-        :error
-    end
+    Pipeline.call(rtc_engine, :get_endpoints)
   end
 
   @doc """
@@ -538,7 +531,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_info({:get_endpoints, sender}, ctx, state) do
+  def handle_call(:get_endpoints, ctx, state) do
     endpoints =
       ctx.children
       |> Map.values()
@@ -547,9 +540,7 @@ defmodule Membrane.RTC.Engine do
         %{id: id, type: endpoint.module}
       end)
 
-    send(sender, endpoints)
-
-    {[], state}
+    {[reply: endpoints], state}
   end
 
   @impl true
