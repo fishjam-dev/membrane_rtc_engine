@@ -121,6 +121,14 @@ if Enum.all?(
                   description: "Path to directory under which HLS output will be saved",
                   default: "hls_output"
                 ],
+                synchronize_tracks?: [
+                  spec: boolean(),
+                  default: true,
+                  description: """
+                  Set to false if source is different than webrtc.
+                  If set to true HLS Endpoint will calculate track offset based on `handle_pad_added` call.
+                  """
+                ],
                 mixer_config: [
                   spec: MixerConfig.t() | nil,
                   default: nil,
@@ -559,6 +567,8 @@ if Enum.all?(
     else
       defp generate_audio_mixer(_state, _ctx), do: raise_missing_deps(:audio, @audio_mixer_deps)
     end
+
+    defp get_track_offset(%{synchronize_tracks?: false} = state), do: {0, state}
 
     defp get_track_offset(%{stream_beginning: nil} = state),
       do: {0, %{state | stream_beginning: System.monotonic_time()}}

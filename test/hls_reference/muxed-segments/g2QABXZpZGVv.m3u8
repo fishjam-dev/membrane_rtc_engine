@@ -6,10 +6,10 @@
 #EXT-X-MAP:URI="muxed_header_g2QABXZpZGVv_part_0.mp4"
 #EXTINF:2.982666666,
 muxed_segment_0_g2QABXZpZGVv.m4s
-#EXTINF:3.710161111,
+#EXTINF:3.541494444,
 muxed_segment_1_g2QABXZpZGVv.m4s
 #EXTINF:3.004,
 muxed_segment_2_g2QABXZpZGVv.m4s
-#EXTINF:0.415583332,
+#EXTINF:0.517166667,
 muxed_segment_3_g2QABXZpZGVv.m4s
 #EXT-X-ENDLIST

@@ -152,12 +152,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      15_000
 
-      output_files = output_dir |> File.ls!() |> Enum.sort()
-      reference_files = reference_dir |> File.ls!() |> Enum.sort()
-
-      assert output_files == reference_files
-
-      check_if_files_are_not_empty(output_files, output_dir)
+      check_correctness_of_output_files(output_dir, reference_dir)
     end
 
     test "creates correct hls stream from multiple (h264, opus) inputs belonging to the same stream, muxed segments plus mixer",
@@ -221,12 +216,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      15_000
 
-      output_files = output_dir |> File.ls!() |> Enum.sort()
-      reference_files = reference_dir |> File.ls!() |> Enum.sort()
-
-      assert output_files == reference_files
-
-      check_if_files_are_not_empty(output_files, output_dir)
+      check_correctness_of_output_files(output_dir, reference_dir)
     end
 
     test "video mixer works properly", %{
@@ -290,12 +280,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      15_000
 
-      output_files = File.ls!(output_dir)
+      check_correctness_of_output_files(output_dir, reference_dir)
 
-      assert Enum.sort(output_files) == reference_dir |> File.ls!() |> Enum.sort()
-
-      check_if_files_are_not_empty(output_files, output_dir)
-
+      output_files = output_dir |> File.ls!() |> Enum.sort()
       # if number of header files is greater than 1, video mixer is not working properly
       assert Enum.count(output_files, &String.starts_with?(&1, "video_header")) == 1
     end
@@ -352,11 +339,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      15_000
 
-      output_files = File.ls!(output_dir)
-
-      assert Enum.sort(output_files) == reference_dir |> File.ls!() |> Enum.sort()
-
-      check_if_files_are_not_empty(output_files, output_dir)
+      check_correctness_of_output_files(output_dir, reference_dir)
     end
   end
 
@@ -406,6 +389,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       rtc_engine: rtc_engine,
       owner: self(),
       output_directory: output_dir,
+      synchronize_tracks?: false,
       hls_config: %HLSConfig{mode: :vod, target_window_duration: :infinity}
     }
   end
@@ -431,6 +415,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       rtc_engine: rtc_engine,
       owner: self(),
       output_directory: output_dir,
+      synchronize_tracks?: false,
       mixer_config: mixer_config,
       hls_config: %HLSConfig{
         mode: :vod,
@@ -461,6 +446,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       rtc_engine: rtc_engine,
       owner: self(),
       output_directory: output_dir,
+      synchronize_tracks?: false,
       mixer_config: mixer_config,
       hls_config: %HLSConfig{
         hls_mode: :muxed_av,
@@ -520,7 +506,20 @@ defmodule Membrane.RTC.HLSEndpointTest do
     }
   end
 
-  defp check_if_files_are_not_empty(output_files, output_dir) do
+  defp check_correctness_of_output_files(output_dir, reference_dir) do
+    output_files = output_dir |> File.ls!() |> Enum.sort()
+    output_manifests = Enum.filter(output_files, &String.match?(&1, ~r/\.m3u8$/))
+
+    for manifest <- output_manifests do
+      manifest_path = Path.join(output_dir, manifest)
+      reference_path = Path.join(reference_dir, manifest)
+
+      assert File.read!(manifest_path) == File.read!(reference_path)
+    end
+
+    reference_files = reference_dir |> File.ls!() |> Enum.sort()
+    assert output_files == reference_files
+
     for output_file <- output_files do
       output_path = Path.join(output_dir, output_file)
       %{size: size} = File.stat!(output_path)
