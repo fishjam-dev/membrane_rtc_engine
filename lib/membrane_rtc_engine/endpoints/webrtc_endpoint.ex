@@ -753,8 +753,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
-    {{:ok, remove_child: {:track_receiver, track_id}}, state}
+  def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
+    track_receiver = {:track_receiver, track_id}
+    child = Map.get(ctx.children, track_receiver)
+
+    if child && not child.terminating? do
+      {{:ok, remove_child: track_receiver}, state}
+    else
+      {:ok, state}
+    end
   end
 
   @impl true
