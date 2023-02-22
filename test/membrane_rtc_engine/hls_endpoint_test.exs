@@ -17,6 +17,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
   @fixtures_dir "./test/fixtures/"
   @reference_dir "./test/hls_reference/"
+  @main_manifest "index.m3u8"
+  @accaptable_bandwidth_diff 100_000
 
   setup do
     options = [
@@ -78,16 +80,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      15_000
 
-      directory_files = File.ls!(output_dir)
-
-      assert Enum.sort(directory_files) == reference_dir |> File.ls!() |> Enum.sort()
-
-      for file <- directory_files do
-        output_path = Path.join(output_dir, file)
-        reference_path = Path.join(reference_dir, file)
-
-        assert File.read!(output_path) == File.read!(reference_path)
-      end
+      check_correctness_of_output_files(output_dir, reference_dir)
     end
 
     test "creates correct hls stream from multiple (h264, opus) inputs belonging to the same stream",
@@ -508,7 +501,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
   defp check_correctness_of_output_files(output_dir, reference_dir) do
     output_files = output_dir |> File.ls!() |> Enum.sort()
-    output_manifests = Enum.filter(output_files, &String.match?(&1, ~r/\.m3u8$/))
+
+    output_manifests =
+      Enum.filter(output_files, fn file ->
+        String.match?(file, ~r/\.m3u8$/) and file != @main_manifest
+      end)
 
     for manifest <- output_manifests do
       manifest_path = Path.join(output_dir, manifest)
@@ -516,6 +513,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       assert File.read!(manifest_path) == File.read!(reference_path)
     end
+
+    compare_main_manifests(output_dir, reference_dir)
 
     reference_files = reference_dir |> File.ls!() |> Enum.sort()
     assert output_files == reference_files
@@ -525,5 +524,36 @@ defmodule Membrane.RTC.HLSEndpointTest do
       %{size: size} = File.stat!(output_path)
       assert size > 0
     end
+  end
+
+  defp compare_main_manifests(output_dir, reference_dir) do
+    output_file = Path.join(output_dir, @main_manifest) |> File.read!()
+    reference_file = Path.join(reference_dir, @main_manifest) |> File.read!()
+
+    %{
+      bandwidth: ["#EXT-X-STREAM-INF:BANDWIDTH=" <> output_bandwidth],
+      other: output_without_bandwidth
+    } = filter_manifest(output_file)
+
+    %{
+      bandwidth: ["#EXT-X-STREAM-INF:BANDWIDTH=" <> reference_bandwidth],
+      other: reference_without_bandwidth
+    } = filter_manifest(reference_file)
+
+    output_bandwidth = String.to_integer(output_bandwidth)
+    reference_bandwidth = String.to_integer(reference_bandwidth)
+
+    assert output_bandwidth + @accaptable_bandwidth_diff > reference_bandwidth and
+             output_bandwidth < reference_bandwidth + @accaptable_bandwidth_diff
+
+    assert output_without_bandwidth == reference_without_bandwidth
+  end
+
+  defp filter_manifest(index_file) do
+    index_file
+    |> String.split(["\n", ","])
+    |> Enum.group_by(fn x ->
+      if String.starts_with?(x, "#EXT-X-STREAM-INF:"), do: :bandwidth, else: :other
+    end)
   end
 end
