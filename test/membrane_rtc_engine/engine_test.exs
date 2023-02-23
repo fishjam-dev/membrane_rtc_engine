@@ -165,6 +165,16 @@ defmodule Membrane.RTC.EngineTest do
     end
   end
 
+  describe "Engine.get_endpoints/2" do
+    test "get list of endpoints", %{rtc_engine: rtc_engine} do
+      endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
+      endpoint_id = :test_endpoint
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
+      endpoints = Engine.get_endpoints(rtc_engine)
+      assert [%{id: ^endpoint_id, type: TestEndpoint}] = endpoints
+    end
+  end
+
   test "engine sends EndpointCrashed message", %{rtc_engine: rtc_engine} do
     endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
     endpoint_id = :test_endpoint

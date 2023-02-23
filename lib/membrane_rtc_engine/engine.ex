@@ -121,6 +121,9 @@ defmodule Membrane.RTC.Engine do
 
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
+  # `Membrane.Pipeline.call/3 currently has invalid typespec`
+  @dialyzer {:nowarn_function, get_endpoints: 1}
+
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @life_span_id "rtc_engine.life_span"
@@ -347,6 +350,14 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
+  Returns list of the RTC Engine's endpoints.
+  """
+  @spec get_endpoints(rtc_engine :: pid()) :: [%{id: String.t(), type: atom()}]
+  def get_endpoints(rtc_engine) do
+    Pipeline.call(rtc_engine, :get_endpoints)
+  end
+
+  @doc """
   Subscribes an endpoint for a track.
 
   The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
@@ -520,6 +531,19 @@ defmodule Membrane.RTC.Engine do
         else: []
 
     {actions, state}
+  end
+
+  @impl true
+  def handle_call(:get_endpoints, ctx, state) do
+    endpoints =
+      ctx.children
+      |> Map.values()
+      |> Enum.map(fn endpoint ->
+        {:endpoint, id} = endpoint.name
+        %{id: id, type: endpoint.module}
+      end)
+
+    {[reply: endpoints], state}
   end
 
   @impl true
