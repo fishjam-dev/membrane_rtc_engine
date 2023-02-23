@@ -88,7 +88,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_h264_ffmpeg_plugin, "~> 0.25.2", optional: true},
       {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
       {:membrane_video_compositor_plugin, "~> 0.1.0", optional: true},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.10.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.11.0", optional: true},
 
       # Test deps
       {:membrane_file_plugin, "~> 0.13.0"},
