@@ -489,8 +489,7 @@ if Enum.all?(
 
       defp generate_compositor(state, _ctx) do
         compositor = %Membrane.VideoCompositor{
-          stream_format: state.mixer_config.video.stream_format,
-          real_time: false
+          stream_format: state.mixer_config.video.stream_format
         }
 
         video_parser_out = %Membrane.H264.FFmpeg.Parser{
