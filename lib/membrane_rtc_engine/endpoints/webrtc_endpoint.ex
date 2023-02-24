@@ -375,7 +375,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_child_notification(
-        {:new_track, track_id, rid, ssrc, encoding, _depayloading_filter},
+        {:new_track, track_id, rid, encoding, _depayloading_filter},
         _from,
         _ctx,
         state
@@ -398,7 +398,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     variant = to_track_variant(rid)
 
-    {[notify_parent: {:track_ready, track_id, ssrc, variant, encoding}], state}
+    {[notify_parent: {:track_ready, track_id, variant, encoding}], state}
   end
 
   @impl true
