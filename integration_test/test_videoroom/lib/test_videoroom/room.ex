@@ -7,7 +7,7 @@ defmodule TestVideoroom.Room do
   alias Membrane.RTC.Engine.Message
   alias Membrane.RTC.Engine.Endpoint.WebRTC
   alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig
-  alias Membrane.WebRTC.Extension.{Mid, Rid, TWCC}
+  alias Membrane.WebRTC.Extension.{Mid, RepairedRid, Rid, TWCC}
   require Logger
 
   def start(opts) do
@@ -107,7 +107,7 @@ defmodule TestVideoroom.Room do
       handshake_opts: handshake_opts,
       log_metadata: [peer_id: peer_id],
       telemetry_label: [room_id: state.room_id, peer_id: peer_id],
-      webrtc_extensions: [Mid, Rid, TWCC],
+      webrtc_extensions: [Mid, Rid, RepairedRid, TWCC],
       simulcast_config: %SimulcastConfig{
         enabled: true,
         initial_target_variant: fn _track -> :medium end
@@ -124,7 +124,10 @@ defmodule TestVideoroom.Room do
   end
 
   @impl true
-  def handle_info(%Message.EndpointMessage{endpoint_id: :broadcast, message: {:media_event, data}}, state) do
+  def handle_info(
+        %Message.EndpointMessage{endpoint_id: :broadcast, message: {:media_event, data}},
+        state
+      ) do
     for {_peer_id, pid} <- state.peer_channels, do: send(pid, {:media_event, data})
     {:noreply, state}
   end
