@@ -60,6 +60,8 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.11.2"},
+      {:membrane_webrtc_plugin, "~> 0.12.0"},
+      {:membrane_rtp_plugin, "~> 0.20.0"},
       {:membrane_rtp_format, "~> 0.6.0"},
       {:membrane_tee_plugin, "~> 0.10.0"},
       {:membrane_opentelemetry, "~> 0.1.0"},
@@ -67,7 +69,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_rtp_opus_plugin, "~> 0.7.0"},
       {:membrane_rtp_h264_plugin, "~> 0.14.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:membrane_webrtc_plugin, github: "membraneframework/membrane_webrtc_plugin"},
       {:qex, "~> 0.5"},
       {:uuid, "~> 1.1"},
       {:jason, "~> 1.2"},

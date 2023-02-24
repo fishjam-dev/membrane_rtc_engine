@@ -121,7 +121,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
               ],
               filter_codecs: [
                 spec: ({RTPMapping.t(), FMTP.t() | nil} -> boolean()),
-                default: &SDP.filter_mappings(&1),
+                default: &SDP.filter_encodings(&1),
                 description: "Defines function which will filter SDP m-line by codecs"
               ],
               log_metadata: [
@@ -291,8 +291,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       handshake_opts: state.handshake_opts,
       log_metadata: log_metadata,
       filter_codecs: state.filter_codecs,
-      inbound_tracks: [],
-      outbound_tracks: [],
       direction: state.direction,
       extensions: state.webrtc_extensions || [],
       integrated_turn_options: state.integrated_turn_options,
@@ -884,15 +882,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       track.type,
       track.stream_id,
       origin,
-      track.encoding,
-      track.rtp_mapping.clock_rate,
-      track.fmtp,
+      track.selected_encoding_key,
+      track.selected_encoding.clock_rate,
+      track.selected_encoding.format_params,
       id: track.id,
       variants: variants,
       active?: track.status != :disabled,
       metadata: metadata,
       ctx: %{extension_key => track.extmaps},
-      payload_type: track.rtp_mapping.payload_type
+      payload_type: track.selected_encoding.payload_type
     )
   end
 
@@ -906,7 +904,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_keyword_list(%Engine.Track{} = struct),
     do: Map.from_struct(struct) |> to_keyword_list()
 
-  defp to_keyword_list(%{} = map), do: Enum.map(map, fn {key, value} -> {key, value} end)
+  defp to_keyword_list(%{} = map) do
+    Enum.map(map, fn
+      {:encoding, value} -> {:selected_encoding_key, value}
+      {key, value} -> {key, value}
+    end)
+  end
 
   defp to_track_variant(rid) when rid in ["h", nil], do: :high
   defp to_track_variant("m"), do: :medium
