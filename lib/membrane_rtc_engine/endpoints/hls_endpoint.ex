@@ -95,7 +95,7 @@ if Enum.all?(
       :compositor,
       :encoder,
       :video_parser_out,
-      :hls_sink_bin
+      {:hls_sink_bin, :muxed}
     ]
 
     def_input_pad :input,
@@ -120,6 +120,14 @@ if Enum.all?(
                   spec: Path.t(),
                   description: "Path to directory under which HLS output will be saved",
                   default: "hls_output"
+                ],
+                synchronize_tracks?: [
+                  spec: boolean(),
+                  default: true,
+                  description: """
+                  Set to false if source is different than webrtc.
+                  If set to true HLS Endpoint will calculate track offset based on `handle_pad_added` call.
+                  """
                 ],
                 mixer_config: [
                   spec: MixerConfig.t() | nil,
@@ -162,7 +170,7 @@ if Enum.all?(
       spec =
         generate_audio_mixer(state, context) ++
           generate_compositor(state, context) ++
-          get_hls_sink_spec(state, %{stream_id: nil}, state.output_directory)
+          get_hls_sink_spec(state)
 
       {[spec: spec], state}
     end
@@ -214,20 +222,29 @@ if Enum.all?(
     @impl true
     def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
       {offset, state} = get_track_offset(state)
-      track = Map.get(state.tracks, track_id)
-      directory = get_hls_stream_directory(state, track)
 
+      track = Map.get(state.tracks, track_id)
       track_spec = get_track_spec(offset, bin_input(pad), track, state, ctx)
 
       {spec, state} =
         if hls_sink_bin_exists?(track, ctx, state) do
           {track_spec, state}
         else
-          hls_sink_spec = get_hls_sink_spec(state, track, directory)
+          hls_sink_spec = get_hls_sink_spec(state, track.stream_id)
           {track_spec ++ hls_sink_spec, state}
         end
 
       {[spec: spec], state}
+    end
+
+    @impl true
+    def handle_child_notification(
+          :end_of_stream,
+          {:hls_sink_bin, stream},
+          _ctx,
+          state
+        ) do
+      {[notify_parent: {:forward_to_parent, {:end_of_stream, stream}}], state}
     end
 
     @impl true
@@ -251,22 +268,19 @@ if Enum.all?(
     end
 
     def handle_child_notification(
-          {:track_playable, content_type},
-          :hls_sink_bin,
-          _ctx,
-          state
-        ) do
-      send(state.owner, {:playlist_playable, content_type, ""})
-      {[], state}
-    end
-
-    def handle_child_notification(
-          {:track_playable, {content_type, _track_id}},
+          {:track_playable, data},
           {:hls_sink_bin, stream_id},
           _ctx,
           state
         ) do
-      send(state.owner, {:playlist_playable, content_type, stream_id})
+      content_type =
+        case data do
+          {content_type, _track_id} -> content_type
+          content_type -> content_type
+        end
+
+      output_dir = get_hls_stream_directory(state, stream_id)
+      send(state.owner, {:playlist_playable, content_type, output_dir})
       {[], state}
     end
 
@@ -308,7 +322,9 @@ if Enum.all?(
       {[], state}
     end
 
-    defp get_hls_sink_spec(state, track, directory) do
+    defp get_hls_sink_spec(state, stream_id \\ nil) do
+      directory = get_hls_stream_directory(state, stream_id)
+
       File.rm_rf(directory)
       File.mkdir_p!(directory)
 
@@ -320,7 +336,9 @@ if Enum.all?(
       hls_sink = struct(Membrane.HTTPAdaptiveStream.SinkBin, Map.from_struct(config))
 
       child_name =
-        if is_nil(state.mixer_config), do: {:hls_sink_bin, track.stream_id}, else: :hls_sink_bin
+        if is_nil(state.mixer_config),
+          do: {:hls_sink_bin, stream_id},
+          else: {:hls_sink_bin, :muxed}
 
       [child(child_name, hls_sink)]
     end
@@ -489,8 +507,7 @@ if Enum.all?(
 
       defp generate_compositor(state, _ctx) do
         compositor = %Membrane.VideoCompositor{
-          stream_format: state.mixer_config.video.stream_format,
-          real_time: false
+          stream_format: state.mixer_config.video.stream_format
         }
 
         video_parser_out = %Membrane.H264.FFmpeg.Parser{
@@ -515,7 +532,7 @@ if Enum.all?(
               partial_segment_duration: state.hls_config.partial_segment_duration
             ]
           )
-          |> get_child(:hls_sink_bin)
+          |> get_child({:hls_sink_bin, :muxed})
         ]
       end
     else
@@ -544,12 +561,14 @@ if Enum.all?(
               partial_segment_duration: state.hls_config.partial_segment_duration
             ]
           )
-          |> get_child(:hls_sink_bin)
+          |> get_child({:hls_sink_bin, :muxed})
         ]
       end
     else
       defp generate_audio_mixer(_state, _ctx), do: raise_missing_deps(:audio, @audio_mixer_deps)
     end
+
+    defp get_track_offset(%{synchronize_tracks?: false} = state), do: {0, state}
 
     defp get_track_offset(%{stream_beginning: nil} = state),
       do: {0, %{state | stream_beginning: System.monotonic_time()}}
@@ -559,7 +578,8 @@ if Enum.all?(
     defp hls_sink_bin_exists?(track, ctx, %{mixer_config: nil}),
       do: Map.has_key?(ctx.children, {:hls_sink_bin, track.stream_id})
 
-    defp hls_sink_bin_exists?(_track, ctx, _state), do: Map.has_key?(ctx.children, :hls_sink_bin)
+    defp hls_sink_bin_exists?(_track, ctx, _state),
+      do: Map.has_key?(ctx.children, {:hls_sink_bin, :muxed})
 
     defp get_depayloader(track) do
       track
@@ -567,10 +587,10 @@ if Enum.all?(
       |> tap(&unless &1, do: raise("Couldn't find depayloader for track #{inspect(track)}"))
     end
 
-    defp get_hls_stream_directory(%{mixer_config: nil} = state, track),
-      do: Path.join(state.output_directory, track.stream_id)
+    defp get_hls_stream_directory(%{mixer_config: nil} = state, stream_id),
+      do: Path.join(state.output_directory, stream_id)
 
-    defp get_hls_stream_directory(state, _track), do: state.output_directory
+    defp get_hls_stream_directory(state, _stream_id), do: state.output_directory
 
     defp compositor_update_layout(_action, _track, _state, _stream_format \\ nil)
 
