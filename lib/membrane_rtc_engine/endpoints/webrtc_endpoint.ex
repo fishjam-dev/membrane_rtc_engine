@@ -375,7 +375,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_child_notification(
-        {:new_track, track_id, rid, encoding, _depayloading_filter},
+        {:new_track, track_id, rid, ssrc, encoding, _depayloading_filter},
         _from,
         _ctx,
         state
@@ -397,6 +397,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     Membrane.OpenTelemetry.add_event(@life_span_id, :track_ready, track_id: track_id)
 
     variant = to_track_variant(rid)
+
+    Membrane.Logger.info("New incoming WebRTC track #{track_id} with SSRC #{inspect(ssrc)}")
 
     {[notify_parent: {:track_ready, track_id, variant, encoding}], state}
   end
