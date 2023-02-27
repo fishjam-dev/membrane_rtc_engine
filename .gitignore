@@ -40,3 +40,6 @@ priv/static/*
 test/output
 test/hls_output
 tmp/
+
+# asdf
+.tool-versions
