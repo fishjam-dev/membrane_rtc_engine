@@ -67,7 +67,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.7.0"},
       {:membrane_rtp_opus_plugin, "~> 0.7.0"},
-      {:membrane_rtp_h264_plugin, "~> 0.14.0"},
+#      {:membrane_rtp_h264_plugin, "~> 0.15.1"}, #FIXME
+      {:membrane_rtp_h264_plugin, path: "~/git/membrane/rtp_h264_plugin", override: true},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:qex, "~> 0.5"},
       {:uuid, "~> 1.1"},
@@ -86,10 +87,16 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_realtimer_plugin, "~> 0.6.0", optional: true},
       {:membrane_audio_mix_plugin, "~> 0.12.0", optional: true},
       {:membrane_raw_audio_format, "~> 0.10.0", optional: true},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.25.2", optional: true},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.25.3", optional: true},
+      {:membrane_h264_plugin, "~> 0.2.0", optional: true},
       {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
       {:membrane_video_compositor_plugin, "~> 0.2.1", optional: true},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.11.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.12.0", optional: true},
+
+      # Optional deps for RTSP endpoint
+      {:connection, "~> 1.1", optional: true},
+      {:membrane_rtsp, "0.3.0", optional: true},
+      {:membrane_udp_plugin, "~> 0.9.0", optional: true},
 
       # Test deps
       {:membrane_file_plugin, "~> 0.13.0"},

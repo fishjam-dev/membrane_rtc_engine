@@ -233,7 +233,7 @@ defmodule Membrane.RTC.Engine do
   Membrane action that will inform RTC Engine about track readiness.
   """
   @type track_ready_action_t() ::
-          {:notify_parent, {:track_ready, Track.id(), Track.encoding(), Track.variant()}}
+          {:notify_parent, {:track_ready, Track.id(), Track.variant(), Track.encoding()}}
 
   @typedoc """
   Types of messages that can be published to other Endpoints.
