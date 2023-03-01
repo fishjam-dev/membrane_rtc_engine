@@ -1,6 +1,7 @@
 if Enum.all?(
      [
        Membrane.H264.FFmpeg.Parser,
+       Membrane.H264.Parser,
        Membrane.HTTPAdaptiveStream.SinkBin,
        Membrane.Opus.Decoder,
        Membrane.AAC.Parser,
@@ -418,38 +419,6 @@ if Enum.all?(
         |> get_child({:hls_sink_bin, track.stream_id})
       ]
 
-    defp h264_parser_spec(track) do
-      [sps: sps, pps: pps] = get_sps_pps(track)
-
-      %Membrane.H264.Parser{
-        # XXX surely there must be a better way to do this
-        framerate: {0, 1},
-        sps: sps,
-        pps: pps
-      }
-    end
-
-    defp get_sps_pps(track) do
-      fmtp_attributes =
-        track.fmtp.unknown
-        |> Enum.map(fn elem ->
-          [key, value] = String.trim(elem) |> String.split("=", parts: 2)
-          {key, value}
-        end)
-        |> Enum.into(%{})
-
-      case Map.get(fmtp_attributes, "sprop-parameter-sets") do
-        nil ->
-          [sps: nil, pps: nil]
-
-        params ->
-          params
-          |> String.split(",", parts: 2)
-          |> Enum.map(fn elem -> <<0, 0, 0, 1>> <> Base.decode64!(elem) end)
-          |> then(fn list -> [[:sps, :pps], list] |> List.zip() end)
-      end
-    end
-
     if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
       defp attach_video_track_spec(offset, track, _state),
         do: [
@@ -622,6 +591,38 @@ if Enum.all?(
       do: Path.join(state.output_directory, stream_id)
 
     defp get_hls_stream_directory(state, _stream_id), do: state.output_directory
+
+    defp h264_parser_spec(track) do
+      [sps: sps, pps: pps] = get_sps_pps(track)
+
+      %Membrane.H264.Parser{
+        # XXX surely there must be a better way to do this
+        framerate: {0, 1},
+        sps: sps,
+        pps: pps
+      }
+    end
+
+    defp get_sps_pps(track) do
+      fmtp_attributes =
+        track.fmtp.unknown
+        |> Enum.map(fn elem ->
+          [key, value] = String.trim(elem) |> String.split("=", parts: 2)
+          {key, value}
+        end)
+        |> Enum.into(%{})
+
+      case Map.get(fmtp_attributes, "sprop-parameter-sets") do
+        nil ->
+          [sps: <<>>, pps: <<>>]
+
+        params ->
+          params
+          |> String.split(",", parts: 2)
+          |> Enum.map(fn elem -> <<0, 0, 0, 1>> <> Base.decode64!(elem) end)
+          |> then(fn list -> [[:sps, :pps], list] |> List.zip() end)
+      end
+    end
 
     defp compositor_update_layout(_action, _track, _state, _stream_format \\ nil)
 

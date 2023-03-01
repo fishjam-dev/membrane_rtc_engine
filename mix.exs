@@ -39,8 +39,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       # they are not included in PLT
       dialyzer: [
         plt_add_apps: [
+          :connection,
           :membrane_http_adaptive_stream_plugin,
           :membrane_raw_audio_format,
+          :membrane_rtsp,
           :membrane_video_compositor_plugin
         ]
       ]

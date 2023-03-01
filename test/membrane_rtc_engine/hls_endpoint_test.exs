@@ -464,7 +464,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
         video_file_endpoint_id,
         :H264,
         90_000,
-        nil,
+        %ExSDP.Attribute.FMTP{
+          pt: 96
+        },
         id: video_track_id,
         metadata: %{"mainPresenter" => true}
       )
