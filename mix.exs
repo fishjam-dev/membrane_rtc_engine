@@ -67,8 +67,11 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.7.0"},
       {:membrane_rtp_opus_plugin, "~> 0.7.0"},
-#      {:membrane_rtp_h264_plugin, "~> 0.15.1"}, #FIXME
-      {:membrane_rtp_h264_plugin, path: "~/git/membrane/rtp_h264_plugin", override: true},
+      #      {:membrane_rtp_h264_plugin, "~> 0.15.1"}, #FIXME
+      {:membrane_rtp_h264_plugin,
+       github: "membraneframework/membrane_rtp_h264_plugin",
+       branch: "sgfn/idr-in-h264-payload",
+       override: true},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:qex, "~> 0.5"},
       {:uuid, "~> 1.1"},

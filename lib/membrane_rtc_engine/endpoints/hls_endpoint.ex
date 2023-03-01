@@ -422,9 +422,10 @@ if Enum.all?(
       [sps: sps, pps: pps] = get_sps_pps(track)
 
       %Membrane.H264.Parser{
-        framerate: {0, 1}, # XXX surely there must be a better way to do this
+        # XXX surely there must be a better way to do this
+        framerate: {0, 1},
         sps: sps,
-        pps: pps,
+        pps: pps
       }
     end
 
@@ -438,8 +439,11 @@ if Enum.all?(
         |> Enum.into(%{})
 
       case Map.get(fmtp_attributes, "sprop-parameter-sets") do
-        nil -> [sps: nil, pps: nil]
-        params -> params
+        nil ->
+          [sps: nil, pps: nil]
+
+        params ->
+          params
           |> String.split(",", parts: 2)
           |> Enum.map(fn elem -> <<0, 0, 0, 1>> <> Base.decode64!(elem) end)
           |> then(fn list -> [[:sps, :pps], list] |> List.zip() end)
@@ -450,7 +454,8 @@ if Enum.all?(
       defp attach_video_track_spec(offset, track, _state),
         do: [
           get_child({:depayloader, track.id})
-          |> child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{ #XXX maybe change
+          # XXX maybe change
+          |> child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{
             attach_nalus?: true,
             alignment: :au
           })
@@ -535,7 +540,8 @@ if Enum.all?(
           stream_format: state.mixer_config.video.stream_format
         }
 
-        video_parser_out = %Membrane.H264.FFmpeg.Parser{ #XXX maybe change
+        # XXX maybe change
+        video_parser_out = %Membrane.H264.FFmpeg.Parser{
           alignment: :au,
           attach_nalus?: true
         }

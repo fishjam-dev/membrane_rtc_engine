@@ -39,8 +39,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
               is_keyframe_fun: [
                 spec: (Membrane.Buffer.t(), Track.encoding() -> boolean()),
                 default: &Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender.is_keyframe/2,
-                description: "Function checking whether a given buffer contains a keyframe in its payload."
-               ]
+                description:
+                  "Function checking whether a given buffer contains a keyframe in its payload."
+              ]
 
   def_input_pad :input,
     availability: :on_request,
@@ -55,7 +56,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     accepted_format: Membrane.RTP
 
   @impl true
-  def handle_init(_ctx, %__MODULE__{track: track, telemetry_label: telemetry_label, is_keyframe_fun: is_keyframe_fun}) do
+  def handle_init(_ctx, %__MODULE__{
+        track: track,
+        telemetry_label: telemetry_label,
+        is_keyframe_fun: is_keyframe_fun
+      }) do
     {[],
      %{
        track: track,

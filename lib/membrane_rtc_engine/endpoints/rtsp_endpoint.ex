@@ -119,7 +119,9 @@ if Enum.all?(
           {:track_sender, track_id},
           %TrackSender{
             track: track,
-            is_keyframe_fun: fn buf, :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buf.payload, :idr) end
+            is_keyframe_fun: fn buf, :H264 ->
+              Membrane.RTP.H264.Utils.is_keyframe(buf.payload, :idr)
+            end
           },
           get_if_exists: true
         )
@@ -152,18 +154,37 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_child_notification({:new_rtp_stream, _ssrc, _fmt, _extensions} = msg, :rtp, _ctx, state)
+    def handle_child_notification(
+          {:new_rtp_stream, _ssrc, _fmt, _extensions} = msg,
+          :rtp,
+          _ctx,
+          state
+        )
         when state.stream_id != nil do
       raise("Received unexpected, second RTP stream: #{inspect(msg)}")
     end
 
     @impl true
-    def handle_child_notification({:new_rtp_stream, ssrc, 96, _extensions} = msg, :rtp, ctx, state) do
+    def handle_child_notification(
+          {:new_rtp_stream, ssrc, 96, _extensions} = msg,
+          :rtp,
+          ctx,
+          state
+        ) do
       Membrane.Logger.debug("New RTP stream (H264) connected: #{inspect(msg)}")
 
       {:endpoint, endpoint_id} = ctx.name
       stream_id = Track.stream_id()
-      track = Track.new(:video, stream_id, endpoint_id, :H264, state.video.rtpmap.clock_rate, state.video.fmtp)
+
+      track =
+        Track.new(
+          :video,
+          stream_id,
+          endpoint_id,
+          :H264,
+          state.video.rtpmap.clock_rate,
+          state.video.fmtp
+        )
 
       actions = [
         notify_parent: {:publish, {:new_tracks, [track]}},
@@ -174,7 +195,12 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_child_notification({:new_rtp_stream, _ssrc, _fmt, _extensions} = msg, :rtp, _ctx, _state) do
+    def handle_child_notification(
+          {:new_rtp_stream, _ssrc, _fmt, _extensions} = msg,
+          :rtp,
+          _ctx,
+          _state
+        ) do
       raise("Unsupported RTP stream connected: #{inspect(msg)}")
     end
 
