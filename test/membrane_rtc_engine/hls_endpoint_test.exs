@@ -39,6 +39,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   describe "HLS Endpoint test" do
     @describetag :tmp_dir
 
+    # FIXME: Test prints logs informing of parent crashing (HLS Endpoint)
     test "creates correct hls stream from single (h264) input", %{
       rtc_engine: rtc_engine,
       tmp_dir: tmp_dir
