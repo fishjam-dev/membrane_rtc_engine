@@ -277,7 +277,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         Enum.map_reduce(
           1..min(state.enqueued_paddings_count, @max_paddings)//1,
           %{state | enqueued_paddings_count: 0},
-          fn _i, state -> generate_padding_packet(state) end
+          fn _i, state -> generate_padding_packet(state, false) end
         )
       else
         {[], state}
@@ -349,8 +349,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def handle_info(:send_padding_packet, ctx, state)
       when not ctx.pads.output.end_of_stream? and ctx.playback == :playing and
              ctx.pads.output.stream_format != nil do
-    if Forwarder.can_generate_padding_packet?(state.forwarder) do
-      {buffer, state} = generate_padding_packet(state)
+    force_marker? =
+      MapSet.size(state.selector.active_variants) == 0 or
+        state.selector.current_variant == :no_variant
+
+    if Forwarder.can_generate_padding_packet?(state.forwarder) or force_marker? do
+      {buffer, state} = generate_padding_packet(state, force_marker?)
       {[buffer: {:output, buffer}], state}
     else
       {[], Map.update!(state, :enqueued_paddings_count, &(&1 + 1))}
@@ -377,11 +381,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   defp handle_selector_action(_other_action), do: []
 
-  defp generate_padding_packet(state) do
-    force_marker? =
-      MapSet.size(state.selector.active_variants) == 0 or
-        state.selector.current_variant == :no_variant
-
+  defp generate_padding_packet(state, force_marker?) do
     {forwarder, buffer} =
       Forwarder.generate_padding_packet(state.forwarder, state.track, force_marker?)
 
