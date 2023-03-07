@@ -1,14 +1,14 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.10.2"
+  @version "0.11.0"
   @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
 
   def project do
     [
       app: :membrane_rtc_engine,
       version: @version,
-      elixir: "~> 1.10",
+      elixir: "~> 1.12",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
