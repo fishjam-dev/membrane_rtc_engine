@@ -75,8 +75,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:unifex, "~> 1.0"},
       {:statistics, "~> 0.6.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
-      {:ex_doc, "0.28.3", only: :dev, runtime: false},
-      {:dialyxir, "1.1.0", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
       {:membrane_aac_plugin, "~> 0.13.0", optional: true},
@@ -93,7 +93,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
       # Test deps
       {:membrane_file_plugin, "~> 0.13.0"},
-      {:excoveralls, "~> 0.15.0", only: :test, runtime: false},
+      {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
 
       # Otel
       {:opentelemetry, "~> 1.0.0"},
