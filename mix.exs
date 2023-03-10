@@ -86,7 +86,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_realtimer_plugin, "~> 0.6.0", optional: true},
       {:membrane_audio_mix_plugin, "~> 0.12.0", optional: true},
       {:membrane_raw_audio_format, "~> 0.10.0", optional: true},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.25.2", optional: true},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.25.4", optional: true},
       {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
       {:membrane_video_compositor_plugin, "~> 0.2.1", optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.12.0", optional: true},
