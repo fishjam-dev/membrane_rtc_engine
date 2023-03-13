@@ -280,7 +280,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       end
       |> update_in([:bitrate_estimators, variant], &BitrateEstimator.process(&1, buffer))
 
-    buffer = add_is_keyframe_flag(buffer, track, state.is_keyframe_fun)
+    new_metadata =
+      Map.put(buffer.metadata, :is_keyframe, state.is_keyframe_fun.(buffer, track.encoding))
+
+    buffer = %Buffer{buffer | metadata: new_metadata}
 
     {actions, state} =
       if MapSet.member?(state.requested_keyframes, variant) and buffer.metadata.is_keyframe do
@@ -362,11 +365,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
       :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
     end
-  end
-
-  defp add_is_keyframe_flag(buffer, %Track{encoding: encoding}, is_keyframe_fun) do
-    new_metadata = Map.put(buffer.metadata, :is_keyframe, is_keyframe_fun.(buffer, encoding))
-    %Buffer{buffer | metadata: new_metadata}
   end
 
   defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad) do

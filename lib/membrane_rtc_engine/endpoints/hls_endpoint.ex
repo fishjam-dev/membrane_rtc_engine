@@ -423,7 +423,7 @@ if Enum.all?(
       defp attach_video_track_spec(offset, track, _state),
         do: [
           get_child({:depayloader, track.id})
-          # XXX maybe change
+          # TODO change to new parser once it supports Membrane.H264 stream format on input pad
           |> child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{
             attach_nalus?: true,
             alignment: :au
@@ -509,7 +509,7 @@ if Enum.all?(
           stream_format: state.mixer_config.video.stream_format
         }
 
-        # XXX maybe change
+        # TODO change to new parser once it supports Membrane.H264 stream format on input pad
         video_parser_out = %Membrane.H264.FFmpeg.Parser{
           alignment: :au,
           attach_nalus?: true

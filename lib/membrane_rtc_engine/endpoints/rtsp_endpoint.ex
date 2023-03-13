@@ -8,15 +8,15 @@ if Enum.all?(
    ) do
   defmodule Membrane.RTC.Engine.Endpoint.RTSP do
     @moduledoc """
-    An Endpoint responsible for receiving an RTSP stream and sending the appropriate
-    media track to other Endpoints (see **Limitations**).
+    An Endpoint responsible for connecting to a remote RTSP stream source
+    and sending the appropriate media track to other Endpoints (see **Limitations**).
 
     This module requires the following plugins to be present in your `mix.exs`:
     ```
     [
-      :connection,
-      :membrane_rtsp,
-      :membrane_udp_plugin
+      {:connection, "~> 1.1"},
+      {:membrane_rtsp, "0.3.0"},
+      {:membrane_udp_plugin, "~> 0.9.1"}
     ]
     ```
 
@@ -24,7 +24,7 @@ if Enum.all?(
     Currently, only H264 streams are supported.
 
     At the moment, if H264 parameters are passed out-of-band, only the HLS Endpoint
-    will be able subscribe to tracks created by the RTSP Endpoint.
+    will be able to subscribe to tracks created by the RTSP Endpoint.
     """
 
     use Membrane.Bin
@@ -35,8 +35,14 @@ if Enum.all?(
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
     alias Membrane.RTC.Engine.Track
 
-    # FIXME this should not be hardcoded
-    @rtp_port 20_000
+    @required_deps [
+      Connection,
+      Membrane.RTSP,
+      Membrane.UDP.Source
+    ]
+
+    @spec get_required_deps() :: Keyword.t()
+    def get_required_deps(), do: @required_deps
 
     def_output_pad :output,
       demand_unit: :buffers,
@@ -50,6 +56,12 @@ if Enum.all?(
                 source_uri: [
                   spec: URI.t(),
                   description: "URI of source stream"
+                ],
+                rtp_port: [
+                  spec: pos_integer() | nil,
+                  description:
+                    "Port to receive RTP stream at. If not provided, will pick any available one",
+                  default: nil
                 ]
 
     @impl true
@@ -65,46 +77,14 @@ if Enum.all?(
 
       structure = [
         child(:udp_source, %Membrane.UDP.Source{
-          local_port_no: @rtp_port,
-          recv_buffer_size: 500_000
+          # Pick any port if not specified
+          local_port_no: opts.rtp_port || 0
         })
         |> via_in(Pad.ref(:rtp_input, make_ref()))
         |> child(:rtp, Membrane.RTP.SessionBin)
       ]
 
       {[spec: structure], state}
-    end
-
-    @impl true
-    def handle_spec_started([:udp_source, :rtp], _ctx, state) do
-      connection_manager_spec = [
-        %{
-          id: "ConnectionManager",
-          start:
-            {ConnectionManager, :start_link,
-             [
-               [
-                 stream_uri: state.source_uri,
-                 port: @rtp_port,
-                 endpoint: self()
-               ]
-             ]},
-          restart: :transient
-        }
-      ]
-
-      # XXX we should probably add to an existing supervision tree instead
-      Supervisor.start_link(connection_manager_spec,
-        strategy: :one_for_one,
-        name: Membrane.RTC.Engine.Endpoint.RTSP.Supervisor
-      )
-
-      {[], state}
-    end
-
-    @impl true
-    def handle_spec_started(_children, _ctx, state) do
-      {[], state}
     end
 
     @impl true
@@ -122,8 +102,7 @@ if Enum.all?(
             is_keyframe_fun: fn buf, :H264 ->
               Membrane.RTP.H264.Utils.is_keyframe(buf.payload, :idr)
             end
-          },
-          get_if_exists: true
+          }
         )
         |> via_out(pad)
         |> bin_output(pad)
@@ -150,6 +129,33 @@ if Enum.all?(
     @impl true
     def handle_parent_notification(msg, _ctx, state) do
       Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
+      {[], state}
+    end
+
+    @impl true
+    def handle_child_notification({:connection_info, _address, port}, :udp_source, _ctx, state) do
+      connection_manager_spec = [
+        %{
+          id: "ConnectionManager",
+          start:
+            {ConnectionManager, :start_link,
+             [
+               [
+                 stream_uri: state.source_uri,
+                 port: port,
+                 endpoint: self()
+               ]
+             ]},
+          restart: :transient
+        }
+      ]
+
+      # XXX we should probably add to an existing supervision tree instead
+      Supervisor.start_link(connection_manager_spec,
+        strategy: :one_for_one,
+        name: Membrane.RTC.Engine.Endpoint.RTSP.Supervisor
+      )
+
       {[], state}
     end
 
