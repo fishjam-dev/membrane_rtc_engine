@@ -113,6 +113,15 @@ defmodule Membrane.RTC.Engine.MixProject do
     ]
   end
 
+  @spec rtsp_endpoint_deps() :: list(atom())
+  def rtsp_endpoint_deps() do
+    [
+      Connection,
+      Membrane.RTSP,
+      Membrane.UDP.Source
+    ]
+  end
+
   defp aliases() do
     [
       integration_test: &run_integration_tests/1

@@ -1,9 +1,5 @@
 if Enum.all?(
-     [
-       Connection,
-       Membrane.RTSP,
-       Membrane.UDP.Source
-     ],
+     Membrane.RTC.Engine.MixProject.rtsp_endpoint_deps(),
      &Code.ensure_loaded?/1
    ) do
   defmodule Membrane.RTC.Engine.Endpoint.RTSP do
@@ -34,15 +30,6 @@ if Enum.all?(
     alias Membrane.RTC.Engine.Endpoint.RTSP.ConnectionManager
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
     alias Membrane.RTC.Engine.Track
-
-    @required_deps [
-      Connection,
-      Membrane.RTSP,
-      Membrane.UDP.Source
-    ]
-
-    @spec get_required_deps() :: list(atom())
-    def get_required_deps(), do: @required_deps
 
     def_output_pad :output,
       demand_unit: :buffers,

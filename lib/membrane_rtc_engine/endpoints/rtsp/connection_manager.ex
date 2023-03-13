@@ -1,5 +1,5 @@
 if Enum.all?(
-     Membrane.RTC.Engine.Endpoint.RTSP.get_required_deps(),
+     Membrane.RTC.Engine.MixProject.rtsp_endpoint_deps(),
      &Code.ensure_loaded?/1
    ) do
   defmodule Membrane.RTC.Engine.Endpoint.RTSP.ConnectionManager do
