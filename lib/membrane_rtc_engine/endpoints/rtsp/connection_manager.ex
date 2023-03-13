@@ -54,7 +54,8 @@ if Enum.all?(
            port: port,
            rtpmap: nil,
            fmtp: nil,
-           control: nil
+           control: nil,
+           server_port: nil
          ],
          endpoint: endpoint
        }}
@@ -71,7 +72,7 @@ if Enum.all?(
         {:backoff, @delay, connection_status}
       else
         with {:ok, connection_status} <- get_rtsp_description(connection_status),
-             :ok <- setup_rtsp_connection(connection_status),
+             {:ok, connection_status} <- setup_rtsp_connection(connection_status),
              {:ok, connection_status} <- start_keep_alive(connection_status),
              :ok <- play(connection_status) do
           Membrane.Logger.warn(~s"""
@@ -152,7 +153,7 @@ if Enum.all?(
           Membrane.Logger.error("ConnectionManager: Keep_alive process crashed")
 
         process ->
-          Membrane.Logger.error("ConnectionManager: #{process} process crashed")
+          Membrane.Logger.error("ConnectionManager: #{inspect(process)} process crashed")
       end
 
       {:disconnect, :reload, connection_status}
@@ -208,17 +209,26 @@ if Enum.all?(
       end
     end
 
-    defp setup_rtsp_connection(%ConnectionStatus{
-           rtsp_session: rtsp_session,
-           endpoint_options: endpoint_options
-         }) do
+    defp setup_rtsp_connection(
+           %ConnectionStatus{
+             rtsp_session: rtsp_session,
+             endpoint_options: endpoint_options
+           } = connection_status
+         ) do
       Membrane.Logger.debug("ConnectionManager: Setting up RTSP connection")
 
       case RTSP.setup(rtsp_session, "/#{endpoint_options[:control]}", [
              {"Transport", "RTP/AVP;unicast;client_port=#{endpoint_options[:port]}"}
            ]) do
-        {:ok, %{status: 200}} ->
-          :ok
+        {:ok, %{status: 200, headers: headers}} ->
+          # Parse server port to be able to combat NAT later
+          server_port = parse_server_port(headers)
+
+          {:ok,
+           %{
+             connection_status
+             | endpoint_options: Keyword.merge(endpoint_options, server_port: server_port)
+           }}
 
         result ->
           Membrane.Logger.debug(
@@ -271,13 +281,37 @@ if Enum.all?(
 
       Map.fetch!(video_protocol, :attributes)
       # fixing inconsistency in keys:
-      |> Enum.map(fn {key, value} ->
+      |> Enum.map(fn entry ->
+        {key, value} = if is_tuple(entry), do: entry, else: {entry, nil}
+
         case is_atom(key) do
           true -> {Atom.to_string(key), value}
           false -> {key, value}
         end
       end)
       |> Enum.into(%{})
+    end
+
+    defp parse_server_port(headers) do
+      Enum.find_value(headers, fn entry ->
+        case entry do
+          {"Transport", value} -> value
+          _other -> false
+        end
+      end)
+      |> String.split(";")
+      |> Enum.find_value(fn entry ->
+        String.split(entry, "=")
+        |> List.to_tuple()
+        |> case do
+          {"server_port", port_range} ->
+            [range_start | _range_end] = String.split(port_range, "-")
+            String.to_integer(range_start)
+
+          _other ->
+            false
+        end
+      end)
     end
   end
 end

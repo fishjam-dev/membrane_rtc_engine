@@ -596,7 +596,7 @@ if Enum.all?(
       [sps: sps, pps: pps] = get_sps_pps(track)
 
       %Membrane.H264.Parser{
-        # XXX surely there must be a better way to do this
+        # FIXME: surely there must be a better way to do this
         framerate: {0, 1},
         sps: sps,
         pps: pps

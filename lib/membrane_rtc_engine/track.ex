@@ -68,7 +68,7 @@ defmodule Membrane.RTC.Engine.Track do
           encoding: encoding,
           variants: [variant()],
           clock_rate: Membrane.RTP.clock_rate_t(),
-          fmtp: FMTP,
+          fmtp: FMTP.t(),
           active?: boolean(),
           metadata: any(),
           ctx: map()
@@ -107,7 +107,7 @@ defmodule Membrane.RTC.Engine.Track do
           String.t(),
           encoding(),
           Membrane.RTP.clock_rate_t(),
-          FMTP,
+          FMTP.t(),
           opts_t()
         ) :: t
   def new(type, stream_id, origin, encoding, clock_rate, fmtp, opts \\ []) do
