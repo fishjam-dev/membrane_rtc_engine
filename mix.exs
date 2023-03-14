@@ -62,7 +62,9 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.11.2"},
-      {:membrane_webrtc_plugin, "~> 0.13.0"},
+      # {:membrane_webrtc_plugin, "~> 0.13.1"}, #FIXME
+      {:membrane_webrtc_plugin,
+       github: "membraneframework/membrane_webrtc_plugin", branch: "sgfn/bump-to-0.13.1"},
       {:membrane_rtp_plugin, "~> 0.20.0"},
       {:membrane_rtp_format, "~> 0.6.0"},
       {:membrane_tee_plugin, "~> 0.10.0"},
@@ -96,6 +98,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
       # Optional deps for RTSP endpoint
       {:connection, "~> 1.1", optional: true},
+      {:membrane_fake_plugin, "~> 0.9.0", optional: true},
       {:membrane_rtsp, "0.3.0", optional: true},
       # {:membrane_udp_plugin, "~> 0.9.1", optional: true}, #FIXME
       {:membrane_udp_plugin,
@@ -113,10 +116,11 @@ defmodule Membrane.RTC.Engine.MixProject do
     ]
   end
 
-  @spec rtsp_endpoint_deps() :: list(atom())
+  @spec rtsp_endpoint_deps() :: list(module())
   def rtsp_endpoint_deps() do
     [
       Connection,
+      Membrane.Fake.Sink.Buffers,
       Membrane.RTSP,
       Membrane.UDP.Source
     ]

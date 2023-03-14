@@ -21,6 +21,9 @@ if Enum.all?(
 
     At the moment, if H264 parameters are passed out-of-band, only the HLS Endpoint
     will be able to subscribe to tracks created by the RTSP Endpoint.
+
+    If a connection drops .. TODO write the rest of me
+    Run only on server without NAT .. TODO write the rest of me
     """
 
     use Membrane.Bin
@@ -28,6 +31,7 @@ if Enum.all?(
     require Membrane.Logger
 
     alias Membrane.RTC.Engine.Endpoint.RTSP.ConnectionManager
+    alias Membrane.RTC.Engine.Endpoint.RTSP.PortAllocator
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
     alias Membrane.RTC.Engine.Track
 
@@ -44,29 +48,34 @@ if Enum.all?(
                   spec: URI.t(),
                   description: "URI of source stream"
                 ],
-                rtp_port: [
-                  spec: pos_integer() | nil,
+                port_range: [
+                  spec: {pos_integer(), pos_integer()},
                   description:
-                    "Port to receive RTP stream at. If not provided, will pick any available one",
-                  default: nil
+                    "Port range from which to pick a port to receive RTP stream at",
+                  default: {62_137, 62_420}
                 ]
 
     @impl true
     def handle_init(_ctx, opts) do
+      rtp_port = PortAllocator.get_port(opts.rtc_engine)
+
       state = %{
         rtc_engine: opts.rtc_engine,
         source_uri: opts.source_uri,
+        rtp_port: rtp_port,
         track: nil,
-        stream_params: nil
+        ssrc: nil
       }
 
+      # This UDP.Source is used only to reserve a port
+      # It will be replaced once we receive negotiated RTP mapping
+      # Currently, there is no other way to do this, since UDP.Source
+      # has a static output pad which may only be linked once
       structure = [
-        child(:udp_source, %Membrane.UDP.Source{
-          # Pick any port if not specified
-          local_port_no: opts.rtp_port || 0
+        child(:temporary_udp_source, %Membrane.UDP.Source{
+          local_port_no: rtp_port
         })
-        |> via_in(Pad.ref(:rtp_input, make_ref()))
-        |> child(:rtp, Membrane.RTP.SessionBin)
+        |> child(:fake_sink, Membrane.Fake.Sink.Buffers)
       ]
 
       {[spec: structure], state}
@@ -79,7 +88,7 @@ if Enum.all?(
 
       structure = [
         get_child(:rtp)
-        |> via_out(Pad.ref(:output, state.stream_params.ssrc), options: [depayloader: nil])
+        |> via_out(Pad.ref(:output, state.ssrc), options: [depayloader: nil])
         |> via_in(Pad.ref(:input, {track_id, :high}))
         |> child(
           {:track_sender, track_id},
@@ -119,7 +128,12 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_child_notification({:connection_info, _address, port}, :udp_source, _ctx, state) do
+    def handle_child_notification(
+          {:connection_info, _address, port},
+          :temporary_udp_source,
+          _ctx,
+          state
+        ) do
       connection_manager_spec = [
         %{
           id: "ConnectionManager",
@@ -141,7 +155,7 @@ if Enum.all?(
         name: Membrane.RTC.Engine.Endpoint.RTSP.Supervisor
       )
 
-      {[], state}
+      {[], %{state | rtp_port: port}}
     end
 
     @impl true
@@ -151,17 +165,16 @@ if Enum.all?(
           _ctx,
           state
         )
-        when is_nil(state.stream_params) do
+        when is_nil(state.ssrc) do
       Membrane.Logger.debug("New RTP stream connected: #{inspect(msg)}")
 
-      state = %{state | stream_params: %{ssrc: ssrc, fmt: fmt}}
+      state = %{state | ssrc: ssrc}
 
-      if is_nil(state.track) do
-        Membrane.Logger.debug("Track will be created once RTSP setup completes")
-        {[], state}
-      else
-        {ready_track_actions(state), state}
+      if state.track.ctx.rtpmap.payload_type != fmt do
+        raise("Payload type mismatch between RTP mapping and received stream")
       end
+
+      {[notify_parent: {:track_ready, state.track.id, :high, state.track.encoding}], state}
     end
 
     @impl true
@@ -215,32 +228,32 @@ if Enum.all?(
         )
 
       Membrane.Logger.debug("Publishing new WebRTC track: #{inspect(track)}")
-      actions = [notify_parent: {:publish, {:new_tracks, [track]}}]
+
+      structure = [
+        child(:udp_source, %Membrane.UDP.Source{
+          local_port_no: state.rtp_port
+        })
+        |> via_in(Pad.ref(:rtp_input, make_ref()))
+        |> child(:rtp, %Membrane.RTP.SessionBin{
+          fmt_mapping: %{rtpmap.payload_type => {encoding, rtpmap.clock_rate}}
+        })
+      ]
+
+      actions = [
+        remove_child: [:temporary_udp_source, :fake_sink],
+        spec: structure,
+        notify_parent: {:publish, {:new_tracks, [track]}}
+      ]
+
       state = %{state | track: track}
 
-      if is_nil(state.stream_params) do
-        Membrane.Logger.debug(
-          "Track will be marked as ready once an RTP stream has been received"
-        )
-
-        {actions ++ create_nat_binding_actions(state, options[:server_port]), state}
-      else
-        {actions ++ ready_track_actions(state), state}
-      end
+      {actions ++ create_nat_binding_actions(state, options[:server_port]), state}
     end
 
     @impl true
     def handle_info(info, _ctx, state) do
       Membrane.Logger.warn("Unexpected info: #{inspect(info)}. Ignoring.")
       {[], state}
-    end
-
-    defp ready_track_actions(state) do
-      if state.track.ctx.rtpmap.payload_type != state.stream_params.fmt do
-        raise("Payload type mismatch between RTP mapping and received stream")
-      end
-
-      [notify_parent: {:track_ready, state.track.id, :high, state.track.encoding}]
     end
 
     defp create_nat_binding_actions(state, server_port) do
@@ -257,7 +270,7 @@ if Enum.all?(
         |> to_charlist()
         |> :inet.getaddr(:inet)
 
-      [notify_child: {:udp_source, {:probe, address, server_port}}]
+      [notify_child: {:udp_source, {:pierce_nat, address, server_port}}]
     end
   end
 end

@@ -89,6 +89,13 @@ if Enum.all?(
 
           {:ok, connection_status}
         else
+          {:error, :unauthorized} ->
+            Membrane.Logger.warn(
+              "ConnectionManager: Unauthorized. Attempting immediate reconnect..."
+            )
+
+            {:backoff, 0, connection_status}
+
           {:error, error_message} ->
             Membrane.Logger.warn(
               "ConnectionManager: Connection failed: #{inspect(error_message)}"
@@ -193,8 +200,11 @@ if Enum.all?(
       Membrane.Logger.debug("ConnectionManager: Setting up RTSP description")
 
       case RTSP.describe(rtsp_session) do
-        {:ok, %{status: 200, body: %{media: sdp_media}}} ->
-          attributes = get_video_attributes(sdp_media)
+        {:ok, %{status: 200} = response} ->
+          attributes = get_video_attributes(response)
+          []
+          |> Keyword.put(:control, get_control_path(attributes))
+          ... WRITE THE REST OF ME
 
           [fmtp: attributes["fmtp"], control: attributes["control"], rtpmap: attributes["rtpmap"]]
           |> then(
@@ -203,6 +213,9 @@ if Enum.all?(
                Keyword.merge(endpoint_options, &1)
              end)}
           )
+
+        {:ok, %{status: 401}} ->
+          {:error, :unauthorized}
 
         _result ->
           {:error, :getting_rtsp_description_failed}
@@ -276,20 +289,8 @@ if Enum.all?(
       end
     end
 
-    defp get_video_attributes(sdp_media) do
-      video_protocol = sdp_media |> Enum.find(fn elem -> elem.type == :video end)
-
-      Map.fetch!(video_protocol, :attributes)
-      # fixing inconsistency in keys:
-      |> Enum.map(fn entry ->
-        {key, value} = if is_tuple(entry), do: entry, else: {entry, nil}
-
-        case is_atom(key) do
-          true -> {Atom.to_string(key), value}
-          false -> {key, value}
-        end
-      end)
-      |> Enum.into(%{})
+    defp get_video_attributes(%{body: %ExSDP{media: media_list}}) do
+      media_list |> Enum.find(fn elem -> elem.type == :video end)
     end
 
     defp parse_server_port(headers) do
