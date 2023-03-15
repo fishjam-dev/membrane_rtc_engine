@@ -204,18 +204,23 @@ if Enum.all?(
       case RTSP.describe(rtsp_session) do
         {:ok, %{status: 200} = response} ->
           attributes = get_video_attributes(response)
+
           connection_status =
             connection_status
             |> put_in([:endpoint_options, :control], get_attribute(attributes, "control", ""))
             |> put_in([:endpoint_options, :fmtp], get_attribute(attributes, ExSDP.Attribute.FMTP))
-            |> put_in([:endpoint_options, :rtpmap], get_attribute(attributes, ExSDP.Attribute.RTPMapping))
+            |> put_in(
+              [:endpoint_options, :rtpmap],
+              get_attribute(attributes, ExSDP.Attribute.RTPMapping)
+            )
+
           {:ok, connection_status}
 
         {:ok, %{status: 401}} ->
           {:error, :unauthorized}
 
         _result ->
-          {:error, :getting_rtsp_description_failed} # XXX add connection_status here?
+          {:error, :getting_rtsp_description_failed}
       end
     end
 
@@ -289,7 +294,7 @@ if Enum.all?(
     defp get_attribute(video_attributes, attribute, default \\ nil) do
       case ExSDP.Media.get_attribute(video_attributes, attribute) do
         {^attribute, value} -> value
-        %attribute{} = value -> value
+        %^attribute{} = value -> value
         _other -> default
       end
     end

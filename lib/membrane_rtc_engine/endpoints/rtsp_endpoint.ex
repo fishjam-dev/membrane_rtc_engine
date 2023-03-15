@@ -31,7 +31,7 @@ if Enum.all?(
     require Membrane.Logger
 
     alias Membrane.RTC.Engine.Endpoint.RTSP.ConnectionManager
-#    alias Membrane.RTC.Engine.Endpoint.RTSP.PortAllocator
+    alias Membrane.RTC.Engine.Endpoint.RTSP.PortAllocator
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
     alias Membrane.RTC.Engine.Track
 
@@ -47,43 +47,66 @@ if Enum.all?(
                 source_uri: [
                   spec: URI.t(),
                   description: "URI of source stream"
-                ],
-#                port_range: [
-#                  spec: {pos_integer(), pos_integer()},
-#                  description:
-#                    "Port range from which to pick a port to receive RTP stream at",
-#                  default: {62_137, 62_420}
-#                ]
-                rtp_port: [
-                  spec: pos_integer() | nil,
-                  default: nil
                 ]
+
+    #                port_range: [
+    #                  spec: {pos_integer(), pos_integer()},
+    #                  description:
+    #                    "Port range from which to pick a port to receive RTP stream at",
+    #                  default: {62_137, 62_420}
+    #                ]
 
     @impl true
     def handle_init(_ctx, opts) do
-#      rtp_port = PortAllocator.get_port(opts.rtc_engine)
-      rtp_port = opts.rtp_port || 0
-
       state = %{
         rtc_engine: opts.rtc_engine,
         source_uri: opts.source_uri,
-        rtp_port: rtp_port,
+        rtp_port: nil,
         track: nil,
         ssrc: nil
       }
 
-      # This UDP.Source is used only to reserve a port
-      # It will be replaced once we receive negotiated RTP mapping
-      # Currently, there is no other way to do this, since UDP.Source
-      # has a static output pad which may only be linked once
-      structure = [
-        child(:temporary_udp_source, %Membrane.UDP.Source{
-          local_port_no: rtp_port
-        })
-        |> child(:fake_sink, Membrane.Fake.Sink.Buffers)
+      {[], state}
+    end
+
+    @impl true
+    def handle_setup(ctx, state) do
+      rtp_port = PortAllocator.get_port(state.rtc_engine)
+
+      if is_nil(rtp_port) do
+        raise("No available port in designated range to receive RTP stream at")
+      end
+
+      self_pid = self()
+
+      Membrane.ResourceGuard.register(
+        ctx.resource_guard,
+        fn -> PortAllocator.free_port(state.rtc_engine, self_pid) end,
+        tag: :rtsp_endpoint_guard
+      )
+
+      connection_manager_spec = [
+        %{
+          id: "ConnectionManager",
+          start:
+            {ConnectionManager, :start_link,
+             [
+               [
+                 stream_uri: state.source_uri,
+                 port: rtp_port,
+                 endpoint: self()
+               ]
+             ]},
+          restart: :transient
+        }
       ]
 
-      {[spec: structure], state}
+      Supervisor.start_link(connection_manager_spec,
+        strategy: :one_for_one,
+        name: Membrane.RTC.Engine.Endpoint.RTSP.Supervisor
+      )
+
+      {[], %{state | rtp_port: rtp_port}}
     end
 
     @impl true
@@ -134,37 +157,6 @@ if Enum.all?(
 
     @impl true
     def handle_child_notification(
-          {:connection_info, _address, port},
-          :temporary_udp_source,
-          _ctx,
-          state
-        ) do
-      connection_manager_spec = [
-        %{
-          id: "ConnectionManager",
-          start:
-            {ConnectionManager, :start_link,
-             [
-               [
-                 stream_uri: state.source_uri,
-                 port: port,
-                 endpoint: self()
-               ]
-             ]},
-          restart: :transient
-        }
-      ]
-
-      Supervisor.start_link(connection_manager_spec,
-        strategy: :one_for_one,
-        name: Membrane.RTC.Engine.Endpoint.RTSP.Supervisor
-      )
-
-      {[], %{state | rtp_port: port}}
-    end
-
-    @impl true
-    def handle_child_notification(
           {:new_rtp_stream, ssrc, fmt, _extensions} = msg,
           :rtp,
           _ctx,
@@ -190,6 +182,11 @@ if Enum.all?(
           _state
         ) do
       raise("Received unexpected, second RTP stream: #{inspect(msg)}")
+    end
+
+    @impl true
+    def handle_child_notification({:connection_info, _address, _port}, :udp_source, _ctx, state) do
+      {[], state}
     end
 
     @impl true
@@ -243,7 +240,6 @@ if Enum.all?(
       ]
 
       actions = [
-        remove_child: [:temporary_udp_source, :fake_sink],
         spec: structure,
         notify_parent: {:publish, {:new_tracks, [track]}}
       ]

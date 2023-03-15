@@ -89,11 +89,13 @@ defmodule Membrane.RTC.Engine do
   Associating Endpoint with Peer will cause RTC Engine to send some Media Events to the Enpoint's Client Library
   e.g. one which indicates which tracks belong to which peer.
 
-  Currently RTC Engine ships with the implementation of two Endpoints:
+  Currently RTC Engine ships with the implementation of three Endpoints:
   * `#{inspect(__MODULE__)}.Endpoint.WebRTC` which is responsible for establishing a connection with some WebRTC
   peer (mainly browser) and exchanging media with it. WebRTC Endpoint is a Peer Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
   saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
+  * `#{inspect(__MODULE__)}.Endpoint.RTSP` which is a piece of shit and should not be used by anyone, ever. TODO write me
+  RTSP Endpoint is a Standalone Endpoint.
 
   User can also implement custom Endpoints, see Custom Endpoints guide.
   """
@@ -122,7 +124,7 @@ defmodule Membrane.RTC.Engine do
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
   # `Membrane.Pipeline.call/3 currently has invalid typespec`
-  @dialyzer {:nowarn_function, get_endpoints: 1}
+  @dialyzer {:nowarn_function, [get_endpoints: 1, get_rtsp_port_allocator: 1]}
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -136,6 +138,7 @@ defmodule Membrane.RTC.Engine do
   Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
   * `display_manager?` - set to `true` if you want to limit number of tracks sent from `#{inspect(__MODULE__)}.Endpoint.WebRTC` to a browser.
   * `toilet_capacity` - sets capacity of buffer between engine and endpoints. Use it when you expect bursts of data for your tracks. If not provided it will be set to 200.
+  * `rtsp_port_range` - gods above and below, help us
   """
 
   @type options_t() :: [
@@ -143,7 +146,8 @@ defmodule Membrane.RTC.Engine do
           trace_ctx: map(),
           telemetry_label: Membrane.TelemetryMetrics.label(),
           display_manager?: boolean(),
-          toilet_capacity: pos_integer() | nil
+          toilet_capacity: pos_integer() | nil,
+          rtsp_port_range: {pos_integer(), pos_integer()} | nil
         ]
 
   defmodule State do
@@ -160,7 +164,11 @@ defmodule Membrane.RTC.Engine do
                   pending_peers: %{},
                   subscriptions: %{},
                   display_manager: nil,
-                  toilet_capacity: 200
+                  toilet_capacity: 200,
+                  rtsp_specific: %{
+                    port_range: {62_137, 62_420},
+                    allocator: nil
+                  }
                 ]
 
     @type t() :: %__MODULE__{
@@ -174,7 +182,8 @@ defmodule Membrane.RTC.Engine do
             subscriptions: %{Endpoint.id() => %{Track.id() => Subscription.t()}},
             pending_subscriptions: [Subscription.t()],
             pending_peers: %{Endpoint.id() => %{peer: Peer.t(), endpoint: Endpoint.t()}},
-            toilet_capacity: pos_integer()
+            toilet_capacity: pos_integer(),
+            rtsp_specific: %{port_range: {pos_integer(), pos_integer()}, allocator: pid() | nil}
           }
   end
 
@@ -275,8 +284,10 @@ defmodule Membrane.RTC.Engine do
   defp do_start(func, options, process_options) when func in [:start, :start_link] do
     id = options[:id] || "#{UUID.uuid4()}"
     display_manager? = options[:display_manager?] || false
+    rtsp_port_range = options[:rtsp_port_range] || {62_137, 62_420}
     options = Keyword.put(options, :id, id)
     options = Keyword.put(options, :display_manager?, display_manager?)
+    options = Keyword.put(options, :rtsp_port_range, rtsp_port_range)
     Membrane.Logger.info("Starting a new RTC Engine instance with id: #{id}")
 
     with {:ok, _supervisor, pipeline} <-
@@ -358,6 +369,14 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
+  Returns pid of RTSP Endpoint port allocator.
+  """
+  @spec get_rtsp_port_allocator(rtc_engine :: pid()) :: pid()
+  def get_rtsp_port_allocator(rtc_engine) do
+    Pipeline.call(rtc_engine, :get_rtsp_port_allocator)
+  end
+
+  @doc """
   Subscribes an endpoint for a track.
 
   The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
@@ -416,7 +435,8 @@ defmodule Membrane.RTC.Engine do
        trace_context: options[:trace_ctx],
        telemetry_label: telemetry_label,
        display_manager: display_manager,
-       toilet_capacity: toilet_capacity
+       toilet_capacity: toilet_capacity,
+       rtsp_specific: %{port_range: options[:rtsp_port_range], allocator: nil}
      }}
   end
 
@@ -544,6 +564,29 @@ defmodule Membrane.RTC.Engine do
       end)
 
     {[reply: endpoints], state}
+  end
+
+  @impl true
+  def handle_call(:get_rtsp_port_allocator, _ctx, state) do
+    allocator =
+      if Enum.all?(
+           # This generates a dialyzer warning...
+           Membrane.RTC.Engine.MixProject.rtsp_endpoint_deps(),
+           &Code.ensure_loaded?/1
+         ) do
+        if is_nil(state.rtsp_specific.allocator) do
+          {:ok, allocator} =
+            Endpoint.RTSP.PortAllocator.start_link(port_range: state.rtsp_specific.port_range)
+
+          allocator
+        else
+          state.rtsp_specific.allocator
+        end
+      else
+        nil
+      end
+
+    {[reply: allocator], put_in(state, [:rtsp_specific, :allocator], allocator)}
   end
 
   @impl true
