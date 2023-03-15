@@ -183,7 +183,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
 
       high_bitrate = Map.get(new_selector.variant_bitrates, :high)
 
-      assert high_bitrate == new_high_bitrate_kbps * 1024
+      assert high_bitrate == new_high_bitrate_kbps
     end
   end
 

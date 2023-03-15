@@ -296,6 +296,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
             "midToTrackId" => mid_to_track_id
           } = data
       } ->
+        # backwards compability
+        default_bitrates =
+          track_id_to_track_metadata
+          |> Enum.map(fn {id, _metadata} -> {id, @default_bitrates} end)
+          |> Map.new()
+
         {:ok,
          %{
            type: :sdp_offer,
@@ -306,7 +312,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
              },
              track_id_to_track_metadata: track_id_to_track_metadata,
              track_id_to_track_bitrates:
-               Map.get(data, "trackIdToTrackBitrates", @default_bitrates),
+               Map.get(data, "trackIdToTrackBitrates", default_bitrates),
              mid_to_track_id: mid_to_track_id
            }
          }}
