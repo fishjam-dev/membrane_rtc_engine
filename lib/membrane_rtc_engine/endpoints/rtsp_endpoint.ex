@@ -11,7 +11,7 @@ if Enum.all?(
     ```
     [
       {:connection, "~> 1.1"},
-      {:membrane_rtsp, "0.3.0"},
+      {:membrane_rtsp, "0.3.1"},
       {:membrane_udp_plugin, "~> 0.9.1"}
     ]
     ```
@@ -31,7 +31,7 @@ if Enum.all?(
     require Membrane.Logger
 
     alias Membrane.RTC.Engine.Endpoint.RTSP.ConnectionManager
-    alias Membrane.RTC.Engine.Endpoint.RTSP.PortAllocator
+#    alias Membrane.RTC.Engine.Endpoint.RTSP.PortAllocator
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
     alias Membrane.RTC.Engine.Track
 
@@ -48,16 +48,21 @@ if Enum.all?(
                   spec: URI.t(),
                   description: "URI of source stream"
                 ],
-                port_range: [
-                  spec: {pos_integer(), pos_integer()},
-                  description:
-                    "Port range from which to pick a port to receive RTP stream at",
-                  default: {62_137, 62_420}
+#                port_range: [
+#                  spec: {pos_integer(), pos_integer()},
+#                  description:
+#                    "Port range from which to pick a port to receive RTP stream at",
+#                  default: {62_137, 62_420}
+#                ]
+                rtp_port: [
+                  spec: pos_integer() | nil,
+                  default: nil
                 ]
 
     @impl true
     def handle_init(_ctx, opts) do
-      rtp_port = PortAllocator.get_port(opts.rtc_engine)
+#      rtp_port = PortAllocator.get_port(opts.rtc_engine)
+      rtp_port = opts.rtp_port || 0
 
       state = %{
         rtc_engine: opts.rtc_engine,
@@ -205,9 +210,7 @@ if Enum.all?(
     def handle_info({:rtsp_setup_complete, options}, ctx, state) do
       Membrane.Logger.debug("Endpoint received source options: #{inspect(options)}")
 
-      {:ok, fmtp} = ExSDP.Attribute.FMTP.parse(options[:fmtp])
-      rtpmap = options[:rtpmap]
-
+      rtpmap = options.rtpmap
       encoding = rtpmap.encoding |> String.to_atom()
 
       if encoding != :H264 do
@@ -223,7 +226,7 @@ if Enum.all?(
           endpoint_id,
           encoding,
           rtpmap.clock_rate,
-          fmtp,
+          options.fmtp,
           ctx: %{rtpmap: rtpmap}
         )
 
@@ -247,7 +250,7 @@ if Enum.all?(
 
       state = %{state | track: track}
 
-      {actions ++ create_nat_binding_actions(state, options[:server_port]), state}
+      {actions ++ create_nat_binding_actions(state, options.server_port), state}
     end
 
     @impl true

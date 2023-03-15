@@ -15,12 +15,14 @@ if Enum.all?(
 
     defmodule ConnectionStatus do
       @moduledoc false
+      use Bunch.Access
+
       @type t :: %__MODULE__{
               stream_uri: binary(),
               rtsp_session: pid(),
               endpoint: pid(),
               keep_alive: pid(),
-              endpoint_options: keyword()
+              endpoint_options: map()
             }
 
       @enforce_keys [
@@ -50,13 +52,13 @@ if Enum.all?(
       {:connect, :init,
        %ConnectionStatus{
          stream_uri: stream_uri,
-         endpoint_options: [
+         endpoint_options: %{
            port: port,
            rtpmap: nil,
            fmtp: nil,
            control: nil,
            server_port: nil
-         ],
+         },
          endpoint: endpoint
        }}
     end
@@ -202,23 +204,18 @@ if Enum.all?(
       case RTSP.describe(rtsp_session) do
         {:ok, %{status: 200} = response} ->
           attributes = get_video_attributes(response)
-          []
-          |> Keyword.put(:control, get_control_path(attributes))
-          ... WRITE THE REST OF ME
-
-          [fmtp: attributes["fmtp"], control: attributes["control"], rtpmap: attributes["rtpmap"]]
-          |> then(
-            &{:ok,
-             Map.update(connection_status, :endpoint_options, [], fn endpoint_options ->
-               Keyword.merge(endpoint_options, &1)
-             end)}
-          )
+          connection_status =
+            connection_status
+            |> put_in([:endpoint_options, :control], get_attribute(attributes, "control", ""))
+            |> put_in([:endpoint_options, :fmtp], get_attribute(attributes, ExSDP.Attribute.FMTP))
+            |> put_in([:endpoint_options, :rtpmap], get_attribute(attributes, ExSDP.Attribute.RTPMapping))
+          {:ok, connection_status}
 
         {:ok, %{status: 401}} ->
           {:error, :unauthorized}
 
         _result ->
-          {:error, :getting_rtsp_description_failed}
+          {:error, :getting_rtsp_description_failed} # XXX add connection_status here?
       end
     end
 
@@ -230,18 +227,14 @@ if Enum.all?(
          ) do
       Membrane.Logger.debug("ConnectionManager: Setting up RTSP connection")
 
-      case RTSP.setup(rtsp_session, "/#{endpoint_options[:control]}", [
-             {"Transport", "RTP/AVP;unicast;client_port=#{endpoint_options[:port]}"}
+      case RTSP.setup(rtsp_session, "/#{endpoint_options.control}", [
+             {"Transport", "RTP/AVP;unicast;client_port=#{endpoint_options.port}"}
            ]) do
         {:ok, %{status: 200, headers: headers}} ->
           # Parse server port to be able to combat NAT later
           server_port = parse_server_port(headers)
 
-          {:ok,
-           %{
-             connection_status
-             | endpoint_options: Keyword.merge(endpoint_options, server_port: server_port)
-           }}
+          {:ok, put_in(connection_status, [:endpoint_options, :server_port], server_port)}
 
         result ->
           Membrane.Logger.debug(
@@ -291,6 +284,14 @@ if Enum.all?(
 
     defp get_video_attributes(%{body: %ExSDP{media: media_list}}) do
       media_list |> Enum.find(fn elem -> elem.type == :video end)
+    end
+
+    defp get_attribute(video_attributes, attribute, default \\ nil) do
+      case ExSDP.Media.get_attribute(video_attributes, attribute) do
+        {^attribute, value} -> value
+        %attribute{} = value -> value
+        _other -> default
+      end
     end
 
     defp parse_server_port(headers) do

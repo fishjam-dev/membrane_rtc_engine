@@ -99,7 +99,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       # Optional deps for RTSP endpoint
       {:connection, "~> 1.1", optional: true},
       {:membrane_fake_plugin, "~> 0.9.0", optional: true},
-      {:membrane_rtsp, "0.3.0", optional: true},
+      {:membrane_rtsp, "0.3.1", optional: true},
       # {:membrane_udp_plugin, "~> 0.9.1", optional: true}, #FIXME
       {:membrane_udp_plugin,
        github: "membraneframework/membrane_udp_plugin",
