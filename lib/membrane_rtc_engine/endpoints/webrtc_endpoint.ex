@@ -703,7 +703,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_pad_added(Pad.ref(:output, {track_id, variant}) = pad, _ctx, state) do
     %Track{encoding: encoding} = track = Map.get(state.inbound_tracks, track_id)
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
-    variant_bitrates = to_variant_bitrates(track, Map.get(state.track_id_to_bandwidth, track_id))
+    variant_bitrates = to_track_variants(track, Map.get(state.track_id_to_bitrates, track_id))
 
     # EndpointBin expects `rid` to be nil for non simulcast tracks
     # assume that tracks with [:high] variants are non-simulcast
@@ -785,36 +785,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
-    map_track_info = fn map ->
-      data.track_id_to_track_info
-      |> Enum.map(map)
-      |> Map.new()
-    end
-
-    track_id_to_track_metadata =
-      map_track_info.(fn {id, track_info} -> {id, track_info.track_metadata} end)
-
-    track_id_to_bandwidth =
-      map_track_info.(fn {id, track_info} -> {id, track_info.max_bandwidth} end)
-
-    mid_to_track_id = map_track_info.(fn {id, track_info} -> {track_info.mid, id} end)
-
     state =
       state
-      |> Map.put(:track_id_to_metadata, track_id_to_track_metadata)
-      |> Map.put(:track_id_to_bandwidth, track_id_to_bandwidth)
+      |> Map.put(:track_id_to_metadata, data.track_id_to_track_metadata)
+      |> Map.put(:track_id_to_bitrates, data.track_id_to_track_bitrates)
 
-    msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, mid_to_track_id}}
+    msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
     {forward(:endpoint_bin, msg, ctx), state}
   end
 
   defp handle_media_event(%{type: :track_variant_bitrates, data: data}, ctx, state) do
-    track_bandwidth = Map.merge(state.track_id_to_bandwidth[data.track_id], data.variant_bitrates)
-    state = put_in(state, [:track_id_to_bandwidth, data.track_id], track_bandwidth)
+    track_bitrates = Map.merge(state.track_id_to_bitrates[data.track_id], data.variant_bitrates)
+    state = put_in(state, [:track_id_to_bitrates, data.track_id], track_bitrates)
 
     msg =
       {:variant_bitrates,
-       to_variant_bitrates(Map.get(state.inbound_tracks, data.track_id), data.variant_bitrates)}
+       to_track_variants(Map.get(state.inbound_tracks, data.track_id), data.variant_bitrates)}
 
     {forward({:track_sender, data.track_id}, msg, ctx), state}
   end
@@ -937,7 +923,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     WebRTC.Track.new(track.type, track.stream_id, to_keyword_list(track))
   end
 
-  defp to_variant_bitrates(track, raw_variant_bitrates) do
+  defp to_track_variants(track, raw_variant_bitrates) do
     # assume that bitrates was passed in correct format
     # (i.e. map or number for simulcast tracks, number for non simulcast tracks)
     if is_nil(raw_variant_bitrates),

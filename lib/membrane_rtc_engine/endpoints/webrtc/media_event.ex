@@ -4,6 +4,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.{Peer, Track}
 
+  @default_bitrates %{"h" => 1_500_000, "m" => 500_000, "l" => 150_000}
+
   @type t() :: map()
 
   @spec peer_accepted(Peer.id(), list()) :: t()
@@ -284,50 +286,30 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     case event do
       %{
         "type" => "sdpOffer",
-        "data" => %{
-          "sdpOffer" => %{
-            "type" => "offer",
-            "sdp" => sdp
-          },
-          "trackIdToTrackInfo" => track_id_to_track_info
-        }
+        "data" =>
+          %{
+            "sdpOffer" => %{
+              "type" => "offer",
+              "sdp" => sdp
+            },
+            "trackIdToTrackMetadata" => track_id_to_track_metadata,
+            "midToTrackId" => mid_to_track_id
+          } = data
       } ->
-        # max_bandwidth map still has rid strings as keys (e.g. %{"h" => 1500})
-        decoded_track_id_to_track_info =
-          track_id_to_track_info
-          |> Enum.map(fn {id, track_info} ->
-            {id,
-             %{
-               track_metadata: Map.get(track_info, "trackMetadata", :invalid),
-               max_bandwidth: Map.get(track_info, "maxBandwidth", :invalid),
-               mid: Map.get(track_info, "mid", :invalid)
-             }}
-          end)
-          |> Map.new()
-
-        is_valid =
-          for(
-            {_id, track_info} <- decoded_track_id_to_track_info,
-            {_key, value} <- track_info,
-            do: value != :invalid
-          )
-          |> Enum.all?()
-
-        if is_valid do
-          {:ok,
-           %{
-             type: :sdp_offer,
-             data: %{
-               sdp_offer: %{
-                 type: :offer,
-                 sdp: sdp
-               },
-               track_id_to_track_info: decoded_track_id_to_track_info
-             }
-           }}
-        else
-          {:error, :invalid_media_event}
-        end
+        {:ok,
+         %{
+           type: :sdp_offer,
+           data: %{
+             sdp_offer: %{
+               type: :offer,
+               sdp: sdp
+             },
+             track_id_to_track_metadata: track_id_to_track_metadata,
+             track_id_to_track_bitrates:
+               Map.get(data, "trackIdToTrackBitrates", @default_bitrates),
+             mid_to_track_id: mid_to_track_id
+           }
+         }}
 
       _other ->
         {:error, :invalid_media_event}
