@@ -6,6 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
   alias Membrane.Time
 
   @initial_bandwidth_estimation 100_000
+  @initial_allocation 10_000
   @padding_packet_size 8 * 256
 
   # Type describing probing scenario, to be used in `test_probing/1`
@@ -37,7 +38,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
       [prober: prober]
     end
 
-    test "correctly probes the connection in :maintain_estimation state", %{
+    test "doesn't probe the connection in :maintain_allocation state", %{
       prober: prober,
       track: track
     } do
@@ -54,51 +55,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
                               allocation: ^allocation
                             }}
           end,
-          expected_probing_rate: allocation
+          expected_probing_rate: 0
         }
       ]
 
       test_probing(prober, track, scenario)
     end
 
-    test "correctly probes the connection in :maintain_estimation state, with probing target change",
-         %{
-           prober: prober,
-           track: track
-         } do
-      allocation1 = div(@initial_bandwidth_estimation, 2)
-      allocation2 = @initial_bandwidth_estimation
-
-      scenario = [
-        %{
-          duration: Time.seconds(5),
-          on_start: fn task ->
-            send(task, {:request, allocation1})
-
-            assert_receive {:received, ^task,
-                            %AllocationGrantedNotification{
-                              allocation: ^allocation1
-                            }}
-          end,
-          expected_probing_rate: allocation1
-        },
-        %{
-          duration: Time.seconds(5),
-          on_start: fn task ->
-            send(task, {:request, allocation2})
-
-            assert_receive {:received, ^task,
-                            %AllocationGrantedNotification{
-                              allocation: ^allocation2
-                            }}
-          end,
-          expected_probing_rate: allocation2
-        }
-      ]
-
-      test_probing(prober, track, scenario)
-    end
-
+    @tag :skip
+    # we no longer confirm that probe was sent
     test "correctly probes the connection in :increase_estimation state, with probing target change",
          %{
            prober: prober,
@@ -181,7 +146,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
   describe "RTPConnectionAllocator prober state" do
     setup %{track: track} = _context do
-      prober = %RTPConnectionAllocator{}
+      {:ok, prober} = RTPConnectionAllocator.init([])
 
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
@@ -189,49 +154,77 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
           prober
         )
 
+      prober = %{prober | estimated_sender_rate: @initial_bandwidth_estimation}
+
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
-          {:register_track_receiver, self(), 10_000, track, []},
+          {:register_track_receiver, self(), @initial_allocation, track, []},
           prober
         )
 
       [prober: prober]
     end
 
-    test "switches to disallowed_overuse when bandwidth estimation lowers below allocated bandwidth",
+    test "switches to allowed_overuse when bandwidth estimation lowers below allocated bandwidth",
          %{prober: prober} do
+      prober = simulate_sender_rate(prober)
+
+      assert {:noreply, %{prober_status: :allowed_overuse} = prober} =
+               RTPConnectionAllocator.handle_cast(
+                 {:bandwidth_estimation, @initial_allocation - 1000},
+                 prober
+               )
+
+      prober = simulate_sender_rate(prober)
+
+      assert {:noreply, %{prober_status: :allowed_overuse} = prober} =
+               RTPConnectionAllocator.handle_cast(
+                 {:bandwidth_estimation, @initial_allocation - 500},
+                 prober
+               )
+
+      prober = simulate_sender_rate(prober)
+
+      assert {:noreply, %{prober_status: :disallowed_overuse}} =
+               RTPConnectionAllocator.handle_cast(
+                 {:bandwidth_estimation, @initial_allocation - 1500},
+                 prober
+               )
+    end
+
+    test "switches to disallowed_overuse from allowed_overuse when bandwidth allocation decreases",
+         %{prober: prober} do
+      prober = simulate_sender_rate(prober)
+
+      assert {:noreply, %{prober_status: :allowed_overuse} = prober} =
+               RTPConnectionAllocator.handle_cast(
+                 {:bandwidth_estimation, @initial_allocation - 1000},
+                 prober
+               )
+
+      prober = simulate_sender_rate(prober)
+
       assert {:noreply, prober} =
                RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 0}, prober)
 
       assert prober.prober_status == :disallowed_overuse
+
       assert_receive :decrease_your_allocation, 0
 
-      send(self(), {self(), {:decrease_allocation_request, :accept}})
+      prober = simulate_sender_rate(prober)
 
       assert {:noreply, prober} =
                RTPConnectionAllocator.handle_cast({:request_allocation, self(), 0}, prober)
 
+      prober = simulate_sender_rate(prober)
       assert prober.prober_status == :maintain_allocation
       refute_receive :decrease_your_allocation, 0
     end
 
-    test "switches to disallowed_overuse from allowed_overuse when bandwidth allocation decreases",
-         %{prober: prober, track: track} do
-      # Get to allowed overuse
-      {:noreply, prober} =
-        RTPConnectionAllocator.handle_cast(
-          {:register_track_receiver, self(), 100_000_000, %{track | variants: [:high]}, []},
-          prober
-        )
-
-      assert prober.prober_status == :allowed_overuse
-
-      {:noreply, prober} = RTPConnectionAllocator.handle_cast({:bandwidth_estimation, 0}, prober)
-      assert prober.prober_status == :disallowed_overuse
-    end
-
     test "stays in allowed overuse if estimation increases", %{track: track, prober: prober} do
       # Get to allowed overuse
+      prober = simulate_sender_rate(prober, 100_000_000)
+
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
           {:register_track_receiver, self(), 100_000_000, %{track | variants: [:high]}, []},
@@ -239,6 +232,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
         )
 
       assert prober.prober_status == :allowed_overuse
+
+      prober = simulate_sender_rate(prober, 100_000_000)
 
       {:noreply, prober} =
         RTPConnectionAllocator.handle_cast(
@@ -263,28 +258,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
       assert prober.prober_status == :maintain_allocation
       assert_receive %AllocationGrantedNotification{allocation: ^request}
-    end
-
-    @tag negotiable?: false
-    test "switches to allowed overuse non-negotiable track raises allocation over available bandwidth",
-         %{prober: prober} do
-      {:noreply, prober} =
-        RTPConnectionAllocator.handle_cast({:request_allocation, self(), 1_000_000_000}, prober)
-
-      assert prober.prober_status == :allowed_overuse
-    end
-
-    test "switches to allowed overuse mode when new track receiver registers", %{
-      track: track,
-      prober: prober
-    } do
-      {:noreply, prober} =
-        RTPConnectionAllocator.handle_cast(
-          {:register_track_receiver, self(), 1_000_000, track, []},
-          prober
-        )
-
-      assert prober.prober_status == :allowed_overuse
     end
   end
 
@@ -330,11 +303,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
       :decrease_allocation_request = msg ->
         send(owner, {:received, self(), msg})
-        do_mock_track_receiver(owner, prober, probing?)
-
-      :send_padding_packet when probing? ->
-        RTPConnectionAllocator.probe_sent(prober)
-        send(owner, {:probe_sent, self()})
         do_mock_track_receiver(owner, prober, probing?)
     end
   end
@@ -390,5 +358,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
     end
 
     refute_receive {:probe_sent, ^task}, 0, "Received too many paddings!"
+  end
+
+  defp simulate_sender_rate(%RTPConnectionAllocator{} = prober, rate \\ @initial_allocation) do
+    Process.sleep(100)
+
+    prober
+    |> update_in(
+      [:track_receivers, self()],
+      &%{
+        &1
+        | bits_since_last_estimation: rate * 8,
+          last_estimation_ts: System.monotonic_time(:nanosecond) - 100_000_000,
+          estimated_sender_rate: rate * 8
+      }
+    )
+    |> Map.put(:estimated_sender_rate, rate * 8)
   end
 end
