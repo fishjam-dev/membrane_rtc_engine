@@ -4,8 +4,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.{Peer, Track}
 
-  @default_bitrates %{"h" => 1_500_000, "m" => 500_000, "l" => 150_000}
-
   @type t() :: map()
 
   @spec peer_accepted(Peer.id(), list()) :: t()
@@ -296,12 +294,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
             "midToTrackId" => mid_to_track_id
           } = data
       } ->
-        # backwards compability
-        default_bitrates =
-          track_id_to_track_metadata
-          |> Enum.map(fn {id, _metadata} -> {id, @default_bitrates} end)
-          |> Map.new()
-
         {:ok,
          %{
            type: :sdp_offer,
@@ -311,8 +303,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
                sdp: sdp
              },
              track_id_to_track_metadata: track_id_to_track_metadata,
-             track_id_to_track_bitrates:
-               Map.get(data, "trackIdToTrackBitrates", default_bitrates),
+             # use default values in VariantSelector if track_id_to_track_bitrates is not present
+             track_id_to_track_bitrates: Map.get(data, "trackIdToTrackBitrates", %{}),
              mid_to_track_id: mid_to_track_id
            }
          }}

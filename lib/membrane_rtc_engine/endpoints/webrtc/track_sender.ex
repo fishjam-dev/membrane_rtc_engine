@@ -333,16 +333,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
     actions =
       ctx.pads
-      |> Enum.flat_map(fn
-        {{Membrane.Pad, :output, {_track_id, variant}} = pad, _pad_data} ->
-          case Map.get(variant_bitrates, variant) do
-            nil -> []
-            bitrate -> [event: {pad, %TrackVariantBitrate{variant: variant, bitrate: bitrate}}]
-          end
+      |> Enum.filter(fn
+        {Pad.ref(:output, {_track_id, variant}), _pad_data} ->
+          Map.has_key?(variant_bitrates, variant)
 
         _other ->
-          []
+          false
       end)
+      |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad, state) end)
 
     {actions, state}
   end
@@ -392,14 +390,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad, state) do
     [
       stream_format: {pad, %Membrane.RTP{}},
-      event: {pad, %TrackVariantResumed{variant: variant}},
-      event:
-        {pad,
-         %TrackVariantBitrate{
-           variant: variant,
-           bitrate: Map.get(state.variant_bitrates, variant)
-         }}
-    ]
+      event: {pad, %TrackVariantResumed{variant: variant}}
+    ] ++ get_variant_bitrate_action(pad, state)
+  end
+
+  defp get_variant_bitrate_action(Pad.ref(:output, {_track_id, variant}) = pad, state) do
+    case Map.fetch(state.variant_bitrates, variant) do
+      {:ok, bitrate} -> [event: {pad, %TrackVariantBitrate{variant: variant, bitrate: bitrate}}]
+      :error -> []
+    end
   end
 
   defp to_output_pad(Pad.ref(:input, {_track_id, _encoding} = pad_id)) do
