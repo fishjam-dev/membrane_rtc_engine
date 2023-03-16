@@ -149,7 +149,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   @spec update_variant_bitrate(t(), Track.variant(), non_neg_integer()) :: t()
   def update_variant_bitrate(%__MODULE__{} = selector, variant, bitrate) do
     variant_bitrates = %{selector.variant_bitrates | variant => bitrate}
-    %{selector | variant_bitrates: variant_bitrates}
+
+    selector
+    |> Map.put(:variant_bitrates, variant_bitrates)
+    |> manage_allocation()
   end
 
   @doc """
