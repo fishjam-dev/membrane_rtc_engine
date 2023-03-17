@@ -26,7 +26,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker do
   @doc """
   Called when hls endpoint is intialized
   """
-  @callback init(output_format()) :: state()
+  @callback init(output_format(), any()) :: state()
 
   @doc """
   Called when new track has been added to hls endpoint
