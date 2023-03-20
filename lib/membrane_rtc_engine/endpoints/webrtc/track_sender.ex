@@ -340,7 +340,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         _other ->
           false
       end)
-      |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad, state) end)
+      |> Enum.flat_map(fn {pad, _pad_data} -> get_variant_bitrate_action(pad, state) end)
 
     {actions, state}
   end
