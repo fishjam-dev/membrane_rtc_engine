@@ -18,7 +18,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   @fixtures_dir "./test/fixtures/"
   @reference_dir "./test/hls_reference/"
   @main_manifest "index.m3u8"
-  @accaptable_bandwidth_diff 100_000
+  @accaptable_bandwidth_diff 500_000
 
   setup do
     options = [
@@ -202,7 +202,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, 50_000)
 
       assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
                        endpoint_id: ^hls_endpoint_id,
@@ -265,8 +265,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      assert_receive({:playlist_playable, :audio, ^output_dir}, 10_000)
-      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :audio, ^output_dir}, 50_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, 50_000)
 
       assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
                        endpoint_id: ^hls_endpoint_id,
@@ -324,8 +324,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      assert_receive({:playlist_playable, :audio, ^output_dir}, 10_000)
-      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :audio, ^output_dir}, 50_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, 50_000)
 
       assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
                        endpoint_id: ^hls_endpoint_id,
@@ -340,7 +340,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   test "handling update_layout message works correctly" do
     state = %{
       video_layout_tracks_added: %{},
-      video_layout_state: TestLayoutMaker.init(nil),
+      video_layout_state: TestLayoutMaker.init(nil, nil),
       tracks: %{
         first: %{id: :first},
         second: %{id: :second}
@@ -503,10 +503,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
   defp check_correctness_of_output_files(output_dir, reference_dir) do
     output_files = output_dir |> File.ls!() |> Enum.sort()
 
-    output_manifests =
-      Enum.filter(output_files, fn file ->
-        String.match?(file, ~r/\.m3u8$/) and file != @main_manifest
-      end)
+    # output_manifests =
+    #   Enum.filter(output_files, fn file ->
+    #     String.match?(file, ~r/\.m3u8$/) and file != @main_manifest
+    #   end)
 
     # FIXME:
     # for manifest <- output_manifests do

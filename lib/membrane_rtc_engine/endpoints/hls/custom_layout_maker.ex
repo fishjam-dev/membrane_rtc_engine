@@ -11,8 +11,8 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.CornersRounding
     alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.Cropping
 
-    @type track_no :: pos_integer()
-    @type padding :: pos_integer()
+    @type track_no :: non_neg_integer()
+    @type padding :: non_neg_integer()
 
     @type position :: {pos_integer(), pos_integer()}
     @type resolution :: %{width: pos_integer(), height: pos_integer()}
