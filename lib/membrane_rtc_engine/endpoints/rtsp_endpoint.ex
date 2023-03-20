@@ -22,18 +22,38 @@ if Enum.all?(
     At the moment, if H264 parameters are passed out-of-band, only the HLS Endpoint
     will be able to subscribe to tracks created by the RTSP Endpoint.
 
-    If a connection drops .. TODO write the rest of me
-    Run only on server without NAT .. TODO write the rest of me
+    If the RTSP Endpoint has yet to successfully connect to the stream source,
+    a reconnect attempt can be made, either by the endpoint itself,
+    or by calling `#{inspect(__MODULE__)}.request_reconnect/2`.
+    Once connected, however, if RTSP signalling crashes, the endpoint WILL NOT be able
+    to reconnect, and will shut down instead.
+    A manual restart of the endpoint will then be needed to restore its functionality.
+
+    Note that the RTSP Endpoint is not guaranteed to work when NAT is used
+    by either side of the connection.
     """
 
     use Membrane.Bin
 
     require Membrane.Logger
 
+    alias Membrane.RTC.Engine
     alias Membrane.RTC.Engine.Endpoint.RTSP.ConnectionManager
-    alias Membrane.RTC.Engine.Endpoint.RTSP.PortAllocator
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
     alias Membrane.RTC.Engine.Track
+
+    @doc """
+    Request that a given RTSP Endpoint attempts a reconnect to the remote stream source.
+    """
+    @spec request_reconnect(rtc_engine :: pid(), endpoint_id :: String.t()) :: :ok
+    def request_reconnect(rtc_engine, endpoint_id) do
+      Engine.message_endpoint(rtc_engine, endpoint_id, :reconnect)
+    end
+
+    @rtp_port 20_000
+    @max_reconnect_attempts 3
+    @reconnect_delay 15_000
+    @keep_alive_interval 15_000
 
     def_output_pad :output,
       demand_unit: :buffers,
@@ -47,66 +67,53 @@ if Enum.all?(
                 source_uri: [
                   spec: URI.t(),
                   description: "URI of source stream"
+                ],
+                rtp_port: [
+                  spec: pos_integer(),
+                  description: "Local port RTP stream will be received at",
+                  default: @rtp_port
+                ],
+                max_reconnect_attempts: [
+                  spec: non_neg_integer(),
+                  description:
+                    "How many times the endpoint will attempt to reconnect before hibernating",
+                  default: @max_reconnect_attempts
+                ],
+                reconnect_delay: [
+                  spec: non_neg_integer(),
+                  description: "Delay (in ms) between successive reconnect attempts",
+                  default: @reconnect_delay
+                ],
+                keep_alive_interval: [
+                  spec: non_neg_integer(),
+                  description:
+                    "Interval (in ms) in which keep-alive RTSP messages will be sent to the remote stream source",
+                  default: @keep_alive_interval
                 ]
-
-    #                port_range: [
-    #                  spec: {pos_integer(), pos_integer()},
-    #                  description:
-    #                    "Port range from which to pick a port to receive RTP stream at",
-    #                  default: {62_137, 62_420}
-    #                ]
 
     @impl true
     def handle_init(_ctx, opts) do
       state = %{
         rtc_engine: opts.rtc_engine,
         source_uri: opts.source_uri,
-        rtp_port: nil,
+        rtp_port: opts.rtp_port,
         track: nil,
-        ssrc: nil
+        ssrc: nil,
+        connection_manager: nil
       }
 
-      {[], state}
-    end
-
-    @impl true
-    def handle_setup(ctx, state) do
-      rtp_port = PortAllocator.get_port(state.rtc_engine)
-
-      if is_nil(rtp_port) do
-        raise("No available port in designated range to receive RTP stream at")
-      end
-
-      self_pid = self()
-
-      Membrane.ResourceGuard.register(
-        ctx.resource_guard,
-        fn -> PortAllocator.free_port(state.rtc_engine, self_pid) end,
-        tag: :rtsp_endpoint_guard
-      )
-
-      connection_manager_spec = [
-        %{
-          id: "ConnectionManager",
-          start:
-            {ConnectionManager, :start_link,
-             [
-               [
-                 stream_uri: state.source_uri,
-                 port: rtp_port,
-                 endpoint: self()
-               ]
-             ]},
-          restart: :transient
-        }
+      connection_manager_opts = [
+        stream_uri: state.source_uri,
+        port: state.rtp_port,
+        endpoint: self(),
+        max_reconnect_attempts: opts.max_reconnect_attempts,
+        reconnect_delay: opts.reconnect_delay,
+        keep_alive_interval: opts.keep_alive_interval
       ]
 
-      Supervisor.start_link(connection_manager_spec,
-        strategy: :one_for_one,
-        name: Membrane.RTC.Engine.Endpoint.RTSP.Supervisor
-      )
+      {:ok, pid} = ConnectionManager.start_link(connection_manager_opts)
 
-      {[], %{state | rtp_port: rtp_port}}
+      {[], %{state | connection_manager: pid}}
     end
 
     @impl true
@@ -136,6 +143,14 @@ if Enum.all?(
 
     @impl true
     def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
+      {[], state}
+    end
+
+    @impl true
+    def handle_parent_notification(:reconnect, _ctx, state) do
+      Membrane.Logger.info("Attempting reconnect to remote RTSP stream source...")
+
+      GenServer.cast(state.connection_manager, :reconnect)
       {[], state}
     end
 
@@ -171,7 +186,10 @@ if Enum.all?(
         raise("Payload type mismatch between RTP mapping and received stream")
       end
 
-      {[notify_parent: {:track_ready, state.track.id, :high, state.track.encoding}], state}
+      {[
+         notify_parent: {:forward_to_parent, :new_rtp_stream},
+         notify_parent: {:track_ready, state.track.id, :high, state.track.encoding}
+       ], state}
     end
 
     @impl true
@@ -241,12 +259,44 @@ if Enum.all?(
 
       actions = [
         spec: structure,
+        notify_parent: {:forward_to_parent, :rtsp_setup_complete},
         notify_parent: {:publish, {:new_tracks, [track]}}
       ]
 
       state = %{state | track: track}
 
       {actions ++ create_nat_binding_actions(state, options.server_port), state}
+    end
+
+    @impl true
+    def handle_info({:connection_info, {:connection_failed, reason} = msg}, _ctx, state) do
+      Membrane.Logger.warn("RTSP Endpoint: Connection failed: #{inspect(reason)}")
+
+      actions = [notify_parent: {:forward_to_parent, msg}]
+
+      # No point to keep the endpoint up if URI is invalid
+      if reason == :invalid_url do
+        Membrane.Logger.warn("RTSP Endpoint: Invalid URI. Endpoint shutting down")
+        {actions ++ [terminate: :shutdown], state}
+      else
+        {actions, state}
+      end
+    end
+
+    @impl true
+    def handle_info({:connection_info, :max_reconnects}, _ctx, state) do
+      Membrane.Logger.warn("RTSP Endpoint: Max reconnect attempts reached.")
+      {[notify_parent: {:forward_to_parent, :max_reconnects}], state}
+    end
+
+    @impl true
+    def handle_info({:connection_info, :disconnected}, _ctx, state) do
+      Membrane.Logger.warn("""
+      RTSP Endpoint disconnected from source.
+      The endpoint is now functionally useless, it will not be able to reconnect and is thus shutting down
+      """)
+
+      {[notify_parent: {:forward_to_parent, :disconnected}, terminate: :shutdown], state}
     end
 
     @impl true
