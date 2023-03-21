@@ -43,7 +43,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
   describe "deserializing sdpOffer media event" do
     test "creates proper map when event is valid" do
       metadata = %{"track_id" => %{"abc" => "cba"}}
-      bitrates = %{"track_id" => %{"l" => 100, "m" => 200, "h" => 300}}
+      bitrates = %{"track_id" => %{"m" => 200}}
+      decoded_bitrates = %{"track_id" => %{medium: 200}}
       mids = %{"5" => "track_id"}
       sdp = "mock_sdp"
 
@@ -75,7 +76,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
               sdp: sdp
             },
             track_id_to_track_metadata: metadata,
-            track_id_to_track_bitrates: bitrates,
+            track_id_to_track_bitrates: decoded_bitrates,
             mid_to_track_id: mids
           }
         }
@@ -108,6 +109,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
     test "creates proper map when event is valid" do
       track_id = "track_id"
       bitrates = %{"h" => 1000, "m" => 500}
+      decoded_bitrates = %{high: 1000, medium: 500}
 
       raw_media_event =
         %{
@@ -128,7 +130,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
           type: :track_variant_bitrates,
           data: %{
             track_id: track_id,
-            variant_bitrates: bitrates
+            variant_bitrates: decoded_bitrates
           }
         }
       }

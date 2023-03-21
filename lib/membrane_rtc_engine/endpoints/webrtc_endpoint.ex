@@ -703,7 +703,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_pad_added(Pad.ref(:output, {track_id, variant}) = pad, _ctx, state) do
     %Track{encoding: encoding} = track = Map.get(state.inbound_tracks, track_id)
     extensions = Map.get(state.extensions, encoding, []) ++ Map.get(state.extensions, :any, [])
-    variant_bitrates = to_track_variants(track, Map.get(state.track_id_to_bitrates, track_id))
 
     # EndpointBin expects `rid` to be nil for non simulcast tracks
     # assume that tracks with [:high] variants are non-simulcast
@@ -717,7 +716,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> via_in(Pad.ref(:input, {track_id, variant}))
       |> child(
         {:track_sender, track_id},
-        %TrackSender{track: track, variant_bitrates: variant_bitrates},
+        %TrackSender{
+          track: track,
+          variant_bitrates: Map.fetch!(state.track_id_to_bitrates, track_id)
+        },
         get_if_exists: true
       )
       |> via_out(pad)
@@ -797,10 +799,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp handle_media_event(%{type: :track_variant_bitrates, data: data}, ctx, state) do
     track_bitrates = Map.merge(state.track_id_to_bitrates[data.track_id], data.variant_bitrates)
     state = put_in(state, [:track_id_to_bitrates, data.track_id], track_bitrates)
-
-    msg =
-      {:variant_bitrates,
-       to_track_variants(Map.get(state.inbound_tracks, data.track_id), data.variant_bitrates)}
+    msg = {:variant_bitrates, data.variant_bitrates}
 
     {forward({:track_sender, data.track_id}, msg, ctx), state}
   end
@@ -921,24 +920,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     extmaps = Map.get(track.ctx, WebRTC.Extension, [])
     track = Map.put(track, :extmaps, extmaps)
     WebRTC.Track.new(track.type, track.stream_id, to_keyword_list(track))
-  end
-
-  defp to_track_variants(track, raw_variant_bitrates) do
-    # assume that bitrates was passed in correct format
-    # (i.e. map or number for simulcast tracks, number for non simulcast tracks)
-    if is_nil(raw_variant_bitrates),
-      do: raise("Bitrates of this track's variants have not been set")
-
-    case raw_variant_bitrates do
-      bandwidth when is_number(bandwidth) ->
-        %{high: bandwidth}
-
-      variant_bitrates ->
-        track.variants
-        |> Enum.filter(&Map.has_key?(variant_bitrates, to_rid(&1)))
-        |> Enum.map(&{&1, Map.get(variant_bitrates, to_rid(&1))})
-        |> Map.new()
-    end
   end
 
   defp to_keyword_list(%Engine.Track{} = struct),
