@@ -5,69 +5,6 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   alias Membrane.RTC.Engine.Endpoint.RTSP
   alias Membrane.RTC.Engine.Message
 
-  defmodule FakeSignallingServer do
-    @spec start(String.t(), pos_integer(), pos_integer()) :: any()
-    def start(ip, port, client_port) do
-      {:ok, socket} =
-        :gen_tcp.listen(port, [:binary, packet: :line, active: false, reuseaddr: true])
-
-      loop_acceptor(socket, ip, port, client_port)
-    end
-
-    defp loop_acceptor(socket, ip, port, client_port) do
-      {:ok, client} = :gen_tcp.accept(socket)
-      serve(client, %{ip: ip, port: port, client_port: client_port, cseq: 0})
-      loop_acceptor(socket, ip, port, client_port)
-    end
-
-    defp serve(socket, state) do
-      request = get_request(socket)
-
-      response =
-        case state.cseq do
-          0 ->
-            "DESCRIBE " <> _rest = request
-
-            sdp =
-              "v=0\r\nm=video 0 RTP/AVP 96\r\na=control:rtsp://#{state.ip}:#{state.port}/control\r\n" <>
-                "a=rtpmap:96 H264/90000\r\na=fmtp:96 profile-level-id=64001f; packetization-mode=1; " <>
-                "sprop-parameter-sets=Z2QAH62EAQwgCGEAQwgCGEAQwgCEO1AoAt03AQEBQAAA+gAAOpgh,aO4xshs=\r\n"
-
-            "RTSP/1.0 200 OK\r\nCSeq: 0\r\nContent-Base: rtsp://#{state.ip}:#{state.port}/stream\r\n" <>
-              "Content-Type: application/sdp\r\nContent-Length: #{byte_size(sdp)}\r\n\r\n" <> sdp
-
-          1 ->
-            "SETUP " <> _rest = request
-
-            "RTSP/1.0 200 OK\r\nCSeq: 1\r\nTransport: RTP/AVP;unicast;client_port=#{state.client_port};" <>
-              "server_port=23456;ssrc=10443EAB\r\n\r\n"
-
-          2 ->
-            "PLAY " <> _rest = request
-            "RTSP/1.0 200 OK\r\nCSeq: 2\r\n\r\n"
-
-          # Simulate the server not responding to keep-alives
-          _other ->
-            nil
-        end
-
-      if not is_nil(response), do: :gen_tcp.send(socket, response)
-
-      serve(socket, %{state | cseq: state.cseq + 1})
-    end
-
-    defp get_request(socket, request \\ "") do
-      {:ok, packet} = :gen_tcp.recv(socket, 0)
-      request = request <> packet
-
-      if packet != "\r\n" do
-        get_request(socket, request)
-      else
-        request
-      end
-    end
-  end
-
   setup do
     options = [
       id: "test_rtc"
@@ -151,7 +88,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   test "RTSP signalling and disconnects (with a fake server)", %{rtc_engine: rtc_engine} do
     {:ok, server_pid} =
       Task.start_link(fn ->
-        FakeSignallingServer.start(@loopback_ip, @fake_server_port, @rtp_port)
+        FakeRTSPserver.start(@loopback_ip, @fake_server_port, @rtp_port)
       end)
 
     rtsp_endpoint = %RTSP{
@@ -172,7 +109,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
       20_000
     )
 
-    # Fake server is not responding to GET_PARAMETER keep-alives.
+    # Fake server stops responding to GET_PARAMETER keep-alives after RTSP setup completes.
     # This simulates a connection loss, and should result in the endpoint shutting down
     assert_receive(
       %Message.EndpointMessage{
