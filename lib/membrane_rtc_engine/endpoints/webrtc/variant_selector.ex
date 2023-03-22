@@ -142,7 +142,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     }
   end
 
-  # TODO bytes per second or bits per second
   @doc """
   Updates bitrate assigned to a variant in the selector. Expected bitrate unit is bps.
   """
