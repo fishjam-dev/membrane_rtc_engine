@@ -12,7 +12,7 @@ if Enum.all?(
     [
       {:connection, "~> 1.1"},
       {:membrane_rtsp, "0.3.1"},
-      {:membrane_udp_plugin, "~> 0.9.1"}
+      {:membrane_udp_plugin, "~> 0.9.2"}
     ]
     ```
 
