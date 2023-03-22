@@ -4,7 +4,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{NoOpConnectionAllocator, VariantSelector}
 
   @variant_bitrates %{
-    high: 1_500_000,
+    high: 2_500_000,
     medium: 500_000,
     low: 150_000
   }
