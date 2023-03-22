@@ -11,7 +11,9 @@ defmodule FakeRTSPserver do
 
   defp loop_acceptor(socket, ip, port, client_port) do
     {:ok, client} = :gen_tcp.accept(socket)
+
     serve(client, %{ip: ip, port: port, client_port: client_port, cseq: 0, server_state: :preinit})
+
     loop_acceptor(socket, ip, port, client_port)
   end
 
@@ -41,17 +43,21 @@ defmodule FakeRTSPserver do
 
   defp do_serve(socket, state, respond_on, raise_on \\ []) do
     request = get_request(socket)
-    request_type = case request do
-      "DESCRIBE " <> _rest -> :describe
-      "SETUP " <> _rest -> :setup
-      "PLAY " <> _rest -> :play
-      "GET_PARAMETER " <> _rest -> :get_parameter
-      _other -> raise("RTSP Endpoint sent unrecognised request: #{inspect(request)}")
-    end
+
+    request_type =
+      case request do
+        "DESCRIBE " <> _rest -> :describe
+        "SETUP " <> _rest -> :setup
+        "PLAY " <> _rest -> :play
+        "GET_PARAMETER " <> _rest -> :get_parameter
+        _other -> raise("RTSP Endpoint sent unrecognised request: #{inspect(request)}")
+      end
+
     response_body =
       if Enum.any?(respond_on, fn allowed_request -> request_type == allowed_request end) do
         generate_response(request_type, state)
       end
+
     if is_nil(response_body) do
       if Enum.any?(raise_on, fn erroneous_request -> request_type == erroneous_request end) do
         raise("""
@@ -76,20 +82,20 @@ defmodule FakeRTSPserver do
   defp generate_response(request_type, state) do
     case request_type do
       :describe ->
-          sdp =
-            "v=0\r\nm=video 0 RTP/AVP 96\r\na=control:rtsp://#{state.ip}:#{state.port}/control\r\n" <>
-              "a=rtpmap:96 H264/90000\r\na=fmtp:96 profile-level-id=64001f; packetization-mode=1; " <>
-              "sprop-parameter-sets=Z2QAH62EAQwgCGEAQwgCGEAQwgCEO1AoAt03AQEBQAAA+gAAOpgh,aO4xshs=\r\n"
+        sdp =
+          "v=0\r\nm=video 0 RTP/AVP 96\r\na=control:rtsp://#{state.ip}:#{state.port}/control\r\n" <>
+            "a=rtpmap:96 H264/90000\r\na=fmtp:96 profile-level-id=64001f; packetization-mode=1; " <>
+            "sprop-parameter-sets=Z2QAH62EAQwgCGEAQwgCGEAQwgCEO1AoAt03AQEBQAAA+gAAOpgh,aO4xshs=\r\n"
 
-          "Content-Base: rtsp://#{state.ip}:#{state.port}/stream\r\n" <>
-            "Content-Type: application/sdp\r\nContent-Length: #{byte_size(sdp)}\r\n\r\n" <> sdp
+        "Content-Base: rtsp://#{state.ip}:#{state.port}/stream\r\n" <>
+          "Content-Type: application/sdp\r\nContent-Length: #{byte_size(sdp)}\r\n\r\n" <> sdp
 
       :setup ->
-          "Transport: RTP/AVP;unicast;client_port=#{state.client_port};" <>
-            "server_port=23456;ssrc=10443EAB\r\n\r\n"
+        "Transport: RTP/AVP;unicast;client_port=#{state.client_port};" <>
+          "server_port=23456;ssrc=10443EAB\r\n\r\n"
 
       _play_or_get_parameter ->
-          "\r\n"
+        "\r\n"
     end
   end
 end
