@@ -30,7 +30,8 @@ if Enum.all?(
     A manual restart of the endpoint will then be needed to restore its functionality.
 
     Note that the RTSP Endpoint is not guaranteed to work when NAT is used
-    by either side of the connection.
+    by either side of the connection. If necessary, the option `:pierce_nat` may be set
+    to try to create client-side NAT binding.
     """
 
     use Membrane.Bin
@@ -69,14 +70,15 @@ if Enum.all?(
                   description: "URI of source stream"
                 ],
                 rtp_port: [
-                  spec: pos_integer(),
+                  spec: 1..65_535,
                   description: "Local port RTP stream will be received at",
                   default: @rtp_port
                 ],
                 max_reconnect_attempts: [
                   spec: non_neg_integer(),
-                  description:
-                    "How many times the endpoint will attempt to reconnect before hibernating",
+                  description: """
+                  How many times the endpoint will attempt to reconnect before hibernating
+                  """,
                   default: @max_reconnect_attempts
                 ],
                 reconnect_delay: [
@@ -86,9 +88,22 @@ if Enum.all?(
                 ],
                 keep_alive_interval: [
                   spec: non_neg_integer(),
-                  description:
-                    "Interval (in ms) in which keep-alive RTSP messages will be sent to the remote stream source",
+                  description: """
+                  Interval (in ms) in which keep-alive RTSP messages will be sent
+                  to the remote stream source
+                  """,
                   default: @keep_alive_interval
+                ],
+                pierce_nat: [
+                  spec: boolean(),
+                  description: """
+                  Whether to attempt to create client-side NAT binding by sending
+                  an empty datagram from client to source, after the completion of RTSP setup.
+
+                  Disclaimer: This is a potential vulnerability.
+                  Enable only if you need it and know what you're doing.
+                  """,
+                  default: false
                 ]
 
     @impl true
@@ -99,7 +114,8 @@ if Enum.all?(
         rtp_port: opts.rtp_port,
         track: nil,
         ssrc: nil,
-        connection_manager: nil
+        connection_manager: nil,
+        pierce_nat: opts.pierce_nat
       }
 
       connection_manager_opts = [
@@ -226,10 +242,9 @@ if Enum.all?(
       Membrane.Logger.debug("Endpoint received source options: #{inspect(options)}")
 
       rtpmap = options.rtpmap
-      encoding = rtpmap.encoding |> String.to_atom()
 
-      if encoding != :H264 do
-        raise("RTSP setup returned unsupported stream encoding: #{inspect(encoding)}")
+      if rtpmap.encoding != "H264" do
+        raise("RTSP setup returned unsupported stream encoding: #{inspect(rtpmap.encoding)}")
       end
 
       {:endpoint, endpoint_id} = ctx.name
@@ -239,7 +254,7 @@ if Enum.all?(
           :video,
           Track.stream_id(),
           endpoint_id,
-          encoding,
+          :H264,
           rtpmap.clock_rate,
           options.fmtp,
           ctx: %{rtpmap: rtpmap}
@@ -247,13 +262,17 @@ if Enum.all?(
 
       Membrane.Logger.debug("Publishing new WebRTC track: #{inspect(track)}")
 
+      pierce_nat_ctx =
+        if state.pierce_nat, do: %{uri: state.source_uri, port: options.server_port}, else: nil
+
       structure = [
         child(:udp_source, %Membrane.UDP.Source{
-          local_port_no: state.rtp_port
+          local_port_no: state.rtp_port,
+          pierce_nat_ctx: pierce_nat_ctx
         })
         |> via_in(Pad.ref(:rtp_input, make_ref()))
         |> child(:rtp, %Membrane.RTP.SessionBin{
-          fmt_mapping: %{rtpmap.payload_type => {encoding, rtpmap.clock_rate}}
+          fmt_mapping: %{rtpmap.payload_type => {:H264, rtpmap.clock_rate}}
         })
       ]
 
@@ -265,22 +284,18 @@ if Enum.all?(
 
       state = %{state | track: track}
 
-      {actions ++ create_nat_binding_actions(state, options.server_port), state}
+      {actions, state}
     end
 
     @impl true
     def handle_info({:connection_info, {:connection_failed, reason} = msg}, _ctx, state) do
       Membrane.Logger.warn("RTSP Endpoint: Connection failed: #{inspect(reason)}")
 
-      actions = [notify_parent: {:forward_to_parent, msg}]
-
-      # No point to keep the endpoint up if URI is invalid
       if reason == :invalid_url do
-        Membrane.Logger.warn("RTSP Endpoint: Invalid URI. Endpoint shutting down")
-        {actions ++ [terminate: :shutdown], state}
-      else
-        {actions, state}
+        raise("RTSP Endpoint: Invalid URI. Endpoint shutting down")
       end
+
+      {[notify_parent: {:forward_to_parent, msg}], state}
     end
 
     @impl true
@@ -291,7 +306,7 @@ if Enum.all?(
 
     @impl true
     def handle_info({:connection_info, :disconnected}, _ctx, state) do
-      Membrane.Logger.warn("""
+      Membrane.Logger.error("""
       RTSP Endpoint disconnected from source.
       The endpoint is now functionally useless, it will not be able to reconnect and is thus shutting down
       """)
@@ -303,23 +318,6 @@ if Enum.all?(
     def handle_info(info, _ctx, state) do
       Membrane.Logger.warn("Unexpected info: #{inspect(info)}. Ignoring.")
       {[], state}
-    end
-
-    defp create_nat_binding_actions(state, server_port) do
-      Membrane.Logger.debug(
-        "Probing server port #{inspect(server_port)} to attempt to create NAT binding..."
-      )
-
-      # FIXME: The following assumes IPv4, which may not always be the case
-      # Also, this is a bit too low-level for the endpoint,
-      # but there really is no other element which could handle it at the moment...
-      {:ok, address} =
-        URI.parse(state.source_uri)
-        |> Map.get(:host)
-        |> to_charlist()
-        |> :inet.getaddr(:inet)
-
-      [notify_child: {:udp_source, {:pierce_nat, address, server_port}}]
     end
   end
 end

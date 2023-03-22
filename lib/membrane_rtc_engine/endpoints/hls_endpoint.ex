@@ -620,7 +620,7 @@ if Enum.all?(
           params
           |> String.split(",", parts: 2)
           |> Enum.map(fn elem -> <<0, 0, 0, 1>> <> Base.decode64!(elem) end)
-          |> then(fn list -> [[:sps, :pps], list] |> List.zip() end)
+          |> then(fn list -> List.zip([[:sps, :pps], list]) end)
       end
     end
 

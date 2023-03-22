@@ -309,12 +309,13 @@ if Enum.all?(
     defp start_keep_alive(%ConnectionStatus{} = connection_status) do
       Membrane.Logger.debug("ConnectionManager: Starting Keep alive process")
 
-      {:ok, keep_alive} =
-        Task.start(fn ->
-          rtsp_keep_alive(connection_status.rtsp_session, connection_status.keep_alive_interval)
-        end)
-
-      Process.monitor(keep_alive)
+      {keep_alive, _ref} =
+        Process.spawn(
+          fn ->
+            rtsp_keep_alive(connection_status.rtsp_session, connection_status.keep_alive_interval)
+          end,
+          [:monitor]
+        )
 
       {:ok, %{connection_status | keep_alive: keep_alive}}
     end
