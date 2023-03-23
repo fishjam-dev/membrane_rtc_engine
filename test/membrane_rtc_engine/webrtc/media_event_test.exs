@@ -43,8 +43,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
   describe "deserializing sdpOffer media event" do
     test "creates proper map when event is valid" do
       metadata = %{"track_id" => %{"abc" => "cba"}}
-      bitrates = %{"track_id" => %{"m" => 200}}
-      decoded_bitrates = %{"track_id" => %{medium: 200}}
+      bitrates = %{"track_id" => %{"m" => 200, "h" => 500, "l" => 100}}
+      decoded_bitrates = %{"track_id" => %{medium: 200, high: 500, low: 100}}
       mids = %{"5" => "track_id"}
       sdp = "mock_sdp"
 
@@ -108,8 +108,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
   describe "deserializing trackVariantBitrates media event" do
     test "creates proper map when event is valid" do
       track_id = "track_id"
-      bitrates = %{"h" => 1000, "m" => 500}
-      decoded_bitrates = %{high: 1000, medium: 500}
+      bitrates = %{"h" => 1000, "m" => 500, "l" => 100}
+      decoded_bitrates = %{high: 1000, medium: 500, low: 100}
 
       raw_media_event =
         %{
@@ -138,15 +138,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
       assert {:ok, expected_media_event} == MediaEvent.decode(raw_media_event)
     end
 
-    test "returns error when event misses key" do
+    test "returns error when event misses variant" do
       raw_media_event =
         %{
           "type" => "custom",
           "data" => %{
             "type" => "trackVariantBitrates",
             "data" => %{
-              "trackId" => "track_id"
-              # missing variantBitrates
+              "trackId" => "track_id",
+              "variantBitrate" => %{"m" => 200}
             }
           }
         }

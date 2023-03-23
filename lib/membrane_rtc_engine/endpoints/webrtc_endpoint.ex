@@ -797,8 +797,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(%{type: :track_variant_bitrates, data: data}, ctx, state) do
-    track_bitrates = Map.merge(state.track_id_to_bitrates[data.track_id], data.variant_bitrates)
-    state = put_in(state, [:track_id_to_bitrates, data.track_id], track_bitrates)
+    state = put_in(state, [:track_id_to_bitrates, data.track_id], data.variant_bitrates)
     msg = {:variant_bitrates, data.variant_bitrates}
 
     {forward({:track_sender, data.track_id}, msg, ctx), state}

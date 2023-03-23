@@ -263,17 +263,23 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
         "type" => "trackVariantBitrates",
         "data" => %{
           "trackId" => track_id,
-          "variantBitrates" => variant_bitrates
+          "variantBitrates" => rid_variant_bitrates
         }
       } ->
-        {:ok,
-         %{
-           type: :track_variant_bitrates,
-           data: %{
-             track_id: track_id,
-             variant_bitrates: to_track_variants(variant_bitrates)
-           }
-         }}
+        case to_track_variants(rid_variant_bitrates) do
+          :invalid ->
+            {:error, :invalid_media_event}
+
+          variant_bitrates ->
+            {:ok,
+             %{
+               type: :track_variant_bitrates,
+               data: %{
+                 track_id: track_id,
+                 variant_bitrates: variant_bitrates
+               }
+             }}
+        end
 
       _other ->
         {:error, :invalid_media_event}
@@ -294,15 +300,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
             "midToTrackId" => mid_to_track_id
           } = data
       } ->
-        default_bitrates =
-          Map.new(track_id_to_track_metadata, fn {id, _metadata} -> {id, %{}} end)
-
-        rid_bitrates = Map.get(data, "trackIdToTrackBitrates", %{})
-
-        if is_map(rid_bitrates) do
-          bitrates =
-            Map.new(rid_bitrates, fn {id, bitrate} -> {id, to_track_variants(bitrate)} end)
-
+        with {:ok, bitrates} <- Map.fetch(data, "trackIdToTrackBitrates"),
+             bitrates <-
+               Map.new(bitrates, fn {id, bitrate} -> {id, to_track_variants(bitrate)} end),
+             true <- Enum.all?(bitrates, fn {_id, bitrate} -> bitrate != :invalid end) do
           {:ok,
            %{
              type: :sdp_offer,
@@ -312,13 +313,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
                  sdp: sdp
                },
                track_id_to_track_metadata: track_id_to_track_metadata,
-               # use default values in VariantSelector if "trackIdToTrackBitrates" is not present
-               track_id_to_track_bitrates: Map.merge(default_bitrates, bitrates),
+               track_id_to_track_bitrates: bitrates,
                mid_to_track_id: mid_to_track_id
              }
            }}
         else
-          {:error, :invalid_media_event}
+          # use default values in VariantSelector if "trackIdToTrackBitrates" is not present
+          :error -> Map.new(track_id_to_track_metadata, fn {id, _metadata} -> {id, %{}} end)
+          # return error if some of the variants are not present
+          _other -> {:error, :invalid_media_event}
         end
 
       _other ->
@@ -351,11 +354,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   defp to_track_variants(bitrate) when is_map(bitrate) do
     rid_to_variant = %{"l" => :low, "m" => :medium, "h" => :high}
 
-    bitrate
-    |> Enum.filter(fn {key, _value} -> key in Map.keys(rid_to_variant) end)
-    |> Map.new(fn {rid, bitrate} -> {rid_to_variant[rid], bitrate} end)
+    if Enum.all?(Map.keys(rid_to_variant), &Map.has_key?(bitrate, &1)) do
+      Map.new(bitrate, fn {rid, bitrate} -> {rid_to_variant[rid], bitrate} end)
+    else
+      :invalid
+    end
   end
 
   defp to_track_variants(bitrate) when is_number(bitrate), do: %{high: bitrate}
-  defp to_track_variants(_bitrate), do: %{}
+  defp to_track_variants(_other), do: :invalid
 end
