@@ -86,10 +86,14 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   end
 
   test "RTSP signalling and disconnects (with a fake server)", %{rtc_engine: rtc_engine} do
-    {:ok, server_pid} =
-      Task.start_link(fn ->
-        FakeRTSPserver.start(@loopback_ip, @fake_server_port, @rtp_port)
+    self_pid = self()
+
+    server_pid =
+      spawn_link(fn ->
+        FakeRTSPserver.start(@loopback_ip, @fake_server_port, @rtp_port, self_pid)
       end)
+
+    assert_receive(:fake_server_ready, 20_000)
 
     rtsp_endpoint = %RTSP{
       rtc_engine: rtc_engine,

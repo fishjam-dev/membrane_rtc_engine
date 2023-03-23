@@ -1,11 +1,12 @@
 defmodule FakeRTSPserver do
   @moduledoc false
 
-  @spec start(String.t(), pos_integer(), pos_integer()) :: any()
-  def start(ip, port, client_port) do
+  @spec start(String.t(), pos_integer(), pos_integer(), pid()) :: any()
+  def start(ip, port, client_port, parent_pid) do
     {:ok, socket} =
       :gen_tcp.listen(port, [:binary, packet: :line, active: false, reuseaddr: true])
 
+    send(parent_pid, :fake_server_ready)
     loop_acceptor(socket, ip, port, client_port)
   end
 
