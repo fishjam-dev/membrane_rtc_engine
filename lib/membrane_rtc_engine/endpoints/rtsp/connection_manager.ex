@@ -310,12 +310,9 @@ if Enum.all?(
       Membrane.Logger.debug("ConnectionManager: Starting Keep alive process")
 
       {keep_alive, _ref} =
-        Process.spawn(
-          fn ->
-            rtsp_keep_alive(connection_status.rtsp_session, connection_status.keep_alive_interval)
-          end,
-          [:monitor]
-        )
+        spawn_monitor(fn ->
+          rtsp_keep_alive(connection_status.rtsp_session, connection_status.keep_alive_interval)
+        end)
 
       {:ok, %{connection_status | keep_alive: keep_alive}}
     end
