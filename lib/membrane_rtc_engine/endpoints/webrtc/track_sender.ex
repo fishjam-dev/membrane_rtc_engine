@@ -46,6 +46,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
                 spec: Membrane.TelemetryMetrics.label(),
                 default: [],
                 description: "Label passed to Membrane.TelemetryMetrics functions"
+              ],
+              is_keyframe_fun: [
+                spec: (Membrane.Buffer.t(), Track.encoding() -> boolean()),
+                default: &Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender.is_keyframe/2,
+                description:
+                  "Function checking whether a given buffer contains a keyframe in its payload."
               ]
 
   def_input_pad :input,
@@ -64,7 +70,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_init(_ctx, %__MODULE__{
         track: track,
         variant_bitrates: variant_bitrates,
-        telemetry_label: telemetry_label
+        telemetry_label: telemetry_label,
+        is_keyframe_fun: is_keyframe_fun
       }) do
     {[],
      %{
@@ -73,7 +80,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
        bitrate_estimators: %{},
        requested_keyframes: MapSet.new(),
        variant_bitrates: variant_bitrates,
-       telemetry_label: telemetry_label
+       telemetry_label: telemetry_label,
+       is_keyframe_fun: is_keyframe_fun
      }}
   end
 
@@ -285,7 +293,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       end
       |> update_in([:bitrate_estimators, variant], &BitrateEstimator.process(&1, buffer))
 
-    buffer = add_is_keyframe_flag(buffer, track)
+    new_metadata =
+      Map.put(buffer.metadata, :is_keyframe, state.is_keyframe_fun.(buffer, track.encoding))
+
+    buffer = %Buffer{buffer | metadata: new_metadata}
 
     {actions, state} =
       if MapSet.member?(state.requested_keyframes, variant) and buffer.metadata.is_keyframe do
@@ -375,16 +386,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     {actions, state}
   end
 
-  defp add_is_keyframe_flag(buffer, %Track{encoding: encoding}) do
-    is_keyframe =
-      case encoding do
-        :OPUS -> true
-        :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
-        :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
-      end
-
-    new_metadata = Map.put(buffer.metadata, :is_keyframe, is_keyframe)
-    %Buffer{buffer | metadata: new_metadata}
+  @doc """
+  Default function checking whether a given buffer contains a keyframe in its payload.
+  """
+  @spec is_keyframe(Membrane.Buffer.t(), Track.encoding()) :: boolean()
+  def is_keyframe(buffer, encoding) do
+    case encoding do
+      :OPUS -> true
+      :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
+      :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
+    end
   end
 
   defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad, state) do

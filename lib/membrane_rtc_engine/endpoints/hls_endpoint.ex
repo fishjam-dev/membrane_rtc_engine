@@ -1,6 +1,7 @@
 if Enum.all?(
      [
        Membrane.H264.FFmpeg.Parser,
+       Membrane.H264.Parser,
        Membrane.HTTPAdaptiveStream.SinkBin,
        Membrane.Opus.Decoder,
        Membrane.AAC.Parser,
@@ -407,10 +408,7 @@ if Enum.all?(
     defp attach_video_track_spec(_offset, track, %{mixer_config: nil} = state),
       do: [
         get_child({:depayloader, track.id})
-        |> child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{
-          alignment: :au,
-          attach_nalus?: true
-        })
+        |> child({:video_parser, track.id}, h264_parser_spec(track))
         |> via_in(Pad.ref(:input, {:video, track.id}),
           options: [
             encoding: :H264,
@@ -425,6 +423,7 @@ if Enum.all?(
       defp attach_video_track_spec(offset, track, _state),
         do: [
           get_child({:depayloader, track.id})
+          # TODO change to new parser once it supports Membrane.H264 stream format on input pad
           |> child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{
             attach_nalus?: true,
             alignment: :au
@@ -510,6 +509,7 @@ if Enum.all?(
           stream_format: state.mixer_config.video.stream_format
         }
 
+        # TODO change to new parser once it supports Membrane.H264 stream format on input pad
         video_parser_out = %Membrane.H264.FFmpeg.Parser{
           alignment: :au,
           attach_nalus?: true
@@ -591,6 +591,38 @@ if Enum.all?(
       do: Path.join(state.output_directory, stream_id)
 
     defp get_hls_stream_directory(state, _stream_id), do: state.output_directory
+
+    defp h264_parser_spec(track) do
+      [sps: sps, pps: pps] = get_sps_pps(track)
+
+      %Membrane.H264.Parser{
+        # FIXME: surely there must be a better way to do this
+        framerate: {0, 1},
+        sps: sps,
+        pps: pps
+      }
+    end
+
+    defp get_sps_pps(track) do
+      fmtp_attributes =
+        track.fmtp.unknown
+        |> Enum.map(fn elem ->
+          [key, value] = String.trim(elem) |> String.split("=", parts: 2)
+          {key, value}
+        end)
+        |> Enum.into(%{})
+
+      case Map.get(fmtp_attributes, "sprop-parameter-sets") do
+        nil ->
+          [sps: <<>>, pps: <<>>]
+
+        params ->
+          params
+          |> String.split(",", parts: 2)
+          |> Enum.map(fn elem -> <<0, 0, 0, 1>> <> Base.decode64!(elem) end)
+          |> then(fn list -> List.zip([[:sps, :pps], list]) end)
+      end
+    end
 
     defp compositor_update_layout(_action, _track, _state, _stream_format \\ nil)
 
