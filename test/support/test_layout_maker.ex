@@ -4,7 +4,7 @@ defmodule Membrane.RTC.Engine.Support.TestLayoutMaker do
   @behaviour Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker
 
   @impl true
-  def init(_output_format), do: %{}
+  def init(_output_format, _options), do: %{}
 
   @impl true
   def track_added(track, _stream_format, _state),

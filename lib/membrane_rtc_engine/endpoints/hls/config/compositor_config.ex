@@ -19,13 +19,13 @@ if Code.ensure_loaded?(Membrane.RawVideo) do
             background: struct() | nil
           }
     defstruct stream_format: %Membrane.RawVideo{
-                width: 400,
-                height: 800,
+                width: 1280,
+                height: 720,
                 pixel_format: :I420,
                 framerate: {24, 1},
                 aligned: true
               },
-              layout_module: Membrane.RTC.Engine.Endpoint.HLS.MobileLayoutMaker,
+              layout_module: Membrane.RTC.Engine.Endpoint.HLS.CustomLayoutMaker,
               background: nil
   end
 end
