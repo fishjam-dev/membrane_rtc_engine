@@ -138,15 +138,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
       assert {:ok, expected_media_event} == MediaEvent.decode(raw_media_event)
     end
 
-    test "returns error when event misses variant" do
+    test "returns error when event misses key" do
       raw_media_event =
         %{
           "type" => "custom",
           "data" => %{
             "type" => "trackVariantBitrates",
             "data" => %{
-              "trackId" => "track_id",
-              "variantBitrate" => %{"m" => 200}
+              "trackId" => "track_id"
             }
           }
         }
