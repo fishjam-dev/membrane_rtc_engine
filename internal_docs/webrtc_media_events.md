@@ -318,7 +318,7 @@ Messages used by any WebRTC Endpoint plugin
 
 * Contains an SDP offer, a mapping between `track_id` and `track_metadata`, mapping between `track_id` 
   and this track's bitrates (or all of its variants bitrates) and a mapping between `mid` and `track_id`.
-  Maps contain only information about current peer `sendonly` tracks.
+  Maps contain only information about current peer's `sendonly` tracks.
 
   ```json
   {
