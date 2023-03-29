@@ -7,13 +7,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   alias Membrane.RTC.Engine.Track
 
   @default_bitrates_video %{
-    high: 1_500_000,
+    high: 2_500_000,
     medium: 500_000,
     low: 150_000,
     no_variant: 0
   }
 
-  @default_bitrates_audio %{high: 50_000, no_variant: 0}
+  @default_bitrates_audio %{high: 35_000, no_variant: 0}
 
   @typep bitrates_t() :: %{(Track.variant() | :no_variant) => non_neg_integer()}
 
@@ -140,6 +140,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       current_allocation: initial_allocation,
       connection_allocator_module: connection_allocator_module
     }
+  end
+
+  @doc """
+  Updates bitrate assigned to a variant in the selector. Expected bitrate unit is bps.
+  """
+  @spec update_variant_bitrate(t(), Track.variant(), non_neg_integer()) :: t()
+  def update_variant_bitrate(%__MODULE__{} = selector, variant, bitrate) do
+    variant_bitrates = %{selector.variant_bitrates | variant => bitrate}
+
+    selector
+    |> Map.put(:variant_bitrates, variant_bitrates)
+    |> manage_allocation()
   end
 
   @doc """

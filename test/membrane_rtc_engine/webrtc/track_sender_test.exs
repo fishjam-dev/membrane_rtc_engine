@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
 
   alias Membrane.{Buffer, Pad}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender
-  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed}
+  alias Membrane.RTC.Engine.Event.{TrackVariantBitrate, TrackVariantPaused, TrackVariantResumed}
   alias Membrane.RTC.Engine.Support.{TestSource, Utils}
   alias Membrane.RTC.Engine.Track
   alias Membrane.Testing.{Pipeline, Sink, Source}
@@ -17,6 +17,12 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
   @variants [:high, :medium, :low]
   @stream_id "stream1"
   @track_origin "generated"
+  @default_bitrates_video %{
+    high: 1_500,
+    medium: 500,
+    low: 150
+  }
+  @default_bitrates_audio %{high: 50}
 
   describe "TrackSender" do
     test "adds `is_keyframe` flag to each buffer" do
@@ -143,6 +149,42 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     end
   end
 
+  test "sends TrackVariantBitrate event when adding output pad" do
+    track = build_h264_track()
+    pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
+
+    Enum.each(@variants, fn variant ->
+      variant_bitrate = Map.get(@default_bitrates_video, variant)
+
+      assert_sink_event(pipeline, {:sink, variant}, %TrackVariantBitrate{
+        variant: ^variant,
+        bitrate: ^variant_bitrate
+      })
+    end)
+
+    Pipeline.terminate(pipeline, blocking?: true)
+  end
+
+  test "sends TrackVariantBitrate after getting :variant_bitrates notification" do
+    track = build_h264_track()
+    pipeline = build_video_pipeline(track, {nil, &Utils.generator/2}, 3)
+
+    new_bitrates = %{high: 1420, medium: 689}
+    Pipeline.message_child(pipeline, :track_sender, {:variant_bitrates, new_bitrates})
+    new_bitrates = Map.merge(@default_bitrates_video, new_bitrates)
+
+    Enum.each(@variants, fn variant ->
+      variant_bitrate = Map.get(new_bitrates, variant)
+
+      assert_sink_event(pipeline, {:sink, variant}, %TrackVariantBitrate{
+        variant: ^variant,
+        bitrate: ^variant_bitrate
+      })
+    end)
+
+    Pipeline.terminate(pipeline, blocking?: true)
+  end
+
   defp test_is_keyframe(%Track{type: :audio} = track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
@@ -184,7 +226,10 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     spec =
       child(:source, %Source{stream_format: %Membrane.RTP{}, output: source_buffers})
       |> via_in(Pad.ref(:input, {@track_id, nil}))
-      |> child(:track_sender, %TrackSender{track: track})
+      |> child(:track_sender, %TrackSender{
+        track: track,
+        variant_bitrates: @default_bitrates_audio
+      })
       |> via_out(Pad.ref(:output, {@track_id, nil}))
       |> child(:sink, Sink)
 
@@ -214,7 +259,8 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         |> child({:sink, variant}, Sink)
       end
 
-    track_sender = child(:track_sender, %TrackSender{track: track})
+    track_sender =
+      child(:track_sender, %TrackSender{track: track, variant_bitrates: @default_bitrates_video})
 
     Pipeline.execute_actions(pipeline, spec: [variant_spec, track_sender_spec, track_sender])
 
