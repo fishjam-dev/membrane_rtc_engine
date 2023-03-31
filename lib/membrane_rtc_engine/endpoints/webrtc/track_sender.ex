@@ -13,7 +13,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   alias Membrane.{Buffer, Time}
   alias Membrane.RTC.Engine.BitrateEstimator
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
-  alias Membrane.RTC.Engine.Event.{TrackVariantPaused, TrackVariantResumed, VoiceActivityChanged}
+
+  alias Membrane.RTC.Engine.Event.{
+    TrackVariantBitrate,
+    TrackVariantPaused,
+    TrackVariantResumed,
+    VoiceActivityChanged
+  }
+
   alias Membrane.RTC.Engine.Track
 
   @keyframe_request_interval_ms 500
@@ -30,6 +37,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
                 type: :struct,
                 spec: Membrane.RTC.Engine.Track.t(),
                 description: "Track this sender will maintain"
+              ],
+              variant_bitrates: [
+                spec: %{optional(Track.variant()) => non_neg_integer()},
+                description: "Bitrate of each variant of track maintained by this sender"
               ],
               telemetry_label: [
                 spec: Membrane.TelemetryMetrics.label(),
@@ -50,13 +61,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     accepted_format: Membrane.RTP
 
   @impl true
-  def handle_init(_ctx, %__MODULE__{track: track, telemetry_label: telemetry_label}) do
+  def handle_init(_ctx, %__MODULE__{
+        track: track,
+        variant_bitrates: variant_bitrates,
+        telemetry_label: telemetry_label
+      }) do
     {[],
      %{
        track: track,
        trackers: %{},
        bitrate_estimators: %{},
        requested_keyframes: MapSet.new(),
+       variant_bitrates: variant_bitrates,
        telemetry_label: telemetry_label
      }}
   end
@@ -107,7 +123,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_pad_added(Pad.ref(:output, _id) = pad, %{playback: playback}, state) do
     actions =
       if playback == :playing do
-        activate_pad_actions(pad)
+        activate_pad_actions(pad, state)
       else
         []
       end
@@ -137,7 +153,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     actions =
       ctx.pads
       |> Enum.filter(fn {_pad_id, %{name: name}} -> name == :output end)
-      |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad) end)
+      |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad, state) end)
 
     actions =
       if Track.is_simulcast?(state.track) do
@@ -311,6 +327,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     end
   end
 
+  @impl true
+  def handle_parent_notification({:variant_bitrates, variant_bitrates}, ctx, state) do
+    state = %{state | variant_bitrates: Map.merge(state.variant_bitrates, variant_bitrates)}
+
+    actions =
+      ctx.pads
+      |> Enum.filter(fn
+        {Pad.ref(:output, {_track_id, variant}), _pad_data} ->
+          Map.has_key?(variant_bitrates, variant)
+
+        _other ->
+          false
+      end)
+      |> Enum.flat_map(fn {pad, _pad_data} -> get_variant_bitrate_action(pad, state) end)
+
+    {actions, state}
+  end
+
   defp check_variant_status(variant, tracker, state) do
     pad = Pad.ref(:output, {state.track.id, variant})
 
@@ -353,8 +387,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     %Buffer{buffer | metadata: new_metadata}
   end
 
-  defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad) do
-    [stream_format: {pad, %Membrane.RTP{}}, event: {pad, %TrackVariantResumed{variant: variant}}]
+  defp activate_pad_actions(Pad.ref(:output, {_track_id, variant}) = pad, state) do
+    [
+      stream_format: {pad, %Membrane.RTP{}},
+      event: {pad, %TrackVariantResumed{variant: variant}}
+    ] ++ get_variant_bitrate_action(pad, state)
+  end
+
+  defp get_variant_bitrate_action(Pad.ref(:output, {_track_id, variant}) = pad, state) do
+    case Map.fetch(state.variant_bitrates, variant) do
+      {:ok, bitrate} -> [event: {pad, %TrackVariantBitrate{variant: variant, bitrate: bitrate}}]
+      :error -> []
+    end
   end
 
   defp to_output_pad(Pad.ref(:input, {_track_id, _encoding} = pad_id)) do

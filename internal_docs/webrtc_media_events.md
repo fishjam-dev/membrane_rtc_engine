@@ -61,6 +61,7 @@ Messages used by any WebRTC Endpoint plugin
 | [candidate](#candidate)                         | Contains client's ICE candidate                                         |
 | [sdpOffer](#sdpoffer)                           | Contains an SDP offer from a client                                     |
 | [setTargetTrackVariant](#setTargetTrackVariant) | A request from a peer to receive a specific track variant               |
+| [trackVariantBitrates](#trackVariantBitrate)    | Contains updated bitrates for track's variants                          |
 
 #### WebRTC endpoint sends these type of custom messages to client
 | Name                                    | Description                                                       |
@@ -315,8 +316,9 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `sdpOffer`
 
-* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, and a mapping between `mid` and `track_id`.
-  Both maps contain only information about current peer `sendonly` tracks.
+* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, mapping between `track_id` 
+  and this track's bitrates (or all of its variants bitrates) and a mapping between `mid` and `track_id`.
+  Maps contain only information about current peer's `sendonly` tracks.
 
   ```json
   {
@@ -326,7 +328,10 @@ Messages used by any WebRTC Endpoint plugin
     },
     trackIdToTrackMetadata: {
       trackId: any
-    }
+    },
+    trackIdToTrackBitrates: {
+      trackId: number | {rid: number}
+    },
     midToTrackId: mid_to_track_id
   }
   ```
@@ -344,6 +349,18 @@ Messages used by any WebRTC Endpoint plugin
     variant => variant
   }
   ```
+
+### `trackVariantBitrates`
+
+* Contains updated bitrates of variants of the track send by the peer.
+  Needs to contain all of the variants.
+
+```json
+{
+  trackId: track_id,
+  variantBitrates: {rid: number}
+}
+```
 
 ## WebRTC Enpoint -> Client
 

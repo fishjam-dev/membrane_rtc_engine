@@ -714,7 +714,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         options: [extensions: extensions, use_depayloader?: false]
       )
       |> via_in(Pad.ref(:input, {track_id, variant}))
-      |> child({:track_sender, track_id}, %TrackSender{track: track}, get_if_exists: true)
+      |> child(
+        {:track_sender, track_id},
+        %TrackSender{
+          track: track,
+          variant_bitrates: Map.fetch!(state.track_id_to_bitrates, track_id)
+        },
+        get_if_exists: true
+      )
       |> via_out(pad)
       |> bin_output(pad),
       log_metadata: state.log_metadata
@@ -780,9 +787,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(%{type: :sdp_offer, data: data}, ctx, state) do
-    state = Map.put(state, :track_id_to_metadata, data.track_id_to_track_metadata)
+    state =
+      state
+      |> Map.put(:track_id_to_metadata, data.track_id_to_track_metadata)
+      |> Map.put(:track_id_to_bitrates, data.track_id_to_track_bitrates)
+
     msg = {:signal, {:sdp_offer, data.sdp_offer.sdp, data.mid_to_track_id}}
     {forward(:endpoint_bin, msg, ctx), state}
+  end
+
+  defp handle_media_event(%{type: :track_variant_bitrates, data: data}, ctx, state) do
+    state = put_in(state, [:track_id_to_bitrates, data.track_id], data.variant_bitrates)
+    msg = {:variant_bitrates, data.variant_bitrates}
+
+    {forward({:track_sender, data.track_id}, msg, ctx), state}
   end
 
   defp handle_media_event(%{type: :candidate, data: data}, ctx, state) do

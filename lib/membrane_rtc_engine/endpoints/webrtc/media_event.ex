@@ -257,19 +257,52 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     end
   end
 
+  defp decode_custom_media_event(%{"type" => "trackVariantBitrates"} = event) do
+    case event do
+      %{
+        "type" => "trackVariantBitrates",
+        "data" => %{
+          "trackId" => track_id,
+          "variantBitrates" => variant_bitrates
+        }
+      } ->
+        {:ok,
+         %{
+           type: :track_variant_bitrates,
+           data: %{
+             track_id: track_id,
+             variant_bitrates: to_track_variants(variant_bitrates)
+           }
+         }}
+
+      _other ->
+        {:error, :invalid_media_event}
+    end
+  end
+
   defp decode_custom_media_event(%{"type" => "sdpOffer"} = event) do
     case event do
       %{
         "type" => "sdpOffer",
-        "data" => %{
-          "sdpOffer" => %{
-            "type" => "offer",
-            "sdp" => sdp
-          },
-          "trackIdToTrackMetadata" => track_id_to_track_metadata,
-          "midToTrackId" => mid_to_track_id
-        }
+        "data" =>
+          %{
+            "sdpOffer" => %{
+              "type" => "offer",
+              "sdp" => sdp
+            },
+            "trackIdToTrackMetadata" => track_id_to_track_metadata,
+            "midToTrackId" => mid_to_track_id
+          } = data
       } ->
+        # use default bitrates in VariantSelector if not present
+        default_bitrates =
+          Map.new(track_id_to_track_metadata, fn {id, _metadata} -> {id, %{}} end)
+
+        track_id_to_track_bitrate =
+          data
+          |> Map.get("trackIdToTrackBitrates", default_bitrates)
+          |> Map.new(fn {id, bitrate} -> {id, to_track_variants(bitrate)} end)
+
         {:ok,
          %{
            type: :sdp_offer,
@@ -279,6 +312,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
                sdp: sdp
              },
              track_id_to_track_metadata: track_id_to_track_metadata,
+             track_id_to_track_bitrates: track_id_to_track_bitrate,
              mid_to_track_id: mid_to_track_id
            }
          }}
@@ -309,4 +343,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   defp as_custom(msg) do
     %{type: "custom", data: msg}
   end
+
+  defp to_track_variants(bitrate) when is_map(bitrate) do
+    rid_to_variant = %{"l" => :low, "m" => :medium, "h" => :high}
+
+    bitrate
+    |> Enum.filter(fn {key, _value} -> key in Map.keys(rid_to_variant) end)
+    |> Map.new(fn {rid, bitrate} -> {rid_to_variant[rid], bitrate} end)
+  end
+
+  defp to_track_variants(bitrate) when is_number(bitrate), do: %{high: bitrate}
 end

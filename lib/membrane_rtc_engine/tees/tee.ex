@@ -8,6 +8,7 @@ defmodule Membrane.RTC.Engine.Tee do
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
+    TrackVariantBitrate,
     TrackVariantPaused,
     TrackVariantResumed,
     TrackVariantSwitched,
@@ -49,6 +50,7 @@ defmodule Membrane.RTC.Engine.Tee do
        track: opts.track,
        routes: %{},
        inactive_variants: MapSet.new(opts.track.variants),
+       variant_bitrates: %{},
        vad: %{}
      }}
   end
@@ -75,9 +77,13 @@ defmodule Membrane.RTC.Engine.Tee do
         actions =
           state
           |> active_variants()
-          |> Enum.flat_map(&[event: {pad, %TrackVariantResumed{variant: &1}}])
+          |> Enum.flat_map(
+            &[
+              event: {pad, %TrackVariantResumed{variant: &1}}
+            ]
+          )
 
-        [stream_format: {pad, %Membrane.RTP{}}] ++ actions
+        activate_pad_actions(pad, state) ++ actions
       else
         []
       end
@@ -107,7 +113,7 @@ defmodule Membrane.RTC.Engine.Tee do
       ctx.pads
       |> Enum.filter(fn {_pad, %{name: name}} -> name == :output end)
       |> Enum.flat_map(fn {pad, _pad_data} ->
-        [stream_format: {pad, %Membrane.RTP{}}]
+        activate_pad_actions(pad, state)
       end)
 
     {actions, state}
@@ -135,6 +141,15 @@ defmodule Membrane.RTC.Engine.Tee do
 
     {actions, state}
   end
+
+  @impl true
+  def handle_event(
+        Pad.ref(:input, _id),
+        %TrackVariantBitrate{variant: variant, bitrate: bitrate} = event,
+        _ctx,
+        state
+      ),
+      do: {[forward: event], put_in(state, [:variant_bitrates, variant], bitrate)}
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do
@@ -295,6 +310,13 @@ defmodule Membrane.RTC.Engine.Tee do
   end
 
   defp handle_route(_buffer, _variant, _route, _ctx, state), do: {[], state}
+
+  defp activate_pad_actions(Pad.ref(:output, _id) = pad, state) do
+    [stream_format: {pad, %Membrane.RTP{}}] ++
+      Enum.flat_map(state.variant_bitrates, fn {variant, bitrate} ->
+        [event: {pad, %TrackVariantBitrate{variant: variant, bitrate: bitrate}}]
+      end)
+  end
 
   defp active_variants(state),
     do:
