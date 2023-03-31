@@ -34,11 +34,11 @@ Without further ado - let's dive into...
 
 First let's define the inputs and outputs of our function that would perform VAD. The function takes audio noise levels and the noise threshold value as inputs. It returns an information of whether the given audio levels indicate if the person is speaking based on the given threshold.
 
-**Simple diagram of a function**
+![vad_func](assets/vad_func.png)
 
 ### The main idea
 
-The main idea and many of the intricacies of the algorithm are provided in the original paper (that is ["Dominant Speaker Identification for Multipoint Videoconferencing" by Ilana Volfin and Israel Cohenthat](https://israelcohen.com/wp-content/uploads/2018/05/IEEEI2012_Volfin.pdf)). The following implementation was inspired by it.
+The main idea and many of the intricacies of the algorithm are provided in the original paper (that is [Dominant Speaker Identification for Multipoint Videoconferencing" by Ilana Volfin and Israel Cohenthat](https://israelcohen.com/wp-content/uploads/2018/05/IEEEI2012_Volfin.pdf)). The following implementation was inspired by it.
 
 Basically we take the input levels and group them into three layers of intervals: _immediates_, _mediums_ and _longs_. Intervals contain a finite number of subunits (levels contain immediates, mediums contain immediates and longs contain mediums). The intervals are then thresholded and labeled as _active_ or _inactive_. Based on the number of active intervals an _activity score_ is computed for each kind of intervals.
 
@@ -63,23 +63,27 @@ There are also internal parameters of the algorithm like:
 
 To compute them we take the input levels.
 
-**Levels**
+![levels](assets/levels.png)
 
-Then we combine them into immediates.
+Then we combine them into immediates. Immediates are counted as active or inactive based on the threshold provided.
 
-**A list of levels**
+![immediates](assets/immediates.png)
 
-Then the imediates are counted as active or inactive based on the threshold provided.
-
-**Thresholded immediates**
+The numbers indicate the number of levels that are above the threshold. Since `@n1` is equal to one, immediates only have values 0 or 1.
 
 After that the mediums are computed in a similar fashion.
 
-**Mediums computed and thresholded**
+![mediums](assets/mediums.png)
 
-And after that longs.
+The red color indicates an inactive unit, whereas green means an active one. The numbers on mediums indicate counted subunits below.
 
-**Long interval computed**
+Then the longs are counted.
+
+![longs](assets/longs.png)
+
+And the interval computations are done!
+
+_Additional note_
 
 Typically there is only one long interval. This means that the maximum number of levels needed can be simply counted by multiplying `@n1`, `@n2` and `@n3` and therefore:
 
@@ -92,7 +96,7 @@ After computing the intervals, we take the most recent one from all 3 lengths an
 The computed values are the also thresholded with another internal parameters named `@immediate_score_threshold`, `@medium_score_threshold` and `@long_score_threshold`.
 If all the activity scores are above their threshold, the function returns `:speech`, otherwise `:false`.
 
-**Image of the given items**
+![activity_score](assets/activity_score.png)
 
 The activity score formula is taken directly from the paper. It is a loglikelihood of two probabilities: probability of speech and probability of silence. It is based on the number of active subunits in a unit. The details are provided in the aforementioned paper.
 
