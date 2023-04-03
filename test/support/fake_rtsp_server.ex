@@ -74,10 +74,17 @@ defmodule FakeRTSPserver do
   end
 
   defp get_request(socket, request \\ "") do
-    {:ok, packet} = :gen_tcp.recv(socket, 0)
-    request = request <> packet
+    case :gen_tcp.recv(socket, 0) do
+      {:ok, packet} ->
+        request = request <> packet
+        if packet != "\r\n", do: get_request(socket, request), else: request
 
-    if packet != "\r\n", do: get_request(socket, request), else: request
+      {:error, :closed} ->
+        exit(:normal)
+
+      {:error, reason} ->
+        raise("Error when getting request: #{inspect(reason)}")
+    end
   end
 
   defp generate_response(request_type, state) do

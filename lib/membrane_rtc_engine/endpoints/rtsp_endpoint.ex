@@ -144,6 +144,7 @@ if Enum.all?(
           {:track_sender, track_id},
           %TrackSender{
             track: state.track,
+            variant_bitrates: %{},
             is_keyframe_fun: fn buf, :H264 ->
               Membrane.RTP.H264.Utils.is_keyframe(buf.payload, :idr)
             end
