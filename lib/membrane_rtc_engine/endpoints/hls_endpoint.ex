@@ -593,7 +593,11 @@ if Enum.all?(
     defp get_hls_stream_directory(state, _stream_id), do: state.output_directory
 
     defp h264_parser_spec(track) do
-      [sps: sps, pps: pps] = get_sps_pps(track)
+      {sps, pps} =
+        case Map.get(track.fmtp, :sprop_parameter_sets) do
+          nil -> {<<>>, <<>>}
+          %{sps: sps, pps: pps} -> {<<0, 0, 0, 1>> <> sps, <<0, 0, 0, 1>> <> pps}
+        end
 
       %Membrane.H264.Parser{
         # FIXME: surely there must be a better way to do this
@@ -601,27 +605,6 @@ if Enum.all?(
         sps: sps,
         pps: pps
       }
-    end
-
-    defp get_sps_pps(track) do
-      fmtp_attributes =
-        track.fmtp.unknown
-        |> Enum.map(fn elem ->
-          [key, value] = String.trim(elem) |> String.split("=", parts: 2)
-          {key, value}
-        end)
-        |> Enum.into(%{})
-
-      case Map.get(fmtp_attributes, "sprop-parameter-sets") do
-        nil ->
-          [sps: <<>>, pps: <<>>]
-
-        params ->
-          params
-          |> String.split(",", parts: 2)
-          |> Enum.map(fn elem -> <<0, 0, 0, 1>> <> Base.decode64!(elem) end)
-          |> then(fn list -> List.zip([[:sps, :pps], list]) end)
-      end
     end
 
     defp compositor_update_layout(_action, _track, _state, _stream_format \\ nil)

@@ -43,6 +43,11 @@ if Enum.all?(
                   ]
     end
 
+    @spec reconnect(GenServer.server()) :: :ok
+    def reconnect(connection_manager) do
+      GenServer.cast(connection_manager, :reconnect)
+    end
+
     @spec start_link(Keyword.t()) :: GenServer.on_start()
     def start_link(args) do
       Membrane.Logger.debug("ConnectionManager: start_link, args: #{inspect(args)}")

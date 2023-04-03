@@ -24,7 +24,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   @rtsp_endpoint_id "rtsp-endpoint"
   @rtp_port 23_232
   @loopback_ip "127.0.0.1"
-  @fake_server_port 62_137
+  @fake_server_port 554
 
   test "invalid URI", %{rtc_engine: rtc_engine} do
     rtsp_endpoint = %RTSP{
@@ -125,7 +125,6 @@ defmodule Membrane.RTC.RTSPEndpointTest do
 
     assert_receive(%Message.EndpointCrashed{endpoint_id: @rtsp_endpoint_id}, 20_000)
 
-    :ok = Engine.remove_endpoint(rtc_engine, @rtsp_endpoint_id)
     refute_received(_any)
 
     Process.exit(server_pid, :shutdown)

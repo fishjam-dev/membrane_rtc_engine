@@ -11,7 +11,7 @@ if Enum.all?(
     ```
     [
       {:connection, "~> 1.1"},
-      {:membrane_rtsp, "0.3.1"},
+      {:membrane_rtsp, "~> 0.5.0"},
       {:membrane_udp_plugin, "~> 0.9.2"}
     ]
     ```
@@ -30,8 +30,10 @@ if Enum.all?(
     A manual restart of the endpoint will then be needed to restore its functionality.
 
     Note that the RTSP Endpoint is not guaranteed to work when NAT is used
-    by either side of the connection. If necessary, the option `:pierce_nat` may be set
-    to try to create client-side NAT binding.
+    by either side of the connection. By default, the endpoint will attempt to
+    create client-side NAT binding by sending an empty datagram from client to source,
+    after the completion of RTSP setup. This behaviour may be disabled by setting
+    the option `:pierce_nat` to `false`.
     """
 
     use Membrane.Bin
@@ -99,11 +101,8 @@ if Enum.all?(
                   description: """
                   Whether to attempt to create client-side NAT binding by sending
                   an empty datagram from client to source, after the completion of RTSP setup.
-
-                  Disclaimer: This is a potential vulnerability.
-                  Enable only if you need it and know what you're doing.
                   """,
-                  default: false
+                  default: true
                 ]
 
     @impl true
@@ -166,7 +165,7 @@ if Enum.all?(
     def handle_parent_notification(:reconnect, _ctx, state) do
       Membrane.Logger.info("Attempting reconnect to remote RTSP stream source...")
 
-      GenServer.cast(state.connection_manager, :reconnect)
+      ConnectionManager.reconnect(state.connection_manager)
       {[], state}
     end
 
@@ -198,8 +197,13 @@ if Enum.all?(
 
       state = %{state | ssrc: ssrc}
 
-      if state.track.ctx.rtpmap.payload_type != fmt do
-        raise("Payload type mismatch between RTP mapping and received stream")
+      expected_fmt = state.track.ctx.rtpmap.payload_type
+
+      if fmt != expected_fmt do
+        raise("""
+        Payload type mismatch between RTP mapping and received stream
+        (expected #{inspect(expected_fmt)}, got #{inspect(fmt)})
+        """)
       end
 
       {[
@@ -260,7 +264,7 @@ if Enum.all?(
           ctx: %{rtpmap: rtpmap}
         )
 
-      Membrane.Logger.debug("Publishing new WebRTC track: #{inspect(track)}")
+      Membrane.Logger.debug("Publishing new RTSP track: #{inspect(track)}")
 
       pierce_nat_ctx =
         if state.pierce_nat, do: %{uri: state.source_uri, port: options.server_port}, else: nil
