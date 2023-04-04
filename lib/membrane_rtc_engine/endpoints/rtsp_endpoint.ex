@@ -193,7 +193,7 @@ if Enum.all?(
           _ctx,
           state
         )
-        when is_nil(state.ssrc) do
+        when is_nil(state.ssrc) or ssrc == state.ssrc do
       Membrane.Logger.debug("New RTP stream connected: #{inspect(msg)}")
 
       state = %{state | ssrc: ssrc}
