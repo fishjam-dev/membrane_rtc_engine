@@ -281,7 +281,7 @@ if Enum.all?(
          ) do
       Membrane.Logger.debug("ConnectionManager: Setting up RTSP connection")
 
-      case RTSP.setup(rtsp_session, "/#{endpoint_options.control}", [
+      case RTSP.setup(rtsp_session, endpoint_options.control, [
              {"Transport", "RTP/AVP;unicast;client_port=#{endpoint_options.port}"}
            ]) do
         {:ok, %{status: 200, headers: headers}} ->
