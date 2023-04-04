@@ -62,7 +62,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.11.2"},
-      {:membrane_webrtc_plugin, "~> 0.14.2"},
+      {:membrane_webrtc_plugin, "~> 0.14.3"},
       {:membrane_rtp_plugin, "~> 0.21.0"},
       {:membrane_rtp_format, "~> 0.6.0"},
       {:membrane_tee_plugin, "~> 0.10.0"},
@@ -85,14 +85,14 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_aac_plugin, "~> 0.13.0", optional: true},
       {:membrane_opus_plugin, "~> 0.16.0", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.14.0", optional: true},
-      {:membrane_generator_plugin, "~> 0.8.0", optional: true},
-      {:membrane_realtimer_plugin, "~> 0.6.0", optional: true},
+      {:membrane_generator_plugin, "~> 0.8.1", optional: true},
+      {:membrane_realtimer_plugin, "~> 0.6.1", optional: true},
       {:membrane_audio_mix_plugin, "~> 0.12.0", optional: true},
       {:membrane_raw_audio_format, "~> 0.10.0", optional: true},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.25.4", optional: true},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.26.2", optional: true},
       {:membrane_h264_plugin, "~> 0.2.0", optional: true},
       {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
-      {:membrane_video_compositor_plugin, "~> 0.2.1", optional: true},
+      {:membrane_video_compositor_plugin, "~> 0.2.2", optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.12.0", optional: true},
 
       # Optional deps for RTSP endpoint
