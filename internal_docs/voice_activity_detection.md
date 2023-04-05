@@ -40,7 +40,7 @@ First let's define the inputs and outputs of our function that would perform VAD
 
 The main idea and many of the intricacies of the algorithm are provided in the original paper (that is [Dominant Speaker Identification for Multipoint Videoconferencing" by Ilana Volfin and Israel Cohenthat](https://israelcohen.com/wp-content/uploads/2018/05/IEEEI2012_Volfin.pdf)). The following implementation was inspired by it.
 
-Basically we take the input levels and group them into three layers of intervals: _immediates_, _mediums_ and _longs_. Intervals contain a finite number of subunits (levels contain immediates, mediums contain immediates and longs contain mediums). The intervals are then thresholded and labeled as _active_ or _inactive_. Based on the number of active intervals an _activity score_ is computed for each kind of intervals.
+Basically we take the input levels and group them into three layers of intervals: _immediates_, _mediums_ and _longs_. Intervals contain a finite number of subunits (longs contain mediums, mediums contain immediates, immediates contain levels). The intervals are then thresholded and labeled as _active_ or _inactive_. Based on the number of active intervals an _activity score_ is computed for each kind of intervals.
 
 ### In a little more detail
 
