@@ -57,7 +57,7 @@ There are also internal parameters of the algorithm like:
 - `@n1, @n2, @n3` - how many of the smaller intervals are in one bigger interval
   - `@n1` - levels in one immediate
   - `@n2` - immediates in one medium
-  - `@n3` - mediums in one level
+  - `@n3` - mediums in one long
 - `@mediums_subunit_threshold` - how many active immediates should the medium interval consist of to be counted as active
 - `@long_subunit_threshold` - as above but given the mediums and a long interval
 
