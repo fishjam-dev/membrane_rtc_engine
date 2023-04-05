@@ -89,11 +89,13 @@ defmodule Membrane.RTC.Engine do
   Associating Endpoint with Peer will cause RTC Engine to send some Media Events to the Enpoint's Client Library
   e.g. one which indicates which tracks belong to which peer.
 
-  Currently RTC Engine ships with the implementation of two Endpoints:
+  Currently RTC Engine ships with the implementation of three Endpoints:
   * `#{inspect(__MODULE__)}.Endpoint.WebRTC` which is responsible for establishing a connection with some WebRTC
   peer (mainly browser) and exchanging media with it. WebRTC Endpoint is a Peer Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
   saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
+  * `#{inspect(__MODULE__)}.Endpoint.RTSP` which is responsible for connecting to a remote RTSP stream source and
+  sending the appropriate media track to other Endpoints. RTSP Endpoint is a Standalone Endpoint.
 
   User can also implement custom Endpoints, see Custom Endpoints guide.
   """
@@ -122,7 +124,7 @@ defmodule Membrane.RTC.Engine do
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
   # `Membrane.Pipeline.call/3 currently has invalid typespec`
-  @dialyzer {:nowarn_function, get_endpoints: 1}
+  @dialyzer {:nowarn_function, [get_endpoints: 1]}
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
@@ -233,7 +235,7 @@ defmodule Membrane.RTC.Engine do
   Membrane action that will inform RTC Engine about track readiness.
   """
   @type track_ready_action_t() ::
-          {:notify_parent, {:track_ready, Track.id(), Track.encoding(), Track.variant()}}
+          {:notify_parent, {:track_ready, Track.id(), Track.variant(), Track.encoding()}}
 
   @typedoc """
   Types of messages that can be published to other Endpoints.
