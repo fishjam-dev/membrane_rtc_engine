@@ -102,7 +102,7 @@ The activity score formula is taken directly from the paper. It is a loglikeliho
 
 ## Implementation details
 
-The algorithm described above has it's implementation in the `IsSpekingEstimator` module of the `membrane_RTP_plugin`. It is then applied in the `VAD` membrane element located in the same plugin.
+The algorithm described above has it's implementation in the `IsSpekingEstimator` module of the `membrane_rtp_plugin`. It is then applied in the `VAD` membrane element located in the same plugin.
 
 The membrane element:
 
