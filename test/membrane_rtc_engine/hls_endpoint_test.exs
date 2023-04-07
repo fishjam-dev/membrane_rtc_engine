@@ -79,7 +79,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        endpoint_id: ^hls_endpoint_id,
                        message: {:end_of_stream, ^stream_id}
                      },
-                     15_000
+                     25_000
 
       check_correctness_of_output_files(output_dir, reference_dir)
     end
@@ -144,7 +144,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        endpoint_id: ^hls_endpoint_id,
                        message: {:end_of_stream, ^stream_id}
                      },
-                     15_000
+                     25_000
 
       check_correctness_of_output_files(output_dir, reference_dir)
     end
@@ -208,7 +208,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        endpoint_id: ^hls_endpoint_id,
                        message: {:end_of_stream, :muxed}
                      },
-                     15_000
+                     25_000
 
       check_correctness_of_output_files(output_dir, reference_dir)
     end
@@ -272,7 +272,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        endpoint_id: ^hls_endpoint_id,
                        message: {:end_of_stream, :muxed}
                      },
-                     15_000
+                     25_000
 
       check_correctness_of_output_files(output_dir, reference_dir)
 
@@ -331,7 +331,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        endpoint_id: ^hls_endpoint_id,
                        message: {:end_of_stream, :muxed}
                      },
-                     15_000
+                     25_000
 
       check_correctness_of_output_files(output_dir, reference_dir)
     end

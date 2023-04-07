@@ -522,6 +522,7 @@ if Enum.all?(
           child(:compositor, compositor)
           |> child(:encoder, %Membrane.H264.FFmpeg.Encoder{
             profile: :baseline,
+            tune: :zerolatency,
             gop_size: frames_per_second * seconds_number
           })
           |> child(:video_parser_out, video_parser_out)
