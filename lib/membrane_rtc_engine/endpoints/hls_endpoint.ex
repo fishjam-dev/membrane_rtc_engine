@@ -455,6 +455,7 @@ if Enum.all?(
         [
           child(:silence_generator, silence_generator)
           |> child(:audio_realtimer, Membrane.Realtimer)
+          |> via_in(:input, toilet_capacity: 600_000)
           |> get_child(:audio_mixer)
         ]
       end
