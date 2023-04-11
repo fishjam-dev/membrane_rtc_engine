@@ -19,8 +19,8 @@ if Code.ensure_loaded?(Membrane.RawVideo) do
             background: struct() | nil
           }
     defstruct stream_format: %Membrane.RawVideo{
-                width: 1280,
-                height: 720,
+                width: 1920,
+                height: 1080,
                 pixel_format: :I420,
                 framerate: {24, 1},
                 aligned: true
