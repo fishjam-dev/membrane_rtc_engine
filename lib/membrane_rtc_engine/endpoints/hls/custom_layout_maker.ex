@@ -77,18 +77,41 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     end
 
     defp get_track_layout(:main, _index, stream_format, output_stream_format, _state) do
-      placement =
-        get_placement(
-          output_stream_format,
-          stream_format,
-          @main_stream.position,
-          @main_stream.z_value
-        )
+      cond do
+        stream_format.width == output_stream_format.width ->
+          {%BaseVideoPlacement{
+             position: {0, round((output_stream_format.height - stream_format.height) / 2)},
+             size: {stream_format.width, stream_format.height},
+             z_value: @main_stream.z_value
+           },
+           %VideoTransformations{
+             texture_transformations: []
+           }}
 
-      transformations =
-        get_transformations(output_stream_format, placement.size, @main_stream.corner_radius)
+        stream_format.height == output_stream_format.height ->
+          {%BaseVideoPlacement{
+             position: {round((output_stream_format.width - stream_format.width) / 2), 0},
+             size: {stream_format.width, stream_format.height},
+             z_value: @main_stream.z_value
+           },
+           %VideoTransformations{
+             texture_transformations: []
+           }}
 
-      {placement, transformations}
+        true ->
+          placement =
+            get_placement(
+              output_stream_format,
+              stream_format,
+              @main_stream.position,
+              @main_stream.z_value
+            )
+
+          transformations =
+            get_transformations(output_stream_format, placement.size, @main_stream.corner_radius)
+
+          {placement, transformations}
+      end
     end
 
     defp get_track_layout(:side, index, stream_format, output_stream_format, state) do
