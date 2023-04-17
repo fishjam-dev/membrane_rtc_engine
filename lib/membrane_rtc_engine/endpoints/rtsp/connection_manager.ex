@@ -22,7 +22,7 @@ if Enum.all?(
               endpoint_options: map(),
               reconnect_delay: non_neg_integer(),
               keep_alive_interval: non_neg_integer(),
-              max_reconnect_attempts: non_neg_integer(),
+              max_reconnect_attempts: non_neg_integer() | :infinity,
               reconnect_attempt: non_neg_integer()
             }
 
@@ -213,6 +213,7 @@ if Enum.all?(
          ) do
       connection_status = %{connection_status | reconnect_attempt: attempt + 1}
 
+      # This works with :infinity, since integers < atoms
       if attempt < max_attempts do
         {:backoff, delay, connection_status}
       else

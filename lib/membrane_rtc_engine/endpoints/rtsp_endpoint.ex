@@ -77,7 +77,7 @@ if Enum.all?(
                   default: @rtp_port
                 ],
                 max_reconnect_attempts: [
-                  spec: non_neg_integer(),
+                  spec: non_neg_integer() | :infinity,
                   description: """
                   How many times the endpoint will attempt to reconnect before hibernating
                   """,
@@ -100,7 +100,7 @@ if Enum.all?(
                   spec: boolean(),
                   description: """
                   Whether to attempt to create client-side NAT binding by sending
-                  an empty datagram from client to source, after the completion of RTSP setup.
+                  an empty datagram from client to source, after the completion of RTSP setup
                   """,
                   default: true
                 ]
