@@ -5,7 +5,7 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
     """
 
     alias Membrane.HTTPAdaptiveStream.{Manifest, Storage}
-    alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
+    alias Membrane.HTTPAdaptiveStream.Manifest.SegmentDuration
     alias Membrane.Time
 
     @typedoc """
