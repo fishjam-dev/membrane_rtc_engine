@@ -631,8 +631,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_parent_notification({:media_event, event}, ctx, state) do
-    IO.inspect(event, label: "#{__MODULE__} received MediaEvent")
-
     case deserialize(event) do
       {:ok, data} ->
         Membrane.OpenTelemetry.add_event(@life_span_id, :custom_media_event_received,

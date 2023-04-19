@@ -532,18 +532,6 @@ defmodule Membrane.RTC.Engine do
         child_ref -> [notify_child: {child_ref, message}]
       end
 
-    # if find_child(ctx, pattern: ^endpoint) != nil do
-    #   IO.inspect(message, label: "Sending message from Engine to endpoint #{inspect(endpoint)}")
-    #   [notify_child: {endpoint, message}]
-    # else
-    #   IO.inspect(message,
-    #     label:
-    #       "not sending message, because #{inspect(endpoint)} is not found in #{inspect(ctx, pretty: true, limit: :infinity)}"
-    #   )
-
-    #   []
-    # end
-
     {actions, state}
   end
 
