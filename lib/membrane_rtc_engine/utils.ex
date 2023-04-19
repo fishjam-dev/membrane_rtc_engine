@@ -24,13 +24,27 @@ defmodule Membrane.RTC.Utils do
 
   defmacro find_child(ctx, pattern: pattern) do
     quote do
-      unquote(ctx).children |> Map.keys() |> Enum.find(&match?(unquote(pattern), &1))
+      require Membrane.Child, as: Child
+
+      unquote(ctx).children
+      |> Map.keys()
+      |> Enum.find(fn child_name ->
+        match?(Child.ref(unquote(pattern)), child_name) or
+          match?(Child.ref(unquote(pattern), group: _group), child_name)
+      end)
     end
   end
 
   defmacro filter_children(ctx, pattern: pattern) do
     quote do
-      unquote(ctx).children |> Map.keys() |> Enum.filter(&match?(unquote(pattern), &1))
+      require Membrane.Child, as: Child
+
+      unquote(ctx).children
+      |> Map.keys()
+      |> Enum.filter(fn child_name ->
+        match?(Child.ref(unquote(pattern)), child_name) or
+          match?(Child.ref(unquote(pattern), group: _group), child_name)
+      end)
     end
   end
 
@@ -51,10 +65,10 @@ defmodule Membrane.RTC.Utils do
           ctx :: ctx()
         ) :: [Membrane.Pipeline.Action.notify_child_t()]
   def forward(child_name, msg, ctx) do
-    child = find_child(ctx, pattern: ^child_name)
+    child_ref = find_child(ctx, pattern: ^child_name)
 
-    if child do
-      [notify_child: {child_name, msg}]
+    if child_ref do
+      [notify_child: {child_ref, msg}]
     else
       []
     end

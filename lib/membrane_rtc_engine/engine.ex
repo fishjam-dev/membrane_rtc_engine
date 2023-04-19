@@ -102,6 +102,7 @@ defmodule Membrane.RTC.Engine do
 
   import Membrane.RTC.Utils
 
+  require Membrane.Child, as: Child
   require Membrane.Logger
   require Membrane.OpenTelemetry
   require Membrane.TelemetryMetrics
@@ -345,7 +346,7 @@ defmodule Membrane.RTC.Engine do
   @spec message_endpoint(rtc_engine :: pid(), endpoint_id :: String.t(), message :: any()) ::
           :ok
   def message_endpoint(rtc_engine, endpoint_id, message) do
-    send(rtc_engine, {:message_endpoint, {:endpoint, endpoint_id}, message})
+    send(rtc_engine, {:message_endpoint, endpoint_ref(endpoint_id), message})
     :ok
   end
 
@@ -526,9 +527,22 @@ defmodule Membrane.RTC.Engine do
   @impl true
   def handle_info({:message_endpoint, endpoint, message}, ctx, state) do
     actions =
-      if find_child(ctx, pattern: ^endpoint) != nil,
-        do: [notify_child: {endpoint, message}],
-        else: []
+      case find_child(ctx, pattern: ^endpoint) do
+        nil -> []
+        child_ref -> [notify_child: {child_ref, message}]
+      end
+
+    # if find_child(ctx, pattern: ^endpoint) != nil do
+    #   IO.inspect(message, label: "Sending message from Engine to endpoint #{inspect(endpoint)}")
+    #   [notify_child: {endpoint, message}]
+    # else
+    #   IO.inspect(message,
+    #     label:
+    #       "not sending message, because #{inspect(endpoint)} is not found in #{inspect(ctx, pretty: true, limit: :infinity)}"
+    #   )
+
+    #   []
+    # end
 
     {actions, state}
   end
@@ -538,16 +552,24 @@ defmodule Membrane.RTC.Engine do
     endpoints =
       ctx.children
       |> Map.values()
-      |> Enum.map(fn endpoint ->
-        {:endpoint, id} = endpoint.name
-        %{id: id, type: endpoint.module}
+      |> Enum.flat_map(fn child ->
+        with Child.ref({:endpoint, id}, group: _group) <- child.name do
+          [%{id: id, type: child.module}]
+        else
+          _child_name -> []
+        end
       end)
 
     {[reply: endpoints], state}
   end
 
   @impl true
-  def handle_child_notification(notification, {:endpoint, endpoint_id}, ctx, state) do
+  def handle_child_notification(
+        notification,
+        Child.ref({:endpoint, endpoint_id}, group: endpoint_id),
+        ctx,
+        state
+      ) do
     if Map.has_key?(state.endpoints, endpoint_id) or
          Map.has_key?(state.pending_peers, endpoint_id) do
       handle_endpoint_notification(notification, endpoint_id, ctx, state)
@@ -590,13 +612,13 @@ defmodule Membrane.RTC.Engine do
       new_peer_notifications =
         state.endpoints
         |> Map.keys()
-        |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:new_peer, peer}}})
+        |> Enum.map(&{:notify_child, {endpoint_ref(&1), {:new_peer, peer}}})
 
       actions =
         [
-          notify_child: {{:endpoint, endpoint_id}, {:ready, peers_in_room}},
+          notify_child: {endpoint_ref(endpoint_id), {:ready, peers_in_room}},
           notify_child:
-            {{:endpoint, endpoint_id}, {:new_tracks, get_active_tracks(state.endpoints)}}
+            {endpoint_ref(endpoint_id), {:new_tracks, get_active_tracks(state.endpoints)}}
         ] ++ new_peer_notifications
 
       state =
@@ -630,7 +652,7 @@ defmodule Membrane.RTC.Engine do
       actions =
         state.endpoints
         |> Map.keys()
-        |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:peer_metadata_updated, updated_peer}}})
+        |> Enum.map(&{:notify_child, {endpoint_ref(&1), {:peer_metadata_updated, updated_peer}}})
 
       {actions, state}
     else
@@ -661,7 +683,7 @@ defmodule Membrane.RTC.Engine do
           |> Enum.map(& &1.endpoint_id)
           |> Enum.map(
             &{:notify_child,
-             {{:endpoint, &1},
+             {endpoint_ref(&1),
               {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}}}
           )
 
@@ -688,7 +710,7 @@ defmodule Membrane.RTC.Engine do
       |> Enum.map(& &1.endpoint_id)
 
     message_actions =
-      Enum.map(subscribed_endpoints, &{:notify_child, {{:endpoint, &1}, notification}})
+      Enum.map(subscribed_endpoints, &{:notify_child, {endpoint_ref(&1), notification}})
 
     if Map.has_key?(state.endpoints[endpoint_id].inbound_tracks, track_id) do
       {message_actions, state}
@@ -705,7 +727,7 @@ defmodule Membrane.RTC.Engine do
   defp handle_endpoint_notification(
          {:track_ready, track_id, variant, encoding},
          endpoint_id,
-         _ctx,
+         ctx,
          state
        ) do
     Membrane.Logger.info(
@@ -724,7 +746,7 @@ defmodule Membrane.RTC.Engine do
     {subscriptions, pending_subscriptions} =
       Enum.split_with(state.pending_subscriptions, &(&1.track_id == track_id))
 
-    {subscription_links, state} = fulfill_subscriptions(subscriptions, state)
+    {subscription_links, state} = fulfill_subscriptions(subscriptions, ctx, state)
 
     links = [track_link] ++ subscription_links
     state = %{state | pending_subscriptions: pending_subscriptions}
@@ -832,8 +854,11 @@ defmodule Membrane.RTC.Engine do
 
   defp handle_add_endpoint(endpoint_entry, opts, state) do
     endpoint_id = opts[:endpoint_id] || opts[:peer_id] || UUID.uuid4()
-    endpoint_name = {:endpoint, endpoint_id}
     is_peer? = Keyword.has_key?(opts, :peer_id)
+
+    endpoint_name =
+      endpoint_ref(endpoint_id)
+      |> Child.name_by_ref()
 
     spec = {
       child(endpoint_name, endpoint_entry),
@@ -844,7 +869,7 @@ defmodule Membrane.RTC.Engine do
 
     display_manager_message =
       if state.display_manager != nil,
-        do: [notify_child: {endpoint_name, {:display_manager, state.display_manager}}],
+        do: [notify_child: {endpoint_ref(endpoint_id), {:display_manager, state.display_manager}}],
         else: []
 
     # Only inform about the tracks if we're not taking about a peer
@@ -852,7 +877,10 @@ defmodule Membrane.RTC.Engine do
       if is_peer? do
         []
       else
-        [notify_child: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}]
+        [
+          notify_child:
+            {endpoint_ref(endpoint_id), {:new_tracks, get_active_tracks(state.endpoints)}}
+        ]
       end
 
     actions = [spec: spec] ++ display_manager_message ++ tracks_actions
@@ -887,13 +915,13 @@ defmodule Membrane.RTC.Engine do
 
         tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
         tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
-        endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
+        endpoint_bin = ctx.children[endpoint_ref(endpoint_id)]
 
         peer_left_msgs =
           if Map.has_key?(state.peers, endpoint_id) do
             state.endpoints
             |> Map.keys()
-            |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:peer_left, endpoint_id}}})
+            |> Enum.map(&{:notify_child, {endpoint_ref(&1), {:peer_left, endpoint_id}}})
           else
             []
           end
@@ -909,12 +937,12 @@ defmodule Membrane.RTC.Engine do
 
       Map.has_key?(state.pending_peers, endpoint_id) ->
         {_pending_peer, state} = pop_in(state, [:pending_peers, endpoint_id])
-        endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
+        endpoint_bin = ctx.children[endpoint_ref(endpoint_id)]
 
         if endpoint_bin == nil or endpoint_bin.terminating? do
           {:present, [], state}
         else
-          {:present, [remove_child: {:endpoint, endpoint_id}], state}
+          {:present, [remove_child: endpoint_ref(endpoint_id)], state}
         end
 
       true ->
@@ -940,8 +968,13 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp get_track_tee(track_id, ctx) do
-    if Map.has_key?(ctx.children, {:tee, track_id}) do
-      {:tee, track_id}
+    ctx.children
+    |> Enum.find(fn {child_ref, _child_data} ->
+      match?(Child.ref({:tee, ^track_id}, group: _group), child_ref)
+    end)
+    |> case do
+      {child_ref, _child_data} -> child_ref
+      nil -> nil
     end
   end
 
@@ -960,7 +993,7 @@ defmodule Membrane.RTC.Engine do
     |> Map.delete(endpoint_id)
     |> Map.keys()
     |> Enum.flat_map(fn endpoint_id ->
-      [notify_child: {{:endpoint, endpoint_id}, {:new_tracks, tracks}}]
+      [notify_child: {endpoint_ref(endpoint_id), {:new_tracks, tracks}}]
     end)
   end
 
@@ -971,7 +1004,7 @@ defmodule Membrane.RTC.Engine do
     |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
       subscriptions = state.subscriptions[endpoint_id]
       tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
-      [notify_child: {{:endpoint, endpoint_id}, {:remove_tracks, tracks}}]
+      [notify_child: {endpoint_ref(endpoint_id), {:remove_tracks, tracks}}]
     end)
   end
 
@@ -987,7 +1020,7 @@ defmodule Membrane.RTC.Engine do
   #
 
   defp build_track_link(variant, track, endpoint_id, state) do
-    get_child({:endpoint, endpoint_id})
+    get_child(endpoint_ref(endpoint_id))
     |> via_out(Pad.ref(:output, {track.id, variant}))
     |> via_in(Pad.ref(:input, {track.id, variant}),
       toilet_capacity: state.toilet_capacity
@@ -1042,16 +1075,16 @@ defmodule Membrane.RTC.Engine do
     # If the tee for this track is already spawned, fulfill subscription.
     # Otherwise, save subscription as pending, we will fulfill it when the tee is linked.
 
-    if Map.has_key?(ctx.children, {:tee, subscription.track_id}) do
-      fulfill_subscriptions([subscription], state)
+    if get_track_tee(subscription.track_id, ctx) != nil do
+      fulfill_subscriptions([subscription], ctx, state)
     else
       state = update_in(state, [:pending_subscriptions], &[subscription | &1])
       {[], state}
     end
   end
 
-  defp fulfill_subscriptions(subscriptions, state) do
-    links = build_subscription_links(subscriptions, state)
+  defp fulfill_subscriptions(subscriptions, ctx, state) do
+    links = build_subscription_links(subscriptions, ctx, state)
 
     Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
       endpoint_id = subscription.endpoint_id
@@ -1062,17 +1095,23 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp build_subscription_links(subscriptions, state) do
-    Enum.map(subscriptions, &build_subscription_link(&1, state))
+  defp build_subscription_links(subscriptions, ctx, state) do
+    Enum.map(subscriptions, &build_subscription_link(&1, ctx, state))
   end
 
-  defp build_subscription_link(subscription, state) do
-    get_child({:tee, subscription.track_id})
-    |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
+  defp build_subscription_link(subscription, ctx, state) do
+    tee_ref = get_track_tee(subscription.track_id, ctx)
+
+    endpoint_name =
+      endpoint_ref(subscription.endpoint_id)
+      |> Child.name_by_ref()
+
+    get_child(tee_ref)
+    |> via_out(Pad.ref(:output, endpoint_name))
     |> via_in(Pad.ref(:input, subscription.track_id),
       toilet_capacity: state.toilet_capacity
     )
-    |> get_child({:endpoint, subscription.endpoint_id})
+    |> get_child(endpoint_ref(subscription.endpoint_id))
   end
 
   defp get_track(track_id, endpoints) do
@@ -1081,6 +1120,13 @@ defmodule Membrane.RTC.Engine do
     |> Enum.flat_map(&Endpoint.get_tracks/1)
     |> Map.new(&{&1.id, &1})
     |> Map.get(track_id)
+  end
+
+  defp endpoint_ref(endpoint_id) do
+    Membrane.Child.ref(
+      {:endpoint, endpoint_id},
+      group: endpoint_id
+    )
   end
 
   #
