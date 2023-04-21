@@ -7,9 +7,8 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     @behaviour Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker
 
     alias Membrane.VideoCompositor.RustStructs.BaseVideoPlacement
+    alias Membrane.VideoCompositor.TextureTransformations.{CornersRounding, Cropping}
     alias Membrane.VideoCompositor.VideoTransformations
-    alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.CornersRounding
-    alias Membrane.VideoCompositor.VideoTransformations.TextureTransformations.Cropping
 
     @type track_no :: non_neg_integer()
     @type padding :: non_neg_integer()
