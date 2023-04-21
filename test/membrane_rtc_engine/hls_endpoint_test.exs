@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.HLSEndpointTest do
   use ExUnit.Case
 
-  alias Membrane.HTTPAdaptiveStream.Sink.SegmentDuration
+  alias Membrane.HTTPAdaptiveStream.Manifest.SegmentDuration
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.HLS
   alias Membrane.RTC.Engine.Message
