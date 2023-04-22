@@ -469,7 +469,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
           pt: 96
         },
         id: video_track_id,
-        metadata: %{"mainPresenter" => true}
+        metadata: %{"mainPresenter" => true, "isScreenSharing" => false}
       )
 
     %FileEndpoint{

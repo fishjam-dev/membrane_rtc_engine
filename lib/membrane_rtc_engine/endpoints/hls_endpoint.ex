@@ -318,6 +318,14 @@ if Enum.all?(
     end
 
     @impl true
+    def handle_parent_notification({:track_metadata_updated, track}, _ctx, state) do
+      compositor_update_layout(:update, track, state)
+      state = put_in(state, [:tracks, track.id], track)
+
+      {[], state}
+    end
+
+    @impl true
     def handle_parent_notification(msg, _ctx, state) do
       Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
       {[], state}
