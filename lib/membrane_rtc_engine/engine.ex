@@ -554,7 +554,7 @@ defmodule Membrane.RTC.Engine do
   @impl true
   def handle_child_notification(
         notification,
-        Child.ref({:endpoint, endpoint_id}, group: endpoint_id),
+        Child.ref(:endpoint, group: endpoint_id),
         ctx,
         state
       ) do
@@ -1090,12 +1090,8 @@ defmodule Membrane.RTC.Engine do
   defp build_subscription_link(subscription, ctx, state) do
     tee_ref = get_track_tee(subscription.track_id, ctx)
 
-    endpoint_name =
-      endpoint_ref(subscription.endpoint_id)
-      |> Child.name_by_ref()
-
     get_child(tee_ref)
-    |> via_out(Pad.ref(:output, endpoint_name))
+    |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
     |> via_in(Pad.ref(:input, subscription.track_id),
       toilet_capacity: state.toilet_capacity
     )
@@ -1111,10 +1107,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp endpoint_ref(endpoint_id) do
-    Membrane.Child.ref(
-      {:endpoint, endpoint_id},
-      group: endpoint_id
-    )
+    Membrane.Child.ref(:endpoint, group: endpoint_id)
   end
 
   #
