@@ -848,12 +848,8 @@ defmodule Membrane.RTC.Engine do
     endpoint_id = opts[:endpoint_id] || opts[:peer_id] || UUID.uuid4()
     is_peer? = Keyword.has_key?(opts, :peer_id)
 
-    endpoint_name =
-      endpoint_ref(endpoint_id)
-      |> Child.name_by_ref()
-
     spec = {
-      child(endpoint_name, endpoint_entry),
+      child(:endpoint, endpoint_entry),
       node: opts[:node],
       crash_group: {endpoint_id, :temporary},
       log_metadata: [rtc_engine: state.id]
