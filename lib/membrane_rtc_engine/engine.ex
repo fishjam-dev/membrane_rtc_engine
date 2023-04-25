@@ -788,7 +788,11 @@ defmodule Membrane.RTC.Engine do
 
     tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
     track_ids = Enum.map(tracks, & &1.id)
-    track_tees = tracks |> Enum.map(&get_track_tee(&1.id, ctx)) |> Enum.reject(&is_nil(&1))
+
+    track_tees =
+      tracks
+      |> Enum.map(&get_track_tee(&1.id, endpoint_id, ctx))
+      |> Enum.reject(&is_nil(&1))
 
     subscriptions =
       Map.new(state.subscriptions, fn {endpoint_id, subscriptions} ->
@@ -837,7 +841,7 @@ defmodule Membrane.RTC.Engine do
   # - find_children_for_endpoint/2: Convenience function to identify all Elements owned by an
   #   Endpoint, via its Tracks.
   #
-  # - get_track_tee/2: Convenience function to get tee for given track
+  # - get_track_tee/3: Convenience function to get tee for given track
   #
 
   defp handle_add_endpoint(endpoint_entry, opts, state) do
@@ -949,16 +953,17 @@ defmodule Membrane.RTC.Engine do
     children =
       endpoint
       |> Endpoint.get_tracks()
-      |> Enum.map(&get_track_tee(&1.id, ctx))
+      |> Enum.map(&get_track_tee(&1.id, endpoint.id, ctx))
       |> Enum.reject(&is_nil(&1))
 
     [endpoint: endpoint.id] ++ children
   end
 
-  defp get_track_tee(track_id, ctx) do
+  defp get_track_tee(track_id, endpoint_id, ctx) do
     ctx.children
-    |> Enum.find(fn {child_ref, _child_data} ->
-      match?(Child.ref({:tee, ^track_id}, group: _group), child_ref)
+    |> Enum.find(fn
+      {Child.ref({:tee, ^track_id}, group: ^endpoint_id), _child_data} -> true
+      _child_entry -> false
     end)
     |> case do
       {child_ref, _child_data} -> child_ref
@@ -1063,7 +1068,7 @@ defmodule Membrane.RTC.Engine do
     # If the tee for this track is already spawned, fulfill subscription.
     # Otherwise, save subscription as pending, we will fulfill it when the tee is linked.
 
-    if get_track_tee(subscription.track_id, ctx) != nil do
+    if get_track_tee(subscription.track_id, subscription.endpoint_id, ctx) != nil do
       fulfill_subscriptions([subscription], ctx, state)
     else
       state = update_in(state, [:pending_subscriptions], &[subscription | &1])
@@ -1088,7 +1093,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp build_subscription_link(subscription, ctx, state) do
-    tee_ref = get_track_tee(subscription.track_id, ctx)
+    tee_ref = get_track_tee(subscription.track_id, subscription.endpoint_id, ctx)
 
     get_child(tee_ref)
     |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))
