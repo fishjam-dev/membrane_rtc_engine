@@ -541,7 +541,7 @@ defmodule Membrane.RTC.Engine do
       ctx.children
       |> Map.values()
       |> Enum.flat_map(fn child ->
-        with Child.ref({:endpoint, id}, group: _group) <- child.name do
+        with Child.ref(:endpoint, group: id) <- child.name do
           [%{id: id, type: child.module}]
         else
           _child_name -> []
