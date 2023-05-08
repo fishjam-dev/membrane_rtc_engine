@@ -1,21 +1,97 @@
 defmodule FakeRTSPserver do
   @moduledoc false
 
-  @spec start(String.t(), pos_integer(), pos_integer(), pid()) :: any()
-  def start(ip, port, client_port, parent_pid) do
+  @loopback_ipv4 "127.0.0.1"
+  @test_ssrc 0xABCDEFFF
+  @test_pt 96
+  @test_clock_rate 90_000
+  @test_udp_port 23_456
+
+  defmodule H264ParamStripper do
+    @moduledoc false
+
+    use Membrane.Filter
+    alias Membrane.H264
+
+    def_input_pad :input,
+      demand_mode: :auto,
+      accepted_format: %H264{}
+
+    def_output_pad :output,
+      demand_mode: :auto,
+      accepted_format: %H264{}
+
+    @impl true
+    def handle_process(:input, buffer, _ctx, state) do
+      actions =
+        if buffer.metadata.h264.type in [:sps, :pps], do: [], else: [buffer: {:output, buffer}]
+
+      {actions, state}
+    end
+  end
+
+  defmodule Pipeline do
+    @moduledoc false
+
+    use Membrane.Pipeline
+
+    @impl true
+    def handle_init(_ctx, opts) do
+      {:ok, address} = String.to_charlist(opts.client_ip) |> :inet.parse_address()
+
+      spec = [
+        child(:file_src, %Membrane.File.Source{
+          location: opts.fixture_path
+        })
+        |> child(:parser, %Membrane.H264.FFmpeg.Parser{
+          framerate: opts.framerate,
+          alignment: :nal,
+          skip_until_parameters?: false
+        })
+        |> child(:stripper, H264ParamStripper)
+        |> via_in(Pad.ref(:input, opts.ssrc), options: [payloader: Membrane.RTP.H264.Payloader])
+        |> child(:rtp, Membrane.RTP.SessionBin)
+        |> via_out(Pad.ref(:rtp_output, opts.ssrc),
+          options: [
+            payload_type: opts.pt,
+            clock_rate: opts.clock_rate
+          ]
+        )
+        #        |> child(:realtimer, Membrane.Realtimer)
+        |> child(:udp_sink, %Membrane.UDP.Sink{
+          destination_address: address,
+          destination_port_no: opts.client_port,
+          local_port_no: opts.server_udp_port
+        })
+      ]
+
+      {[spec: spec, playback: :playing], %{}}
+    end
+  end
+
+  @spec start(String.t(), pos_integer(), pos_integer(), pid(), map() | nil) :: any()
+  def start(ip, port, client_port, parent_pid, stream_ctx \\ nil) do
     {:ok, socket} =
       :gen_tcp.listen(port, [:binary, packet: :line, active: false, reuseaddr: true])
 
     send(parent_pid, :fake_server_ready)
-    loop_acceptor(socket, ip, port, client_port)
+    loop_acceptor(socket, ip, port, client_port, stream_ctx)
   end
 
-  defp loop_acceptor(socket, ip, port, client_port) do
+  defp loop_acceptor(socket, ip, port, client_port, stream_ctx) do
     {:ok, client} = :gen_tcp.accept(socket)
 
-    serve(client, %{ip: ip, port: port, client_port: client_port, cseq: 0, server_state: :preinit})
+    state = %{
+      ip: ip,
+      port: port,
+      client_port: client_port,
+      cseq: 0,
+      server_state: :preinit,
+      stream_ctx: stream_ctx
+    }
 
-    loop_acceptor(socket, ip, port, client_port)
+    serve(client, state)
+    loop_acceptor(socket, ip, port, client_port, stream_ctx)
   end
 
   defp serve(socket, state) when state.server_state == :preinit do
@@ -32,13 +108,38 @@ defmodule FakeRTSPserver do
 
   defp serve(socket, state) when state.server_state == :ready do
     request_type = do_serve(socket, state, [:describe, :get_parameter, :setup, :play])
-    new_state = if request_type == :play, do: :playing, else: :ready
+
+    new_state =
+      if request_type == :play do
+        if not is_nil(state.stream_ctx) do
+          pipeline_opts = %{
+            client_ip: @loopback_ipv4,
+            client_port: state.client_port,
+            ssrc: @test_ssrc,
+            pt: @test_pt,
+            clock_rate: @test_clock_rate,
+            server_udp_port: @test_udp_port
+          }
+
+          Pipeline.start(Map.merge(pipeline_opts, state.stream_ctx))
+        end
+
+        :playing
+      else
+        :ready
+      end
+
     serve(socket, %{state | cseq: state.cseq + 1, server_state: new_state})
   end
 
   defp serve(socket, state) when state.server_state == :playing do
-    # Don't respond to GET_PARAMETER keep-alives in playing state
-    do_serve(socket, state, [:describe, :setup, :play])
+    if is_nil(state.stream_ctx) do
+      # For signalling test, don't respond to GET_PARAMETER keep-alives in playing state
+      do_serve(socket, state, [:describe, :setup, :play])
+    else
+      do_serve(socket, state, [:describe, :get_parameter, :setup, :play])
+    end
+
     serve(socket, %{state | cseq: state.cseq + 1})
   end
 
@@ -90,17 +191,24 @@ defmodule FakeRTSPserver do
   defp generate_response(request_type, state) do
     case request_type do
       :describe ->
+        {profile, params} =
+          if is_nil(state.stream_ctx),
+            do: {"64001f", "Z2QAH62EAQwgCGEAQwgCGEAQwgCEO1AoAt03AQEBQAAA+gAAOpgh,aO4xshs="},
+            else:
+              {state.stream_ctx.profile,
+               Base.encode64(state.stream_ctx.sps) <> "," <> Base.encode64(state.stream_ctx.pps)}
+
         sdp =
           "v=0\r\nm=video 0 RTP/AVP 96\r\na=control:rtsp://#{state.ip}:#{state.port}/control\r\n" <>
-            "a=rtpmap:96 H264/90000\r\na=fmtp:96 profile-level-id=64001f; packetization-mode=1; " <>
-            "sprop-parameter-sets=Z2QAH62EAQwgCGEAQwgCGEAQwgCEO1AoAt03AQEBQAAA+gAAOpgh,aO4xshs=\r\n"
+            "a=rtpmap:#{@test_pt} H264/#{@test_clock_rate}\r\na=fmtp:#{@test_pt} profile-level-id=#{profile}; " <>
+            "packetization-mode=1; sprop-parameter-sets=#{params}\r\n"
 
         "Content-Base: rtsp://#{state.ip}:#{state.port}/stream\r\n" <>
           "Content-Type: application/sdp\r\nContent-Length: #{byte_size(sdp)}\r\n\r\n" <> sdp
 
       :setup ->
         "Transport: RTP/AVP;unicast;client_port=#{state.client_port};" <>
-          "server_port=23456;ssrc=10443EAB\r\n\r\n"
+          "server_port=#{@test_udp_port};ssrc=#{Integer.to_string(@test_ssrc, 16)}\r\n\r\n"
 
       _play_or_get_parameter ->
         "\r\n"

@@ -1,8 +1,8 @@
-defmodule Membrane.RTC.RTSPEndpointTest do
+defmodule Membrane.RTC.RTSP.EndpointTest do
   use ExUnit.Case
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.RTSP
+  alias Membrane.RTC.Engine.Endpoint.{HLS, RTSP}
   alias Membrane.RTC.Engine.Message
 
   setup do
@@ -25,6 +25,16 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   @rtp_port 23_232
   @loopback_ip "127.0.0.1"
   @fake_server_port 554
+
+  @hls_endpoint_id "hls-endpoint"
+  @fixtures_dir "./test/fixtures/"
+
+  @fixture_filename "video_baseline.h264"
+  @fixture_framerate {60, 1}
+  @fixture_profile "42c02a"
+  @fixture_sps <<103, 66, 192, 42, 217, 0, 120, 2, 39, 229, 154, 129, 1, 2, 160, 0, 0, 3, 0, 32,
+                 0, 0, 15, 1, 227, 6, 73>>
+  @fixture_pps <<104, 203, 131, 203, 32>>
 
   test "invalid URI", %{rtc_engine: rtc_engine} do
     rtsp_endpoint = %RTSP{
@@ -128,5 +138,84 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     refute_received(_any)
 
     Process.exit(server_pid, :shutdown)
+  end
+
+  @tag :tmp_dir
+  test "RTSP -> HLS conversion, single H264 input", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+    self_pid = self()
+
+    server_pid =
+      spawn_link(fn ->
+        FakeRTSPserver.start(@loopback_ip, @fake_server_port, @rtp_port, self_pid, %{
+          fixture_path: Path.join(@fixtures_dir, @fixture_filename),
+          framerate: @fixture_framerate,
+          profile: @fixture_profile,
+          sps: @fixture_sps,
+          pps: @fixture_pps
+        })
+      end)
+
+    assert_receive(:fake_server_ready, 20_000)
+
+    hls_endpoint = %HLS{
+      rtc_engine: rtc_engine,
+      owner: self(),
+      output_directory: tmp_dir,
+      synchronize_tracks?: false,
+      hls_config: %HLS.HLSConfig{mode: :vod, target_window_duration: :infinity}
+    }
+
+    :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: @hls_endpoint_id)
+
+    rtsp_endpoint = %RTSP{
+      rtc_engine: rtc_engine,
+      source_uri: "rtsp://#{@loopback_ip}:#{@fake_server_port}/stream",
+      rtp_port: @rtp_port,
+      reconnect_delay: 500,
+      pierce_nat: false
+    }
+
+    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, endpoint_id: @rtsp_endpoint_id)
+
+    assert_receive(
+      %Message.EndpointMessage{
+        endpoint_id: @rtsp_endpoint_id,
+        message: :rtsp_setup_complete
+      },
+      20_000
+    )
+
+    assert_receive(
+      %Message.EndpointMessage{
+        endpoint_id: @rtsp_endpoint_id,
+        message: :new_rtp_stream
+      },
+      20_000
+    )
+
+    assert_receive({:playlist_playable, :video, output_dir}, 20_000)
+    assert [stream_id | _empty] = File.ls!(tmp_dir)
+    assert output_dir == Path.join(tmp_dir, stream_id)
+
+    spawn(fn -> check_presence_of_output_files(output_dir, 2, 1000, self_pid) end)
+    assert_receive(:output_files_present, 20_000)
+
+    refute_received(_any)
+
+    Process.exit(server_pid, :shutdown)
+  end
+
+  defp check_presence_of_output_files(dir, n_segment_files, retry_after, notify_pid) do
+    segments = File.ls!(dir) |> Enum.filter(fn x -> x =~ ~r/^video_segment_[0-9]+_.*\.m4s/ end)
+
+    if length(segments) == n_segment_files and
+         Enum.all?(segments, fn x ->
+           Path.join(dir, x) |> File.stat!() |> Map.get(:size) > 0
+         end) do
+      send(notify_pid, :output_files_present)
+    else
+      Process.sleep(retry_after)
+      check_presence_of_output_files(dir, n_segment_files, retry_after, notify_pid)
+    end
   end
 end
