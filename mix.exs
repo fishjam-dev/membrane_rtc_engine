@@ -77,7 +77,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:jason, "~> 1.2"},
       {:unifex, "~> 1.0"},
       {:statistics, "~> 0.6.0"},
-      {:credo, "~> 1.6", only: :dev, runtime: false},
+      {:credo, "~> 1.6.0", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
