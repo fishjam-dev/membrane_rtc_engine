@@ -9,10 +9,10 @@ Customizable Real-time Communication Engine/SFU library focused on WebRTC.
 
 ## Client SDKs
 
-* [JS/TS](https://github.com/jellyfish-dev/membrane-webrtc-js)
-* [Android](https://github.com/jellyfish-dev/membrane-webrtc-android)
-* [iOS](https://github.com/jellyfish-dev/membrane-webrtc-ios)
-* [React Native](https://github.com/jellyfish-dev/react-native-membrane-webrtc)
+- [JS/TS](https://github.com/jellyfish-dev/membrane-webrtc-js)
+- [Android](https://github.com/jellyfish-dev/membrane-webrtc-android)
+- [iOS](https://github.com/jellyfish-dev/membrane-webrtc-ios)
+- [React Native](https://github.com/jellyfish-dev/react-native-membrane-webrtc)
 
 ## Installation
 
@@ -21,7 +21,7 @@ The package can be installed by adding `membrane_rtc_engine` to your list of dep
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine, "~> 0.11.0"}
+    {:membrane_rtc_engine, "~> 0.12.0"}
   ]
 end
 ```
