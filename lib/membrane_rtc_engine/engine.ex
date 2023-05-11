@@ -297,7 +297,7 @@ defmodule Membrane.RTC.Engine do
   """
   @spec add_endpoint(
           pid :: pid(),
-          endpoint :: Membrane.ChildrenSpec.child_definition_t(),
+          endpoint :: Membrane.ChildrenSpec.child_definition(),
           opts :: endpoint_options_t()
         ) :: :ok | :error
   def add_endpoint(pid, endpoint, opts \\ []) do
@@ -518,7 +518,7 @@ defmodule Membrane.RTC.Engine do
 
     tee_actions =
       ctx
-      |> filter_children(pattern: {:tee, _tee_name})
+      |> filter_children(pattern: Child.ref({:tee, _tee_name}, group: _group))
       |> Enum.flat_map(&[notify_child: {&1, :track_priorities_updated}])
 
     {endpoint_msg_actions ++ tee_actions, state}
@@ -746,7 +746,7 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    spec = {links, crash_group: {endpoint_id, :temporary}, log_metadata: [rtc_engine: state.id]}
+    spec = {links, crash_group: {track_id, :temporary}, log_metadata: [rtc_engine: state.id]}
     {[spec: spec], state}
   end
 
@@ -791,7 +791,7 @@ defmodule Membrane.RTC.Engine do
 
     track_tees =
       tracks
-      |> Enum.map(&get_track_tee(&1.id, endpoint_id, ctx))
+      |> Enum.map(&get_track_tee(&1.id, ctx))
       |> Enum.reject(&is_nil(&1))
 
     subscriptions =
@@ -946,25 +946,19 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp find_children_for_endpoint(endpoint, ctx) do
-    children =
-      endpoint
-      |> Endpoint.get_tracks()
-      |> Enum.map(&get_track_tee(&1.id, endpoint.id, ctx))
-      |> Enum.reject(&is_nil(&1))
-
-    [endpoint: endpoint.id] ++ children
+    endpoint
+    |> Endpoint.get_tracks()
+    |> Enum.map(&get_track_tee(&1.id, ctx))
+    |> Enum.reject(&is_nil(&1))
+    |> Enum.concat([endpoint_ref(endpoint.id)])
   end
 
-  defp get_track_tee(track_id, endpoint_id, ctx) do
-    ctx.children
-    |> Enum.find(fn
-      {Child.ref({:tee, ^track_id}, group: ^endpoint_id), _child_data} -> true
-      _child_entry -> false
-    end)
-    |> case do
-      {child_ref, _child_data} -> child_ref
-      nil -> nil
-    end
+  defp get_track_tee(track_id, ctx) do
+    tee_ref = Child.ref({:tee, track_id}, group: track_id)
+
+    if Map.has_key?(ctx.children, tee_ref),
+      do: tee_ref,
+      else: nil
   end
 
   #
@@ -1064,7 +1058,7 @@ defmodule Membrane.RTC.Engine do
     # If the tee for this track is already spawned, fulfill subscription.
     # Otherwise, save subscription as pending, we will fulfill it when the tee is linked.
 
-    if get_track_tee(subscription.track_id, subscription.endpoint_id, ctx) != nil do
+    if get_track_tee(subscription.track_id, ctx) != nil do
       fulfill_subscriptions([subscription], ctx, state)
     else
       state = update_in(state, [:pending_subscriptions], &[subscription | &1])
@@ -1089,7 +1083,7 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp build_subscription_link(subscription, ctx, state) do
-    tee_ref = get_track_tee(subscription.track_id, subscription.endpoint_id, ctx)
+    tee_ref = get_track_tee(subscription.track_id, ctx)
 
     get_child(tee_ref)
     |> via_out(Pad.ref(:output, {:endpoint, subscription.endpoint_id}))

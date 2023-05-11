@@ -66,7 +66,7 @@ defmodule Membrane.RTC.Utils do
           child_name :: any(),
           msg :: any(),
           ctx :: ctx()
-        ) :: [Membrane.Pipeline.Action.notify_child_t()]
+        ) :: [Membrane.Pipeline.Action.notify_child()]
   def forward(child_name, msg, ctx) do
     child_ref = find_child(ctx, pattern: ^child_name)
 
