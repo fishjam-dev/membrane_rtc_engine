@@ -1,7 +1,6 @@
 defmodule Membrane.RTC.HLSEndpointTest do
   use ExUnit.Case
 
-  alias Membrane.HTTPAdaptiveStream.Manifest.SegmentDuration
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.HLS
   alias Membrane.RTC.Engine.Message
@@ -414,7 +413,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_config: %HLSConfig{
         mode: :vod,
         target_window_duration: :infinity,
-        segment_duration: SegmentDuration.new(Membrane.Time.seconds(2), Membrane.Time.seconds(3))
+        segment_duration: Membrane.Time.seconds(3)
       }
     }
   end
@@ -446,7 +445,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
         hls_mode: :muxed_av,
         mode: :vod,
         target_window_duration: :infinity,
-        segment_duration: SegmentDuration.new(Membrane.Time.seconds(2), Membrane.Time.seconds(3))
+        segment_duration: Membrane.Time.seconds(3)
       }
     }
   end

@@ -5,13 +5,12 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
     """
 
     alias Membrane.HTTPAdaptiveStream.{Manifest, Storage}
-    alias Membrane.HTTPAdaptiveStream.Manifest.SegmentDuration
     alias Membrane.Time
 
     @typedoc """
     To read more about config options go to module `Membrane.HTTPAdaptiveStream.SinkBin` and read options descriptions.
-    * `segment_duration` - The segment duration range  of the regular segments.
-    * `partial_segment_duration` - The segment duration range  of the partial segments. If not set then the bin won't produce any partial segments.
+    * `segment_duration` - The target duration of the regular segments.
+    * `partial_segment_duration` - The target duration of the partial segments. If not set then the bin won't produce any partial segments.
     """
     @type t() :: %__MODULE__{
             manifest_name: String.t(),
@@ -23,8 +22,8 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
             hls_mode: :muxed_av | :separate_av,
             header_naming_fun: (Manifest.Track.t(), counter :: non_neg_integer() -> String.t()),
             segment_naming_fun: (Manifest.Track.t() -> String.t()),
-            segment_duration: SegmentDuration.t(),
-            partial_segment_duration: SegmentDuration.t() | nil
+            segment_duration: Membrane.Time.t(),
+            partial_segment_duration: Membrane.Time.t(), | nil
           }
 
     defstruct manifest_name: "index",
@@ -36,7 +35,7 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
               hls_mode: :separate_av,
               header_naming_fun: &Manifest.Track.default_header_naming_fun/2,
               segment_naming_fun: &Manifest.Track.default_segment_naming_fun/1,
-              segment_duration: SegmentDuration.new(Time.seconds(4), Time.seconds(5)),
+              segment_duration: Time.seconds(5),
               partial_segment_duration: nil
 
     @spec default_storage(String.t()) :: any
