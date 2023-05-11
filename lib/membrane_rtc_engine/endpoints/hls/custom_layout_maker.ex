@@ -35,7 +35,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       new_state = put_in(state, [:tracks, track.id], {track, stream_format})
 
       {layout, transformations} =
-        get_track_layout(:main, nil, stream_format, state.output_stream_format, state)
+        get_track_layout(track, nil, stream_format, state.output_stream_format, state)
 
       updated_layout = [
         {track.id, layout, transformations}
@@ -51,6 +51,13 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     end
 
     @impl true
+    def track_updated(track, stream_format \\ nil, state)
+
+    def track_updated(track, nil, state) do
+      {_track, stream_format} = get_in(state, [:tracks, track.id])
+      track_added(track, stream_format, state)
+    end
+
     def track_updated(track, stream_format, state), do: track_added(track, stream_format, state)
 
     @impl true
@@ -67,7 +74,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       |> Enum.with_index()
       |> Enum.flat_map(fn {{_id, {track, stream_format}}, index} ->
         {layout, transcoding} =
-          get_track_layout(:side, index, stream_format, output_stream_format, state)
+          get_track_layout(track, index, stream_format, output_stream_format, state)
 
         [
           {track.id, layout, transcoding}
@@ -75,22 +82,47 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       end)
     end
 
-    defp get_track_layout(:main, _index, stream_format, output_stream_format, _state) do
-      placement =
-        get_placement(
-          output_stream_format,
-          stream_format,
-          @main_stream.position,
-          @main_stream.z_value
-        )
+    defp get_track_layout(
+           %{metadata: %{"mainPresenter" => true, "isScreenSharing" => is_screen_sharing}},
+           _index,
+           stream_format,
+           output_stream_format,
+           _state
+         ) do
+      if is_screen_sharing do
+        {%BaseVideoPlacement{
+           position:
+             {round((output_stream_format.width - stream_format.width) / 2),
+              round((output_stream_format.height - stream_format.height) / 2)},
+           size: {stream_format.width, stream_format.height},
+           z_value: @main_stream.z_value
+         },
+         %VideoTransformations{
+           texture_transformations: []
+         }}
+      else
+        placement =
+          get_placement(
+            output_stream_format,
+            stream_format,
+            @main_stream.position,
+            @main_stream.z_value
+          )
 
-      transformations =
-        get_transformations(output_stream_format, placement.size, @main_stream.corner_radius)
+        transformations =
+          get_transformations(output_stream_format, placement.size, @main_stream.corner_radius)
 
-      {placement, transformations}
+        {placement, transformations}
+      end
     end
 
-    defp get_track_layout(:side, index, stream_format, output_stream_format, state) do
+    defp get_track_layout(
+           %{metadata: %{"mainPresenter" => false}},
+           index,
+           stream_format,
+           output_stream_format,
+           state
+         ) do
       track_stream_format =
         state.module.track_stream_format(output_stream_format, index, @side_stream.padding)
 
