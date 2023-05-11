@@ -23,7 +23,7 @@ if Code.ensure_loaded?(Membrane.HTTPAdaptiveStream.Manifest) do
             header_naming_fun: (Manifest.Track.t(), counter :: non_neg_integer() -> String.t()),
             segment_naming_fun: (Manifest.Track.t() -> String.t()),
             segment_duration: Membrane.Time.t(),
-            partial_segment_duration: Membrane.Time.t(), | nil
+            partial_segment_duration: Membrane.Time.t() | nil
           }
 
     defstruct manifest_name: "index",
