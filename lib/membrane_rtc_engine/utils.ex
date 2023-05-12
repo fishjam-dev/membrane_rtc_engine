@@ -24,30 +24,17 @@ defmodule Membrane.RTC.Utils do
 
   defmacro find_child(ctx, pattern: pattern) do
     quote do
-      require Membrane.Child, as: Child
-
       unquote(ctx).children
-      |> Enum.find(fn
-        {unquote(pattern), _child_data} -> true
-        _child_entry -> false
-      end)
-      |> case do
-        {child_ref, _child_data} -> child_ref
-        nil -> nil
-      end
+      |> Map.keys()
+      |> Enum.find(&match?(unquote(pattern), &1))
     end
   end
 
   defmacro filter_children(ctx, pattern: pattern) do
     quote do
-      require Membrane.Child, as: Child
-
       unquote(ctx).children
       |> Map.keys()
-      |> Enum.filter(fn child_name ->
-        match?(Child.ref(unquote(pattern)), child_name) or
-          match?(Child.ref(unquote(pattern), group: _group), child_name)
-      end)
+      |> Enum.filter(&match?(unquote(pattern), &1))
     end
   end
 
