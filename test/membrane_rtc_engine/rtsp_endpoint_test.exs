@@ -1,9 +1,11 @@
-defmodule Membrane.RTC.RTSP.EndpointTest do
+defmodule Membrane.RTC.RTSPEndpointTest do
   use ExUnit.Case
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.{HLS, RTSP}
   alias Membrane.RTC.Engine.Message
+
+  alias Membrane.HTTPAdaptiveStream.Manifest.SegmentDuration
 
   setup do
     options = [
@@ -162,7 +164,14 @@ defmodule Membrane.RTC.RTSP.EndpointTest do
       owner: self(),
       output_directory: tmp_dir,
       synchronize_tracks?: false,
-      hls_config: %HLS.HLSConfig{mode: :vod, target_window_duration: :infinity}
+      hls_config: %HLS.HLSConfig{
+        mode: :vod,
+        target_window_duration: :infinity,
+        segment_duration: %SegmentDuration{
+          min: Membrane.Time.seconds(2),
+          target: Membrane.Time.seconds(2)
+        }
+      }
     }
 
     :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: @hls_endpoint_id)
@@ -172,6 +181,7 @@ defmodule Membrane.RTC.RTSP.EndpointTest do
       source_uri: "rtsp://#{@loopback_ip}:#{@fake_server_port}/stream",
       rtp_port: @rtp_port,
       reconnect_delay: 500,
+      keep_alive_interval: 999_999,
       pierce_nat: false
     }
 
@@ -197,7 +207,7 @@ defmodule Membrane.RTC.RTSP.EndpointTest do
     assert [stream_id | _empty] = File.ls!(tmp_dir)
     assert output_dir == Path.join(tmp_dir, stream_id)
 
-    spawn(fn -> check_presence_of_output_files(output_dir, 2, 1000, self_pid) end)
+    spawn(fn -> check_presence_of_output_files(output_dir, 4, 1000, self_pid) end)
     assert_receive(:output_files_present, 20_000)
 
     refute_received(_any)
