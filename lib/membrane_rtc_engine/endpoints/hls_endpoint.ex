@@ -437,7 +437,7 @@ if Enum.all?(
             alignment: :au
           })
           |> child({:stream_format_updater, track.id}, StreamFormatUpdater)
-          |> child({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
+          |> child({:video_decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
           |> via_in(Pad.ref(:input, track.id),
             options: [initial_placement: @initial_placement, timestamp_offset: offset]
           )
