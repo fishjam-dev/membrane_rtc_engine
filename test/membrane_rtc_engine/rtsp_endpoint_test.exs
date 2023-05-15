@@ -37,6 +37,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   @fixture_sps <<103, 66, 192, 42, 217, 0, 120, 2, 39, 229, 154, 129, 1, 2, 160, 0, 0, 3, 0, 32,
                  0, 0, 15, 1, 227, 6, 73>>
   @fixture_pps <<104, 203, 131, 203, 32>>
+  @fixture_expected_hls_segments 4
 
   test "invalid URI", %{rtc_engine: rtc_engine} do
     rtsp_endpoint = %RTSP{
@@ -207,7 +208,10 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     assert [stream_id | _empty] = File.ls!(tmp_dir)
     assert output_dir == Path.join(tmp_dir, stream_id)
 
-    spawn(fn -> check_presence_of_output_files(output_dir, 4, 1000, self_pid) end)
+    spawn(fn ->
+      check_presence_of_output_files(output_dir, @fixture_expected_hls_segments, 1000, self_pid)
+    end)
+
     assert_receive(:output_files_present, 20_000)
 
     refute_received(_any)
