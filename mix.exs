@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.12.0"
+  @version "0.12.1"
   @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
 
   def project do
@@ -62,7 +62,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.11.2"},
-      {:membrane_webrtc_plugin, "~> 0.14.4"},
+      {:membrane_webrtc_plugin, "~> 0.14.5"},
       {:membrane_rtp_plugin, "~> 0.22.0"},
       {:membrane_rtp_format, "~> 0.6.0"},
       {:membrane_tee_plugin, "~> 0.10.0"},
