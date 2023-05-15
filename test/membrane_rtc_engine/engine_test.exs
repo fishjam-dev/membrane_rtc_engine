@@ -36,6 +36,7 @@ defmodule Membrane.RTC.EngineTest do
 
       assert_receive {:new_peer, %Peer{id: "peer", metadata: "metadata"}}
       assert_receive {:ready, []}
+      refute_receive {:new_tracks, []}
     end
 
     test "is ignored for non-peers", %{rtc_engine: rtc_engine} do
@@ -52,6 +53,7 @@ defmodule Membrane.RTC.EngineTest do
 
       refute_receive {:new_peer, _peer}
       refute_receive {:ready, _peers_in_room}
+      refute_receive {:new_tracks, []}
     end
 
     test "reports other peers", %{rtc_engine: rtc_engine} do
