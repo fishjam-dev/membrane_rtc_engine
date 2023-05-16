@@ -1113,10 +1113,6 @@ defmodule Membrane.RTC.Engine do
     |> Map.get(track_id)
   end
 
-  # defp Child.ref(:endpoint, group: endpoint_id) do
-  #   Membrane.Child.ref(:endpoint, group: endpoint_id)
-  # end
-
   #
   # Message Dispatch
   #
