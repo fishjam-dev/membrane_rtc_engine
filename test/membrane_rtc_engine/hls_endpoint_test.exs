@@ -18,7 +18,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   @fixtures_dir "./test/fixtures/"
   @reference_dir "./test/hls_reference/"
   @main_manifest "index.m3u8"
-  @accaptable_bandwidth_diff 500_000
+  @acceptable_bandwidth_diff 500_000
 
   setup do
     options = [
@@ -547,8 +547,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
     output_bandwidth = String.to_integer(output_bandwidth)
     reference_bandwidth = String.to_integer(reference_bandwidth)
 
-    assert output_bandwidth + @accaptable_bandwidth_diff > reference_bandwidth and
-             output_bandwidth < reference_bandwidth + @accaptable_bandwidth_diff
+    assert output_bandwidth + @acceptable_bandwidth_diff > reference_bandwidth and
+             output_bandwidth < reference_bandwidth + @acceptable_bandwidth_diff
 
     assert output_without_bandwidth == reference_without_bandwidth
   end

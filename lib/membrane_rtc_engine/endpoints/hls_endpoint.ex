@@ -16,6 +16,7 @@ if Enum.all?(
     ```
     [
       :membrane_h264_ffmpeg_plugin,
+      :membrane_h264_plugin,
       :membrane_http_adaptive_stream_plugin,
       :membrane_opus_plugin,
       :membrane_aac_plugin,

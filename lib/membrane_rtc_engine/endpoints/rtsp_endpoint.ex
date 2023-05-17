@@ -57,6 +57,8 @@ if Enum.all?(
     @max_reconnect_attempts 3
     @reconnect_delay 15_000
     @keep_alive_interval 15_000
+    # Increased buffer size helps ensure the stability of transmission and eliminate video artefacts
+    @recv_buffer_size 1024 * 1024
 
     def_output_pad :output,
       demand_unit: :buffers,
@@ -273,7 +275,8 @@ if Enum.all?(
       structure = [
         child(:udp_source, %Membrane.UDP.Source{
           local_port_no: state.rtp_port,
-          pierce_nat_ctx: pierce_nat_ctx
+          pierce_nat_ctx: pierce_nat_ctx,
+          recv_buffer_size: @recv_buffer_size
         })
         |> via_in(Pad.ref(:rtp_input, make_ref()))
         |> child(:rtp, %Membrane.RTP.SessionBin{
