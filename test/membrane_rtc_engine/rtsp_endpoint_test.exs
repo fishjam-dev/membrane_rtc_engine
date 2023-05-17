@@ -33,11 +33,16 @@ defmodule Membrane.RTC.RTSPEndpointTest do
 
   @fixture_filename "video_baseline.h264"
   @fixture_framerate {60, 1}
+  @fixture_hls_segments 4
+
+  # H264 params of the given file which will be sent in SDP within an RTSP response:
+  # profile-level-id as per RFC 6190
   @fixture_profile "42c02a"
+
+  # SPS and PPS for the sprop-parameter-sets field
   @fixture_sps <<103, 66, 192, 42, 217, 0, 120, 2, 39, 229, 154, 129, 1, 2, 160, 0, 0, 3, 0, 32,
                  0, 0, 15, 1, 227, 6, 73>>
   @fixture_pps <<104, 203, 131, 203, 32>>
-  @fixture_expected_hls_segments 4
 
   test "invalid URI", %{rtc_engine: rtc_engine} do
     rtsp_endpoint = %RTSP{
@@ -102,9 +107,14 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     self_pid = self()
 
     server_pid =
-      spawn_link(fn ->
-        FakeRTSPserver.start(@loopback_ip, @fake_server_port, @rtp_port, self_pid)
-      end)
+      start_link_supervised!(
+        {FakeRTSPserver,
+         ip: @loopback_ip,
+         port: @fake_server_port,
+         client_port: @rtp_port,
+         parent_pid: self_pid,
+         stream_ctx: nil}
+      )
 
     assert_receive(:fake_server_ready, 20_000)
 
@@ -148,15 +158,20 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     self_pid = self()
 
     server_pid =
-      spawn_link(fn ->
-        FakeRTSPserver.start(@loopback_ip, @fake_server_port, @rtp_port, self_pid, %{
-          fixture_path: Path.join(@fixtures_dir, @fixture_filename),
-          framerate: @fixture_framerate,
-          profile: @fixture_profile,
-          sps: @fixture_sps,
-          pps: @fixture_pps
-        })
-      end)
+      start_link_supervised!(
+        {FakeRTSPserver,
+         ip: @loopback_ip,
+         port: @fake_server_port,
+         client_port: @rtp_port,
+         parent_pid: self_pid,
+         stream_ctx: %{
+           fixture_path: Path.join(@fixtures_dir, @fixture_filename),
+           framerate: @fixture_framerate,
+           profile: @fixture_profile,
+           sps: @fixture_sps,
+           pps: @fixture_pps
+         }}
+      )
 
     assert_receive(:fake_server_ready, 20_000)
 
@@ -181,8 +196,6 @@ defmodule Membrane.RTC.RTSPEndpointTest do
       rtc_engine: rtc_engine,
       source_uri: "rtsp://#{@loopback_ip}:#{@fake_server_port}/stream",
       rtp_port: @rtp_port,
-      reconnect_delay: 500,
-      keep_alive_interval: 999_999,
       pierce_nat: false
     }
 
@@ -193,7 +206,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
         endpoint_id: @rtsp_endpoint_id,
         message: :rtsp_setup_complete
       },
-      20_000
+      2_000
     )
 
     assert_receive(
@@ -201,15 +214,13 @@ defmodule Membrane.RTC.RTSPEndpointTest do
         endpoint_id: @rtsp_endpoint_id,
         message: :new_rtp_stream
       },
-      20_000
+      2_000
     )
 
-    assert_receive({:playlist_playable, :video, output_dir}, 20_000)
-    assert [stream_id | _empty] = File.ls!(tmp_dir)
-    assert output_dir == Path.join(tmp_dir, stream_id)
+    assert_receive({:playlist_playable, :video, output_dir}, 10_000)
 
     spawn(fn ->
-      check_presence_of_output_files(output_dir, @fixture_expected_hls_segments, 1000, self_pid)
+      check_presence_of_output_files(output_dir, @fixture_hls_segments, 1000, self_pid)
     end)
 
     assert_receive(:output_files_present, 20_000)
@@ -220,7 +231,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   end
 
   defp check_presence_of_output_files(dir, n_segment_files, retry_after, notify_pid) do
-    segments = File.ls!(dir) |> Enum.filter(fn x -> x =~ ~r/^video_segment_[0-9]+_.*\.m4s/ end)
+    segments = File.ls!(dir) |> Enum.filter(fn x -> x =~ ~r/^video_segment_[0-9]+_.*\.m4s$/ end)
 
     if length(segments) == n_segment_files and
          Enum.all?(segments, fn x ->

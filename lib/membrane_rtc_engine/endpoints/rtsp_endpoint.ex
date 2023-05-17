@@ -57,7 +57,8 @@ if Enum.all?(
     @max_reconnect_attempts 3
     @reconnect_delay 15_000
     @keep_alive_interval 15_000
-    @recv_buffer_size 1_048_576
+    # Increased buffer size helps ensure the stability of transmission and eliminate video artefacts
+    @recv_buffer_size 1024 * 1024
 
     def_output_pad :output,
       demand_unit: :buffers,

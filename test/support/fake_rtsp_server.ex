@@ -112,8 +112,26 @@ defmodule FakeRTSPserver do
     end
   end
 
-  @spec start(String.t(), pos_integer(), pos_integer(), pid(), map() | nil) :: any()
-  def start(ip, port, client_port, parent_pid, stream_ctx \\ nil) do
+  @spec child_spec(Keyword.t()) :: map()
+  def child_spec(args) do
+    %{
+      id: FakeRTSPserver,
+      start: {FakeRTSPserver, :start, [args]}
+    }
+  end
+
+  @spec start(Keyword.t()) :: any()
+  def start(
+        ip: ip,
+        port: port,
+        client_port: client_port,
+        parent_pid: parent_pid,
+        stream_ctx: stream_ctx
+      ) do
+    {:ok, spawn_link(fn -> start_server(ip, port, client_port, parent_pid, stream_ctx) end)}
+  end
+
+  defp start_server(ip, port, client_port, parent_pid, stream_ctx) do
     {:ok, socket} =
       :gen_tcp.listen(port, [:binary, packet: :line, active: false, reuseaddr: true])
 
@@ -236,6 +254,8 @@ defmodule FakeRTSPserver do
       :describe ->
         {profile, params} =
           if is_nil(state.stream_ctx),
+            # If not sending a stream, doesn't matter what we put here --
+            # these are valid sample values received from an IP camera
             do: {"64001f", "Z2QAH62EAQwgCGEAQwgCGEAQwgCEO1AoAt03AQEBQAAA+gAAOpgh,aO4xshs="},
             else:
               {state.stream_ctx.profile,
