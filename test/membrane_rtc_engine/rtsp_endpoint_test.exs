@@ -35,11 +35,11 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   @fixture_framerate {60, 1}
   @fixture_hls_segments 4
 
-  # H264 params of the given file which will be sent in SDP within an RTSP response:
-  # profile-level-id as per RFC 6190
+  # At the moment, this test might not work with H264 profiles with B-frames
+  # (any except :baseline and :constrained_baseline).
+  # For more info refer to the issue available here:
+  # https://membraneframework.atlassian.net/browse/MS-553
   @fixture_profile "42c02a"
-
-  # SPS and PPS for the sprop-parameter-sets field
   @fixture_sps <<103, 66, 192, 42, 217, 0, 120, 2, 39, 229, 154, 129, 1, 2, 160, 0, 0, 3, 0, 32,
                  0, 0, 15, 1, 227, 6, 73>>
   @fixture_pps <<104, 203, 131, 203, 32>>
@@ -106,15 +106,15 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   test "RTSP signalling and disconnects (with a fake server)", %{rtc_engine: rtc_engine} do
     self_pid = self()
 
-    server_pid =
-      start_link_supervised!(
-        {FakeRTSPserver,
-         ip: @loopback_ip,
-         port: @fake_server_port,
-         client_port: @rtp_port,
-         parent_pid: self_pid,
-         stream_ctx: nil}
-      )
+    start_link_supervised!(
+      {FakeRTSPserver,
+       ip: @loopback_ip,
+       port: @fake_server_port,
+       client_port: @rtp_port,
+       parent_pid: self_pid,
+       stream_ctx: nil},
+      restart: :temporary
+    )
 
     assert_receive(:fake_server_ready, 20_000)
 
@@ -149,29 +149,27 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     assert_receive(%Message.EndpointCrashed{endpoint_id: @rtsp_endpoint_id}, 20_000)
 
     refute_received(_any)
-
-    Process.exit(server_pid, :shutdown)
   end
 
   @tag :tmp_dir
   test "RTSP -> HLS conversion, single H264 input", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
     self_pid = self()
 
-    server_pid =
-      start_link_supervised!(
-        {FakeRTSPserver,
-         ip: @loopback_ip,
-         port: @fake_server_port,
-         client_port: @rtp_port,
-         parent_pid: self_pid,
-         stream_ctx: %{
-           fixture_path: Path.join(@fixtures_dir, @fixture_filename),
-           framerate: @fixture_framerate,
-           profile: @fixture_profile,
-           sps: @fixture_sps,
-           pps: @fixture_pps
-         }}
-      )
+    start_link_supervised!(
+      {FakeRTSPserver,
+       ip: @loopback_ip,
+       port: @fake_server_port,
+       client_port: @rtp_port,
+       parent_pid: self_pid,
+       stream_ctx: %{
+         fixture_path: Path.join(@fixtures_dir, @fixture_filename),
+         framerate: @fixture_framerate,
+         profile: @fixture_profile,
+         sps: @fixture_sps,
+         pps: @fixture_pps
+       }},
+      restart: :temporary
+    )
 
     assert_receive(:fake_server_ready, 20_000)
 
@@ -226,8 +224,6 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     assert_receive(:output_files_present, 20_000)
 
     refute_received(_any)
-
-    Process.exit(server_pid, :shutdown)
   end
 
   defp check_presence_of_output_files(dir, n_segment_files, retry_after, notify_pid) do
