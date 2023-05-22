@@ -4,6 +4,7 @@ defmodule Membrane.RTC.Utils do
   require OpenTelemetry.Tracer, as: Tracer
   require Membrane.TelemetryMetrics
 
+  alias Membrane.RTC.Engine.Endpoint
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTP.PayloadFormatResolver

@@ -86,7 +86,6 @@ defmodule Membrane.RTC.Engine do
     Endpoint,
     FilterTee,
     Message,
-    Peer,
     Subscription,
     Tee,
     Track
@@ -183,7 +182,7 @@ defmodule Membrane.RTC.Engine do
   @typedoc """
   A message that the Engine sends to the endpoint when it ackowledges its `t:ready_action_t/0`
   """
-  @type ready_ack_msg_t() :: {:ready, endpoints :: [Endpoint.t()]}
+  @type ready_ack_msg_t() :: {:ready, other_endpoints :: [Endpoint.t()]}
 
   @typedoc """
   Membrane action that will cause RTC Engine to forward supplied message to the business logic.
@@ -213,7 +212,7 @@ defmodule Membrane.RTC.Engine do
   @type published_message_t() ::
           {:new_tracks, [Track.t()]}
           | {:removed_tracks, [Track.t()]}
-          | {:new_endpoint, Endpoint.t()} # Endpoint.t() or track_id_to_track_metadata
+          | {:new_endpoint, Endpoint.t()}
           | {:endpoint_removed, Endpoint.id()}
           | {:track_metadata_updated, Track.t()}
           | {:endpoint_metadata_updated, Endpoint.t()}
@@ -505,8 +504,8 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_child_notification(notification, {:endpoint, endpoint_id}, ctx, state) do
-    if Map.has_key?(state.endpoints, endpoint_id) or 
-        Map.has_key?(state.pending_endpoints, endpoint_id) do
+    if Map.has_key?(state.endpoints, endpoint_id) or
+         Map.has_key?(state.pending_endpoints, endpoint_id) do
       handle_endpoint_notification(notification, endpoint_id, ctx, state)
     else
       {[], state}
@@ -532,19 +531,8 @@ defmodule Membrane.RTC.Engine do
     if Map.has_key?(state.pending_endpoints, endpoint_id) do
       {new_endpoint, state} = pop_in(state, [:pending_endpoints, endpoint_id])
 
-      other_endpoints = 
-        state.endpoints
-        |> Map.values()
-        |> Enum.map(fn endpoint ->
-          track_id_to_metadata = Endpoint.get_active_track_metadata(endpoint)
-          
-          # TODO this or just Endpoint.t()
-          endpoint
-          |> Map.from_struct()
-          |> Map.drop(:inbound_tracks)
-          |> Map.put(:track_id_to_track_metadata, track_id_to_metadata)
-        end)
-      
+      other_endpoints = Map.values(state.endpoints)
+
       new_endpoint_notifications =
         state.endpoints
         |> Map.keys()
@@ -584,17 +572,24 @@ defmodule Membrane.RTC.Engine do
     {[], state}
   end
 
-  defp handle_endpoint_notification({:update_endpoint_metadata, metadata}, endpoint_id, _ctx, state) do
+  defp handle_endpoint_notification(
+         {:update_endpoint_metadata, metadata},
+         endpoint_id,
+         _ctx,
+         state
+       ) do
     endpoint = Map.get(state.endpoints, endpoint_id)
 
     if endpoint.metadata != metadata do
       updated_endpoint = %{endpoint | metadata: metadata}
       state = put_in(state, [:endpoints, endpoint_id], updated_endpoint)
 
-      actions = 
+      actions =
         state.endpoints
         |> Map.keys()
-        |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:endpoint_metadata_updated, updated_endpoint}}})
+        |> Enum.map(
+          &{:notify_child, {{:endpoint, &1}, {:endpoint_metadata_updated, updated_endpoint}}}
+        )
     else
       {[], state}
     end

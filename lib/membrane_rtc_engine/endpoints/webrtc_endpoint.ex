@@ -77,7 +77,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
   @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
-  @peer_metadata_event [Membrane.RTC.Engine, :peer, :metadata, :event]
+  @endpoint_metadata_event [Membrane.RTC.Engine, :endpoint, :metadata, :event]
 
   @life_span_id "webrtc_endpoint.life_span"
 
@@ -208,10 +208,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 default: %SimulcastConfig{},
                 description: "Simulcast configuration"
               ],
-              peer_metadata: [
+              metadata: [
                 spec: any(),
                 default: nil,
-                description: "Peer metadata"
+                description: "Endpoint metadata"
               ],
               telemetry_label: [
                 spec: Membrane.TelemetryMetrics.label(),
@@ -236,12 +236,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_init(ctx, opts) do
-    Membrane.TelemetryMetrics.register(@peer_metadata_event, opts.telemetry_label)
+    Membrane.TelemetryMetrics.register(@endpoint_metadata_event, opts.telemetry_label)
     Membrane.RTC.Utils.register_bandwidth_event(opts.telemetry_label)
 
     Membrane.TelemetryMetrics.execute(
-      @peer_metadata_event,
-      %{metadata: opts.peer_metadata},
+      @endpoint_metadata_event,
+      %{metadata: opts.metadata},
       %{},
       opts.telemetry_label
     )
@@ -258,8 +258,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     Membrane.OpenTelemetry.set_attribute(
       @life_span_id,
-      :peer_metadata,
-      inspect(opts.peer_metadata)
+      :endpoint_metadata,
+      inspect(opts.metadata)
     )
 
     connection_allocator_module =
@@ -513,27 +513,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:ready, peers_in_room}, ctx, state) do
-    # We've received confirmation from the RTC Engine that our peer is ready
-    # alongside information about peers and tracks present in the room.
+  def handle_parent_notification({:ready, other_endpoints}, ctx, state) do
+    # We've received confirmation from the RTC Engine that our endpoint is ready
+    # alongside information about other endpoints and tracks present in the room.
     # Forward this information to the client
 
     # FIXME: I don't think we actually need information about tracks in this media event
-    {:endpoint, peer_id} = ctx.name
-    event = MediaEvent.peer_accepted(peer_id, peers_in_room) |> MediaEvent.encode()
+    {:endpoint, endpoint_id} = ctx.name
+    event = MediaEvent.endpoint_ready(endpoint_id, other_endpoints) |> MediaEvent.encode()
 
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_parent_notification({:new_peer, peer}, _ctx, state) do
-    event = MediaEvent.peer_joined(peer) |> MediaEvent.encode()
+  def handle_parent_notification({:new_endpoint, endpoint}, _ctx, state) do
+    event = MediaEvent.endpoint_added(endpoint) |> MediaEvent.encode()
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_parent_notification({:peer_left, peer_id}, _ctx, state) do
-    event = MediaEvent.peer_left(peer_id) |> MediaEvent.encode()
+  def handle_parent_notification({:endpoint_removed, endpoint_id}, _ctx, state) do
+    event = MediaEvent.endpoint_removed(endpoint_id) |> MediaEvent.encode()
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
@@ -549,8 +549,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:peer_metadata_updated, peer}, _ctx, state) do
-    event = MediaEvent.peer_updated(peer) |> MediaEvent.encode()
+  def handle_parent_notification({:endpoint_metadata_updated, endpoint}, _ctx, state) do
+    # TODO  media event
+    event = MediaEvent.endpoint_updated(endpoint) |> MediaEvent.encode()
     # TODO: update metadata in the state
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
@@ -779,11 +780,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(
-         %{type: :update_peer_metadata, data: %{metadata: metadata}},
+         %{type: :update_endpoint_metadata, data: %{metadata: metadata}},
          _ctx,
          state
        ) do
-    {[notify_parent: {:update_peer_metadata, metadata}], state}
+    {[notify_parent: {:update_endpoint_metadata, metadata}], state}
   end
 
   defp handle_media_event(%{type: :sdp_offer, data: data}, ctx, state) do

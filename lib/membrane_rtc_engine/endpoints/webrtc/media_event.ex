@@ -2,53 +2,53 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   @moduledoc false
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
-  alias Membrane.RTC.Engine.{Peer, Track}
+  alias Membrane.RTC.Engine.Track
 
   @type t() :: map()
 
-  @spec peer_accepted(Peer.id(), list()) :: t()
-  def peer_accepted(peer_id, peers) do
-    %{type: "peerAccepted", data: %{id: peer_id, peersInRoom: peers}}
+  @spec endpoint_ready(Endpoint.id(), list()) :: t()
+  def endpoint_ready(endpoint_id, other_endpoints) do
+    other_endpoints =
+      other_endpoints
+      |> Enum.map(&%{id: &1.id, metadata: &1.metadata})
+
+    %{type: "endpointReady", data: %{id: endpoint_id, otherEndpoints: other_endpoints}}
   end
 
-  @spec peer_denied(map()) :: t()
-  def peer_denied(metadata \\ %{}) do
-    %{type: "peerDenied", data: metadata}
+  @spec endpoint_added(Endpoint.t()) :: t()
+  def endpoint_added(%Endpoint{id: id, metadata: metadata}) do
+    %{type: "endpointAdded", data: %{endpoint: %{id: id, metadata: metadata}}}
   end
 
-  @spec peer_joined(Peer.t()) :: t()
-  def peer_joined(%Peer{id: id, metadata: metadata}) do
-    %{type: "peerJoined", data: %{peer: %{id: id, metadata: metadata}}}
+  @spec endpoint_removed(Endpoint.id()) :: t()
+  def endpoint_removed(endpoint_id) do
+    %{type: "endpointRemoved", data: %{endpointId: endpoint_id}}
   end
 
-  @spec peer_left(Peer.id()) :: t()
-  def peer_left(peer_id) do
-    %{type: "peerLeft", data: %{peerId: peer_id}}
+  @spec endpoint_updated(Endpoint.t()) :: t()
+  def endpoint_updated(endpoint) do
+    %{type: "endpointUpdated", data: %{endpointId: endpoint.id, metadata: endpoint.metadata}}
   end
 
-  @spec peer_updated(Peer.t()) :: t()
-  def peer_updated(peer) do
-    %{type: "peerUpdated", data: %{peerId: peer.id, metadata: peer.metadata}}
+  @spec tracks_added(Endpoint.id(), map()) :: t()
+  def tracks_added(endpoint_id, track_id_to_metadata) do
+    %{
+      type: "tracksAdded",
+      data: %{endpointId: endpoint_id, trackIdToMetadata: track_id_to_metadata}
+    }
   end
 
-  @spec peer_removed(Peer.id(), String.t()) :: t()
-  def peer_removed(peer_id, reason) do
-    %{type: "peerRemoved", data: %{peerId: peer_id, reason: reason}}
+  @spec tracks_removed(Endpoint.id(), [String.t()]) :: t()
+  def tracks_removed(endpoint_id, track_ids) do
+    %{type: "tracksRemoved", data: %{endpointId: endpoint_id, trackIds: track_ids}}
   end
 
-  @spec tracks_added(Peer.id(), map()) :: t()
-  def tracks_added(peer_id, track_id_to_metadata) do
-    %{type: "tracksAdded", data: %{peerId: peer_id, trackIdToMetadata: track_id_to_metadata}}
-  end
-
-  @spec tracks_removed(Peer.id(), [String.t()]) :: t()
-  def tracks_removed(peer_id, track_ids) do
-    %{type: "tracksRemoved", data: %{peerId: peer_id, trackIds: track_ids}}
-  end
-
-  @spec track_updated(Peer.id(), String.t(), map()) :: t()
-  def track_updated(peer_id, track_id, metadata) do
-    %{type: "trackUpdated", data: %{peerId: peer_id, trackId: track_id, metadata: metadata}}
+  @spec track_updated(Endpoint.id(), String.t(), map()) :: t()
+  def track_updated(endpoint_id, track_id, metadata) do
+    %{
+      type: "trackUpdated",
+      data: %{endpointId: endpoint_id, trackId: track_id, metadata: metadata}
+    }
   end
 
   @spec tracks_priority([String.t()]) :: t()
@@ -57,15 +57,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   end
 
   @spec encoding_switched(
-          Peer.id(),
+          Endpoint.id(),
           Track.id(),
           String.t(),
           TrackReceiver.variant_switch_reason()
         ) :: t()
-  def encoding_switched(peer_id, track_id, encoding, reason) do
+  def encoding_switched(endpoint_id, track_id, encoding, reason) do
     as_custom(%{
       type: "encodingSwitched",
-      data: %{peerId: peer_id, trackId: track_id, encoding: encoding, reason: reason}
+      data: %{endpoint_id: endpoint_id, trackId: track_id, encoding: encoding, reason: reason}
     })
   end
 
@@ -170,8 +170,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     with {:ok, event} <- decode_custom_media_event(data), do: {:ok, %{type: :custom, data: event}}
   end
 
-  defp do_decode(%{"type" => "updatePeerMetadata", "data" => %{"metadata" => metadata}}),
-    do: {:ok, %{type: :update_peer_metadata, data: %{metadata: metadata}}}
+  defp do_decode(%{"type" => "updateEndpointMetadata", "data" => %{"metadata" => metadata}}),
+    do: {:ok, %{type: :update_endpoint_metadata, data: %{metadata: metadata}}}
 
   defp do_decode(%{
          "type" => "updateTrackMetadata",

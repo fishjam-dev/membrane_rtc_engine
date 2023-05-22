@@ -161,7 +161,6 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine.Message,
           Membrane.RTC.Engine.Metrics,
           Membrane.RTC.Engine.Notifications.TrackNotification,
-          Membrane.RTC.Engine.Peer,
           Membrane.RTC.Engine.Track,
           Membrane.RTC.Engine.Track.BitrateEstimation
         ],
