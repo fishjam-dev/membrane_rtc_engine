@@ -1,12 +1,12 @@
 defmodule Membrane.RTC.Engine.Metrics do
   @moduledoc """
   Defines list of metrics, that Reporter instance can aggregate by listening on events emitted in RTC Engine.
-  Suggested Reporter implementation is `Membrane.TelemetryMetrics.Reporter` from `membrane_telemetry_metrics`.
-  `Membrane.TelemetryMetrics.Reporter` started with metrics returned by `metrics/1` function will be able to 
-  generate reports, that matches type `Membrane.RTC.Engine.Metrics.rtc_engine_report()`
+  Suggested Reporter implementation is `Membrane.TelemetryMetrics.Reporter` from 
+  [`membrane_telemetry_metrics`](https://github.com/membraneframework/membrane_telemetry_metrics).
   You can see usage example in [`membrane_videoroom`](https://github.com/membraneframework/membrane_videoroom).
 
-  See also `Metrics` guide.
+  See also `Metrics` guide for more details and example report that you can obtain with 
+  `Membrane.TelemetryMetrics.Reporter`.
   """
 
   @spec metrics() :: [Telemetry.Metrics.t()]
