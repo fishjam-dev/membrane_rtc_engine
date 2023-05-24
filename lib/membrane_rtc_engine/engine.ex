@@ -594,12 +594,19 @@ defmodule Membrane.RTC.Engine do
         |> Map.keys()
         |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:new_peer, peer}}})
 
+      active_tracks = get_active_tracks(state.endpoints)
+
+      new_tracks_notification =
+        if active_tracks == [] do
+          []
+        else
+          [notify_child: {{:endpoint, endpoint_id}, {:new_tracks, active_tracks}}]
+        end
+
       actions =
         [
-          notify_child: {{:endpoint, endpoint_id}, {:ready, peers_in_room}},
-          notify_child:
-            {{:endpoint, endpoint_id}, {:new_tracks, get_active_tracks(state.endpoints)}}
-        ] ++ new_peer_notifications
+          notify_child: {{:endpoint, endpoint_id}, {:ready, peers_in_room}}
+        ] ++ new_tracks_notification ++ new_peer_notifications
 
       state =
         state
@@ -850,11 +857,13 @@ defmodule Membrane.RTC.Engine do
         else: []
 
     # Only inform about the tracks if we're not taking about a peer
+    active_tracks = get_active_tracks(state.endpoints)
+
     tracks_actions =
-      if is_peer? do
-        []
+      if not is_peer? and active_tracks != [] do
+        [notify_child: {endpoint_name, {:new_tracks, active_tracks}}]
       else
-        [notify_child: {endpoint_name, {:new_tracks, get_active_tracks(state.endpoints)}}]
+        []
       end
 
     actions = [spec: spec] ++ display_manager_message ++ tracks_actions
