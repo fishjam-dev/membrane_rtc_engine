@@ -3,6 +3,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     @moduledoc """
     Module representing function for updating video layout for the HLS stream.
 
+    ```ascii
     1) Only main presenter
          _ _ _ _ _ _ _ _ _
         |                 |
@@ -28,6 +29,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
         |            - - -|
         |                 |
          - - - - - - - - -
+    ```
     """
     @behaviour Membrane.RTC.Engine.Endpoint.HLS.CustomLayoutMaker
 
