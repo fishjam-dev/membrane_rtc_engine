@@ -5,8 +5,6 @@ defmodule Membrane.RTC.RTSPEndpointTest do
   alias Membrane.RTC.Engine.Endpoint.{HLS, RTSP}
   alias Membrane.RTC.Engine.Message
 
-  alias Membrane.HTTPAdaptiveStream.Manifest.SegmentDuration
-
   setup do
     options = [
       id: "test_rtc"
@@ -181,10 +179,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
       hls_config: %HLS.HLSConfig{
         mode: :vod,
         target_window_duration: :infinity,
-        segment_duration: %SegmentDuration{
-          min: Membrane.Time.seconds(2),
-          target: Membrane.Time.seconds(2)
-        }
+        segment_duration: Membrane.Time.seconds(2)
       }
     }
 
