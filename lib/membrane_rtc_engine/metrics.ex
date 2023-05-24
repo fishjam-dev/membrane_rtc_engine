@@ -1,48 +1,21 @@
 defmodule Membrane.RTC.Engine.Metrics do
   @moduledoc """
   Defines list of metrics, that Reporter instance can aggregate by listening on events emitted in RTC Engine.
-  Suggested Reporter implementation is `Membrane.TelemetryMetrics.Reporter` from `membrane_telemetry_metrics`.
-  `Membrane.TelemetryMetrics.Reporter` started with metrics returned by `metrics/1` function will be able to generate reports, that matches type `Membrane.RTC.Engine.Metrics.rtc_engine_report()`
-  You can see usage example in (`membrane_videoroom`)[github.com/membraneframework/membrane_videoroom].
+  Suggested Reporter implementation is `Membrane.TelemetryMetrics.Reporter` from 
+  [`membrane_telemetry_metrics`](https://github.com/membraneframework/membrane_telemetry_metrics).
+  You can see usage example in [`membrane_videoroom`](https://github.com/membraneframework/membrane_videoroom).
+
+  See also `Metrics` guide for more details and example report that you can obtain with 
+  `Membrane.TelemetryMetrics.Reporter`.
   """
-
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
-  alias Membrane.RTC.Engine.Track
-
-  @type rtc_engine_report() :: %{
-          optional({:room_id, binary()}) => %{
-            optional({:peer_id, binary()}) => %{
-              optional({:track_id, binary()}) => %{
-                :"inbound-rtp.encoding" => :OPUS | :VP8 | :H264,
-                :"inbound-rtp.ssrc" => integer(),
-                :"inbound-rtp.bytes_received" => integer(),
-                :"inbound-rtp.keyframe_request_sent" => integer(),
-                :"inbound-rtp.packets" => integer(),
-                :"inbound-rtp.frames" => integer(),
-                :"inbound-rtp.keyframes" => integer(),
-                :"track.metadata" => any()
-              },
-              optional({:track_id, binary()}) => %{
-                :"outbound-rtp.variant" => Track.variant(),
-                :"outbound-rtp.variant-reason" => TrackReceiver.variant_switch_reason()
-              },
-              :"ice.binding_requests_received" => integer(),
-              :"ice.binding_responses_sent" => integer(),
-              :"ice.bytes_received" => integer(),
-              :"ice.bytes_sent" => integer(),
-              :"ice.packets_received" => integer(),
-              :"ice.packets_sent" => integer(),
-              :"peer.metadata" => any()
-            }
-          }
-        }
 
   @spec metrics() :: [Telemetry.Metrics.t()]
   def metrics() do
     Enum.concat([
       rtc_engine_metrics(),
       Membrane.RTP.Metrics.metrics(),
-      Membrane.ICE.Metrics.metrics()
+      Membrane.ICE.Metrics.metrics(),
+      Membrane.WebRTC.Metrics.metrics()
     ])
   end
 
