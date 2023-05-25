@@ -383,11 +383,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       owner: self(),
       output_directory: output_dir,
       synchronize_tracks?: false,
-      hls_config: %HLSConfig{
-        mode: :vod,
-        target_window_duration: :infinity,
-        segment_duration: Membrane.Time.seconds(4)
-      }
+      hls_config: %HLSConfig{mode: :vod, target_window_duration: :infinity}
     }
   end
 
@@ -417,7 +413,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_config: %HLSConfig{
         mode: :vod,
         target_window_duration: :infinity,
-        segment_duration: Membrane.Time.seconds(4)
+        segment_duration: Membrane.Time.seconds(3)
       }
     }
   end
