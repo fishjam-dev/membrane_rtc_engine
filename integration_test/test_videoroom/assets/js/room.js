@@ -43,59 +43,69 @@ class Room {
     this.webrtcSocketRefs.push(this.socket.onError(this.leave));
     this.webrtcSocketRefs.push(this.socket.onClose(this.leave));
 
-    this.webrtc = new MembraneWebRTC({
-      callbacks: {
-        onSendMediaEvent: (mediaEvent) => {
-          this.webrtcChannel.push("mediaEvent", { data: mediaEvent });
-        },
-        onConnectionError: setErrorMessage,
-        onJoinSuccess: (peerId, peersInRoom) => {
-          this.selfId = peerId
-          if (this.localStream) {
-            this.localStream
-              .getTracks()
-              .forEach((track) => this.addTrack(track))
-          }
+    this.webrtc = new MembraneWebRTC();
 
-          this.peers = peersInRoom;
-          this.peers.forEach((peer) => {
-            addVideoElement(peer.id);
-          });
-          this.updateParticipantsList();
-        },
-        onJoinError: (metadata) => {
-          throw `Peer denied.`;
-        },
-        onTrackReady: (ctx) => {
-          const video = document.getElementById(ctx.peer.id);
+    this.webrtc.on("sendMediaEvent", (mediaEvent) => {
+      this.webrtcChannel.push("mediaEvent", { data: mediaEvent });
+    });
 
-          video.srcObject = ctx.stream;
-          this.remoteTracks.set(ctx.trackId, ctx);
-        },
-        onTrackAdded: (ctx) => {
-          console.log(this.selfId, " track added ", ctx.trackId)
-        },
-        onTrackRemoved: (ctx) => {
-          this.remoteTracks.delete(ctx.trackId);
-        },
-        onPeerJoined: (peer) => {
-          this.peers.push(peer);
-          this.updateParticipantsList();
-          addVideoElement(peer.id, peer.metadata.displayName, false);
-        },
-        onPeerLeft: (peer) => {
-          this.peers = this.peers.filter((p) => p.id !== peer.id);
-          removeVideoElement(peer.id);
-          this.updateParticipantsList();
-        },
-        onPeerUpdated: (ctx) => { this.peerMetadata = ctx.metadata },
-        onTrackUpdated: (ctx) => { this.trackMetadata = ctx.metadata },
-        onTrackEncodingChanged: (peerId, trackId, encoding) => {
-          console.log(this.selfId, "received info that ", peerId, "changed encoding to ", encoding)
-          this.peerEncoding = encoding
-        }
+    this.webrtc.on("connectionError", setErrorMessage);
 
-      },
+    this.webrtc.on("connected", (endpointId, otherEndpoints) => {
+      this.selfId = endpointId;
+      if (this.localStream) {
+        this.localStream
+          .getTracks()
+          .forEach((track) => this.addTrack(track))
+      }
+
+      this.peers = otherEndpoints.filter((endpoint) => endpoint.type === "webrtc");
+      this.peers.forEach((peer) => {
+        addVideoElement(peer.id);
+      });
+      this.updateParticipantsList();
+    });
+
+    this.webrtc.on("trackReady", (ctx) => {
+      const video = document.getElementById(ctx.endpoint.id);
+
+      video.srcObject = ctx.stream;
+      this.remoteTracks.set(ctx.trackId, ctx);
+    });
+
+    this.webrtc.on("trackAdded", (ctx) => {
+      console.log(this.selfId, " track added ", ctx.trackId)
+      ctx.on("encodingChanged", (trackCtx) => {
+        console.log(this.selfId, "received info that ", trackCtx.endpoint.id, "changed encoding to ", trackCtx.encoding);
+        this.peerEncoding = trackCtx.encoding;
+      });
+    });
+
+    this.webrtc.on("trackRemoved", (ctx) => {
+      this.remoteTracks.delete(ctx.trackId);
+    });
+
+    this.webrtc.on("endpointAdded", (endpoint) => {
+      if (endpoint.type !== "webrtc") return;
+      this.peers.push(endpoint);
+      this.updateParticipantsList();
+      addVideoElement(endpoint.id, endpoint.metadata.displayName, false);
+    });
+
+    this.webrtc.on("endpointRemoved", (endpoint) => {
+      const peer = this.peers.find((peer) => peer.id === endpoint.id);
+      if (!peer) return;
+      this.peers = this.peers.filter((p) => p.id !== peer.id);
+      removeVideoElement(peer.id);
+      this.updateParticipantsList();
+    });
+
+    this.webrtc.on("endpointUpdated", (endpoint) => {
+      this.peerMetadata = endpoint.metadata;
+    });
+
+    this.webrtc.on("trackUpdated", (ctx) => {
+      this.trackMetadata = ctx.metadata;
     });
 
     this.webrtcChannel.on("mediaEvent", (event) => this.webrtc.receiveMediaEvent(event.data));
@@ -125,7 +135,7 @@ class Room {
   };
 
   join = () => {
-    this.webrtc.join({ displayName: this.displayName });
+    this.webrtc.connect({ displayName: this.displayName });
   };
 
   leave = () => {
@@ -170,7 +180,7 @@ class Room {
 
   getPeerEncoding = () => { return this.peerEncoding }
 
-  updateMetadata = () => this.webrtc.updatePeerMetadata("test")
+  updateMetadata = () => this.webrtc.updateEndpointMetadata("test")
   updateTrackMetadata = () => this.webrtc.updateTrackMetadata(this.videoTrack[0], "trackMetadata")
 }
 
