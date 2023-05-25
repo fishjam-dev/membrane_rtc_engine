@@ -18,9 +18,8 @@ Membrane.TelemetryMetrics.Reporter.scrape(reporter)
 There is a report example below, with only one room with one endpoint inside
 ```elixir
 %{
-<<<<<<< HEAD
   {:room_id, "test"} => %{
-    {:peer_id, "7eda6931-0313-497e-93a0-6a9540407f77"} => %{
+    {:endpoint_id, "7eda6931-0313-497e-93a0-6a9540407f77"} => %{
       :"ice.binding_requests_received" => 3,
       :"ice.binding_responses_sent" => 3,
       :"ice.bytes_received" => 20672,
@@ -32,10 +31,6 @@ There is a report example below, with only one room with one endpoint inside
       :"peer.metadata" => nil,
       :"sdp.answer" => "v=0\r\no=- ...", 
       :"sdp.offer" => "v=0\r\no=- ...", 
-=======
-  {:room_id, "my_meeting"} => %{
-    {:endpoint_id, "aa83837e-c18a-4d0e-b7f1-565acdddd3e0"} => %{
->>>>>>> 6d9fa51 (Fix documentation)
       {:track_id,
        "7eda6931-0313-497e-93a0-6a9540407f77:3d228c10-d3b9-4009-b14f-4b0f2b89f7ba:l"} => %{
         "inbound-rtp.bytes_received": 6470,
