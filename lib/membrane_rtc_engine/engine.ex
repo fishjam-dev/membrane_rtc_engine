@@ -31,14 +31,14 @@ defmodule Membrane.RTC.Engine do
   An Endpoint can be added and removed using `add_endpoint/3` and `remove_endpoint/2` respectively.
 
   There are two types of Endpoints:
-  * Standalone Endpoints - they are in most cases spawned only once per RTC Engine instance and they are not associated with any peer.
-  * Peer Endpoints - they are associated with some peer.
-  Associating Endpoint with Peer will cause RTC Engine to send some Media Events to the Enpoint's Client Library
-  e.g. one which indicates which tracks belong to which peer.
+  * Standalone Endpoints - they are in most cases spawned only once per RTC Engine instance and they are not associated with any client.
+  * Client Endpoints - they are associated with some client.
+  Associating Endpoint with client will cause RTC Engine to send some Media Events to the Enpoint's Client Library
+  e.g. one which indicates which tracks belong to which client.
 
   Currently RTC Engine ships with the implementation of three Endpoints:
   * `#{inspect(__MODULE__)}.Endpoint.WebRTC` which is responsible for establishing a connection with some WebRTC
-  peer (mainly browser) and exchanging media with it. WebRTC Endpoint is a Peer Endpoint.
+  client (mainly browser) and exchanging media with it. WebRTC Endpoint is a Client Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
   saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.RTSP` which is responsible for connecting to a remote RTSP stream source and
@@ -50,7 +50,7 @@ defmodule Membrane.RTC.Engine do
   Each endpoint is presumed to be initially inactive and has to declare itself ready to fully join the Engine.
 
   Before it does, it:
-  * will not receive notifications about other peers and their metadata
+  * will not receive notifications about other endpoints and their metadata
   * will not receive information about tracks
   * will not be able to publish any tracks
   * will not be able to update their metadata

@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.DisplayManager do
   @moduledoc false
 
-  # A GenServer responsible for deciding which track is sent to which peers.
+  # A GenServer responsible for deciding which track is sent to which client.
   # It makes a decision based on metrics, which currently include only VAD notifications.
   # To calculate metrics DisplayManager needs to have a copy of the state of the room.
   # Each endpoints state is represented as EndpointManager. After calculating metrics it takes into account

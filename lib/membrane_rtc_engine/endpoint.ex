@@ -1,5 +1,9 @@
 defmodule Membrane.RTC.Engine.Endpoint do
-  @moduledoc false
+  @moduledoc """
+  Module representing RTC Engine's endpoint.
+
+  For specific information about possible endpoints, refer to modules specified by `t:type/0`.
+  """
   use Bunch.Access
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTC.Engine.Endpoint.{HLS, RTSP, WebRTC}
@@ -8,6 +12,13 @@ defmodule Membrane.RTC.Engine.Endpoint do
 
   @type type() :: WebRTC | HLS | RTSP
 
+  @typedoc """
+  This module contains:
+  * `id` - id of the endpoint. 
+  * `type` - type of the endpoint.
+  * `metadata` - metadata of the endpoint, assigned when engine receives `{:ready, metadata}` message from the endpoint.
+  * `inbound_tracks` - inbound tracks (received by the endpoint from "outside" of the engine) of the endpoint.
+  """
   @type t :: %__MODULE__{
           id: id(),
           type: type(),

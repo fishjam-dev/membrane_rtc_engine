@@ -1,12 +1,12 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @moduledoc """
-  An Endpoint responsible for communicatiing with WebRTC peer.
+  An Endpoint responsible for communicatiing with WebRTC client.
 
-  It is responsible for sending and receiving media tracks from other WebRTC peer (e.g. web browser).
+  It is responsible for sending and receiving media tracks from other WebRTC clients (e.g. web browsers).
 
   ## Signalling
   In order to operate correctly, this endpoint requires that the business logic implements
-  the signalling channel to the peer it represents. Implementation details are not important to
+  the signalling channel to the client it represents. Implementation details are not important to
   endpoint.
 
   Signalling in WebRTC is used to eg. facilitate SDP negotiation or send notifications regarding the session.
@@ -36,7 +36,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   ```elixir
   @impl GenServer
   def handle_info({:media_event, origin, event}, state) do
-    endpoint_id = state.peer_channel_to_endpoint_id[origin]
+    endpoint_id = state.client_channel_to_endpoint_id[origin]
     Engine.message_endpoint(endpoint_id, {:media_event, event})
     {:noreply, state}
   end

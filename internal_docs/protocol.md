@@ -7,9 +7,9 @@ sequenceDiagram
     actor client
     participant server
     actor other_client
-    client->>server: join
-    server->>client: peerAccepted
-    server->>other_client: peerJoined
+    client->>server: connect
+    server->>client: connected
+    server->>other_client: endpointAdded
 ```
 
 ### Adding a track
@@ -51,7 +51,7 @@ sequenceDiagram
     participant server
     actor other_client
     client->>server: leave
-    server->>other_client: peerLeft
+    server->>other_client: endpointRemoved
     rect rgb(135, 204, 232)
         note right of server: renegotiation
         server->>other_client: custom(offerData)

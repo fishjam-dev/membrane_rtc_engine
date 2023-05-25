@@ -54,7 +54,7 @@ defmodule Membrane.RTC.Engine.Track do
   * `variants` - list of possible track variants. Refer to `t:variant/0`.
   * `clock_rate` - track clock rate
   * `fmtp` - struct describing format specific parameters e.g. for H264 it contains `profile_level_id`
-  * `active?` - indicates whether track is still available or not (because peer left a room)
+  * `active?` - indicates whether track is still available or not (because client left a room)
   * `metadata` - any data passed by user to be linked with this track
   * `ctx` - any data Endpoints need to associate with `#{inspect(__MODULE__)}.t()` for internal usage
   """

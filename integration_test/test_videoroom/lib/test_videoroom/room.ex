@@ -105,7 +105,7 @@ defmodule TestVideoroom.Room do
       integrated_turn_options: state.network_options[:integrated_turn_options],
       integrated_turn_domain: state.network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
-      log_metadata: [peer_id: peer_id],
+      log_metadata: [endpoint_id: peer_id],
       telemetry_label: [room_id: state.room_id, endpoint_id: peer_id],
       webrtc_extensions: [Mid, Rid, RepairedRid, TWCC],
       simulcast_config: %SimulcastConfig{
