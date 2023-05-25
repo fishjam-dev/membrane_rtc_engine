@@ -7,6 +7,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
   require Membrane.Pad
 
   alias Membrane.{Buffer, Pad}
+  alias Membrane.RTC.Engine.RTPRealtimer
   alias Membrane.RTC.Engine.Tee
 
   alias Membrane.RTC.Engine.Event.{
@@ -407,6 +408,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
         }
 
         child({:source, variant}, source)
+        |> child({:realtimer, track.id, variant}, RTPRealtimer)
         |> via_in(Pad.ref(:input, {track.id, variant}))
         |> get_child(:tee)
       end
