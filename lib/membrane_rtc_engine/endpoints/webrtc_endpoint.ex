@@ -520,7 +520,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     # FIXME: I don't think we actually need information about tracks in this media event
     {:endpoint, endpoint_id} = ctx.name
-    event = MediaEvent.endpoint_ready(endpoint_id, other_endpoints) |> MediaEvent.encode()
+    event = MediaEvent.connected(endpoint_id, other_endpoints) |> MediaEvent.encode()
 
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
@@ -762,7 +762,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {[], state}
   end
 
-  defp handle_media_event(%{type: :join, data: %{metadata: metadata}}, _ctx, state) do
+  defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
     {[notify_parent: {:ready, metadata}], state}
   end
 

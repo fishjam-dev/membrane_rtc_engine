@@ -1,33 +1,42 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   @moduledoc false
 
+  alias Membrane.RTC.Engine.Endpoint
+  alias Membrane.RTC.Engine.Endpoint.{HLS, RTSP, WebRTC}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
   @type t() :: map()
 
-  @spec endpoint_ready(Endpoint.id(), list()) :: t()
-  def endpoint_ready(endpoint_id, other_endpoints) do
+  @spec connected(Endpoint.id(), list()) :: t()
+  def connected(endpoint_id, other_endpoints) do
     other_endpoints =
       other_endpoints
-      |> Enum.map(&%{id: &1.id, metadata: &1.metadata})
+      |> Enum.map(
+        &%{
+          id: &1.id,
+          type: to_type_string(&1.type),
+          metadata: &1.metadata,
+          trackIdToMetadata: Endpoint.get_active_track_metadata(&1)
+        }
+      )
 
-    %{type: "endpointReady", data: %{id: endpoint_id, otherEndpoints: other_endpoints}}
+    %{type: "connected", data: %{id: endpoint_id, otherEndpoints: other_endpoints}}
   end
 
   @spec endpoint_added(Endpoint.t()) :: t()
-  def endpoint_added(%Endpoint{id: id, metadata: metadata}) do
-    %{type: "endpointAdded", data: %{endpoint: %{id: id, metadata: metadata}}}
+  def endpoint_added(%Endpoint{id: id, type: type, metadata: metadata}) do
+    %{type: "endpointAdded", data: %{id: id, type: to_type_string(type), metadata: metadata}}
   end
 
   @spec endpoint_removed(Endpoint.id()) :: t()
   def endpoint_removed(endpoint_id) do
-    %{type: "endpointRemoved", data: %{endpointId: endpoint_id}}
+    %{type: "endpointRemoved", data: %{id: endpoint_id}}
   end
 
   @spec endpoint_updated(Endpoint.t()) :: t()
-  def endpoint_updated(endpoint) do
-    %{type: "endpointUpdated", data: %{endpointId: endpoint.id, metadata: endpoint.metadata}}
+  def endpoint_updated(%Endpoint{id: id, metadata: metadata}) do
+    %{type: "endpointUpdated", data: %{id: id, metadata: metadata}}
   end
 
   @spec tracks_added(Endpoint.id(), map()) :: t()
@@ -65,7 +74,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   def encoding_switched(endpoint_id, track_id, encoding, reason) do
     as_custom(%{
       type: "encodingSwitched",
-      data: %{endpoint_id: endpoint_id, trackId: track_id, encoding: encoding, reason: reason}
+      data: %{endpointId: endpoint_id, trackId: track_id, encoding: encoding, reason: reason}
     })
   end
 
@@ -161,8 +170,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     with {:ok, event} <- Jason.decode(event_json), do: do_decode(event)
   end
 
-  defp do_decode(%{"type" => "join", "data" => %{"metadata" => metadata}}),
-    do: {:ok, %{type: :join, data: %{metadata: metadata}}}
+  defp do_decode(%{"type" => "connect", "data" => %{"metadata" => metadata}}),
+    do: {:ok, %{type: :connect, data: %{metadata: metadata}}}
 
   defp do_decode(%{"type" => "leave"}), do: {:ok, %{type: :leave}}
 
@@ -353,4 +362,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   end
 
   defp to_track_variants(bitrate) when is_number(bitrate), do: %{high: bitrate}
+
+  defp to_type_string(WebRTC), do: "webrtc"
+  defp to_type_string(HLS), do: "hls"
+  defp to_type_string(RTSP), do: "rtsp"
 end

@@ -389,7 +389,7 @@ defmodule Membrane.RTC.Engine do
   @impl true
   def handle_info({:add_endpoint, endpoint, opts}, _ctx, state) do
     endpoint_id = opts[:endpoint_id] || UUID.uuid4()
-    opts = %{opts | endpoint_id: endpoint_id}
+    opts = Keyword.put(opts, :endpoint_id, endpoint_id)
 
     endpoint =
       case endpoint do
@@ -530,6 +530,7 @@ defmodule Membrane.RTC.Engine do
   defp handle_endpoint_notification({:ready, metadata}, endpoint_id, _ctx, state) do
     if Map.has_key?(state.pending_endpoints, endpoint_id) do
       {new_endpoint, state} = pop_in(state, [:pending_endpoints, endpoint_id])
+      new_endpoint = %{new_endpoint | metadata: metadata}
 
       other_endpoints = Map.values(state.endpoints)
 
@@ -590,6 +591,8 @@ defmodule Membrane.RTC.Engine do
         |> Enum.map(
           &{:notify_child, {{:endpoint, &1}, {:endpoint_metadata_updated, updated_endpoint}}}
         )
+
+      {actions, state}
     else
       {[], state}
     end
@@ -790,6 +793,7 @@ defmodule Membrane.RTC.Engine do
   defp handle_add_endpoint(endpoint_entry, opts, state) do
     endpoint_id = Keyword.fetch!(opts, :endpoint_id)
     endpoint_name = {:endpoint, endpoint_id}
+    %endpoint_module{} = endpoint_entry
 
     spec = {
       child(endpoint_name, endpoint_entry),
@@ -805,7 +809,7 @@ defmodule Membrane.RTC.Engine do
 
     actions = [spec: spec] ++ display_manager_message
 
-    endpoint = Endpoint.new(endpoint_id, [])
+    endpoint = Endpoint.new(endpoint_id, endpoint_module, [])
 
     state =
       state

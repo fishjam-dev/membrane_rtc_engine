@@ -2,21 +2,26 @@ defmodule Membrane.RTC.Engine.Endpoint do
   @moduledoc false
   use Bunch.Access
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTC.Engine.Endpoint.{HLS, RTSP, WebRTC}
 
   @type id() :: any()
 
+  @type type() :: WebRTC | HLS | RTSP
+
   @type t :: %__MODULE__{
           id: id(),
+          type: type(),
           metadata: any(),
           inbound_tracks: %{Track.id() => Track.t()}
         }
 
-  defstruct id: nil, metadata: nil, inbound_tracks: %{}
+  @enforce_keys [:id, :type]
+  defstruct @enforce_keys ++ [metadata: nil, inbound_tracks: %{}]
 
-  @spec new(id :: id(), inbound_tracks :: [Track.t()]) :: t()
-  def new(id, inbound_tracks) do
+  @spec new(id :: id(), type :: type(), inbound_tracks :: [Track.t()]) :: t()
+  def new(id, type, inbound_tracks) do
     inbound_tracks = Map.new(inbound_tracks, &{&1.id, &1})
-    %__MODULE__{id: id, inbound_tracks: inbound_tracks}
+    %__MODULE__{id: id, type: type, inbound_tracks: inbound_tracks}
   end
 
   @spec get_audio_tracks(endpoint :: t()) :: [Track.t()]
