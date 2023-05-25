@@ -164,7 +164,7 @@ if Enum.all?(
           else:
             state.mixer_config.video.layout_module.init(options.mixer_config.video.stream_format)
 
-      {[], %{state | video_layout_state: video_layout_state}}
+      {[notify_parent: {:ready, nil}], %{state | video_layout_state: video_layout_state}}
     end
 
     @impl true

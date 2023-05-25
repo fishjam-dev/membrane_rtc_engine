@@ -46,7 +46,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codecs are :H264 and :OPUS."
     end
 
-    {[], Map.from_struct(opts)}
+    {[notify_parent: {:ready, nil}], Map.from_struct(opts)}
   end
 
   @impl true
@@ -79,6 +79,16 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
     ]
 
     {[spec: spec], state}
+  end
+
+  @impl true
+  def handle_parent_notification({:ready, _other_endpoints}, _ctx, state) do
+    {[], state}
+  end
+
+  @impl true
+  def handle_parent_notification({:new_endpoint, _endpoint}, _ctx, state) do
+    {[], state}
   end
 
   @impl true
