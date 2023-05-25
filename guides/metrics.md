@@ -18,43 +18,53 @@ Membrane.TelemetryMetrics.Reporter.scrape(reporter)
 There is a report example below, with only one room with one peer inside
 ```elixir
 %{
-  {:room_id, "my_meeting"} => %{
-    {:peer_id, "aa83837e-c18a-4d0e-b7f1-565acdddd3e0"} => %{
+  {:room_id, "test"} => %{
+    {:peer_id, "7eda6931-0313-497e-93a0-6a9540407f77"} => %{
+      :"ice.binding_requests_received" => 3,
+      :"ice.binding_responses_sent" => 3,
+      :"ice.bytes_received" => 20672,
+      :"ice.bytes_sent" => 1634,
+      :"ice.packets_received" => 46,
+      :"ice.packets_sent" => 3,
+      :"ice.port" => 51895,
+      :"ice.protocol" => :udp,
+      :"peer.metadata" => nil,
+      :"sdp.answer" => "v=0\r\no=- ...", 
+      :"sdp.offer" => "v=0\r\no=- ...", 
       {:track_id,
-       "aa83837e-c18a-4d0e-b7f1-565acdddd3e0:2cfee338-37f9-46cf-8c5b-d3909caa4dce:l"} => %{
-        "inbound-rtp.frames" => 5450,
-        "inbound-rtp.keyframes" => 46,
-        "inbound-rtp.bytes_received" => 4106974,
-        "inbound-rtp.encoding" => :VP8,
-        "inbound-rtp.keyframe_request_sent" => 22,
-        "inbound-rtp.packets" => 6099,
-        "inbound-rtp.ssrc" => 1507540019
+       "7eda6931-0313-497e-93a0-6a9540407f77:3d228c10-d3b9-4009-b14f-4b0f2b89f7ba:l"} => %{
+        "inbound-rtp.bytes_received": 6470,
+        "inbound-rtp.encoding": :H264,
+        "inbound-rtp.markers_received": 4,
+        "inbound-rtp.packets": 10,
+        "inbound-rtp.ssrc": 1546136873,
+        rtx_stream: %{
+          "inbound-rtp.bytes_received": 5120,
+          "inbound-rtp.encoding": :rtx,
+          "inbound-rtp.markers_received": 1,
+          "inbound-rtp.packets": 6,
+          "inbound-rtp.ssrc": 84792660
+        },
+        "track.metadata": %{"active" => true, "type" => "camera"}
       },
       {:track_id,
-       "aa83837e-c18a-4d0e-b7f1-565acdddd3e0:2cfee338-37f9-46cf-8c5b-d3909caa4dce:m"} => %{
-        "inbound-rtp.frames" => 5303,
-        "inbound-rtp.keyframes" => 45,
-        "inbound-rtp.bytes_received" => 21999552,
-        "inbound-rtp.encoding" => :VP8,
-        "inbound-rtp.keyframe_request_sent" => 22,
-        "inbound-rtp.packets" => 20757,
-        "inbound-rtp.ssrc" => 1441607303
+       "7eda6931-0313-497e-93a0-6a9540407f77:3d228c10-d3b9-4009-b14f-4b0f2b89f7ba:m"} => %{
+        "inbound-rtp.bytes_received": 5988,
+        "inbound-rtp.encoding": :H264,
+        "inbound-rtp.packets": 6,
+        "inbound-rtp.ssrc": 3428415963,
+        "track.metadata": %{"active" => true, "type" => "camera"}
       },
       {:track_id,
-       "aa83837e-c18a-4d0e-b7f1-565acdddd3e0:a8ffd71d-932a-4955-b4da-d941449aa329:"} => %{
-        "inbound-rtp.frames" => 11348,
-        "inbound-rtp.bytes_received" => 1175977,
-        "inbound-rtp.encoding" => :OPUS,
-        "inbound-rtp.keyframe_request_sent" => 22,
-        "inbound-rtp.packets" => 11348,
-        "inbound-rtp.ssrc" => 3192426135
-      },
-      "ice.binding_requests_received" => 94,
-      "ice.binding_responses_sent" => 94,
-      "ice.bytes_received" => 27329251,
-      "ice.bytes_sent" => 76030,
-      "ice.packets_received" => 39189,
-      "ice.packets_sent" => 975
+       "7eda6931-0313-497e-93a0-6a9540407f77:90ce43b1-d37a-452e-8a04-b2883e7d54dc:"} => %{
+        "inbound-rtp.bytes_received": 1885,
+        "inbound-rtp.encoding": :OPUS,
+        "inbound-rtp.markers_received": 1,
+        "inbound-rtp.packets": 18,
+        "inbound-rtp.ssrc": 3178961132,
+        "rtcp.total_packets_sent": 1,
+        "track.metadata": %{"active" => true, "type" => "audio"}
+      }
     }
   }
 }
