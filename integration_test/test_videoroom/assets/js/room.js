@@ -28,7 +28,7 @@ class Room {
     this.socket = new Socket("/socket");
     this.socket.connect();
     this.displayName = "local";
-    this.endpointChannel = this.socket.channel("room");
+    this.webrtcChannel = this.socket.channel("room");
     this.videoTrack = null;
     this.audioTrack = null;
     this.peerEncoding = "m"
@@ -39,19 +39,19 @@ class Room {
     this.simulcast = simulcast;
     this.remoteTracks = new Map();
 
-    this.endpointSocketRefs = [];
-    this.endpointSocketRefs.push(this.socket.onError(this.leave));
-    this.endpointSocketRefs.push(this.socket.onClose(this.leave));
+    this.webrtcSocketRefs = [];
+    this.webrtcSocketRefs.push(this.socket.onError(this.leave));
+    this.webrtcSocketRefs.push(this.socket.onClose(this.leave));
 
-    this.endpoint = new WebRTCEndpoint();
+    this.webrtc = new WebRTCEndpoint();
 
-    this.endpoint.on("sendMediaEvent", (mediaEvent) => {
-      this.endpointChannel.push("mediaEvent", { data: mediaEvent });
+    this.webrtc.on("sendMediaEvent", (mediaEvent) => {
+      this.webrtcChannel.push("mediaEvent", { data: mediaEvent });
     });
 
-    this.endpoint.on("connectionError", setErrorMessage);
+    this.webrtc.on("connectionError", setErrorMessage);
 
-    this.endpoint.on("connected", (endpointId, otherEndpoints) => {
+    this.webrtc.on("connected", (endpointId, otherEndpoints) => {
       this.selfId = endpointId;
       if (this.localStream) {
         this.localStream
@@ -66,14 +66,14 @@ class Room {
       this.updateParticipantsList();
     });
 
-    this.endpoint.on("trackReady", (ctx) => {
+    this.webrtc.on("trackReady", (ctx) => {
       const video = document.getElementById(ctx.endpoint.id);
 
       video.srcObject = ctx.stream;
       this.remoteTracks.set(ctx.trackId, ctx);
     });
 
-    this.endpoint.on("trackAdded", (ctx) => {
+    this.webrtc.on("trackAdded", (ctx) => {
       console.log(this.selfId, " track added ", ctx.trackId)
       ctx.on("encodingChanged", (trackCtx) => {
         console.log(this.selfId, "received info that ", trackCtx.endpoint.id, "changed encoding to ", trackCtx.encoding);
@@ -81,18 +81,18 @@ class Room {
       });
     });
 
-    this.endpoint.on("trackRemoved", (ctx) => {
+    this.webrtc.on("trackRemoved", (ctx) => {
       this.remoteTracks.delete(ctx.trackId);
     });
 
-    this.endpoint.on("endpointAdded", (endpoint) => {
+    this.webrtc.on("endpointAdded", (endpoint) => {
       if (endpoint.type !== "webrtc") return;
       this.peers.push(endpoint);
       this.updateParticipantsList();
       addVideoElement(endpoint.id, endpoint.metadata.displayName, false);
     });
 
-    this.endpoint.on("endpointRemoved", (endpoint) => {
+    this.webrtc.on("endpointRemoved", (endpoint) => {
       const peer = this.peers.find((peer) => peer.id === endpoint.id);
       if (!peer) return;
       this.peers = this.peers.filter((p) => p.id !== peer.id);
@@ -100,21 +100,21 @@ class Room {
       this.updateParticipantsList();
     });
 
-    this.endpoint.on("endpointUpdated", (endpoint) => {
+    this.webrtc.on("endpointUpdated", (endpoint) => {
       this.peerMetadata = endpoint.metadata;
     });
 
-    this.endpoint.on("trackUpdated", (ctx) => {
+    this.webrtc.on("trackUpdated", (ctx) => {
       this.trackMetadata = ctx.metadata;
     });
 
-    this.endpointChannel.on("mediaEvent", (event) => this.endpoint.receiveMediaEvent(event.data));
+    this.webrtcChannel.on("mediaEvent", (event) => this.webrtc.receiveMediaEvent(event.data));
   }
 
   addTrack = (track) => {
     let trackId = !this.simulcast || track.kind == "audio"
-      ? this.endpoint.addTrack(track, this.localStream)
-      : this.endpoint.addTrack(
+      ? this.webrtc.addTrack(track, this.localStream)
+      : this.webrtc.addTrack(
         track,
         this.localStream,
         {},
@@ -131,19 +131,19 @@ class Room {
   }
 
   init = async () => {
-    await this.phoenixChannelPushResult(this.endpointChannel.join());
+    await this.phoenixChannelPushResult(this.webrtcChannel.join());
   };
 
   join = () => {
-    this.endpoint.connect({ displayName: this.displayName });
+    this.webrtc.connect({ displayName: this.displayName });
   };
 
   leave = () => {
-    this.endpoint.leave();
-    this.endpointChannel.leave();
-    this.socket.off(this.endpointSocketRefs);
-    while (this.endpointSocketRefs.length > 0) {
-      this.endpointSocketRefs.pop();
+    this.webrtc.leave();
+    this.webrtcChannel.leave();
+    this.socket.off(this.webrtcSocketRefs);
+    while (this.webrtcSocketRefs.length > 0) {
+      this.webrtcSocketRefs.pop();
     }
   };
 
@@ -164,24 +164,24 @@ class Room {
   };
 
   disableSimulcastEncoding = (encoding) => {
-    this.endpoint.disableTrackEncoding(this.videoTrack[0], encoding)
+    this.webrtc.disableTrackEncoding(this.videoTrack[0], encoding)
   }
 
   enableSimulcastEncoding = (encoding) => {
-    this.endpoint.enableTrackEncoding(this.videoTrack[0], encoding)
+    this.webrtc.enableTrackEncoding(this.videoTrack[0], encoding)
   }
 
   selectPeerSimulcastEncoding = (encoding) => {
     const peer = this.peers[0]
     const trackIds = Array.from(peer.trackIdToMetadata.keys())
     const videoTrackIds = trackIds.filter(trackId => this.remoteTracks.get(trackId).track.kind == "video")
-    videoTrackIds.forEach(trackId => this.endpoint.setTargetTrackEncoding(trackId, encoding))
+    videoTrackIds.forEach(trackId => this.webrtc.setTargetTrackEncoding(trackId, encoding))
   }
 
   getPeerEncoding = () => { return this.peerEncoding }
 
-  updateMetadata = () => this.endpoint.updateEndpointMetadata("test")
-  updateTrackMetadata = () => this.endpoint.updateTrackMetadata(this.videoTrack[0], "trackMetadata")
+  updateMetadata = () => this.webrtc.updateEndpointMetadata("test")
+  updateTrackMetadata = () => this.webrtc.updateTrackMetadata(this.videoTrack[0], "trackMetadata")
 }
 
 export default Room;
