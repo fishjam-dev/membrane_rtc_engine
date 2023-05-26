@@ -108,7 +108,7 @@ class Room {
       this.trackMetadata = ctx.metadata;
     });
 
-    this.endpointChannel.on("mediaEvent", (event) => this.webrtc.receiveMediaEvent(event.data));
+    this.endpointChannel.on("mediaEvent", (event) => this.endpoint.receiveMediaEvent(event.data));
   }
 
   addTrack = (track) => {
