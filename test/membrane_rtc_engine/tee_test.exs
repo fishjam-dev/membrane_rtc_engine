@@ -314,12 +314,9 @@ defmodule Membrane.RTC.Engine.TeeTest do
     end)
 
     request_track_variant(pipeline, :high)
+    assert_sink_event(pipeline, {:source, :high}, %Membrane.KeyframeRequestEvent{})
 
-    [
-      %Buffer{payload: <<1, 2, 3, 4, 5>>, metadata: %{is_keyframe: false}},
-      %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
-    ]
-    |> Enum.each(&send_buffer(pipeline, :high, &1))
+    send_buffer(pipeline, :high, %Buffer{payload: <<>>, metadata: %{is_keyframe: true}})
 
     assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high}, 5_000)
 
