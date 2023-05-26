@@ -7,7 +7,6 @@ defmodule Membrane.RTC.Engine.TeeTest do
   require Membrane.Pad
 
   alias Membrane.{Buffer, Pad}
-  alias Membrane.RTC.Engine.PreciseRealtimer
   alias Membrane.RTC.Engine.Tee
 
   alias Membrane.RTC.Engine.Event.{
@@ -21,7 +20,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
   alias Membrane.RTC.Engine.Exception.VoiceActivityError
 
-  alias Membrane.RTC.Engine.Support.{TestSink, TestSource, Utils}
+  alias Membrane.RTC.Engine.Support.{TestSink, TestSource}
   alias Membrane.RTC.Engine.Track
   alias Membrane.Testing.Pipeline
 
@@ -185,6 +184,15 @@ defmodule Membrane.RTC.Engine.TeeTest do
     # * when variant is marked as inactive and active again,
     # Tee doesn't send any variant until it's re-requested
 
+    send_buffers = fn pipeline, variant ->
+      [
+        %Buffer{payload: <<1, 2, 3, 4, 5>>, metadata: %{is_keyframe: false}},
+        %Buffer{payload: <<>>, metadata: %{is_keyframe: true}},
+        %Buffer{payload: <<6, 7, 8, 9, 10>>, metadata: %{is_keyframe: false}}
+      ]
+      |> Enum.each(&send_buffer(pipeline, variant, &1))
+    end
+
     request_and_check_high = fn pipeline ->
       request_track_variant(pipeline, :high)
       assert_sink_event(pipeline, {:source, :high}, %Membrane.KeyframeRequestEvent{})
@@ -193,12 +201,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
       refute_sink_buffer(pipeline, :sink, _buffer)
 
       # send three buffers, only the last two should be received in the sink
-      [
-        %Buffer{payload: <<1, 2, 3, 4, 5>>, metadata: %{is_keyframe: false}},
-        %Buffer{payload: <<>>, metadata: %{is_keyframe: true}},
-        %Buffer{payload: <<6, 7, 8, 9, 10>>, metadata: %{is_keyframe: false}}
-      ]
-      |> Enum.each(&send_buffer(pipeline, :high, &1))
+      send_buffers.(pipeline, :high)
 
       # TODO assert we receive TrackVariantSwitched before any buffer
 
@@ -212,7 +215,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     end
 
     track = build_h264_track()
-    pipeline = build_pipeline(track, {nil, &Utils.generator/2}, 3, false)
+    pipeline = build_pipeline(track, [], 3, false)
 
     Enum.each(track.variants, &mark_variant_as_resumed(pipeline, &1))
 
@@ -225,8 +228,9 @@ defmodule Membrane.RTC.Engine.TeeTest do
     # being sent to the sink;
     # this breaks the concept of demands but it's only
     # for testing purposes
-    activate_source(pipeline, :low)
-    activate_source(pipeline, :medium)
+
+    send_buffers.(pipeline, :low)
+    send_buffers.(pipeline, :medium)
 
     # tee shouldn't send us any packets
     # until we request specific track variant
@@ -239,8 +243,6 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
     mark_variant_as_resumed(pipeline, :high)
     assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: :high})
-
-    activate_source(pipeline, :high)
 
     refute_sink_buffer(pipeline, :sink, _buffer)
 
@@ -313,10 +315,13 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
     request_track_variant(pipeline, :high)
 
-    buffer = %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
-    send_buffer(pipeline, :high, buffer)
+    [
+      %Buffer{payload: <<1, 2, 3, 4, 5>>, metadata: %{is_keyframe: false}},
+      %Buffer{payload: <<>>, metadata: %{is_keyframe: true}}
+    ]
+    |> Enum.each(&send_buffer(pipeline, :high, &1))
 
-    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high})
+    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high}, 5_000)
 
     event = %VoiceActivityChanged{voice_activity: :speech}
 
@@ -408,10 +413,6 @@ defmodule Membrane.RTC.Engine.TeeTest do
         }
 
         child({:source, variant}, source)
-        |> child({:realtimer, track.id, variant}, %PreciseRealtimer{
-          timer_resolution: Membrane.Time.microseconds(1),
-          drop_late_packets?: false
-        })
         |> via_in(Pad.ref(:input, {track.id, variant}))
         |> get_child(:tee)
       end
@@ -452,10 +453,6 @@ defmodule Membrane.RTC.Engine.TeeTest do
     Pipeline.execute_actions(pipeline,
       notify_child: {{:source, variant}, {:execute_actions, actions}}
     )
-  end
-
-  defp activate_source(pipeline, variant) do
-    Pipeline.execute_actions(pipeline, notify_child: {{:source, variant}, {:set_active, true}})
   end
 
   defp request_keyframe(pipeline) do

@@ -8,10 +8,6 @@ defmodule Membrane.RTC.Engine.PreciseRealtimer do
 
   def_options timer_resolution: [
                 spec: Membrane.Time.t()
-              ],
-              drop_late_packets?: [
-                spec: boolean(),
-                default: true
               ]
 
   @impl true
@@ -20,8 +16,7 @@ defmodule Membrane.RTC.Engine.PreciseRealtimer do
      %{
        tick_idx: 0,
        resolution: opts.timer_resolution,
-       queue: Qex.new(),
-       drop_late_packets?: opts.drop_late_packets?
+       queue: Qex.new()
      }}
   end
 
@@ -50,7 +45,7 @@ defmodule Membrane.RTC.Engine.PreciseRealtimer do
     else
       {actions, buffered} =
         Enum.split_while(state.queue, fn
-          {:buffer, {:output, buffer}} when state.drop_late_packets? ->
+          {:buffer, {:output, buffer}} ->
             Membrane.Buffer.get_dts_or_pts(buffer) <= current_ts
 
           _other ->
