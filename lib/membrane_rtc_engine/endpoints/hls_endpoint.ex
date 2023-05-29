@@ -525,7 +525,7 @@ if Enum.all?(
         }
 
         {frames_per_second, 1} = state.mixer_config.video.stream_format.framerate
-        seconds_number = Membrane.Time.as_seconds(state.hls_config.segment_duration.target)
+        seconds_number = Membrane.Time.as_seconds(state.hls_config.segment_duration)
 
         [
           child(:compositor, compositor)

@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       app: :membrane_rtc_engine,
       version: @version,
-      elixir: "~> 1.12",
+      elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -96,7 +96,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_h264_plugin, "~> 0.2.0", optional: true},
       {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
       {:membrane_video_compositor_plugin, "~> 0.3.1", optional: true},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.13.0", optional: true},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.14.0", optional: true},
 
       # Optional deps for RTSP endpoint
       {:connection, "~> 1.1", optional: true},
