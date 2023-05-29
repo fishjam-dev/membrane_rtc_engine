@@ -6,11 +6,10 @@ defmodule Membrane.RTC.Engine.Endpoint do
   """
   use Bunch.Access
   alias Membrane.RTC.Engine.Track
-  alias Membrane.RTC.Engine.Endpoint.{HLS, RTSP, WebRTC}
 
   @type id() :: any()
 
-  @type type() :: WebRTC | HLS | RTSP
+  @type type() :: module()
 
   @typedoc """
   Module representing RTC Engine's endpoint.
