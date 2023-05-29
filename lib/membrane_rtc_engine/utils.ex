@@ -10,7 +10,7 @@ defmodule Membrane.RTC.Utils do
 
   @rtp_packet_arrival_event [Membrane.RTC.Engine, :RTP, :packet, :arrival]
   @variant_switched_event [Membrane.RTC.Engine, :RTP, :variant, :switched]
-  @bandwidth_event [Membrane.RTC.Engine, :peer, :bandwidth]
+  @bandwidth_event [Membrane.RTC.Engine, :endpoint, :bandwidth]
 
   # This is workaround to make dialyzer happy.
   # In other case we would have to specify all possible CallbackContext types here.

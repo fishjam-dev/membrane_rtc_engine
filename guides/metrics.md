@@ -15,11 +15,11 @@ Then, if you want to get a report with metrics values for every running RTC Engi
 Membrane.TelemetryMetrics.Reporter.scrape(reporter)
 ```
 
-There is a report example below, with only one room with one peer inside
+There is a report example below, with only one room with one endpoint inside
 ```elixir
 %{
   {:room_id, "test"} => %{
-    {:peer_id, "7eda6931-0313-497e-93a0-6a9540407f77"} => %{
+    {:endpoint_id, "7eda6931-0313-497e-93a0-6a9540407f77"} => %{
       :"ice.binding_requests_received" => 3,
       :"ice.binding_responses_sent" => 3,
       :"ice.bytes_received" => 20672,

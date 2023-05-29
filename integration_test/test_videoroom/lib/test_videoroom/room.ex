@@ -105,8 +105,8 @@ defmodule TestVideoroom.Room do
       integrated_turn_options: state.network_options[:integrated_turn_options],
       integrated_turn_domain: state.network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
-      log_metadata: [peer_id: peer_id],
-      telemetry_label: [room_id: state.room_id, peer_id: peer_id],
+      log_metadata: [endpoint_id: peer_id],
+      telemetry_label: [room_id: state.room_id, endpoint_id: peer_id],
       webrtc_extensions: [Mid, Rid, RepairedRid, TWCC],
       simulcast_config: %SimulcastConfig{
         enabled: true,
@@ -114,7 +114,7 @@ defmodule TestVideoroom.Room do
       }
     }
 
-    :ok = Engine.add_endpoint(state.rtc_engine, endpoint, peer_id: peer_id)
+    :ok = Engine.add_endpoint(state.rtc_engine, endpoint, id: peer_id)
 
     for listener <- state.listeners do
       send(listener, {:room, :new_peer})

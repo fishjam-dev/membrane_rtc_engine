@@ -1,21 +1,39 @@
 defmodule Membrane.RTC.Engine.Endpoint do
-  @moduledoc false
+  @moduledoc """
+  Module representing RTC Engine's endpoint.
+
+  For specific information about possible endpoints, refer to modules specified by `t:type/0`.
+  """
   use Bunch.Access
   alias Membrane.RTC.Engine.Track
 
   @type id() :: any()
 
+  @type type() :: module()
+
+  @typedoc """
+  Module representing RTC Engine's endpoint.
+
+  This module contains:
+  * `id` - id of the endpoint.
+  * `type` - type of the endpoint.
+  * `metadata` - metadata of the endpoint, assigned when engine receives `{:ready, metadata}` message from the endpoint.
+  * `inbound_tracks` - inbound tracks (received by the endpoint from "outside" of the engine) of the endpoint.
+  """
   @type t :: %__MODULE__{
           id: id(),
+          type: type(),
+          metadata: any(),
           inbound_tracks: %{Track.id() => Track.t()}
         }
 
-  defstruct id: nil, inbound_tracks: %{}
+  @enforce_keys [:id, :type]
+  defstruct @enforce_keys ++ [metadata: nil, inbound_tracks: %{}]
 
-  @spec new(id :: id(), inbound_tracks :: [Track.t()]) :: t()
-  def new(id, inbound_tracks) do
+  @spec new(id :: id(), type :: type(), inbound_tracks :: [Track.t()]) :: t()
+  def new(id, type, inbound_tracks) do
     inbound_tracks = Map.new(inbound_tracks, &{&1.id, &1})
-    %__MODULE__{id: id, inbound_tracks: inbound_tracks}
+    %__MODULE__{id: id, type: type, inbound_tracks: inbound_tracks}
   end
 
   @spec get_audio_tracks(endpoint :: t()) :: [Track.t()]

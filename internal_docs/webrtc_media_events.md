@@ -21,47 +21,45 @@ Below you can find a summary of all media events defined inside `membrane_rtc_en
 Messages used by any WebRTC Endpoint plugin
 
 #### WebRTC Endpoint receives these types of `media_events` from client:
-| Name                                        | Description                                                   |
-| ------------------------------------------- | ------------------------------------------------------------- |
-| [join](#join)                               | sent when peer join WebRTC Endpoint                     |
-| [leave](#leave)                             | sent when peer leaves WebRTC Endpoint                    |
-| [updatePeerMetadata](#updatepeermetadata)   | contains new metadata of a peer                         |
-| [updateTrackMetadata](#updatetrackmetadata) | contains new metadata of a track                        |
-| [custom](#custom)                           | message forwarded to the endpoint associated with the peer |
+| Name                                              | Description                                                     |
+| ------------------------------------------------- | --------------------------------------------------------------- |
+| [connect](#connect)                               | sent when client wants to connect to associated WebRTC Endpoint |
+| [disconnect](#disconnect)                         | sent when client disconnects from associated endpoint           |
+| [updateEndpointMetadata](#updateendpointmetadata) | contains new metadata of client's endpoint                      |
+| [updateTrackMetadata](#updatetrackmetadata)       | contains new metadata of a track                                |
+| [custom](#custom)                                 | message forwarded to the endpoint associated with the client    |
 
 
 
 #### WebRTC Endpoint sends these types of messages to the client:
 
-| Name                              | Description                                                                             |
-| --------------------------------- | --------------------------------------------------------------------------------------- |
-| [tracksPriority](#trackspriority) | contains all tracks that will be forwarded to peer until next `tracks_priority` message |
-| [peerDenied](#peerdenied)         | sent if peer was rejected by server when joining to server                              |
-| [peerUpdated](#peerupdated)       | contains new metadata of a peer                                                         |
-| [trackUpdated](#trackupdated)     | contains new metadata of a track                                                        |
-| [tracksAdded](#tracksadded)       | sent when some tracks were added by some peer                                           |
-| [tracksRemoved](#tracksremoved)   | sent when some tracks were removed by some peer                                         |
-| [peerJoined](#peerjoined)         | sent after a new peer has joined the WebRTC Endpoint                                         |
-| [peerAccepted](#peeraccepted)     | sent to a peer after he joins the WebRTC Endpoint                                            |
-| [peerLeft](#peerleft)             | sent when some peer lefts the WebRTC Endpoint                                                |
-| [peerRemoved](#peerremoved)       | sent when peer is forcibly removed by the server                                        |
-| [error](#error)                   | Notifies about an error that occurred                                                   |
-| [custom](#custom-1)               | custom message forwarded from endpoint to client                                        |
+| Name                                | Description                                                                               |
+| ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| [tracksPriority](#trackspriority)   | contains all tracks that will be forwarded to client until next `tracks_priority` message |
+| [endpointUpdated](#endpointupdated) | contains new metadata of an endpoint                                                      |
+| [trackUpdated](#trackupdated)       | contains new metadata of a track                                                          |
+| [tracksAdded](#tracksadded)         | sent when some tracks were added by an endpoint                                           |
+| [tracksRemoved](#tracksremoved)     | sent when some tracks were removed by an endpoint                                         |
+| [endpointAdded](#endpointadded)     | sent after after new endpoint was added                                                   |
+| [connected](#connected)             | sent as a response to [connect](#connect) when succesful                                  |
+| [endpointRemoved](#endpointremoved) | sent after some endpoint was removed                                                      |
+| [error](#error)                     | Notifies about an error that occurred                                                     |
+| [custom](#custom-1)                 | custom message forwarded from endpoint to client                                          |
 
 ### WebRTC custom media events
 
 #### WebRTC endpoint receives these types of custom `media_event`s from client:
 
-| Name                                            | Description                                                             |
-| ----------------------------------------------- | ----------------------------------------------------------------------- |
-| [renegotiateTracks](#renegotiatetracks)         | A request from a peer to renegotiate tracks                             |
-| [prioritizeTrack](#prioritizetrack)             | A request to prioritize the track                                       |
-| [unprioritizeTrack](#unprioritizetrack)         | A request to unprioritize the track                                     |
-| [preferedVideoSizes](#preferedvideosizes)       | informs of how many videos in different quality a peer wants to receive |
-| [candidate](#candidate)                         | Contains client's ICE candidate                                         |
-| [sdpOffer](#sdpoffer)                           | Contains an SDP offer from a client                                     |
-| [setTargetTrackVariant](#setTargetTrackVariant) | A request from a peer to receive a specific track variant               |
-| [trackVariantBitrates](#trackVariantBitrate)    | Contains updated bitrates for track's variants                          |
+| Name                                            | Description                                                               |
+| ----------------------------------------------- | -----------------------------------------------------------------------   |
+| [renegotiateTracks](#renegotiatetracks)         | A request from a client to renegotiate tracks                             |
+| [prioritizeTrack](#prioritizetrack)             | A request to prioritize the track                                         |
+| [unprioritizeTrack](#unprioritizetrack)         | A request to unprioritize the track                                       |
+| [preferedVideoSizes](#preferedvideosizes)       | informs of how many videos in different quality a client wants to receive |
+| [candidate](#candidate)                         | Contains client's ICE candidate                                           |
+| [sdpOffer](#sdpoffer)                           | Contains an SDP offer from a client                                       |
+| [setTargetTrackVariant](#setTargetTrackVariant) | A request from a client to receive a specific track variant               |
+| [trackVariantBitrates](#trackVariantBitrate)    | Contains updated bitrates for track's variants                            |
 
 #### WebRTC endpoint sends these type of custom messages to client
 | Name                                    | Description                                                       |
@@ -75,9 +73,9 @@ Messages used by any WebRTC Endpoint plugin
 
 ## Client -> WebRTC Endpoint
 
-### `join`
+### `connect`
 
-* Sent when peer want to join WebRTC Endpoint. It contains only peer's metadata
+* Sent when a client wants to join WebRTC Endpoint. It contains only endpoint's metadata
 
   ```json
   {
@@ -85,17 +83,17 @@ Messages used by any WebRTC Endpoint plugin
   }
   ```
 
-### `leave`
+### `disconnect`
 
-* Sent when peer leaves WebRTC Endpoint. It contains no data
+* Sent when client disconnects from WebRTC Endpoint. It contains no data
 
   ```json
   {}
   ```
 
-### `updatePeerMetadata`
+### `updateEndpointMetadata`
 
-* Contains new metadata of some peer
+* Contains new metadata of client's endpoint
 
   ```json
   {
@@ -116,7 +114,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `custom`
 
-* A black-box for a message that WebRTC Endpoint will forward to the endpoint associated with the peer who sent the message.
+* A black-box for a message that WebRTC Endpoint will forward to the endpoint associated with the client who sent the message.
 
   ```json
   any
@@ -126,7 +124,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `tracksPriority`
 
-* Contains all tracks that will be forwarded to peer until the next `tracks_priority` message.
+* Contains all tracks that will be forwarded to client until the next `tracks_priority` message.
   This type of messages is sent only if DisplayManager is spawned
 
   ```json
@@ -135,23 +133,13 @@ Messages used by any WebRTC Endpoint plugin
   }
   ```
 
-### `peerDenied`
+### `endpointUpdated`
 
-* Sent if peer was rejected by server when joining to server. It may contain a reason for rejection.
-
-  ```json
-  {
-    data: text
-  }
-  ```
-
-### `peerUpdated`
-
-* Contains information about updated metadata of one of the peers
+* Contains information about updated metadata of one of the endpoints
 
   ```json
   {
-    peerId: peer_id,
+    endpointId: endpoint_id,
     metadata: any
   }
   ```
@@ -162,7 +150,7 @@ Messages used by any WebRTC Endpoint plugin
 
   ```json
   {
-    peerId: peer_id,
+    endpointId: endpoint_id,
     trackId: track_id,
     metadata: any
   }
@@ -170,12 +158,12 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `tracksAdded`
 
-* Informs that one of the peers has added one or more tracks.
-  It contains an id of that peer and a map of all tracks with `track_id`s as keys and `track_metadata` as value.
+* Informs that one of the clients has added one or more tracks.
+  It contains an id of endpoint associated with that client and a map of all tracks with `track_id`s as keys and `track_metadata` as value.
 
   ```json
   {
-    peerId: peer_id,
+    endpointId: endpoint_id,
     trackIdToMetadata: {
       track_id: any
     }
@@ -184,59 +172,46 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `tracksRemoved`
 
-* Contains a list of tracks which have been removed by some peer and id of that peer
+* Contains a list of tracks which have been removed by some client and id of that client's endpoint
 
   ```json
   {
-    peerId: peer_id,
+    endpointId: endpoint_id,
     trackIds: track_ids
   }
   ```
 
-### `peerJoined`
+### `endpointAdded`
 
-* Message sent to all peers in the room after a new peer has joined WebRTC Endpoint.
-  It contains id and metadata of the new peer.
+* Message sent to all clients in the room after a new endpoint was added.
+  It contains id and metadata of the new endpoint.
 
   ```json
   {
-    peer: {
-      id: peer.id,
-      metadata: peer.metadata
-    }
+    id: endpoint_id,
+    metadata: any
   }
   ```
 
-### `peerAccepted`
+### `connected`
 
-* Message sent to the peer after he's joined the WebRTC Endpoint. It contains his id and a list of information about peers in the Engine
+* Message sent to the client after connecting to the WebRTC Endpoint. It contains the id of that client's endpoint and a list of information about endpoints in the Engine
   (id, metadata and a `trackIdToMetadata` like seen in `tracksAdded`)
 
   ```json
   {
-    id: peer_id,
-    peersInRoom: peers
+    id: endpoint_id,
+    otherEndpoints: endpoints
   }
   ```
 
-### `peerLeft`
+### `endpointRemoved`
 
-* Sent to all remaining peers in the room after some peer has left. It contains an id of the peer who left.
-
-  ```json
-  {
-    peerId: peer_id
-  }
-  ```
-
-### `peerRemoved`
-
-* Sent to the peer that has been forcibly removed by the server
+* Sent to all remaining clients in the room after some endpoint was removed. It contains an id of the removed endpoint.
 
   ```json
   {
-    peerId: peer_id,
-    reason: any
+    id: endpoint_id
   }
   ```
 
@@ -263,7 +238,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `renegotiateTracks`
 
-* Informs that a peer wants to renegotiate connection due to adding a track or removing a track
+* Informs that a client wants to renegotiate connection due to adding a track or removing a track
 
   ```json
   {}
@@ -271,7 +246,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `prioritizeTrack`
 
-* Contains an id of the track that the peer wants to prioritize
+* Contains an id of the track that the client wants to prioritize
 
   ```json
   {
@@ -281,7 +256,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `unprioritizeTrack`
 
-* Contains an id of the track that the peer want to unprioritize.
+* Contains an id of the track that the client want to unprioritize.
 
   ```json
   {
@@ -291,7 +266,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `preferedVideoSizes`
 
-* Contains information of how many videos in different quality (high, medium, small) the peer would like to receive.
+* Contains information of how many videos in different quality (high, medium, small) the client would like to receive.
   `allSameSize` flag which indicates that all videos should be in the same quality.
 
   ```json
@@ -316,9 +291,9 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `sdpOffer`
 
-* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, mapping between `track_id` 
+* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, mapping between `track_id`
   and this track's bitrates (or all of its variants bitrates) and a mapping between `mid` and `track_id`.
-  Maps contain only information about current peer's `sendonly` tracks.
+  Maps contain only information about current client's `sendonly` tracks.
 
   ```json
   {
@@ -338,7 +313,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `setTargetTrackVariant`
 
-* Informs that a peer wants to receive a specific track variant. 
+* Informs that a client wants to receive a specific track variant.
   The track variant will be sent whenever it is available.
   If choosen variant is unavailable, some other variant will be
   sent until choosen variant becomes active again.
@@ -352,7 +327,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `trackVariantBitrates`
 
-* Contains updated bitrates of variants of the track send by the peer.
+* Contains updated bitrates of variants of the track send by the client.
   Needs to contain all of the variants.
 
 ```json
@@ -367,7 +342,7 @@ Messages used by any WebRTC Endpoint plugin
 ### `offerData`
 
 * Contains information about the number  of audio and video tracks that will be sent from the engine
-  to the peer and information regarding the integrated TURN server.
+  to the client and information regarding the integrated TURN server.
 
   ```json
   {
@@ -412,15 +387,15 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `encodingSwitched`
 
-* Informs that track with id `trackId` belonging to peer with id `peerId` will be sent in encoding `encoding` now.
+* Informs that track with id `trackId` belonging to endpoint with id `endpointId` will be sent in encoding `encoding` now.
 The meaning is as follows:
 * "low_bandwidth" - we no longer have enough bandwidth to maintain current track quality
 * "encoding_inactive" - encoding became inactive
-* "other" - it was hard to determine exact reason of encoding switch 
+* "other" - it was hard to determine exact reason of encoding switch
 
   ```json
   {
-    peerId: peer_id,
+    endpointId: endpoint_id,
     trackId: track_id,
     encoding: encoding,
     reason: "low_bandwidth" | "encoding_inactive" | "other"

@@ -2,7 +2,7 @@ defmodule Membrane.RTC.Engine do
   @moduledoc """
   RTC Engine implementation.
 
-  RTC Engine is an abstraction layer responsible for linking together different types of `Endpoints`.
+  RTC Engine is an abstraction layer responsible for linking together different types of Endpoints.
   From the implementation point of view, RTC Engine is a `Membrane.Pipeline`.
 
   ## Messages
@@ -24,44 +24,39 @@ defmodule Membrane.RTC.Engine do
   You can register multiple processes to receive messages from an RTC Engine instance.
   In such a case each message will be sent to each registered process.
 
-  ## Peers
+  ## Endpoints
 
-  > ### Deprecation notice {: .warning }
-  >
-  > **Peers are deprecated as of version 0.10.0 and will be removed in the future**
-  >
-  > While Peers are still present in the RTC Engine, it's not recommended to use
-  > this feature in new applications.
-  >
-  > Existing applications should take steps to move away from using built-in concept of peers.
+  Endpoints are `Membrane.Bin`s able to publish their own tracks and subscribe to tracks from other Endpoints.
+  One can think about Endpoint as an entity responsible for handling some specific task.
+  An Endpoint can be added and removed using `add_endpoint/3` and `remove_endpoint/2` respectively.
 
-  Each peer represents some user that can possess some metadata.
-  In RTC Engine, each peer is represented by an endpoint and from the purposes of the Engine,
-  it is an enpdoint that we happen to store additional information about, metadata in particular.
-  The peer doesn't exist without their endpoint.
+  There are two types of Endpoints:
+  * Standalone Endpoints - they are in most cases spawned only once per RTC Engine instance and they are not associated with any client.
+  * Client Endpoints - they are associated with some client.
+  Associating Endpoint with client will send some Media Events to the Endpoint's Client Library
+  e.g. one which indicates which tracks belong to which client.
 
-  ### Adding a peer
-  The only way to add a peer to the RTC Engine is to assign a `peer_id` to the endpoint representing it.
-  This is done when adding an endpoint to the Engine by passing a `peer_id` option.
+  Currently RTC Engine ships with the implementation of three Endpoints:
+  * `#{inspect(__MODULE__)}.Endpoint.WebRTC` which is responsible for establishing a connection with some WebRTC
+  client (mainly browser) and exchanging media with it. WebRTC Endpoint is a Client Endpoint.
+  * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
+  saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
+  * `#{inspect(__MODULE__)}.Endpoint.RTSP` which is responsible for connecting to a remote RTSP stream source and
+  sending the appropriate media track to other Endpoints. RTSP Endpoint is a Standalone Endpoint.
 
-  **Example**
-  ```elixir
-  :ok = Engine.add_endpoint(webrtc_endpoint, peer_id: "Peer1")
-  ```
-
-  Each peer then needs to declare itself as ready before being fully connected to RTC Engine.
+  User can also implement custom Endpoints, see Custom Endpoints guide.
 
   ### Readiness state
-  Each peer endpoint is presumed to be initially inactive and has to declare itself ready to fully join the Engine.
+  Each endpoint is presumed to be initially inactive and has to declare itself ready to fully join the Engine.
 
   Before it does, it:
-  * will not receive notifications about other peers and their metadata
+  * will not receive notifications about other endpoints and their metadata
   * will not receive information about tracks
   * will not be able to publish any tracks
   * will not be able to update their metadata
 
-  When declaring itself as ready, the peer also has an opportunity to set their metadata.
-  To mark the peer as active, their endpoint has to send the `t:ready_action_t/0`.
+  When declaring itself as ready, the endpoint also has an opportunity to set their metadata.
+  To mark the endpoint as active, it has to send the `t:ready_action_t/0`.
 
   **Example**
   ```elixir
@@ -72,32 +67,10 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_other(:ready, _context, state) do
-    Membrane.Logger.debug("Succesfully activated the peer")
+    Membrane.Logger.debug("Succesfully activated the endpoint")
     {:ok, state}
   end
   ```
-
-  ## Endpoints
-
-  `Endpoints` are `Membrane.Bin`s able to publish their own tracks and subscribe to tracks from other Endpoints.
-  One can think about Endpoint as an entity responsible for handling some specific task.
-  An Endpoint can be added and removed using `add_endpoint/3` and `remove_endpoint/2` respectively.
-
-  There are two types of Endpoints:
-  * Standalone Endpoints - they are in most cases spawned only once per RTC Engine instance and they are not associated with any peer.
-  * Peer Endpoints - they are associated with some peer.
-  Associating Endpoint with Peer will cause RTC Engine to send some Media Events to the Enpoint's Client Library
-  e.g. one which indicates which tracks belong to which peer.
-
-  Currently RTC Engine ships with the implementation of three Endpoints:
-  * `#{inspect(__MODULE__)}.Endpoint.WebRTC` which is responsible for establishing a connection with some WebRTC
-  peer (mainly browser) and exchanging media with it. WebRTC Endpoint is a Peer Endpoint.
-  * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
-  saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
-  * `#{inspect(__MODULE__)}.Endpoint.RTSP` which is responsible for connecting to a remote RTSP stream source and
-  sending the appropriate media track to other Endpoints. RTSP Endpoint is a Standalone Endpoint.
-
-  User can also implement custom Endpoints, see Custom Endpoints guide.
   """
 
   use Membrane.Pipeline
@@ -113,7 +86,6 @@ defmodule Membrane.RTC.Engine do
     Endpoint,
     FilterTee,
     Message,
-    Peer,
     Subscription,
     Tee,
     Track
@@ -156,10 +128,9 @@ defmodule Membrane.RTC.Engine do
     @enforce_keys [:id, :component_path, :trace_context, :telemetry_label]
     defstruct @enforce_keys ++
                 [
-                  peers: %{},
                   endpoints: %{},
+                  pending_endpoints: %{},
                   pending_subscriptions: [],
-                  pending_peers: %{},
                   subscriptions: %{},
                   display_manager: nil,
                   toilet_capacity: 200
@@ -171,11 +142,10 @@ defmodule Membrane.RTC.Engine do
             trace_context: map(),
             telemetry_label: Membrane.TelemetryMetrics.label(),
             display_manager: pid() | nil,
-            peers: %{Endpoint.id() => Peer.t()},
             endpoints: %{Endpoint.id() => Endpoint.t()},
+            pending_endpoints: %{Endpoint.id() => Endpoint.t()},
             subscriptions: %{Endpoint.id() => %{Track.id() => Subscription.t()}},
             pending_subscriptions: [Subscription.t()],
-            pending_peers: %{Endpoint.id() => %{peer: Peer.t(), endpoint: Endpoint.t()}},
             toilet_capacity: pos_integer()
           }
   end
@@ -183,14 +153,11 @@ defmodule Membrane.RTC.Engine do
   @typedoc """
   Endpoint configuration options.
 
-  * `peer_id` - associate endpoint with existing peer
-  * `endpoint_id` - assign endpoint id. If not provided it will be generated by RTC Engine. This option cannot be used together with `peer_id`.
-  Endpoints associated with peers have the id `peer_id`.
+  * `id` - assigned endpoint id. If not provided it will be generated by RTC Engine.
   * `node` - node on which endpoint should be spawned. If not provided, current node is used.
   """
   @type endpoint_options_t() :: [
-          endpoint_id: String.t(),
-          peer_id: String.t(),
+          id: String.t(),
           node: node()
         ]
 
@@ -205,26 +172,17 @@ defmodule Membrane.RTC.Engine do
   @type publish_action_t() :: {:notify_parent, {:publish, publish_message_t()}}
 
   @typedoc """
-  Membrane action that will mark the peer endpoint as ready and set its metadata.
+  Membrane action that will mark the endpoint as ready and set its metadata.
   The Engine will respond with `t:ready_ack_msg_t/0` to acknowledge your transition to ready state.
 
   This action can only be used once, any further calls by an endpoint will be ignored.
-  It will also be ignored for non-peer endpoints.
   """
-  @type ready_action_t() :: {:notify, {:ready, metadata :: any()}}
+  @type ready_action_t() :: {:notify, :ready | {:ready, metadata :: any()}}
 
   @typedoc """
   A message that the Engine sends to the endpoint when it ackowledges its `t:ready_action_t/0`
   """
-  @type ready_ack_msg_t() ::
-          {:ready,
-           peers_in_room :: [
-             %{
-               id: Peer.id(),
-               metadata: any(),
-               trackIdToMetadata: %{Track.id() => any()}
-             }
-           ]}
+  @type ready_ack_msg_t() :: {:ready, other_endpoints :: [Endpoint.t()]}
 
   @typedoc """
   Membrane action that will cause RTC Engine to forward supplied message to the business logic.
@@ -244,7 +202,7 @@ defmodule Membrane.RTC.Engine do
           {:new_tracks, [Track.t()]}
           | {:removed_tracks, [Track.t()]}
           | {:track_metadata_updated, metadata :: any()}
-          | {:peer_metadata_updated, metadata :: any()}
+          | {:endpoint_metadata_updated, metadata :: any()}
           | {:tracks_priority, tracks :: list()}
           | TrackNotification.t()
 
@@ -254,10 +212,10 @@ defmodule Membrane.RTC.Engine do
   @type published_message_t() ::
           {:new_tracks, [Track.t()]}
           | {:removed_tracks, [Track.t()]}
-          | {:new_peer, Peer.t()}
-          | {:peer_left, Peer.id()}
+          | {:new_endpoint, Endpoint.t()}
+          | {:endpoint_removed, Endpoint.id()}
           | {:track_metadata_updated, Track.t()}
-          | {:peer_metadata_updated, Peer.t()}
+          | {:endpoint_metadata_updated, Endpoint.t()}
           | {:tracks_priority, tracks :: list()}
           | ready_ack_msg_t()
           | TrackNotification.t()
@@ -293,7 +251,6 @@ defmodule Membrane.RTC.Engine do
   @doc """
   Adds endpoint to the RTC Engine
 
-  Returns `:error` when there are both `peer_id` and `endpoint_id` specified in `opts`.
   For more information refer to `t:endpoint_options_t/0`.
   """
   @spec add_endpoint(
@@ -302,10 +259,6 @@ defmodule Membrane.RTC.Engine do
           opts :: endpoint_options_t()
         ) :: :ok | :error
   def add_endpoint(pid, endpoint, opts \\ []) do
-    if Keyword.has_key?(opts, :endpoint_id) and Keyword.has_key?(opts, :peer_id) do
-      raise "You can't pass both option endpoint_id and peer_id"
-    end
-
     send(pid, {:add_endpoint, endpoint, opts})
     :ok
   end
@@ -435,15 +388,15 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_info({:add_endpoint, endpoint, opts}, _ctx, state) do
-    peer_id = opts[:peer_id]
-    endpoint_id = opts[:endpoint_id] || opts[:peer_id]
+    endpoint_id = opts[:id] || UUID.uuid4()
+    opts = Keyword.put(opts, :id, endpoint_id)
 
     endpoint =
       case endpoint do
         %Endpoint.WebRTC{} ->
           %Endpoint.WebRTC{
             endpoint
-            | telemetry_label: state.telemetry_label ++ [peer_id: peer_id],
+            | telemetry_label: state.telemetry_label ++ [endpoint_id: endpoint_id],
               parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
               trace_context: state.trace_context
           }
@@ -487,6 +440,7 @@ defmodule Membrane.RTC.Engine do
     {[], state}
   end
 
+  @impl true
   def handle_info(
         {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, opts},
         ctx,
@@ -551,7 +505,7 @@ defmodule Membrane.RTC.Engine do
   @impl true
   def handle_child_notification(notification, {:endpoint, endpoint_id}, ctx, state) do
     if Map.has_key?(state.endpoints, endpoint_id) or
-         Map.has_key?(state.pending_peers, endpoint_id) do
+         Map.has_key?(state.pending_endpoints, endpoint_id) do
       handle_endpoint_notification(notification, endpoint_id, ctx, state)
     else
       {[], state}
@@ -573,26 +527,21 @@ defmodule Membrane.RTC.Engine do
   #   removed tracks. Also forwards custom media events.
   #
 
+  defp handle_endpoint_notification(:ready, endpoint_id, ctx, state) do
+    handle_endpoint_notification({:ready, nil}, endpoint_id, ctx, state)
+  end
+
   defp handle_endpoint_notification({:ready, metadata}, endpoint_id, _ctx, state) do
-    if Map.has_key?(state.pending_peers, endpoint_id) do
-      {%{peer: peer, endpoint: endpoint}, state} = pop_in(state, [:pending_peers, endpoint_id])
-      peer = %{peer | metadata: metadata}
+    if Map.has_key?(state.pending_endpoints, endpoint_id) do
+      {new_endpoint, state} = pop_in(state, [:pending_endpoints, endpoint_id])
+      new_endpoint = %{new_endpoint | metadata: metadata}
 
-      peers_in_room =
-        state.peers
-        |> Map.values()
-        |> Enum.map(fn peer ->
-          track_id_to_metadata = Endpoint.get_active_track_metadata(state.endpoints[peer.id])
+      other_endpoints = Map.values(state.endpoints)
 
-          peer
-          |> Map.from_struct()
-          |> Map.put(:trackIdToMetadata, track_id_to_metadata)
-        end)
-
-      new_peer_notifications =
+      new_endpoint_notifications =
         state.endpoints
         |> Map.keys()
-        |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:new_peer, peer}}})
+        |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:new_endpoint, new_endpoint}}})
 
       active_tracks = get_active_tracks(state.endpoints)
 
@@ -605,19 +554,18 @@ defmodule Membrane.RTC.Engine do
 
       actions =
         [
-          notify_child: {{:endpoint, endpoint_id}, {:ready, peers_in_room}}
-        ] ++ new_tracks_notification ++ new_peer_notifications
+          notify_child: {{:endpoint, endpoint_id}, {:ready, other_endpoints}}
+        ] ++ new_tracks_notification ++ new_endpoint_notifications
 
       state =
         state
-        |> put_in([:peers, endpoint_id], peer)
-        |> put_in([:endpoints, endpoint_id], endpoint)
+        |> put_in([:endpoints, endpoint_id], new_endpoint)
         |> put_in([:subscriptions, endpoint_id], %{})
 
       {actions, state}
     else
       Membrane.Logger.warn(
-        "Endpoint #{endpoint_id} sent a `:ready` message even though it's not a peer endpoint. Ignoring."
+        "Endpoint #{endpoint_id} sent a `:ready` message even though it has been already accepted. Ignoring."
       )
 
       {[], state}
@@ -629,17 +577,24 @@ defmodule Membrane.RTC.Engine do
     {[], state}
   end
 
-  defp handle_endpoint_notification({:update_peer_metadata, metadata}, peer_id, _ctx, state) do
-    peer = Map.get(state.peers, peer_id)
+  defp handle_endpoint_notification(
+         {:update_endpoint_metadata, metadata},
+         endpoint_id,
+         _ctx,
+         state
+       ) do
+    endpoint = Map.get(state.endpoints, endpoint_id)
 
-    if peer.metadata != metadata do
-      updated_peer = %{peer | metadata: metadata}
-      state = put_in(state, [:peers, peer_id], updated_peer)
+    if endpoint.metadata != metadata do
+      updated_endpoint = %{endpoint | metadata: metadata}
+      state = put_in(state, [:endpoints, endpoint_id], updated_endpoint)
 
       actions =
         state.endpoints
         |> Map.keys()
-        |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:peer_metadata_updated, updated_peer}}})
+        |> Enum.map(
+          &{:notify_child, {{:endpoint, &1}, {:endpoint_metadata_updated, updated_endpoint}}}
+        )
 
       {actions, state}
     else
@@ -828,7 +783,7 @@ defmodule Membrane.RTC.Engine do
   #   implementation for the public API.
   #
   # - handle_remove_endpoint/3: Removes the given Endpoint. Part of the implementation for the
-  #   public API. Also called when the peer leaves.
+  #   public API.
   #
   # - get_active_tracks/1: Helper function for add_endpoint/3. Returns a list of Tracks that can
   #   be provided to the newly added Endpoint straight away.
@@ -840,9 +795,9 @@ defmodule Membrane.RTC.Engine do
   #
 
   defp handle_add_endpoint(endpoint_entry, opts, state) do
-    endpoint_id = opts[:endpoint_id] || opts[:peer_id] || UUID.uuid4()
+    endpoint_id = Keyword.fetch!(opts, :id)
     endpoint_name = {:endpoint, endpoint_id}
-    is_peer? = Keyword.has_key?(opts, :peer_id)
+    %endpoint_module{} = endpoint_entry
 
     spec = {
       child(endpoint_name, endpoint_entry),
@@ -856,31 +811,14 @@ defmodule Membrane.RTC.Engine do
         do: [notify_child: {endpoint_name, {:display_manager, state.display_manager}}],
         else: []
 
-    # Only inform about the tracks if we're not taking about a peer
-    active_tracks = get_active_tracks(state.endpoints)
+    actions = [spec: spec] ++ display_manager_message
 
-    tracks_actions =
-      if not is_peer? and active_tracks != [] do
-        [notify_child: {endpoint_name, {:new_tracks, active_tracks}}]
-      else
-        []
-      end
-
-    actions = [spec: spec] ++ display_manager_message ++ tracks_actions
-
-    endpoint = Endpoint.new(endpoint_id, [])
+    endpoint = Endpoint.new(endpoint_id, endpoint_module, [])
 
     state =
-      if is_peer? do
-        put_in(state, [:pending_peers, endpoint_id], %{
-          peer: %Peer{id: endpoint_id, metadata: nil},
-          endpoint: endpoint
-        })
-      else
-        state
-        |> put_in([:subscriptions, endpoint_id], %{})
-        |> put_in([:endpoints, endpoint_id], endpoint)
-      end
+      state
+      |> put_in([:subscriptions, endpoint_id], %{})
+      |> put_in([:pending_endpoints, endpoint_id], endpoint)
 
     {actions, state}
   end
@@ -900,26 +838,20 @@ defmodule Membrane.RTC.Engine do
         tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
         endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
 
-        peer_left_msgs =
-          if Map.has_key?(state.peers, endpoint_id) do
-            state.endpoints
-            |> Map.keys()
-            |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:peer_left, endpoint_id}}})
-          else
-            []
-          end
-
-        {_, state} = pop_in(state, [:peers, endpoint_id])
+        endpoint_removed_msgs =
+          state.endpoints
+          |> Map.keys()
+          |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:endpoint_removed, endpoint_id}}})
 
         if endpoint_bin == nil or endpoint_bin.terminating? do
-          {:present, tracks_msgs ++ peer_left_msgs, state}
+          {:present, tracks_msgs ++ endpoint_removed_msgs, state}
         else
           actions = [remove_child: find_children_for_endpoint(endpoint, ctx)]
-          {:present, tracks_msgs ++ peer_left_msgs ++ actions, state}
+          {:present, tracks_msgs ++ endpoint_removed_msgs ++ actions, state}
         end
 
-      Map.has_key?(state.pending_peers, endpoint_id) ->
-        {_pending_peer, state} = pop_in(state, [:pending_peers, endpoint_id])
+      Map.has_key?(state.pending_endpoints, endpoint_id) ->
+        {_pending_endpoint, state} = pop_in(state, [:pending_endpoints, endpoint_id])
         endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
 
         if endpoint_bin == nil or endpoint_bin.terminating? do

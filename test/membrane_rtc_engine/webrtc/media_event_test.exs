@@ -3,11 +3,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent
 
-  describe "deserializing join media event" do
+  describe "deserializing `connect` media event" do
     test "creates proper map when event is valid" do
       raw_media_event =
         %{
-          "type" => "join",
+          "type" => "connect",
           "data" => %{
             "receiveMedia" => true,
             "metadata" => %{"displayName" => "Bob"}
@@ -16,7 +16,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
         |> Jason.encode!()
 
       expected_media_event = %{
-        type: :join,
+        type: :connect,
         data: %{
           metadata: %{"displayName" => "Bob"}
         }

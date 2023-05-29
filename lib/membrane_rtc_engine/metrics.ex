@@ -42,13 +42,13 @@ defmodule Membrane.RTC.Engine.Metrics do
         measurement: :reason
       ),
       Telemetry.Metrics.last_value(
-        "peer.bandwidth",
-        event_name: [Membrane.RTC.Engine, :peer, :bandwidth],
+        "endpoint.bandwidth",
+        event_name: [Membrane.RTC.Engine, :endpoint, :bandwidth],
         measurement: :bandwidth
       ),
       Telemetry.Metrics.last_value(
-        "peer.metadata",
-        event_name: [Membrane.RTC.Engine, :peer, :metadata, :event],
+        "endpoint.metadata",
+        event_name: [Membrane.RTC.Engine, :endpoint, :metadata, :event],
         measurement: :metadata
       ),
       Telemetry.Metrics.last_value(
