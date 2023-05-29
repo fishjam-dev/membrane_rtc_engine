@@ -24,7 +24,7 @@ Messages used by any WebRTC Endpoint plugin
 | Name                                              | Description                                                     |
 | ------------------------------------------------- | --------------------------------------------------------------- |
 | [connect](#connect)                               | sent when client wants to connect to associated WebRTC Endpoint |
-| [leave](#leave)                                   | sent when client leaves associated endpoint                     |
+| [disconnect](#disconnect)                         | sent when client disconnects from associated endpoint           |
 | [updateEndpointMetadata](#updateendpointmetadata) | contains new metadata of client's endpoint                      |
 | [updateTrackMetadata](#updatetrackmetadata)       | contains new metadata of a track                                |
 | [custom](#custom)                                 | message forwarded to the endpoint associated with the client    |
@@ -83,9 +83,9 @@ Messages used by any WebRTC Endpoint plugin
   }
   ```
 
-### `leave`
+### `disconnect`
 
-* Sent when client leaves WebRTC Endpoint. It contains no data
+* Sent when client disconnects from WebRTC Endpoint. It contains no data
 
   ```json
   {}
@@ -291,7 +291,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `sdpOffer`
 
-* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, mapping between `track_id` 
+* Contains an SDP offer, a mapping between `track_id` and `track_metadata`, mapping between `track_id`
   and this track's bitrates (or all of its variants bitrates) and a mapping between `mid` and `track_id`.
   Maps contain only information about current client's `sendonly` tracks.
 
@@ -313,7 +313,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `setTargetTrackVariant`
 
-* Informs that a client wants to receive a specific track variant. 
+* Informs that a client wants to receive a specific track variant.
   The track variant will be sent whenever it is available.
   If choosen variant is unavailable, some other variant will be
   sent until choosen variant becomes active again.
@@ -391,7 +391,7 @@ Messages used by any WebRTC Endpoint plugin
 The meaning is as follows:
 * "low_bandwidth" - we no longer have enough bandwidth to maintain current track quality
 * "encoding_inactive" - encoding became inactive
-* "other" - it was hard to determine exact reason of encoding switch 
+* "other" - it was hard to determine exact reason of encoding switch
 
   ```json
   {

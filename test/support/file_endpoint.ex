@@ -92,6 +92,11 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
   end
 
   @impl true
+  def handle_parent_notification({:endpoint_removed, _endpoint_id}, _ctx, state) do
+    {[], state}
+  end
+
+  @impl true
   def handle_parent_notification({:new_tracks, _list}, _ctx, state) do
     {[], state}
   end

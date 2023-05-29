@@ -158,6 +158,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       groups_for_modules: [
         Engine: [
           Membrane.RTC.Engine,
+          Membrane.RTC.Engine.Endpoint,
           Membrane.RTC.Engine.Message,
           Membrane.RTC.Engine.Metrics,
           Membrane.RTC.Engine.Notifications.TrackNotification,

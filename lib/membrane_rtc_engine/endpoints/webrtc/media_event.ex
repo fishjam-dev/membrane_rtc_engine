@@ -173,7 +173,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   defp do_decode(%{"type" => "connect", "data" => %{"metadata" => metadata}}),
     do: {:ok, %{type: :connect, data: %{metadata: metadata}}}
 
-  defp do_decode(%{"type" => "leave"}), do: {:ok, %{type: :leave}}
+  defp do_decode(%{"type" => "disconnect"}), do: {:ok, %{type: :disconnect}}
 
   defp do_decode(%{"type" => "custom", "data" => data}) do
     with {:ok, event} <- decode_custom_media_event(data), do: {:ok, %{type: :custom, data: event}}

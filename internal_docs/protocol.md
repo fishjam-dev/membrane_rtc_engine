@@ -28,7 +28,7 @@ sequenceDiagram
         server->>client: custom(sdpAnswer)
         server->>client: custom(candidate)
         server->>other_client: tracksAdded
-        server->>client: tracksAdded 
+        server->>client: tracksAdded
         rect rgb(135, 204, 232)
             note right of server: renegotiation
             server->>other_client: custom(offerData)
@@ -41,7 +41,7 @@ sequenceDiagram
             end
         end
     end
-```  
+```
 
 ### Leaving the server
 
@@ -50,8 +50,7 @@ sequenceDiagram
     actor client
     participant server
     actor other_client
-    client->>server: leave
-    server->>other_client: endpointRemoved
+    client->>server: disconnect
     rect rgb(135, 204, 232)
         note right of server: renegotiation
         server->>other_client: custom(offerData)

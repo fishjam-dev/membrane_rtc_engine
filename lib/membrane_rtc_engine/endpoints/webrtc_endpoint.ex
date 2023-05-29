@@ -550,7 +550,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_parent_notification({:endpoint_metadata_updated, endpoint}, _ctx, state) do
-    # TODO  media event
     event = MediaEvent.endpoint_updated(endpoint) |> MediaEvent.encode()
     # TODO: update metadata in the state
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
@@ -766,7 +765,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {[notify_parent: {:ready, metadata}], state}
   end
 
-  defp handle_media_event(%{type: :leave}, _ctx, state) do
+  defp handle_media_event(%{type: :disconnect}, _ctx, state) do
+    # TODO: handle this media event
+    # send message to engine to remove this endpoint
+    # update signalling protocol diagram accordingly
     {[], state}
   end
 

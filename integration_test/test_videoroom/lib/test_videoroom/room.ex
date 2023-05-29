@@ -114,7 +114,7 @@ defmodule TestVideoroom.Room do
       }
     }
 
-    :ok = Engine.add_endpoint(state.rtc_engine, endpoint, endpoint_id: peer_id)
+    :ok = Engine.add_endpoint(state.rtc_engine, endpoint, id: peer_id)
 
     for listener <- state.listeners do
       send(listener, {:room, :new_peer})

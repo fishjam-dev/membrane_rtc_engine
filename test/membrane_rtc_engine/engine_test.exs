@@ -26,7 +26,7 @@ defmodule Membrane.RTC.EngineTest do
       first_endpoint = "endpoint1"
       second_endpoint = "endpoint2"
 
-      Engine.add_endpoint(rtc_engine, endpoint_spec, endpoint_id: first_endpoint)
+      Engine.add_endpoint(rtc_engine, endpoint_spec, id: first_endpoint)
       # make first endpoint ready so it can receive notification about new endpoints
       Engine.message_endpoint(
         rtc_engine,
@@ -34,7 +34,7 @@ defmodule Membrane.RTC.EngineTest do
         {:execute_actions, [notify_parent: {:ready, nil}]}
       )
 
-      Engine.add_endpoint(rtc_engine, endpoint_spec, endpoint_id: second_endpoint)
+      Engine.add_endpoint(rtc_engine, endpoint_spec, id: second_endpoint)
 
       Engine.message_endpoint(
         rtc_engine,
@@ -52,7 +52,7 @@ defmodule Membrane.RTC.EngineTest do
       endpoint1_track = video_track("endpoint1", "track1", "track1-metadata", "stream1")
       endpoint2_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
 
-      Engine.add_endpoint(rtc_engine, endpoint1_spec, endpoint_id: "endpoint1")
+      Engine.add_endpoint(rtc_engine, endpoint1_spec, id: "endpoint1")
 
       Engine.message_endpoint(
         rtc_engine,
@@ -66,7 +66,7 @@ defmodule Membrane.RTC.EngineTest do
 
       assert_receive {:ready, []}
 
-      Engine.add_endpoint(rtc_engine, endpoint2_spec, endpoint_id: "endpoint2")
+      Engine.add_endpoint(rtc_engine, endpoint2_spec, id: "endpoint2")
 
       Engine.message_endpoint(
         rtc_engine,
@@ -159,7 +159,7 @@ defmodule Membrane.RTC.EngineTest do
     test "forwards message to endpoint", %{rtc_engine: rtc_engine} do
       endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
       endpoint_id = :test_endpoint
-      :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
       :ok = Engine.message_endpoint(rtc_engine, endpoint_id, :message)
       assert_receive(:message, 1_000)
     end
@@ -175,7 +175,7 @@ defmodule Membrane.RTC.EngineTest do
     test "get list of endpoints", %{rtc_engine: rtc_engine} do
       endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
       endpoint_id = :test_endpoint
-      :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
       endpoints = Engine.get_endpoints(rtc_engine)
       assert [%{id: ^endpoint_id, type: TestEndpoint}] = endpoints
     end
@@ -184,7 +184,7 @@ defmodule Membrane.RTC.EngineTest do
   test "engine sends EndpointCrashed message", %{rtc_engine: rtc_engine} do
     endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
     endpoint_id = :test_endpoint
-    :ok = Engine.add_endpoint(rtc_engine, endpoint, endpoint_id: endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
     msg = {:execute_actions, [:some_invalid_action]}
     :ok = Engine.message_endpoint(rtc_engine, :test_endpoint, msg)
     assert_receive %Membrane.RTC.Engine.Message.EndpointCrashed{endpoint_id: :test_endpoint}
@@ -213,7 +213,7 @@ defmodule Membrane.RTC.EngineTest do
       owner: self()
     }
 
-    Engine.add_endpoint(rtc_engine, track_endpoint, endpoint_id: endpoint.id)
+    Engine.add_endpoint(rtc_engine, track_endpoint, id: endpoint.id)
 
     Engine.message_endpoint(
       rtc_engine,
@@ -223,7 +223,7 @@ defmodule Membrane.RTC.EngineTest do
        notify_parent: {:publish, {:new_tracks, [track]}}}
     )
 
-    Engine.add_endpoint(rtc_engine, server_endpoint, endpoint_id: "server-endpoint")
+    Engine.add_endpoint(rtc_engine, server_endpoint, id: "server-endpoint")
 
     Engine.message_endpoint(
       rtc_engine,

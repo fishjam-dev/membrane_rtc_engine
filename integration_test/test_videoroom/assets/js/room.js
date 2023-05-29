@@ -139,7 +139,7 @@ class Room {
   };
 
   leave = () => {
-    this.webrtc.leave();
+    this.webrtc.disconnect();
     this.webrtcChannel.leave();
     this.socket.off(this.webrtcSocketRefs);
     while (this.webrtcSocketRefs.length > 0) {

@@ -58,12 +58,12 @@ defmodule Membrane.RTC.HLSEndpointTest do
       reference_dir = Path.join([@reference_dir, reference_id])
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, false)
-      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
         create_video_file_endpoint(rtc_engine, file_path, stream_id, file_endpoint_id, track_id)
 
-      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^file_endpoint_id,
@@ -115,18 +115,16 @@ defmodule Membrane.RTC.HLSEndpointTest do
           video_track_id
         )
 
-      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      :ok =
-        Engine.add_endpoint(rtc_engine, video_file_endpoint, endpoint_id: video_file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^video_file_endpoint_id,
         message: :tracks_added
       }
 
-      :ok =
-        Engine.add_endpoint(rtc_engine, audio_file_endpoint, endpoint_id: audio_file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^audio_file_endpoint_id,
@@ -180,18 +178,16 @@ defmodule Membrane.RTC.HLSEndpointTest do
           video_track_id
         )
 
-      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      :ok =
-        Engine.add_endpoint(rtc_engine, video_file_endpoint, endpoint_id: video_file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^video_file_endpoint_id,
         message: :tracks_added
       }
 
-      :ok =
-        Engine.add_endpoint(rtc_engine, audio_file_endpoint, endpoint_id: audio_file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^audio_file_endpoint_id,
@@ -233,7 +229,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       reference_dir = Path.join([@reference_dir, reference_id])
 
       hls_endpoint = create_hls_endpoint_with_mixer(rtc_engine, tmp_dir, true)
-      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
         create_video_file_endpoint(rtc_engine, file_path, stream_id, file_endpoint_id, track_id)
@@ -247,14 +243,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
           track_id_2
         )
 
-      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^file_endpoint_id,
         message: :tracks_added
       }
 
-      :ok = Engine.add_endpoint(rtc_engine, file_endpoint_2, endpoint_id: file_endpoint_id_2)
+      :ok = Engine.add_endpoint(rtc_engine, file_endpoint_2, id: file_endpoint_id_2)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^file_endpoint_id_2,
@@ -298,7 +294,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       reference_dir = Path.join([@reference_dir, reference_id])
 
       hls_endpoint = create_hls_endpoint_with_mixer(rtc_engine, tmp_dir, true)
-      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: hls_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
         create_audio_file_endnpoint(rtc_engine, stream_id, file_endpoint_id, track_id)
@@ -306,14 +302,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_endpoint_2 =
         create_audio_file_endnpoint(rtc_engine, stream_id_2, file_endpoint_id_2, track_id_2)
 
-      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, endpoint_id: file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^file_endpoint_id,
         message: :tracks_added
       }
 
-      :ok = Engine.add_endpoint(rtc_engine, file_endpoint_2, endpoint_id: file_endpoint_id_2)
+      :ok = Engine.add_endpoint(rtc_engine, file_endpoint_2, id: file_endpoint_id_2)
 
       assert_receive %Message.EndpointMessage{
         endpoint_id: ^file_endpoint_id_2,

@@ -13,8 +13,10 @@ defmodule Membrane.RTC.Engine.Endpoint do
   @type type() :: WebRTC | HLS | RTSP
 
   @typedoc """
+  Module representing RTC Engine's endpoint.
+
   This module contains:
-  * `id` - id of the endpoint. 
+  * `id` - id of the endpoint.
   * `type` - type of the endpoint.
   * `metadata` - metadata of the endpoint, assigned when engine receives `{:ready, metadata}` message from the endpoint.
   * `inbound_tracks` - inbound tracks (received by the endpoint from "outside" of the engine) of the endpoint.

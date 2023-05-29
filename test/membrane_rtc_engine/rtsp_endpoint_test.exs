@@ -48,7 +48,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
       source_uri: "NOT_AN_URI"
     }
 
-    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, endpoint_id: @rtsp_endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, id: @rtsp_endpoint_id)
 
     assert_receive(%Message.EndpointCrashed{endpoint_id: @rtsp_endpoint_id}, 20_000)
     refute_received(_any)
@@ -64,7 +64,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
       reconnect_delay: 100
     }
 
-    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, endpoint_id: @rtsp_endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, id: @rtsp_endpoint_id)
 
     # First attempt to connect
     assert_receive(
@@ -124,7 +124,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
       keep_alive_interval: 500
     }
 
-    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, endpoint_id: @rtsp_endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, id: @rtsp_endpoint_id)
 
     assert_receive(
       %Message.EndpointMessage{
@@ -183,7 +183,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
       }
     }
 
-    :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, endpoint_id: @hls_endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: @hls_endpoint_id)
 
     rtsp_endpoint = %RTSP{
       rtc_engine: rtc_engine,
@@ -192,7 +192,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
       pierce_nat: false
     }
 
-    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, endpoint_id: @rtsp_endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, id: @rtsp_endpoint_id)
 
     assert_receive(
       %Message.EndpointMessage{

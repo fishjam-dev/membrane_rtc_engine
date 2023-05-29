@@ -130,7 +130,7 @@ if Enum.all?(
 
       {:ok, pid} = ConnectionManager.start_link(connection_manager_opts)
 
-      {[notify_parent: {:ready, nil}], %{state | connection_manager: pid}}
+      {[notify_parent: :ready], %{state | connection_manager: pid}}
     end
 
     @impl true
