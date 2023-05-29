@@ -33,7 +33,7 @@ defmodule Membrane.RTC.Engine do
   There are two types of Endpoints:
   * Standalone Endpoints - they are in most cases spawned only once per RTC Engine instance and they are not associated with any client.
   * Client Endpoints - they are associated with some client.
-  Associating Endpoint with client will send some Media Events to the Enpoint's Client Library
+  Associating Endpoint with client will send some Media Events to the Endpoint's Client Library
   e.g. one which indicates which tracks belong to which client.
 
   Currently RTC Engine ships with the implementation of three Endpoints:

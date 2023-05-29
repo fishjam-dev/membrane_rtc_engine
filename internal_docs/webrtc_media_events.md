@@ -195,7 +195,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `connected`
 
-* Message sent to the client after he's connected to the WebRTC Endpoint. It contains his endpoint's id and a list of information about endpoints in the Engine
+* Message sent to the client after connecting to the WebRTC Endpoint. It contains the id of that client's endpoint and a list of information about endpoints in the Engine
   (id, metadata and a `trackIdToMetadata` like seen in `tracksAdded`)
 
   ```json
@@ -207,7 +207,7 @@ Messages used by any WebRTC Endpoint plugin
 
 ### `endpointRemoved`
 
-* Sent to all remaining clients in the room after some endpoint was removed. Itcontains an id of the removed endpoint.
+* Sent to all remaining clients in the room after some endpoint was removed. It contains an id of the removed endpoint.
 
   ```json
   {
