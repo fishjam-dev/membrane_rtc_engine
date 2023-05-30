@@ -223,8 +223,8 @@ defmodule Membrane.RTC.Engine.TeeTest do
       assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: ^variant})
     end)
 
-    # we don't want to use generator for `:high`
-    # to have full control over the number of buffers
+    # we don't want to use generator for all variants to avoid toilet overflow
+    # and to have full control over the number of buffers
     # being sent to the sink;
     # this breaks the concept of demands but it's only
     # for testing purposes
@@ -243,6 +243,8 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
     mark_variant_as_resumed(pipeline, :high)
     assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: :high})
+
+    send_buffers.(pipeline, :high)
 
     refute_sink_buffer(pipeline, :sink, _buffer)
 
@@ -318,7 +320,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
     send_buffer(pipeline, :high, %Buffer{payload: <<>>, metadata: %{is_keyframe: true}})
 
-    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high}, 5_000)
+    assert_sink_event(pipeline, :sink, %TrackVariantSwitched{new_variant: :high})
 
     event = %VoiceActivityChanged{voice_activity: :speech}
 
