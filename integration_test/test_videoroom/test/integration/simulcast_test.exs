@@ -348,11 +348,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     end
   end
 
-  defp assert_receiver_encoding(receiver_stats, encoding) do
-    receiver_stats["encoding"] == encoding
-  end
-
-  defp assert_stats_equal(receiver_stats, sender_encoding_stats) do
+  defp are_stats_equal(receiver_stats, sender_encoding_stats) do
     # According to WebRTC standard, receiver is never aware of simulcast. Sender sends multiple encodings to SFU,
     # but SFU is switching between them transparently, forwarding always only one encoding to the receiver
     correct_dimensions? =
@@ -368,15 +364,34 @@ defmodule TestVideoroom.Integration.SimulcastTest do
          sender_stats_samples,
          receiver_stats_samples
        ) do
-    sender_stats_samples
-    |> Enum.zip(receiver_stats_samples)
-    |> Enum.all?(fn {sender_stats, receiver_stats} ->
-      assert_stats_equal(receiver_stats, sender_stats[receiver_encoding]) and
-        assert_receiver_encoding(receiver_stats, receiver_encoding)
-    end)
-    |> assert("Failed on tag: #{tag} should be encoding: #{receiver_encoding},
-          receiver stats are: #{inspect(receiver_stats_samples, limit: :infinity, pretty: true)}
-          sender stats are: #{inspect(Enum.map(sender_stats_samples, & &1[receiver_encoding]), limit: :infinity, pretty: true)}
-          ")
+    assert length(sender_stats_samples) == length(receiver_stats_samples)
+
+    # minimal number of consequtive stats that have to be
+    # equal. They are counted up to the end meaning
+    # [true, true, false] is not the same as 
+    # [false, true, true] i.e. the first one will 
+    # always fail as once we start getting equal
+    # stats we cannot have regression
+    min_equal_stats_number = div(length(sender_stats_samples), 2)
+
+    equal_stats_samples =
+      sender_stats_samples
+      |> Enum.zip(receiver_stats_samples)
+      |> Enum.map(fn {sender_stats, receiver_stats} ->
+        are_stats_equal(receiver_stats, sender_stats[receiver_encoding]) and
+          receiver_stats["encoding"] == receiver_encoding
+      end)
+      |> Enum.drop_while(fn result -> result == false end)
+
+    if Enum.all?(equal_stats_samples) and length(equal_stats_samples) >= min_equal_stats_number do
+      true
+    else
+      raise """
+      Failed on tag: #{tag} should be encoding: #{receiver_encoding},
+      required minimum #{min_equal_stats_number} of consequtive stats to be equal.
+      All receiver stats are: #{inspect(receiver_stats_samples, limit: :infinity, pretty: true)}
+      All sender stats are: #{inspect(Enum.map(sender_stats_samples, & &1[receiver_encoding]), limit: :infinity, pretty: true)}
+      """
+    end
   end
 end
