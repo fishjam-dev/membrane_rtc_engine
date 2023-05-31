@@ -555,13 +555,8 @@ if Enum.all?(
       defp generate_audio_mixer(_state, ctx) when is_map_key(ctx.children, :audio_mixer), do: []
 
       defp generate_audio_mixer(state, _ctx) do
-        audio_mixer = %Membrane.AudioMixer{
-          stream_format: state.mixer_config.audio.stream_format,
-          synchronize_buffers?: true
-        }
-
         [
-          child(:audio_mixer, audio_mixer)
+          child(:audio_mixer, Membrane.LiveAudioMixer)
           |> child(:aac_encoder, Membrane.AAC.FDK.Encoder)
           |> child(:aac_parser, %Membrane.AAC.Parser{out_encapsulation: :none})
           |> via_in(Pad.ref(:input, :audio),
