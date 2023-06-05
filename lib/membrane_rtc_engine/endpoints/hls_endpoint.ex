@@ -292,7 +292,7 @@ if Enum.all?(
 
     @impl true
     def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
-      Child.ref(:endpoint, group: endpoint_id) = ctx.name
+      {:endpoint, endpoint_id} = ctx.name
 
       state =
         Enum.reduce(tracks, state, fn track, state ->
