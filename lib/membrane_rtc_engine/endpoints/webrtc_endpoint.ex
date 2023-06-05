@@ -278,7 +278,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         connection_allocator_module: connection_allocator_module
       })
 
-    Child.ref(:endpoint, group: endpoint_id) = ctx.name
+    {:endpoint, endpoint_id} = ctx.name
     {:ok, connection_prober} = state.connection_allocator_module.create()
 
     Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
@@ -335,7 +335,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_child_notification({:new_tracks, tracks}, :endpoint_bin, ctx, state) do
-    Child.ref(:endpoint, group: endpoint_id) = ctx.name
+    {:endpoint, endpoint_id} = ctx.name
 
     tracks =
       Enum.map(tracks, fn track ->
@@ -408,7 +408,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     new_outbound_tracks =
       Enum.map(new_outbound_tracks, &to_rtc_track(&1, Map.get(state.outbound_tracks, &1.id)))
 
-    Child.ref(:endpoint, group: endpoint_id) = ctx.name
+    {:endpoint, endpoint_id} = ctx.name
 
     Enum.each(new_outbound_tracks, fn track ->
       case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
@@ -519,7 +519,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     # Forward this information to the client
 
     # FIXME: I don't think we actually need information about tracks in this media event
-    Child.ref(:endpoint, group: peer_id) = ctx.name
+    {:endpoint, peer_id} = ctx.name
     event = MediaEvent.peer_accepted(peer_id, peers_in_room) |> MediaEvent.encode()
 
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
