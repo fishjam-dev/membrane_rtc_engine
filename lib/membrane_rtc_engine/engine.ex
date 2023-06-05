@@ -795,6 +795,10 @@ defmodule Membrane.RTC.Engine do
   #
 
   defp handle_add_endpoint(endpoint_entry, opts, state) do
+    if Keyword.has_key?(opts, :endpoint_id) or Keyword.has_key?(opts, :peer_id) do
+      raise("`:endpoint_id` and `:peer_id` options were removed. Use `:id` option instead.")
+    end
+
     endpoint_id = Keyword.fetch!(opts, :id)
     endpoint_name = {:endpoint, endpoint_id}
     %endpoint_module{} = endpoint_entry
