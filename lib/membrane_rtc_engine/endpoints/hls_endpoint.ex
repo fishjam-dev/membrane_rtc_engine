@@ -243,10 +243,9 @@ if Enum.all?(
         state.tracks
         |> Enum.filter(fn {k, v} -> k != track_id and v.type == track.type end)
 
-      # don't link new pads if schedule_eos was send and all of the previous tracks were removed
       track_spec =
         if state.schedule_eos? and remaining_tracks == [] do
-          []
+          raise "Cannot link new input tracks after schedule_eos was send and all the previous tracks were removed"
         else
           get_track_spec(offset, bin_input(pad), track, state, ctx)
         end
@@ -259,9 +258,7 @@ if Enum.all?(
           {track_spec ++ hls_sink_spec, state}
         end
 
-      spec_action = if spec != [], do: [spec: spec], else: []
-
-      {spec_action, state}
+      {[spec: spec], state}
     end
 
     @impl true
