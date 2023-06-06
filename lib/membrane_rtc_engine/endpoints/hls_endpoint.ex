@@ -101,9 +101,11 @@ if Enum.all?(
     ]
 
     @generator_children %{
-      audio: [:silence_generator, :video_realtimer],
-      video: [:fake_source, :audio_realtimer]
+      audio: [:silence_generator, :audio_realtimer],
+      video: [:fake_source, :video_realtimer]
     }
+
+    @terminate_timeout 5000
 
     def_input_pad :input,
       demand_unit: :buffers,
@@ -161,6 +163,8 @@ if Enum.all?(
           stream_beginning: nil,
           video_layout_state: nil,
           schedule_eos?: false,
+          eos_received?: false,
+          terminating?: false,
           video_layout_tracks_added: %{}
         })
 
@@ -237,8 +241,7 @@ if Enum.all?(
 
       remaining_tracks =
         state.tracks
-        |> Enum.filter(fn {k, _v} -> k != track_id end)
-        |> Enum.filter(fn {_k, v} -> v.type == track.type end)
+        |> Enum.filter(fn {k, v} -> k != track_id and v.type == track.type end)
 
       # don't link new pads if schedule_eos was send and all of the previous tracks were removed
       track_spec =
@@ -268,7 +271,11 @@ if Enum.all?(
           _ctx,
           state
         ) do
-      {[notify_parent: {:forward_to_parent, {:end_of_stream, stream}}], state}
+      actions = [notify_parent: {:forward_to_parent, {:end_of_stream, stream}}]
+      state = %{state | eos_received?: true}
+
+      terminate_action = if state.terminating?, do: [terminate: :normal], else: []
+      {actions ++ terminate_action, state}
     end
 
     @impl true
@@ -374,6 +381,36 @@ if Enum.all?(
       Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
       {[], state}
     end
+
+    @impl true
+    def handle_terminate_request(ctx, state) do
+      {actions, state} =
+        if state.eos_received? do
+          {[terminate: :normal], state}
+        else
+          Process.send_after(self(), :terminate, @terminate_timeout)
+          actions = [notify_child: {:audio_mixer, :schedule_eos}]
+
+          remove_children =
+            state.tracks
+            |> Enum.flat_map(fn {id, _track} -> Enum.map(@track_children, &{&1, id}) end)
+            |> Enum.filter(&Map.has_key?(ctx.children, &1))
+
+          remove_children =
+            remove_children ++ @generator_children[:audio] ++ @generator_children[:video]
+
+          actions = actions ++ [remove_child: remove_children]
+          {actions, %{state | terminating?: true, schedule_eos?: true}}
+        end
+
+      {actions, state}
+    end
+
+    @impl true
+    def handle_info(:terminate, _ctx, state), do: {[terminate: :normal], state}
+
+    @impl true
+    def handle_info(_msg, _ctx, state), do: {[], state}
 
     defp maybe_get_generator_to_remove(%{schedule_eos?: false}, _ctx, _type), do: []
 
