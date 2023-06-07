@@ -244,7 +244,7 @@ if Enum.all?(
         |> Enum.filter(fn {k, v} -> k != track_id and v.type == track.type end)
 
       track_spec =
-        if state.schedule_eos? and remaining_tracks == [] do
+        if (state.schedule_eos? and remaining_tracks == []) or state.terminating? do
           raise "Cannot link new input tracks after schedule_eos was send and all the previous tracks were removed"
         else
           get_track_spec(offset, bin_input(pad), track, state, ctx)
@@ -258,7 +258,13 @@ if Enum.all?(
           {track_spec ++ hls_sink_spec, state}
         end
 
-      {[spec: spec], state}
+      schedule_eos_action =
+        case state.mixer_config do
+          %{persist?: false} -> [notify_child: {:audio_mixer, :schedule_eos}]
+          _other -> []
+        end
+
+      {[spec: spec] ++ schedule_eos_action, state}
     end
 
     @impl true
@@ -386,7 +392,13 @@ if Enum.all?(
           {[terminate: :normal], state}
         else
           Process.send_after(self(), :terminate, @terminate_timeout)
-          actions = [notify_child: {:audio_mixer, :schedule_eos}]
+
+          actions =
+            if Map.has_key?(ctx.children, :audio_mixer) do
+              [notify_child: {:audio_mixer, :schedule_eos}]
+            else
+              []
+            end
 
           remove_children =
             state.tracks
