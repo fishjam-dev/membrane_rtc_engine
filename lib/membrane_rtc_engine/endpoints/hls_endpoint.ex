@@ -86,20 +86,6 @@ if Enum.all?(
       :stream_format_updater
     ]
 
-    @common_children [
-      :fake_source,
-      :video_realtimer,
-      :silence_generator,
-      :audio_realtimer,
-      :audio_mixer,
-      :aac_encoder,
-      :aac_parser,
-      :compositor,
-      :encoder,
-      :video_parser_out,
-      {:hls_sink_bin, :muxed}
-    ]
-
     @generator_children [
       :silence_generator,
       :audio_realtimer,
@@ -235,7 +221,6 @@ if Enum.all?(
       {offset, state} = get_track_offset(state)
 
       track = Map.get(state.tracks, track_id)
-
       track_spec = get_track_spec(offset, bin_input(pad), track, state, ctx)
 
       {spec, state} =
