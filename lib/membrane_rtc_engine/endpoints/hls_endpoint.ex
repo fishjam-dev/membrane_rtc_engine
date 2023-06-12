@@ -392,7 +392,6 @@ if Enum.all?(
            state,
            ctx
          ) do
-      # TODO mixer and compositor already created?
       get_depayloading_track_spec(link_builder, track) ++
         attach_track_spec(offset, track, state) ++
         generate_blank_spec(state, ctx) ++
