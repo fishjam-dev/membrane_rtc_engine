@@ -164,6 +164,9 @@ if Enum.all?(
     end
 
     @impl true
+    def handle_playing(_context, %{mixer_config: nil} = state), do: {[], state}
+
+    @impl true
     def handle_playing(context, state) do
       spec =
         generate_audio_mixer(state, context) ++
