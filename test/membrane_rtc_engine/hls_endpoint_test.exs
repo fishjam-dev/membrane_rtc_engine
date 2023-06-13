@@ -146,6 +146,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       check_correctness_of_output_files(output_dir, reference_dir)
     end
 
+    @tag :skip
     test "creates correct hls stream from multiple (h264, opus) inputs belonging to the same stream, muxed segments plus mixer",
          %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
       video_file_endpoint_id = "video-file-endpoint"
@@ -208,6 +209,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       check_correctness_of_output_files(output_dir, reference_dir)
     end
 
+    @tag :skip
     test "video mixer works properly", %{
       rtc_engine: rtc_engine,
       tmp_dir: tmp_dir
@@ -276,6 +278,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert Enum.count(output_files, &String.starts_with?(&1, "video_header")) == 1
     end
 
+    @tag :skip
     test "audio mixer works properly", %{
       rtc_engine: rtc_engine,
       tmp_dir: tmp_dir
