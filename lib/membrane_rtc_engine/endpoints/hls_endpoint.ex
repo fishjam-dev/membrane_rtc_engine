@@ -191,13 +191,11 @@ if Enum.all?(
           track.stream_id == removed_track.stream_id
         end)
 
-      {children_to_remove, state} =
-        case {state.mixer_config, sink_bin_used?} do
-          {nil, false} ->
-            {[{:hls_sink_bin, removed_track.stream_id}], state}
-
-          _else ->
-            {[], state}
+      children_to_remove =
+        if is_nil(state.mixer_config) and not sink_bin_used? do
+          [{:hls_sink_bin, removed_track.stream_id}]
+        else
+          []
         end
 
       children_to_remove = track_children ++ children_to_remove

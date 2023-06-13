@@ -9,7 +9,6 @@ if Enum.all?([Membrane.RawAudio, Membrane.RawVideo], &Code.ensure_loaded?/1) do
     @typedoc """
     * `video` - video compositor configuration.
     * `audio` - audio mixer configuration.
-    Otherwise if set to false, stream will automatically end when the last track is removed, adding then new track will start a new hls stream.
     """
     @type t() :: %__MODULE__{
             video: CompositorConfig.t(),
