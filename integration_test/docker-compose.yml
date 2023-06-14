@@ -32,6 +32,7 @@ services:
     volumes:
       - ./tmp/shared:/app/shared
 
+  # Necessary for the browser container image to be built once instead of three times
   browser_base:
     build: test_browser
     image: test_videoroom_browser_image

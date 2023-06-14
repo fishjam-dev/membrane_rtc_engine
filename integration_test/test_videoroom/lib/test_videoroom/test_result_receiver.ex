@@ -42,6 +42,7 @@ defmodule TestVideoroom.TestResultReceiver do
   end
 
   defp compare_results(results) do
+    # TODO: Determine whether test passed or not
     IO.inspect(results, label: :results_are)
     if true, do: System.stop(0)
     raise("TEST FAILED")

@@ -70,7 +70,7 @@ get_env = fn env, default ->
 end
 
 host = get_env.("VIRTUAL_HOST", "localhost")
-port = if protocol == :https, do: 4005, else: 4000
+port = if protocol == :https, do: 4005, else: 4001
 
 args =
   if protocol == :https do

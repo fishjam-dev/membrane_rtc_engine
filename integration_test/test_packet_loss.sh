@@ -4,6 +4,8 @@
 LOSS_DURATION=60
 
 SHARED_VOLUME_DIR="./tmp/shared"
+NAMED_IMAGE_TO_REMOVE="test_videoroom_browser_image"
+
 APPLY_LOSS_TO="browser0"
 
 # Terminate on errors
@@ -14,7 +16,16 @@ rm -rf $SHARED_VOLUME_DIR
 docker compose build
 echo "Running packet loss test"
 docker compose up --exit-code-from=server server browser0 browser1 browser2 &
-trap "docker compose down" EXIT
+
+cleanup() {
+  # The following command will remove the unnamed server image only...
+  docker compose down --rmi local --volumes
+
+  # ...so we need to run this one as well
+  docker image rm $NAMED_IMAGE_TO_REMOVE
+}
+
+trap cleanup EXIT
 
 echo "Sleeping until told to enable packet loss..."
 while [ ! -f "${SHARED_VOLUME_DIR}/ENABLE_PACKET_LOSS" ]; do
