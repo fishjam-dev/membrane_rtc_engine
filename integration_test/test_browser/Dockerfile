@@ -36,11 +36,9 @@ ENV MIX_ENV=dev
 WORKDIR /app
 
 COPY mix.exs mix.lock ./
-RUN mix deps.get --only $MIX_ENV
-
-RUN mix deps.compile
-# && \
-RUN mix stampede.setup
+RUN mix deps.get --only $MIX_ENV && \
+  mix deps.compile && \
+  mix stampede.setup
 
 COPY lib lib/
 RUN mix compile
