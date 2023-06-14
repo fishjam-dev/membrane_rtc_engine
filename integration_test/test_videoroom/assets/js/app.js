@@ -13,13 +13,17 @@ const getButtonsWithPrefix = (types, prefix) => {
 const startButtons = getButtonsWithPrefix(["simulcast", "all", "mic-only", "camera-only", "none"], "start");
 
 const simulcastButtons = getButtonsWithPrefix(["local-low-encoding", "local-medium-encoding", "local-high-encoding",
-  "peer-low-encoding", "peer-medium-encoding", "peer-high-encoding", "inbound-stats", "outbound-stats"], "simulcast")
+  "peer-low-encoding", "peer-medium-encoding", "peer-high-encoding"], "simulcast")
+
+const simulcastStatsButtons = getButtonsWithPrefix(["inbound-stats", "outbound-stats"], "simulcast")
 
 const metadataButtons = getButtonsWithPrefix(["update-peer", "update-track", "peer", "track"], "metadata")
 
 const [startSimulcastButton, startAllButton, startMicOnlyButton, startCameraOnlyButton, startNoneButton] = startButtons;
 const [localLowEncodingButton, localMediumEncodingButton, localHighEncodingButton,
-  peerLowEncodingButton, peerMediumEncodingButton, peerHighEncodingButton, inboundSimulcastStatsButton, outboundSimulcastStatsButton] = simulcastButtons
+  peerLowEncodingButton, peerMediumEncodingButton, peerHighEncodingButton] = simulcastButtons
+
+const [inboundSimulcastStatsButton, outboundSimulcastStatsButton] = simulcastStatsButtons
 
 const [updatePeerMetadataButton, updateTrackMetadataButton, peerMetadataButton, trackMetadataButton] = metadataButtons
 
@@ -29,6 +33,7 @@ const statsButton = document.querySelector("button#stats");
 startButtons.forEach((button) => (button.disabled = false));
 metadataButtons.forEach((button) => (button.disabled = false));
 simulcastButtons.forEach((button) => (button.disabled = true));
+simulcastStatsButtons.forEach((button) => (button.disabled = false));
 stopButton.disabled = true;
 statsButton.disabled = false;
 
