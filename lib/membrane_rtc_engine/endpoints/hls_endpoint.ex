@@ -86,19 +86,14 @@ if Enum.all?(
       :stream_format_updater
     ]
 
-    @common_children [
-      :fake_source,
-      :video_realtimer,
+    @generator_children [
       :silence_generator,
       :audio_realtimer,
-      :audio_mixer,
-      :aac_encoder,
-      :aac_parser,
-      :compositor,
-      :encoder,
-      :video_parser_out,
-      {:hls_sink_bin, :muxed}
+      :fake_source,
+      :video_realtimer
     ]
+
+    @terminate_timeout 5000
 
     def_input_pad :input,
       demand_unit: :buffers,
@@ -155,6 +150,7 @@ if Enum.all?(
           tracks: %{},
           stream_beginning: nil,
           video_layout_state: nil,
+          terminating?: false,
           video_layout_tracks_added: %{}
         })
 
@@ -168,7 +164,10 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_playing(context, %{mixer_config: %{persist?: true}} = state) do
+    def handle_playing(_context, %{mixer_config: nil} = state), do: {[], state}
+
+    @impl true
+    def handle_playing(context, state) do
       spec =
         generate_audio_mixer(state, context) ++
           generate_compositor(state, context) ++
@@ -176,9 +175,6 @@ if Enum.all?(
 
       {[spec: spec], state}
     end
-
-    @impl true
-    def handle_playing(_context, state), do: {[], state}
 
     @impl true
     def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
@@ -195,16 +191,11 @@ if Enum.all?(
           track.stream_id == removed_track.stream_id
         end)
 
-      {children_to_remove, state} =
-        case {state.mixer_config, sink_bin_used?} do
-          {nil, false} ->
-            {[{:hls_sink_bin, removed_track.stream_id}], state}
-
-          {%{persist?: false}, _sink_bin_used?} when map_size(tracks) == 0 ->
-            {@common_children, %{state | stream_beginning: nil}}
-
-          _else ->
-            {[], state}
+      children_to_remove =
+        if is_nil(state.mixer_config) and not sink_bin_used? do
+          [{:hls_sink_bin, removed_track.stream_id}]
+        else
+          []
         end
 
       children_to_remove = track_children ++ children_to_remove
@@ -219,6 +210,11 @@ if Enum.all?(
       }
 
       {result_actions, state}
+    end
+
+    @impl true
+    def handle_pad_added(Pad.ref(:input, _track_id), _ctx, %{terminating?: true}) do
+      raise "Cannot add new input pad when hls enpoint is terminating"
     end
 
     @impl true
@@ -246,7 +242,10 @@ if Enum.all?(
           _ctx,
           state
         ) do
-      {[notify_parent: {:forward_to_parent, {:end_of_stream, stream}}], state}
+      actions = [notify_parent: {:forward_to_parent, {:end_of_stream, stream}}]
+      terminate_action = if state.terminating?, do: [terminate: :normal], else: []
+
+      {actions ++ terminate_action, state}
     end
 
     @impl true
@@ -331,6 +330,37 @@ if Enum.all?(
       Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
       {[], state}
     end
+
+    @impl true
+    def handle_terminate_request(_ctx, %{mixer_config: nil} = state),
+      do: {[terminate: :normal], state}
+
+    @impl true
+    def handle_terminate_request(ctx, state) do
+      Process.send_after(self(), :terminate, @terminate_timeout)
+
+      actions =
+        if Map.has_key?(ctx.children, :audio_mixer) do
+          [notify_child: {:audio_mixer, :schedule_eos}]
+        else
+          []
+        end
+
+      children_to_remove =
+        state.tracks
+        |> Enum.flat_map(fn {id, _track} -> Enum.map(@track_children, &{&1, id}) end)
+        |> Enum.filter(&Map.has_key?(ctx.children, &1))
+
+      actions = actions ++ [remove_child: children_to_remove ++ @generator_children]
+      {actions, %{state | terminating?: true}}
+    end
+
+    @impl true
+    def handle_info(:terminate, _ctx, %{terminating?: true} = state),
+      do: {[terminate: :normal], state}
+
+    @impl true
+    def handle_info(_msg, _ctx, state), do: {[], state}
 
     defp get_hls_sink_spec(state, stream_id \\ nil) do
       directory = get_hls_stream_directory(state, stream_id)
@@ -508,10 +538,10 @@ if Enum.all?(
       defp generate_blank_spec(_state, _ctx), do: raise_missing_deps(:video, @compositor_deps)
     end
 
-    defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor), do: []
+    defp generate_compositor(%{mixer_config: nil}, _ctx), do: []
 
     if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
-      defp generate_compositor(%{mixer_config: nil}, _ctx), do: []
+      defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor), do: []
 
       defp generate_compositor(state, _ctx) do
         compositor = %Membrane.VideoCompositor{
@@ -555,13 +585,8 @@ if Enum.all?(
       defp generate_audio_mixer(_state, ctx) when is_map_key(ctx.children, :audio_mixer), do: []
 
       defp generate_audio_mixer(state, _ctx) do
-        audio_mixer = %Membrane.AudioMixer{
-          stream_format: state.mixer_config.audio.stream_format,
-          synchronize_buffers?: true
-        }
-
         [
-          child(:audio_mixer, audio_mixer)
+          child(:audio_mixer, Membrane.LiveAudioMixer)
           |> child(:aac_encoder, Membrane.AAC.FDK.Encoder)
           |> child(:aac_parser, %Membrane.AAC.Parser{out_encapsulation: :none})
           |> via_in(Pad.ref(:input, :audio),

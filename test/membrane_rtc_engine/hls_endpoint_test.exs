@@ -6,18 +6,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
   alias Membrane.RTC.Engine.Message
   alias Membrane.RTC.Engine.Support.FileEndpoint
   alias Membrane.RTC.Engine.Support.TestLayoutMaker
-
-  alias Membrane.RTC.Engine.Endpoint.HLS.{
-    AudioMixerConfig,
-    CompositorConfig,
-    HLSConfig,
-    MixerConfig
-  }
+  alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
 
   @fixtures_dir "./test/fixtures/"
-  @reference_dir "./test/hls_reference/"
-  @main_manifest "index.m3u8"
-  @acceptable_bandwidth_diff 500_000
+  @playlist_playable_delay 20_000
+  @segment_delay 25_000
 
   setup do
     options = [
@@ -52,12 +45,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       track_id = "test-track-id"
       stream_id = "test-stream"
-      reference_id = "single-track-h264"
 
       output_dir = Path.join([tmp_dir, stream_id])
-      reference_dir = Path.join([@reference_dir, reference_id])
 
-      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, false)
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :single)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
@@ -72,15 +63,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
+      assert_receive({:manifest, %{video_segments: 2}})
 
-      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
-                       endpoint_id: ^hls_endpoint_id,
-                       message: {:end_of_stream, ^stream_id}
-                     },
-                     25_000
+      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
 
-      check_correctness_of_output_files(output_dir, reference_dir)
+      check_separate_hls_playlist(output_dir, 2, 2)
     end
 
     test "creates correct hls stream from multiple (h264, opus) inputs belonging to the same stream",
@@ -96,12 +85,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
       video_track_id = "test-video-track"
       audio_track_id = "test-audio-track"
       stream_id = "test-stream"
-      reference_id = "multiple-tracks-h264-aac"
 
       output_dir = Path.join([tmp_dir, stream_id])
-      reference_dir = Path.join([@reference_dir, reference_id])
 
-      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, false)
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple)
 
       audio_file_endpoint =
         create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
@@ -116,7 +103,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
-
       :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
@@ -134,16 +120,17 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
-      assert_receive({:playlist_playable, :audio, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
+      assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
 
-      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
-                       endpoint_id: ^hls_endpoint_id,
-                       message: {:end_of_stream, ^stream_id}
-                     },
-                     25_000
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
+      assert_receive({:segment, "audio_segment_1" <> _}, @segment_delay)
+      assert_receive({:manifest, %{audio_segments: 2}})
+      assert_receive({:manifest, %{video_segments: 2}})
 
-      check_correctness_of_output_files(output_dir, reference_dir)
+      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
+
+      check_separate_hls_playlist(output_dir, 2, 3)
     end
 
     test "creates correct hls stream from multiple (h264, opus) inputs belonging to the same stream, muxed segments plus mixer",
@@ -159,12 +146,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       video_track_id = "test-video-track"
       audio_track_id = "test-audio-track"
       stream_id = "test-stream"
-      reference_id = "muxed-segments"
 
-      output_dir = tmp_dir
-      reference_dir = Path.join([@reference_dir, reference_id])
-
-      hls_endpoint = create_hls_endpoint_with_muxed_segments(rtc_engine, tmp_dir, false)
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :muxed, %MixerConfig{})
 
       audio_file_endpoint =
         create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
@@ -179,7 +162,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
-
       :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
@@ -197,15 +179,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^output_dir}, 50_000)
+      assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
+      assert_receive({:segment, "muxed_segment_1" <> _}, @segment_delay)
+      assert_receive({:manifest, %{muxed_segments: 2}})
 
-      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
-                       endpoint_id: ^hls_endpoint_id,
-                       message: {:end_of_stream, :muxed}
-                     },
-                     25_000
+      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
 
-      check_correctness_of_output_files(output_dir, reference_dir)
+      check_muxed_hls_playlist(tmp_dir, 2, 2)
     end
 
     test "video mixer works properly", %{
@@ -214,7 +194,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
     } do
       file_name = "video.h264"
       file_path = Path.join(@fixtures_dir, file_name)
-      reference_id = "video_mixer"
 
       hls_endpoint_id = "hls-endpoint"
 
@@ -225,10 +204,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_endpoint_id = "video-mixer-file-endpoint-id"
       file_endpoint_id_2 = "video-mixer-file-endpoint-id_2"
 
-      output_dir = tmp_dir
-      reference_dir = Path.join([@reference_dir, reference_id])
-
-      hls_endpoint = create_hls_endpoint_with_mixer(rtc_engine, tmp_dir, true)
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple, %MixerConfig{})
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
@@ -260,27 +236,23 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      assert_receive({:playlist_playable, :audio, ^output_dir}, 50_000)
-      assert_receive({:playlist_playable, :video, ^output_dir}, 50_000)
+      assert_receive({:playlist_playable, :audio, ^tmp_dir}, @playlist_playable_delay)
+      assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
 
-      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
-                       endpoint_id: ^hls_endpoint_id,
-                       message: {:end_of_stream, :muxed}
-                     },
-                     25_000
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
+      assert_receive({:segment, "audio_segment_1" <> _}, @segment_delay)
+      assert_receive({:manifest, %{audio_segments: 2}})
+      assert_receive({:manifest, %{video_segments: 2}})
 
-      check_correctness_of_output_files(output_dir, reference_dir)
+      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
 
-      output_files = output_dir |> File.ls!() |> Enum.sort()
-      # if number of header files is greater than 1, video mixer is not working properly
-      assert Enum.count(output_files, &String.starts_with?(&1, "video_header")) == 1
+      check_separate_hls_playlist(tmp_dir, 2, 3)
     end
 
     test "audio mixer works properly", %{
       rtc_engine: rtc_engine,
       tmp_dir: tmp_dir
     } do
-      reference_id = "audio_mixer"
       hls_endpoint_id = "hls-endpoint"
 
       track_id = "test-track-id"
@@ -290,10 +262,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_endpoint_id = "audio-mixer-file-endpoint-id"
       file_endpoint_id_2 = "audio-mixer-file-endpoint-id_2"
 
-      output_dir = tmp_dir
-      reference_dir = Path.join([@reference_dir, reference_id])
-
-      hls_endpoint = create_hls_endpoint_with_mixer(rtc_engine, tmp_dir, true)
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple, %MixerConfig{})
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
@@ -319,16 +288,17 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      assert_receive({:playlist_playable, :audio, ^output_dir}, 50_000)
-      assert_receive({:playlist_playable, :video, ^output_dir}, 50_000)
+      assert_receive({:playlist_playable, :audio, ^tmp_dir}, @playlist_playable_delay)
+      assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
 
-      assert_receive %Membrane.RTC.Engine.Message.EndpointMessage{
-                       endpoint_id: ^hls_endpoint_id,
-                       message: {:end_of_stream, :muxed}
-                     },
-                     25_000
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
+      assert_receive({:segment, "audio_segment_1" <> _}, @segment_delay)
+      assert_receive({:manifest, %{audio_segments: 2}})
+      assert_receive({:manifest, %{video_segments: 2}})
 
-      check_correctness_of_output_files(output_dir, reference_dir)
+      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
+
+      check_separate_hls_playlist(tmp_dir, 2, 3)
     end
   end
 
@@ -373,32 +343,48 @@ defmodule Membrane.RTC.HLSEndpointTest do
     state
   end
 
-  defp create_hls_endpoint(rtc_engine, output_dir, _transcoding?) do
-    %HLS{
-      rtc_engine: rtc_engine,
-      owner: self(),
-      output_directory: output_dir,
-      synchronize_tracks?: false,
-      hls_config: %HLSConfig{mode: :vod, target_window_duration: :infinity}
-    }
-  end
+  defp create_hls_endpoint(rtc_engine, output_dir, input_type, mixer_config \\ nil) do
+    pid = self()
 
-  defp create_hls_endpoint_with_mixer(rtc_engine, output_dir, _transcoding?) do
-    mixer_config = %MixerConfig{
-      video: %CompositorConfig{
-        background: %Membrane.BlankVideoGenerator{
-          stream_format: %CompositorConfig{}.stream_format,
-          duration: Membrane.Time.seconds(10)
-        }
-      },
-      audio: %AudioMixerConfig{
-        background: %Membrane.SilenceGenerator{
-          stream_format: %AudioMixerConfig{}.stream_format,
-          duration: Membrane.Time.seconds(10),
-          frames_per_buffer: 960
-        }
+    should_stop? =
+      case input_type do
+        :single ->
+          fn
+            %{segments: %{video_segments: 2}} = state ->
+              %{state | stopped?: true}
+
+            state ->
+              state
+          end
+
+        :muxed ->
+          fn
+            %{segments: %{muxed_segments: 2}} = state ->
+              %{state | stopped?: true}
+
+            state ->
+              state
+          end
+
+        :multiple ->
+          fn
+            %{segments: %{video_segments: 2, audio_segments: 2}} = state ->
+              %{state | stopped?: true}
+
+            state ->
+              state
+          end
+      end
+
+    storage = fn directory ->
+      %Membrane.RTC.Engine.Support.HLSStorage{
+        pid: pid,
+        file_storage: Membrane.RTC.Engine.Endpoint.HLS.HLSConfig.default_storage(directory),
+        should_stop?: should_stop?
       }
-    }
+    end
+
+    hls_mode = if input_type == :muxed, do: :muxed_av, else: :separate_av
 
     %HLS{
       rtc_engine: rtc_engine,
@@ -409,41 +395,80 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_config: %HLSConfig{
         mode: :vod,
         target_window_duration: :infinity,
-        segment_duration: Membrane.Time.seconds(3)
+        hls_mode: hls_mode,
+        segment_duration: Membrane.Time.seconds(3),
+        storage: storage
       }
     }
   end
 
-  defp create_hls_endpoint_with_muxed_segments(rtc_engine, output_dir, _transcoding?) do
-    mixer_config = %MixerConfig{
-      video: %CompositorConfig{
-        background: %Membrane.BlankVideoGenerator{
-          stream_format: %CompositorConfig{}.stream_format,
-          duration: Membrane.Time.seconds(10)
-        }
-      },
-      audio: %AudioMixerConfig{
-        background: %Membrane.SilenceGenerator{
-          stream_format: %AudioMixerConfig{}.stream_format,
-          duration: Membrane.Time.seconds(10),
-          frames_per_buffer: 960
-        }
-      }
-    }
+  defp check_muxed_hls_playlist(output_dir, segments_number, manifests_number) do
+    output_files = File.ls!(output_dir) |> Enum.sort()
 
-    %HLS{
-      rtc_engine: rtc_engine,
-      owner: self(),
-      output_directory: output_dir,
-      synchronize_tracks?: false,
-      mixer_config: mixer_config,
-      hls_config: %HLSConfig{
-        hls_mode: :muxed_av,
-        mode: :vod,
-        target_window_duration: :infinity,
-        segment_duration: Membrane.Time.seconds(3)
-      }
-    }
+    manifest_files = Enum.filter(output_files, &is_m3u8_file?(&1))
+    muxed_manifest = find_muxed_manifest(manifest_files, output_dir)
+    headers = find_headers(output_files)
+
+    segment_sizes = extract_segment_sizes(muxed_manifest, output_dir, segments_number)
+
+    assert Enum.count(manifest_files) == manifests_number
+
+    # There should exactly one header for each manifest, except for master manifest
+    assert Enum.count(headers) == manifests_number - 1
+
+    assert Enum.count(segment_sizes) == segments_number
+    assert Enum.all?(segment_sizes, &(&1 > 0))
+  end
+
+  defp check_separate_hls_playlist(output_dir, segments_number, manifests_number) do
+    output_files = File.ls!(output_dir) |> Enum.sort()
+
+    manifest_files = Enum.filter(output_files, &is_m3u8_file?(&1))
+    stream_manifests = find_stream_manifests(manifest_files, output_dir)
+    headers = find_headers(output_files)
+
+    segment_sizes =
+      Enum.map(stream_manifests, &extract_segment_sizes(&1, output_dir, segments_number))
+
+    assert Enum.count(manifest_files) == manifests_number
+
+    # There should exactly one header for each manifest, except for master manifest
+    assert Enum.count(headers) == manifests_number - 1
+
+    Enum.each(segment_sizes, fn segment_sizes ->
+      assert Enum.count(segment_sizes) == segments_number
+      assert Enum.all?(segment_sizes, &(&1 > 0))
+    end)
+  end
+
+  defp is_m3u8_file?(filename) do
+    String.match?(filename, ~r/.*\.m3u8$/)
+  end
+
+  defp find_muxed_manifest(manifest_files, output_dir) do
+    manifest_files
+    |> Enum.find(nil, &String.match?(&1, ~r/^(?!index).*$/))
+    |> then(&Path.join(output_dir, &1))
+  end
+
+  defp find_stream_manifests(manifest_files, output_dir) do
+    manifest_files
+    |> Enum.filter(&String.match?(&1, ~r/^(?!index).*$/))
+    |> Enum.map(&Path.join(output_dir, &1))
+  end
+
+  defp find_headers(files) do
+    Enum.filter(files, &String.match?(&1, ~r/.*header.*$/))
+  end
+
+  defp extract_segment_sizes(manifest_path, output_dir, segments_number) do
+    File.stream!(manifest_path)
+    |> Enum.filter(&String.match?(&1, ~r/.*\.m4s/))
+    |> Enum.take(segments_number)
+    |> Enum.map(&String.trim/1)
+    |> Enum.map(&Path.join(output_dir, &1))
+    |> Enum.map(&File.stat!/1)
+    |> Enum.map(& &1.size)
   end
 
   defp create_video_file_endpoint(
@@ -495,64 +520,5 @@ defmodule Membrane.RTC.HLSEndpointTest do
       ssrc: 2345,
       payload_type: 108
     }
-  end
-
-  defp check_correctness_of_output_files(output_dir, reference_dir) do
-    output_files = output_dir |> File.ls!() |> Enum.sort()
-
-    # output_manifests =
-    #   Enum.filter(output_files, fn file ->
-    #     String.match?(file, ~r/\.m3u8$/) and file != @main_manifest
-    #   end)
-
-    # FIXME:
-    # for manifest <- output_manifests do
-    #   manifest_path = Path.join(output_dir, manifest)
-    #   reference_path = Path.join(reference_dir, manifest)
-
-    #   assert File.read!(manifest_path) == File.read!(reference_path)
-    # end
-
-    compare_main_manifests(output_dir, reference_dir)
-
-    reference_files = reference_dir |> File.ls!() |> Enum.sort()
-    assert output_files == reference_files
-
-    for output_file <- output_files do
-      output_path = Path.join(output_dir, output_file)
-      %{size: size} = File.stat!(output_path)
-      assert size > 0
-    end
-  end
-
-  defp compare_main_manifests(output_dir, reference_dir) do
-    output_file = Path.join(output_dir, @main_manifest) |> File.read!()
-    reference_file = Path.join(reference_dir, @main_manifest) |> File.read!()
-
-    %{
-      bandwidth: ["#EXT-X-STREAM-INF:BANDWIDTH=" <> output_bandwidth],
-      other: output_without_bandwidth
-    } = filter_manifest(output_file)
-
-    %{
-      bandwidth: ["#EXT-X-STREAM-INF:BANDWIDTH=" <> reference_bandwidth],
-      other: reference_without_bandwidth
-    } = filter_manifest(reference_file)
-
-    output_bandwidth = String.to_integer(output_bandwidth)
-    reference_bandwidth = String.to_integer(reference_bandwidth)
-
-    assert output_bandwidth + @acceptable_bandwidth_diff > reference_bandwidth and
-             output_bandwidth < reference_bandwidth + @acceptable_bandwidth_diff
-
-    assert output_without_bandwidth == reference_without_bandwidth
-  end
-
-  defp filter_manifest(index_file) do
-    index_file
-    |> String.split(["\n", ","])
-    |> Enum.group_by(fn x ->
-      if String.starts_with?(x, "#EXT-X-STREAM-INF:"), do: :bandwidth, else: :other
-    end)
   end
 end
