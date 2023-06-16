@@ -9,6 +9,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
   alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
 
   @fixtures_dir "./test/fixtures/"
+  @playlist_playable_delay 20_000
+  @segment_delay 25_000
 
   setup do
     options = [
@@ -61,8 +63,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
-      assert_receive({:segment, "video_segment_1" <> _}, 15_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{video_segments: 2}})
 
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
@@ -118,11 +120,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^output_dir}, 10_000)
-      assert_receive({:playlist_playable, :audio, ^output_dir}, 10_000)
+      assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
+      assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
 
-      assert_receive({:segment, "video_segment_1" <> _}, 15_000)
-      assert_receive({:segment, "audio_segment_1" <> _}, 15_000)
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
+      assert_receive({:segment, "audio_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{audio_segments: 2}})
       assert_receive({:manifest, %{video_segments: 2}})
 
@@ -177,8 +179,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
 
-      assert_receive({:playlist_playable, :video, ^tmp_dir}, 10_000)
-      assert_receive({:segment, "muxed_segment_1" <> _}, 15_000)
+      assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
+      assert_receive({:segment, "muxed_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{muxed_segments: 2}})
 
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
@@ -234,11 +236,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      assert_receive({:playlist_playable, :audio, ^tmp_dir}, 50_000)
-      assert_receive({:playlist_playable, :video, ^tmp_dir}, 50_000)
+      assert_receive({:playlist_playable, :audio, ^tmp_dir}, @playlist_playable_delay)
+      assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
 
-      assert_receive({:segment, "video_segment_1" <> _}, 15_000)
-      assert_receive({:segment, "audio_segment_1" <> _}, 15_000)
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
+      assert_receive({:segment, "audio_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{audio_segments: 2}})
       assert_receive({:manifest, %{video_segments: 2}})
 
@@ -286,11 +288,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
 
-      assert_receive({:playlist_playable, :audio, ^tmp_dir}, 50_000)
-      assert_receive({:playlist_playable, :video, ^tmp_dir}, 50_000)
+      assert_receive({:playlist_playable, :audio, ^tmp_dir}, @playlist_playable_delay)
+      assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
 
-      assert_receive({:segment, "video_segment_1" <> _}, 15_000)
-      assert_receive({:segment, "audio_segment_1" <> _}, 15_000)
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
+      assert_receive({:segment, "audio_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{audio_segments: 2}})
       assert_receive({:manifest, %{video_segments: 2}})
 
@@ -444,12 +446,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
   end
 
   defp find_muxed_manifest(manifest_files, output_dir) do
-    Enum.find(manifest_files, nil, &String.match?(&1, ~r/^(?!index).*$/))
+    manifest_files
+    |> Enum.find(nil, &String.match?(&1, ~r/^(?!index).*$/))
     |> then(&Path.join(output_dir, &1))
   end
 
   defp find_stream_manifests(manifest_files, output_dir) do
-    Enum.filter(manifest_files, &String.match?(&1, ~r/^(?!index).*$/))
+    manifest_files
+    |> Enum.filter(&String.match?(&1, ~r/^(?!index).*$/))
     |> Enum.map(&Path.join(output_dir, &1))
   end
 

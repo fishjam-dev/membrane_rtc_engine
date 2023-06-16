@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.Support.HLSStorage do
         }
 
   @impl true
-  def init(config = %__MODULE__{}) do
+  def init(%__MODULE__{} = config) do
     config
     |> Map.from_struct()
     |> Map.update!(:file_storage, fn file_storage -> FileStorage.init(file_storage) end)
@@ -44,20 +44,9 @@ defmodule Membrane.RTC.Engine.Support.HLSStorage do
       if context.type == :manifest do
         content = String.split(content, "\n")
 
-        video_segments =
-          content
-          |> Enum.filter(&String.match?(&1, ~r/^video.*\.m4s/))
-          |> Enum.count()
-
-        audio_segments =
-          content
-          |> Enum.filter(&String.match?(&1, ~r/^audio.*\.m4s/))
-          |> Enum.count()
-
-        muxed_segments =
-          content
-          |> Enum.filter(&String.match?(&1, ~r/^muxed.*\.m4s/))
-          |> Enum.count()
+        video_segments = Enum.count(content, &String.match?(&1, ~r/^video.*\.m4s/))
+        audio_segments = Enum.count(content, &String.match?(&1, ~r/^audio.*\.m4s/))
+        muxed_segments = Enum.count(content, &String.match?(&1, ~r/^muxed.*\.m4s/))
 
         segments = %{
           video_segments: video_segments,
