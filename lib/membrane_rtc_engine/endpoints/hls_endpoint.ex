@@ -40,16 +40,9 @@ if Enum.all?(
     require Membrane.Logger
 
     alias Membrane.RTC.Engine
-
-    alias Membrane.RTC.Engine.Endpoint.HLS.{
-      HLSConfig,
-      MixerConfig,
-      StreamFormatUpdater
-    }
-
+    alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
     alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
     alias Membrane.RTC.Engine.Track
-    alias Membrane.VideoCompositor.RustStructs.BaseVideoPlacement
 
     @compositor_deps [
       Membrane.H264.FFmpeg.Decoder,
@@ -65,12 +58,6 @@ if Enum.all?(
       Membrane.Realtimer
     ]
 
-    @initial_placement %BaseVideoPlacement{
-      position: {0, 0},
-      size: {100, 100},
-      z_value: 0.0
-    }
-
     @track_children [
       :opus_decoder,
       :aac_encoder,
@@ -82,8 +69,7 @@ if Enum.all?(
       :depayloader,
       :blank,
       :realtimer,
-      :audio_filler,
-      :stream_format_updater
+      :audio_filler
     ]
 
     @generator_children [
@@ -149,18 +135,10 @@ if Enum.all?(
         |> Map.merge(%{
           tracks: %{},
           stream_beginning: nil,
-          video_layout_state: nil,
-          terminating?: false,
-          video_layout_tracks_added: %{}
+          terminating?: false
         })
 
-      video_layout_state =
-        if is_nil(options.mixer_config),
-          do: nil,
-          else:
-            state.mixer_config.video.layout_module.init(options.mixer_config.video.stream_format)
-
-      {[notify_parent: :ready], %{state | video_layout_state: video_layout_state}}
+      {[notify_parent: :ready], state}
     end
 
     @impl true
@@ -200,16 +178,7 @@ if Enum.all?(
 
       children_to_remove = track_children ++ children_to_remove
 
-      {update_layout_actions, state} = compositor_update_layout(:remove, removed_track, state)
-
-      result_actions = [remove_child: children_to_remove] ++ update_layout_actions
-
-      state = %{
-        state
-        | video_layout_tracks_added: Map.delete(state.video_layout_tracks_added, track_id)
-      }
-
-      {result_actions, state}
+      {[remove_child: children_to_remove], state}
     end
 
     @impl true
@@ -246,26 +215,6 @@ if Enum.all?(
       terminate_action = if state.terminating?, do: [terminate: :normal], else: []
 
       {actions ++ terminate_action, state}
-    end
-
-    @impl true
-    def handle_child_notification(
-          {:update_layout, stream_format},
-          {:stream_format_updater, track_id} = child,
-          _ctx,
-          state
-        ) do
-      track = Map.get(state.tracks, track_id)
-
-      action = if is_map_key(state.video_layout_tracks_added, track_id), do: :update, else: :add
-
-      {update_layout_action, state} =
-        compositor_update_layout(action, track, state, stream_format)
-
-      result_actions = update_layout_action ++ [notify_child: {child, :layout_updated}]
-      state = put_in(state, [:video_layout_tracks_added, track_id], true)
-
-      {result_actions, state}
     end
 
     def handle_child_notification(
@@ -313,14 +262,6 @@ if Enum.all?(
               raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
           end
         end)
-
-      {[], state}
-    end
-
-    @impl true
-    def handle_parent_notification({:track_metadata_updated, track}, _ctx, state) do
-      compositor_update_layout(:update, track, state)
-      state = put_in(state, [:tracks, track.id], track)
 
       {[], state}
     end
@@ -467,10 +408,9 @@ if Enum.all?(
             attach_nalus?: true,
             alignment: :au
           })
-          |> child({:stream_format_updater, track.id}, StreamFormatUpdater)
           |> child({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
           |> via_in(Pad.ref(:input, track.id),
-            options: [initial_placement: @initial_placement, timestamp_offset: offset]
+            options: [timestamp_offset: offset]
           )
           |> get_child(:compositor)
         ]
@@ -524,7 +464,7 @@ if Enum.all?(
         [
           child(:fake_source, background_generator)
           |> child(:video_realtimer, Membrane.Realtimer)
-          |> via_in(:input, options: [initial_placement: @initial_placement])
+          |> via_in(Pad.ref(:input, :blank))
           |> get_child(:compositor)
         ]
       end
@@ -545,7 +485,8 @@ if Enum.all?(
 
       defp generate_compositor(state, _ctx) do
         compositor = %Membrane.VideoCompositor{
-          stream_format: state.mixer_config.video.stream_format
+          output_stream_format: state.mixer_config.video.stream_format,
+          handler: Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler
         }
 
         # TODO change to new parser once it supports Membrane.H264 stream format on input pad
@@ -640,55 +581,6 @@ if Enum.all?(
         sps: sps,
         pps: pps
       }
-    end
-
-    defp compositor_update_layout(_action, _track, _state, _stream_format \\ nil)
-
-    defp compositor_update_layout(_action, %{type: :audio}, state, _stream_format),
-      do: {[], state}
-
-    defp compositor_update_layout(_action, _track, %{mixer_config: nil} = state, _stream_format),
-      do: {[], state}
-
-    defp compositor_update_layout(
-           action,
-           track,
-           %{video_layout_state: video_layout_state} = state,
-           stream_format
-         ) do
-      {updated_layout, video_layout_state} =
-        case action do
-          :add ->
-            state.mixer_config.video.layout_module.track_added(
-              track,
-              stream_format,
-              video_layout_state
-            )
-
-          :update ->
-            state.mixer_config.video.layout_module.track_updated(
-              track,
-              stream_format,
-              video_layout_state
-            )
-
-          :remove ->
-            state.mixer_config.video.layout_module.track_removed(track, video_layout_state)
-        end
-
-      {layouts, transformations} =
-        updated_layout
-        |> Enum.map(fn {track_id, layout, transformations} ->
-          {{Pad.ref(:input, track_id), layout}, {Pad.ref(:input, track_id), transformations}}
-        end)
-        |> Enum.unzip()
-
-      update_layout_actions = [
-        notify_child: {:compositor, {:update_transformations, transformations}},
-        notify_child: {:compositor, {:update_placement, layouts}}
-      ]
-
-      {update_layout_actions, %{state | video_layout_state: video_layout_state}}
     end
 
     unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do

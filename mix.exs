@@ -95,7 +95,10 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_h264_ffmpeg_plugin, "~> 0.26.2", optional: true},
       {:membrane_h264_plugin, "~> 0.2.0", optional: true},
       {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
-      {:membrane_video_compositor_plugin, "~> 0.3.1", optional: true},
+      {:membrane_video_compositor_plugin,
+       git: "https://github.com/membraneframework/membrane_video_compositor_plugin",
+       branch: "MS_444_implement_live_queueing_strategy",
+       optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.14.0", optional: true},
 
       # Optional deps for RTSP endpoint

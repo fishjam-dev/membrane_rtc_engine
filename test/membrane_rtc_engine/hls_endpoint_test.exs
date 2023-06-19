@@ -5,7 +5,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
   alias Membrane.RTC.Engine.Endpoint.HLS
   alias Membrane.RTC.Engine.Message
   alias Membrane.RTC.Engine.Support.FileEndpoint
-  alias Membrane.RTC.Engine.Support.TestLayoutMaker
   alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
 
   @fixtures_dir "./test/fixtures/"
@@ -310,47 +309,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       check_separate_hls_playlist(tmp_dir, 2, 3)
     end
-  end
-
-  test "handling update_layout message works correctly" do
-    state = %{
-      video_layout_tracks_added: %{},
-      video_layout_state: TestLayoutMaker.init(nil, nil),
-      tracks: %{
-        first: %{id: :first},
-        second: %{id: :second}
-      },
-      mixer_config: %{video: %{layout_module: TestLayoutMaker}}
-    }
-
-    state = send_update_layout_notification(:first, state)
-    assert {:track_added, :first} == state.video_layout_state.last_callback_invoked
-    state = send_update_layout_notification(:first, state)
-    assert {:track_updated, :first} == state.video_layout_state.last_callback_invoked
-    state = send_update_layout_notification(:second, state)
-    assert {:track_added, :second} == state.video_layout_state.last_callback_invoked
-    state = send_update_layout_notification(:second, state)
-    assert {:track_updated, :second} == state.video_layout_state.last_callback_invoked
-  end
-
-  defp send_update_layout_notification(track_id, state) do
-    stream_format = %Membrane.RawVideo{
-      width: 400,
-      height: 800,
-      pixel_format: :I420,
-      framerate: {24, 1},
-      aligned: true
-    }
-
-    {_actions, state} =
-      HLS.handle_child_notification(
-        {:update_layout, stream_format},
-        {:stream_format_updater, track_id},
-        nil,
-        state
-      )
-
-    state
   end
 
   defp create_hls_endpoint(rtc_engine, output_dir, input_type, mixer_config \\ nil) do
