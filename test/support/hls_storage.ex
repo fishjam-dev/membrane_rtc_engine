@@ -36,12 +36,14 @@ defmodule Membrane.RTC.Engine.Support.HLSStorage do
     {result, file_storage} =
       FileStorage.store(parent_id, resource_name, content, metadata, context, state.file_storage)
 
-    if context.type == :segment do
-      send(state.pid, {context.type, resource_name})
-    end
+    state = %{state | file_storage: file_storage}
 
-    state =
-      if context.type == :manifest do
+    case context.type do
+      :segment ->
+        send(state.pid, {context.type, resource_name})
+        {result, state}
+
+      :manifest ->
         content = String.split(content, "\n")
 
         video_segments = Enum.count(content, &String.match?(&1, ~r/^video.*\.m4s/))
@@ -59,12 +61,11 @@ defmodule Membrane.RTC.Engine.Support.HLSStorage do
           {context.type, segments}
         )
 
-        update_segments(segments, state)
-      else
-        state
-      end
+        {result, update_segments(segments, state)}
 
-    {result, %{state | file_storage: file_storage}}
+      _other ->
+        {result, state}
+    end
   end
 
   defp update_segments(
@@ -85,7 +86,7 @@ defmodule Membrane.RTC.Engine.Support.HLSStorage do
       muxed_segments: muxed_segments
     }
 
-    %{state | segments: segments, stopped?: state.should_stop?.(state)}
+    %{state | segments: segments, stopped?: state.should_stop?.(segments)}
   end
 
   @impl true
