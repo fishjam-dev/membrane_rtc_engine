@@ -36,10 +36,6 @@ defmodule Membrane.RTC.Engine.Support.HLSStorage do
     {result, file_storage} =
       FileStorage.store(parent_id, resource_name, content, metadata, context, state.file_storage)
 
-    if context.type == :segment do
-      send(state.pid, {context.type, resource_name})
-    end
-
     state =
       if context.type == :manifest do
         content = String.split(content, "\n")
@@ -64,6 +60,10 @@ defmodule Membrane.RTC.Engine.Support.HLSStorage do
         state
       end
 
+    if context.type == :segment do
+      send(state.pid, {context.type, resource_name})
+    end
+
     {result, %{state | file_storage: file_storage}}
   end
 
@@ -85,7 +85,7 @@ defmodule Membrane.RTC.Engine.Support.HLSStorage do
       muxed_segments: muxed_segments
     }
 
-    %{state | segments: segments, stopped?: state.should_stop?.(state)}
+    %{state | segments: segments, stopped?: state.should_stop?.(segments)}
   end
 
   @impl true

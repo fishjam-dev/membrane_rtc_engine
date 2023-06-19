@@ -350,29 +350,20 @@ defmodule Membrane.RTC.HLSEndpointTest do
       case input_type do
         :single ->
           fn
-            %{segments: %{video_segments: 2}} = state ->
-              %{state | stopped?: true}
-
-            state ->
-              state
+            %{video_segments: video} ->
+              video > 1
           end
 
         :muxed ->
           fn
-            %{segments: %{muxed_segments: 2}} = state ->
-              %{state | stopped?: true}
-
-            state ->
-              state
+            %{muxed_segments: muxed} ->
+              muxed > 1
           end
 
         :multiple ->
           fn
-            %{segments: %{video_segments: 2, audio_segments: 2}} = state ->
-              %{state | stopped?: true}
-
-            state ->
-              state
+            %{video_segments: video, audio_segments: audio} ->
+              video > 1 and audio > 1
           end
       end
 
