@@ -36,7 +36,8 @@ defmodule TestVideoroom.MixProject do
       {:plug_cowboy, "~> 2.5"},
       {:cowlib, "~> 2.11", override: true},
       {:membrane_rtc_engine, path: "../../"},
-      {:stampede, github: "membraneframework-labs/stampede-elixir"}
+      {:stampede, github: "membraneframework-labs/stampede-elixir"},
+      {:playwright, github: "mechanical-orchard/playwright-elixir", override: true}
     ]
   end
 
