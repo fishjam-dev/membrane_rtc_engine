@@ -41,6 +41,16 @@ defmodule Membrane.RTC.Engine.Metrics do
         event_name: [Membrane.RTC.Engine, :RTP, :variant, :switched],
         measurement: :reason
       ),
+      Telemetry.Metrics.sum(
+        "outbound-rtp.paddings_sent",
+        event_name: [Membrane.RTC.Engine, :RTP, :paddings, :sent],
+        measurement: :num
+      ),
+      Telemetry.Metrics.sum(
+        "outbound-rtp.paddings_bytes_sent",
+        event_name: [Membrane.RTC.Engine, :RTP, :paddings, :sent],
+        measurement: :bytes
+      ),
       Telemetry.Metrics.last_value(
         "endpoint.bandwidth",
         event_name: [Membrane.RTC.Engine, :endpoint, :bandwidth],

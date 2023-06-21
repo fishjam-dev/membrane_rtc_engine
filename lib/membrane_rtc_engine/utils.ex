@@ -10,6 +10,7 @@ defmodule Membrane.RTC.Utils do
 
   @rtp_packet_arrival_event [Membrane.RTC.Engine, :RTP, :packet, :arrival]
   @variant_switched_event [Membrane.RTC.Engine, :RTP, :variant, :switched]
+  @paddings_sent_event [Membrane.RTC.Engine, :RTP, :paddings, :sent]
   @bandwidth_event [Membrane.RTC.Engine, :endpoint, :bandwidth]
 
   # This is workaround to make dialyzer happy.
@@ -121,6 +122,12 @@ defmodule Membrane.RTC.Utils do
     :ok
   end
 
+  @spec register_paddings_sent_event(Membrane.TelemetryMetrics.label()) :: :ok
+  def register_paddings_sent_event(telemetry_label) do
+    Membrane.TelemetryMetrics.register(@paddings_sent_event, telemetry_label)
+    :ok
+  end
+
   @spec emit_packet_arrival_event(
           binary(),
           :VP8 | :H264 | :OPUS,
@@ -163,6 +170,20 @@ defmodule Membrane.RTC.Utils do
     )
 
     :ok
+  end
+
+  @spec emit_paddings_sent_event(
+          non_neg_integer(),
+          non_neg_integer(),
+          Membrane.TelemetryMetrics.label()
+        ) :: :ok
+  def emit_paddings_sent_event(num, bytes, telemetry_label) do
+    Membrane.TelemetryMetrics.execute(
+      @paddings_sent_event,
+      %{num: num, bytes: bytes},
+      %{},
+      telemetry_label
+    )
   end
 
   defp packet_measurements(payload, codec) do

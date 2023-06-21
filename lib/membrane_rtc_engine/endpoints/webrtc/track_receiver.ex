@@ -168,6 +168,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
       }) do
     telemetry_label = telemetry_label ++ [track_id: "#{track.id}"]
     Membrane.RTC.Utils.register_variant_switched_event(telemetry_label)
+    Membrane.RTC.Utils.register_paddings_sent_event(telemetry_label)
 
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
 
@@ -291,8 +292,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
           )
         end
 
+        paddings_num = min(state.enqueued_paddings_count, @max_paddings)
+        paddings_bytes = paddings_num * 255
+
+        Membrane.RTC.Utils.emit_paddings_sent_event(
+          paddings_num,
+          paddings_bytes,
+          state.telemetry_label
+        )
+
         Enum.map_reduce(
-          1..min(state.enqueued_paddings_count, @max_paddings)//1,
+          # `//1` to prevent 1..0 from generating paddings
+          1..paddings_num//1,
           %{state | enqueued_paddings_count: 0},
           fn _i, state -> generate_padding_packet(state, false) end
         )
