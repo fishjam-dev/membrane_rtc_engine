@@ -104,9 +104,9 @@ async function refreshStats(statsFunction) {
     return;
   }
   // we are accessing room's private field, in the name of science of course...
-  // const stats = await statsFunction(room.webrtc.connection);
+  const stats = await statsFunction(room.webrtc.connection);
 
-  putStats({})
+  putStats(stats)
 }
 
 
@@ -131,7 +131,7 @@ startMicOnlyButton.onclick = () => start("mic");
 startCameraOnlyButton.onclick = () => start("camera");
 startNoneButton.onclick = () => start("none");
 stopButton.onclick = stop;
-statsButton.onclick = () => { console.log("statsButton"); }
+statsButton.onclick = () => { refreshStats(remoteStreamsStats); }
 updatePeerMetadataButton.onclick = () => { room.updateMetadata() }
 updateTrackMetadataButton.onclick = () => { room.updateTrackMetadata() }
 peerMetadataButton.onclick = () => { putStats(room.peerMetadata) }
