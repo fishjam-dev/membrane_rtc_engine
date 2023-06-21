@@ -187,8 +187,8 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       "README.md",
       "LICENSE",
-
       # guides
+      "guides/upgrading/v0.14.md",
       "guides/track_lifecycle.md",
       "guides/custom_endpoints.md",
       "guides/simulcast.md",
@@ -209,7 +209,10 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp groups_for_extras() do
     [
       {"Developer docs", ~r/internal_docs\//},
-      {"Guides", ~r/guides\//}
+      # negative lookahead to match everything 
+      # except upgrading directory
+      {"Guides", ~r/guides\/^(.(?!upgrading\/))*$/},
+      {"Upgrading", ~r/guides\/upgrading\//}
     ]
   end
 
