@@ -131,7 +131,7 @@ startMicOnlyButton.onclick = () => start("mic");
 startCameraOnlyButton.onclick = () => start("camera");
 startNoneButton.onclick = () => start("none");
 stopButton.onclick = stop;
-statsButton.onclick = () => { refreshStats(remoteStreamsStats); }
+statsButton.onclick = () => { console.log("statsButton"); }
 updatePeerMetadataButton.onclick = () => { room.updateMetadata() }
 updateTrackMetadataButton.onclick = () => { room.updateTrackMetadata() }
 peerMetadataButton.onclick = () => { putStats(room.peerMetadata) }
