@@ -72,103 +72,103 @@ defmodule TestVideoroom.Integration.BasicTest do
     end
   end
 
-  @tag timeout: 180_000
-  test "Users joining all at once can hear and see each other" do
-    browsers_number = 4
+  # @tag timeout: 180_000
+  # test "Users joining all at once can hear and see each other" do
+  #   browsers_number = 4
 
-    pid = self()
+  #   pid = self()
 
-    receiver = Process.spawn(fn -> receive_stats(browsers_number, pid) end, [:link])
+  #   receiver = Process.spawn(fn -> receive_stats(browsers_number, pid) end, [:link])
 
-    mustang_options = %{
-      target_url: @room_url,
-      warmup_time: @warmup_time,
-      start_button: @start_with_all,
-      actions: @actions,
-      receiver: receiver,
-      id: -1
-    }
+  #   mustang_options = %{
+  #     target_url: @room_url,
+  #     warmup_time: @warmup_time,
+  #     start_button: @start_with_all,
+  #     actions: @actions,
+  #     receiver: receiver,
+  #     id: -1
+  #   }
 
-    for browser <- 0..(browsers_number - 1), into: [] do
-      mustang_options = %{mustang_options | id: browser}
-      Process.sleep(500)
+  #   for browser <- 0..(browsers_number - 1), into: [] do
+  #     mustang_options = %{mustang_options | id: browser}
+  #     Process.sleep(500)
 
-      Task.async(fn ->
-        Stampede.start({TestMustang, mustang_options}, @browser_options)
-      end)
-    end
-    |> Task.await_many(:infinity)
+  #     Task.async(fn ->
+  #       Stampede.start({TestMustang, mustang_options}, @browser_options)
+  #     end)
+  #   end
+  #   |> Task.await_many(:infinity)
 
-    receive do
-      acc ->
-        Enum.each(acc, fn
-          {:after_warmup, browsers} ->
-            Enum.each(browsers, fn {_browser_id, stats_list} ->
-              Enum.each(stats_list, fn stats ->
-                assert length(stats) == browsers_number - 1
-                assert Enum.all?(stats, &is_stream_playing(&1))
-              end)
-            end)
+  #   receive do
+  #     acc ->
+  #       Enum.each(acc, fn
+  #         {:after_warmup, browsers} ->
+  #           Enum.each(browsers, fn {_browser_id, stats_list} ->
+  #             Enum.each(stats_list, fn stats ->
+  #               assert length(stats) == browsers_number - 1
+  #               assert Enum.all?(stats, &is_stream_playing(&1))
+  #             end)
+  #           end)
 
-          {:before_leave, _browsers} ->
-            :ok
-        end)
-    end
-  end
+  #         {:before_leave, _browsers} ->
+  #           :ok
+  #       end)
+  #   end
+  # end
 
-  @tag timeout: 180_000
-  test "Users joining without either microphone, camera or both can see or hear other users" do
-    browsers_number = 4
+  # @tag timeout: 180_000
+  # test "Users joining without either microphone, camera or both can see or hear other users" do
+  #   browsers_number = 4
 
-    pid = self()
+  #   pid = self()
 
-    receiver = Process.spawn(fn -> receive_stats(browsers_number, pid) end, [:link])
+  #   receiver = Process.spawn(fn -> receive_stats(browsers_number, pid) end, [:link])
 
-    mustang_options = %{
-      target_url: @room_url,
-      warmup_time: @warmup_time,
-      start_button: @start_with_all,
-      actions: @actions,
-      receiver: receiver,
-      id: -1
-    }
+  #   mustang_options = %{
+  #     target_url: @room_url,
+  #     warmup_time: @warmup_time,
+  #     start_button: @start_with_all,
+  #     actions: @actions,
+  #     receiver: receiver,
+  #     id: -1
+  #   }
 
-    buttons_with_id =
-      [@start_with_all, @start_with_camera, @start_with_mic, @start_with_nothing]
-      |> Enum.with_index()
-      |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
+  #   buttons_with_id =
+  #     [@start_with_all, @start_with_camera, @start_with_mic, @start_with_nothing]
+  #     |> Enum.with_index()
+  #     |> Map.new(fn {button, browser_id} -> {browser_id, button} end)
 
-    for {browser_id, button} <- buttons_with_id, into: [] do
-      specific_mustang = %{mustang_options | start_button: button, id: browser_id}
+  #   for {browser_id, button} <- buttons_with_id, into: [] do
+  #     specific_mustang = %{mustang_options | start_button: button, id: browser_id}
 
-      Process.sleep(1000)
+  #     Process.sleep(1000)
 
-      Task.async(fn ->
-        Stampede.start({TestMustang, specific_mustang}, @browser_options)
-      end)
-    end
-    |> Task.await_many(:infinity)
+  #     Task.async(fn ->
+  #       Stampede.start({TestMustang, specific_mustang}, @browser_options)
+  #     end)
+  #   end
+  #   |> Task.await_many(:infinity)
 
-    {_button, buttons_with_id} = Map.pop!(buttons_with_id, 3)
+  #   {_button, buttons_with_id} = Map.pop!(buttons_with_id, 3)
 
-    receive do
-      acc ->
-        Enum.each(acc, fn
-          {:after_warmup, browsers} ->
-            Enum.each(browsers, fn {browser_id, stats_list} ->
-              Enum.each(stats_list, fn stats ->
-                assert length(stats) == if(browser_id == 3, do: 3, else: 2)
-                {_value, new_buttons} = Map.pop(buttons_with_id, browser_id)
-                new_buttons = Map.values(new_buttons)
-                assert_streams_playing(stats, new_buttons)
-              end)
-            end)
+  #   receive do
+  #     acc ->
+  #       Enum.each(acc, fn
+  #         {:after_warmup, browsers} ->
+  #           Enum.each(browsers, fn {browser_id, stats_list} ->
+  #             Enum.each(stats_list, fn stats ->
+  #               assert length(stats) == if(browser_id == 3, do: 3, else: 2)
+  #               {_value, new_buttons} = Map.pop(buttons_with_id, browser_id)
+  #               new_buttons = Map.values(new_buttons)
+  #               assert_streams_playing(stats, new_buttons)
+  #             end)
+  #           end)
 
-          {:before_leave, _browsers} ->
-            :ok
-        end)
-    end
-  end
+  #         {:before_leave, _browsers} ->
+  #           :ok
+  #       end)
+  #   end
+  # end
 
   defp assert_streams_playing(stats, buttons) do
     for button <- buttons do

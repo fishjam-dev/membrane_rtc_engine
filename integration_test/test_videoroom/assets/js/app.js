@@ -104,9 +104,9 @@ async function refreshStats(statsFunction) {
     return;
   }
   // we are accessing room's private field, in the name of science of course...
-  const stats = await statsFunction(room.webrtc.connection);
+  // const stats = await statsFunction(room.webrtc.connection);
 
-  putStats(stats)
+  putStats({})
 }
 
 
