@@ -7,7 +7,7 @@ jobs:
   test:
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:latest
+      - image: membraneframeworklabs/docker_membrane:v1.8.1
         environment:
           MIX_ENV: test
 
@@ -22,7 +22,7 @@ jobs:
   lint:
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:latest
+      - image: membraneframeworklabs/docker_membrane:v1.8.1
         environment:
           MIX_ENV: dev
 
@@ -40,7 +40,7 @@ jobs:
   integration_test:
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:latest
+      - image: membraneframeworklabs/docker_membrane:v1.8.1
         environment:
           MIX_ENV: test
           NODE_ENV: development

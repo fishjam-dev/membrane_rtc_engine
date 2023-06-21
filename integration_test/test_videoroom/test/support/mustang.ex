@@ -62,11 +62,7 @@ defmodule TestMustang do
   end
 
   defp get_stats(page, receiver, browser_id, tag, button) do
-    page
-    |> Playwright.Page.locator("[id=#{button}]")
-    |> Playwright.Locator.click()
-
-    # :ok = Playwright.Page.click(page, "[id=#{button}]")
+    :ok = Playwright.Page.click(page, "[id=#{button}]")
     Process.sleep(1_000)
 
     page
