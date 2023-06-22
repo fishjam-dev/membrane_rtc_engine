@@ -2,7 +2,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   @moduledoc false
 
   alias Membrane.RTC.Engine.Endpoint
-  alias Membrane.RTC.Engine.Endpoint.{HLS, RTSP, WebRTC}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
@@ -363,7 +362,5 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
 
   defp to_track_variants(bitrate) when is_number(bitrate), do: %{high: bitrate}
 
-  defp to_type_string(WebRTC), do: "webrtc"
-  defp to_type_string(HLS), do: "hls"
-  defp to_type_string(RTSP), do: "rtsp"
+  defp to_type_string(type), do: Module.split(type) |> List.last() |> String.downcase()
 end
