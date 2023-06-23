@@ -486,7 +486,10 @@ if Enum.all?(
       defp generate_compositor(state, _ctx) do
         compositor = %Membrane.VideoCompositor{
           output_stream_format: state.mixer_config.video.stream_format,
-          handler: Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler
+          handler: Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler,
+          queuing_strategy: %Membrane.VideoCompositor.QueueingStrategy.Live{
+            latency: Membrane.Time.milliseconds(100)
+          }
         }
 
         # TODO change to new parser once it supports Membrane.H264 stream format on input pad
