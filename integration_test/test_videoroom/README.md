@@ -76,13 +76,14 @@ There is one test of updating metadata functionalities:
 
 ## Running tests
 
-To start integration command simply run in `integration/test_videoroom`:
-```bash
-mix test
-```
 To start integration command simply run in root of `membrane_rtc_engine`:
 ```bash
-mix integration
+mix integration_test
+```
+
+Alternatively, you can run the following commands in the current directory:
+```bash
+mix deps.get; cd assets; npm ci; cd ..; mix test
 ```
 
 ## Building a container

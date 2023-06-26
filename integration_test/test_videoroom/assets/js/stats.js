@@ -153,7 +153,7 @@ export async function remoteStreamsStats(peerConnection) {
     switch (detectBrowser()) {
       case "chrome": {
         data.isAudioPlaying = await isAudioPlayingChrome(peerConnection, audioTrack);
-        data.isVideoPlaying = await isVideoPlayingChrome(peerConnection, audioTrack);
+        data.isVideoPlaying = await isVideoPlayingChrome(peerConnection, videoTrack);
         break;
       }
       case "firefox": {
