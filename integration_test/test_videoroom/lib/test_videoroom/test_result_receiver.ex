@@ -7,12 +7,20 @@ defmodule TestVideoroom.TestResultReceiver do
   @browser_count 3
   @shared_folder "shared"
 
+  # in milliseconds
+  @max_test_duration 400_000
+
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @impl true
   def init(_args) do
+    spawn_link(fn ->
+      Process.sleep(@max_test_duration)
+      raise("Test duration exceeded!")
+    end)
+
     {:ok, %{results: %{}, received: 0}}
   end
 

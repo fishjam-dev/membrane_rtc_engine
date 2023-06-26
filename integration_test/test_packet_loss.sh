@@ -24,6 +24,11 @@ trap cleanup EXIT
 
 echo "Sleeping until told to enable packet loss..."
 while [ ! -f "${SHARED_VOLUME_DIR}/ENABLE_PACKET_LOSS" ]; do
+  if ! jobs %% >/dev/null 2>&1; then
+    echo "ERROR: docker compose job finished too early"
+    exit 1
+  fi
+
   sleep 1
 done
 
