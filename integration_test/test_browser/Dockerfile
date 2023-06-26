@@ -31,7 +31,7 @@ ENV LC_ALL en_US.UTF-8
 RUN mix local.hex --force && \
   mix local.rebar --force
 
-ENV MIX_ENV=dev
+ENV MIX_ENV=test
 
 WORKDIR /app
 
@@ -42,6 +42,8 @@ RUN mix deps.get --only $MIX_ENV && \
 
 COPY lib lib/
 RUN mix compile
+
+COPY test test/
 
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh

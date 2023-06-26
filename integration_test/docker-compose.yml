@@ -20,7 +20,7 @@ services:
     environment:
       ERL_COOKIE: "panuozzo-pollo-e-pancetta"
       VIRTUAL_HOST: "mediaserver"
-      INTEGRATED_TURN_IP: "172.42.0.50"
+      INTEGRATED_TURN_IP: "192.168.0.50"
       INTEGRATED_TURN_PORT_RANGE: "50000-50050"
       USE_TLS: "true"
       KEY_FILE_PATH: "priv/cert/selfsigned_key.pem"
@@ -28,7 +28,7 @@ services:
       USE_RESULT_RECEIVER: "true"
     networks:
       network:
-        ipv4_address: 172.42.0.50
+        ipv4_address: 192.168.0.50
     volumes:
       - ./tmp/shared:/app/shared
 
@@ -60,4 +60,4 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.42.0.0/24
+        - subnet: 192.168.0.0/24

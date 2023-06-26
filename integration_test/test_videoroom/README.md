@@ -6,10 +6,10 @@ All tests are performed against a very simple, one view, Phoenix application.
 
 The interface allows only for several actions:
 * joining with camera and microphone
-* joining with camera only 
-* joining with microphone only 
-* joining without any media sources 
-* leaving the room 
+* joining with camera only
+* joining with microphone only
+* joining without any media sources
+* leaving the room
 * displaying statistics of all remote media streams
 * joining with simulcast
 * displaying statistics of inbound video stream (this assumes max two peers are in room)
@@ -29,7 +29,7 @@ Tests are performed using a [playwright](https://github.com/geometerio/playwrigh
 which allows to control browser actions using a selected web driver.
 
 
-## Validating if clients are receiving media 
+## Validating if clients are receiving media
 The main purpose of these tests is to check if the browser is
 correctly sending and receiving media to/from other participants.
 
@@ -38,7 +38,7 @@ if either audio or video is sent correctly. Firefox on the other hand does not e
 any useful statistics so the only thing we can check for is that a specific track is unmuted and that the
 received packets counter gets incremented.
 
-To check if that happens correctly, the information is extracted 
+To check if that happens correctly, the information is extracted
 from underlying `PeerConnection` controlled by `MembraneWebRTC` js class
 exposed by `membrane_rtc_engine`. All remote streams get listed and each of them
 is queried to return the information about its video/audio received statistics.
@@ -74,23 +74,23 @@ There are currently 3 testing scenarios of simulcast functionalities:
 There is one test of updating metadata functionalities:
 * client updates peer metadata and then updates track metadata
 
-## Running tests 
+## Running tests
 
 To start integration command simply run in `integration/test_videoroom`:
 ```bash
-mix test 
+mix test
 ```
 To start integration command simply run in root of `membrane_rtc_engine`:
 ```bash
 mix integration
 ```
 
-To build and run integration tests from source run:
+## Building a container
+
+Since this app depends on `membrane_rtc_engine`, to build the container, you need to include the
+entire repo in the context:
 ```bash
-docker build  -t membrane_rtc_integration .
-docker run -p 4001:4001 membrane_rtc_integration
+docker build -t test_videoroom -f Dockerfile ../..
 ```
 
-To specify if you want run integration tests with or without integrated turns change `USE_INTEGRATED_TURN` flag in Dockerfile.
-
-
+For use in tests, run `docker compose build` in the parent of this directory (`integration_test/`)

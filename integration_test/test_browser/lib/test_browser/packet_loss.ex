@@ -8,14 +8,11 @@ defmodule TestBrowser.PacketLoss do
   @start_button "start-all"
   @simulcast_inbound_stats "simulcast-inbound-stats"
   @browser_options %{count: 1, headless: true, args: ["--ignore-certificate-errors"]}
-  @max_test_duration 400_000
 
   @stats_number 15
   @stats_interval 1_000
 
   def run_test() do
-    start_terminator_process(@max_test_duration)
-
     server = System.get_env("SERVER_HOSTNAME", "localhost")
     server_receiver = {TestVideoroom.TestResultReceiver, String.to_atom(server <> "@" <> server)}
     stats_task = Task.async(fn -> receive_stats(server_receiver) end)
@@ -47,12 +44,5 @@ defmodule TestBrowser.PacketLoss do
     Task.await(stats_task, :infinity)
 
     :ok
-  end
-
-  defp start_terminator_process(time) do
-    spawn_link(fn ->
-      Process.sleep(time)
-      raise("Test duration exceeded!")
-    end)
   end
 end

@@ -1,21 +1,11 @@
 # TestBrowser
 
-**TODO: Add description**
+Standalone test application running a headless browser using Playwright. Extracted from the
+`test_videoroom` app, used in a container for running integration against `membrane_rtc_engine`.
 
-## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `test_browser` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:test_browser, "~> 0.1.0"}
-  ]
-end
+## Building the container
+```bash
+docker build -t test_browser .
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/test_browser>.
-
+For use in tests, run `docker compose build` in the parent of this directory (`integration_test/`)
