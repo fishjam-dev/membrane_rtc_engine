@@ -61,7 +61,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.11.2"},
+      {:membrane_core, "~> 0.12.3"},
       {:membrane_webrtc_plugin, "~> 0.15.0"},
       {:membrane_rtp_plugin, "~> 0.23.0"},
       # as we explicitly call Membrane.ICE.Metrics.metrics/0,
@@ -85,16 +85,17 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
       # Optional deps for HLS endpoint
-      {:membrane_aac_plugin, "~> 0.13.0", optional: true},
-      {:membrane_opus_plugin, "~> 0.17.0", optional: true},
-      {:membrane_aac_fdk_plugin, "~> 0.15.0", optional: true},
+      {:membrane_aac_plugin, "~> 0.15.0", optional: true},
+      # {:membrane_opus_plugin, "~> 0.17.0", optional: true},
+      {:membrane_opus_plugin, path: "/Users/feliks/membrane/membrane_opus_plugin"},
+      {:membrane_aac_fdk_plugin, "~> 0.15.1", optional: true},
       {:membrane_generator_plugin, "~> 0.9.0", optional: true},
       {:membrane_realtimer_plugin, "~> 0.6.1", optional: true},
-      {:membrane_audio_mix_plugin, "~> 0.13.0", optional: true},
-      {:membrane_raw_audio_format, "~> 0.10.0", optional: true},
+      {:membrane_audio_mix_plugin, "~> 0.15.0", optional: true},
+      {:membrane_raw_audio_format, "~> 0.11.0", optional: true},
       {:membrane_h264_ffmpeg_plugin, "~> 0.27.0", optional: true},
-      {:membrane_h264_plugin, "~> 0.2.0", optional: true},
-      {:membrane_audio_filler_plugin, "~> 0.2.0", optional: true},
+      {:membrane_h264_plugin, "~> 0.4.0", optional: true},
+      {:membrane_audio_filler_plugin, "~> 0.2.1", optional: true},
       {:membrane_video_compositor_plugin, "~> 0.4.0", optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.15.0", optional: true},
 
@@ -104,7 +105,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_udp_plugin, "~> 0.10.0", optional: true},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.13.0"},
+      {:membrane_file_plugin, "~> 0.14.0"},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
 
       # Otel
@@ -209,7 +210,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp groups_for_extras() do
     [
       {"Developer docs", ~r/internal_docs\//},
-      # negative lookahead to match everything 
+      # negative lookahead to match everything
       # except upgrading directory
       {"Guides", ~r/guides\/^(.(?!upgrading\/))*$/},
       {"Upgrading", ~r/guides\/upgrading\//}
