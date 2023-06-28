@@ -21,7 +21,7 @@ The package can be installed by adding `membrane_rtc_engine` to your list of dep
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine, "~> 0.14.1"}
+    {:membrane_rtc_engine, "~> 0.14.2"}
   ]
 end
 ```
