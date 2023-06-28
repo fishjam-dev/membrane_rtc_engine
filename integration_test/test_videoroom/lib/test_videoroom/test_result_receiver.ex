@@ -16,10 +16,7 @@ defmodule TestVideoroom.TestResultReceiver do
 
   @impl true
   def init(_args) do
-    spawn_link(fn ->
-      Process.sleep(@max_test_duration)
-      raise("Test duration exceeded!")
-    end)
+    Process.send_after(self(), :test_duration_exceeded, @max_test_duration)
 
     {:ok, %{results: %{}, received: 0}}
   end
@@ -41,6 +38,13 @@ defmodule TestVideoroom.TestResultReceiver do
     File.write!(Path.join(@shared_folder, "ENABLE_PACKET_LOSS"), <<>>)
 
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:test_duration_exceeded, _state) do
+    Logger.error("Test duration exceeded!")
+
+    System.stop(1)
   end
 
   @impl true
