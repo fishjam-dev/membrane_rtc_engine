@@ -494,6 +494,7 @@ defmodule Membrane.RTC.Engine do
     endpoints =
       ctx.children
       |> Map.values()
+      |> Enum.filter(fn child -> match?({:endpoint, _id}, child.name) end)
       |> Enum.map(fn endpoint ->
         {:endpoint, id} = endpoint.name
         %{id: id, type: endpoint.module}
