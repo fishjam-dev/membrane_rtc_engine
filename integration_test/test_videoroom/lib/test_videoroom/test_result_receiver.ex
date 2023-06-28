@@ -22,14 +22,14 @@ defmodule TestVideoroom.TestResultReceiver do
   end
 
   @impl true
-  def handle_info({:stats, name, stats}, %{results: results, received: received} = state) do
+  def handle_info({:stats, name, stats}, %{results: results} = state) do
     Logger.info("Received stats from #{inspect(name)}")
 
     results = Map.put(results, name, stats)
-    state = %{state | results: results, received: Map.keys(results) |> length()}
-    if state.received == @browser_count, do: compare_results(state.results)
+    received = Map.keys(results) |> length()
+    if received == @browser_count, do: compare_results(results)
 
-    {:noreply, state}
+    {:noreply, %{state | results: results, received: received}}
   end
 
   @impl true
