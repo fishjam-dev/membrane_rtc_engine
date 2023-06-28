@@ -25,7 +25,8 @@ defmodule TestVideoroom.TestResultReceiver do
   def handle_info({:stats, name, stats}, %{results: results, received: received} = state) do
     Logger.info("Received stats from #{inspect(name)}")
 
-    state = %{state | results: Map.put(results, name, stats), received: received + 1}
+    results = Map.put(results, name, stats)
+    state = %{state | results: results, received: Map.keys(results) |> length()}
     if state.received == @browser_count, do: compare_results(state.results)
 
     {:noreply, state}
