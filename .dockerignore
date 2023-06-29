@@ -29,12 +29,13 @@ erl_crash.dump
 .LSOverride
 
 # Ignore package tarball (built via "mix hex.build").
-videoroom-*.tar
+test_browser-*.tar
 
 .elixir_ls
 
 node_modules
 
+priv/cert/*
 priv/static/*
 !priv/static/.gitkeep
 test/output
@@ -43,3 +44,8 @@ tmp/
 
 # asdf
 .tool-versions
+
+# git
+.git/
+.gitignore
+*.gitkeep

@@ -35,7 +35,7 @@ defmodule TestVideoroom.MixProject do
       {:jason, "~> 1.2"},
       {:plug_cowboy, "~> 2.5"},
       {:cowlib, "~> 2.11", override: true},
-      {:membrane_rtc_engine, path: "../../"},
+      {:membrane_rtc_engine, path: System.get_env("RTC_ENGINE_PATH", "../../")},
       {:stampede, github: "membraneframework-labs/stampede-elixir"}
     ]
   end

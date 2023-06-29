@@ -56,7 +56,8 @@ config :test_videoroom,
     |> ConfigParser.parse_port_number("INTEGRATED_TLS_TURN_PORT"),
   integrated_turn_pkey: System.get_env("INTEGRATED_TURN_PKEY"),
   integrated_turn_cert: System.get_env("INTEGRATED_TURN_CERT"),
-  integrated_turn_domain: System.get_env("VIRTUAL_HOST")
+  integrated_turn_domain: System.get_env("VIRTUAL_HOST"),
+  use_result_receiver: System.get_env("USE_RESULT_RECEIVER") == "true"
 
 protocol = if System.get_env("USE_TLS") == "true", do: :https, else: :http
 
@@ -69,7 +70,7 @@ get_env = fn env, default ->
 end
 
 host = get_env.("VIRTUAL_HOST", "localhost")
-port = 4000
+port = if protocol == :https, do: 4005, else: 4001
 
 args =
   if protocol == :https do
@@ -81,9 +82,9 @@ args =
   else
     []
   end
-  |> Keyword.merge(otp_app: :membrane_videoroom_demo, port: port)
+  |> Keyword.merge(otp_app: :test_videoroom, port: port)
 
-config :test_videoroom, VideoRoomWeb.Endpoint, [
+config :test_videoroom, TestVideoroomWeb.Endpoint, [
   {:url, [host: host]},
   {protocol, args}
 ]
