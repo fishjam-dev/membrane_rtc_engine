@@ -100,7 +100,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_audio_filler_plugin, "~> 0.1.0", optional: true},
       {:membrane_video_compositor_plugin,
        git: "https://github.com/membraneframework/membrane_video_compositor_plugin",
-       branch: "MS_444_implement_live_queueing_strategy",
+       branch: "add_schedule_eos_option",
        optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.14.0", optional: true},
 
