@@ -120,7 +120,8 @@ if Enum.all?(
         |> Map.merge(%{
           tracks: %{},
           stream_beginning: nil,
-          terminating?: false
+          terminating?: false,
+          start_mixing_sent?: false
         })
 
       {[notify_parent: :ready], state}
@@ -174,7 +175,11 @@ if Enum.all?(
     end
 
     @impl true
-    def handle_pad_added(Pad.ref(:input, track_id) = pad, ctx, state) do
+    def handle_pad_added(
+          Pad.ref(:input, track_id) = pad,
+          ctx,
+          state
+        ) do
       {offset, state} = get_track_offset(state)
 
       track = Map.get(state.tracks, track_id)
@@ -188,25 +193,27 @@ if Enum.all?(
           {track_spec ++ hls_sink_spec, state}
         end
 
-      actions = [spec: spec] ++ maybe_start_mixing(ctx, state)
+      {notify_children, state} = maybe_start_mixing(state)
+      actions = [spec: spec] ++ notify_children
+
       {actions, state}
     end
 
-    defp maybe_start_mixing(_ctx, %{mixer_config: nil}) do
-      []
+    defp maybe_start_mixing(%{mixer_config: nil} = state) do
+      {[], state}
     end
 
-    defp maybe_start_mixing(ctx, _state) do
-      tracks_number = Enum.count(ctx.pads, fn {_ref, pad} -> pad.direction == :input end)
+    defp maybe_start_mixing(%{start_mixing_sent?: false} = state) do
+      notify_children = [
+        notify_child: {:audio_mixer, {:start_mixing, Membrane.Time.milliseconds(200)}},
+        notify_child: {:compositor, {:start_timer, Membrane.Time.milliseconds(200)}}
+      ]
 
-      if tracks_number == 1 do
-        [
-          notify_child: {:audio_mixer, {:start_mixing, Membrane.Time.milliseconds(200)}},
-          notify_child: {:compositor, {:start_timer, Membrane.Time.milliseconds(200)}}
-        ]
-      else
-        []
-      end
+      {notify_children, %{state | start_mixing_sent?: true}}
+    end
+
+    defp maybe_start_mixing(state) do
+      {[], state}
     end
 
     @impl true
@@ -431,7 +438,8 @@ if Enum.all?(
           output_stream_format: state.mixer_config.video.stream_format,
           handler: Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler,
           queuing_strategy: %Membrane.VideoCompositor.QueueingStrategy.Live{
-            latency: :wait_for_start_event
+            latency: :wait_for_start_event,
+            eos_strategy: :schedule_eos
           }
         }
 
