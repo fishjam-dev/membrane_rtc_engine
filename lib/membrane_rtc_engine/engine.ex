@@ -255,7 +255,7 @@ defmodule Membrane.RTC.Engine do
   """
   @spec add_endpoint(
           pid :: pid(),
-          endpoint :: Membrane.ChildrenSpec.child_definition_t(),
+          endpoint :: Membrane.ChildrenSpec.child_definition(),
           opts :: endpoint_options_t()
         ) :: :ok | :error
   def add_endpoint(pid, endpoint, opts \\ []) do
