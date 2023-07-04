@@ -28,10 +28,7 @@ if Enum.all?(
     ```
     [
       :membrane_video_compositor_plugin,
-      :membrane_audio_mix_plugin,
-      :membrane_generator_plugin,
-      :membrane_realtimer_plugin.
-      :membrane_audio_filler_plugin
+      :membrane_audio_mix_plugin
     ]
     ```
     """
@@ -206,7 +203,7 @@ if Enum.all?(
     defp maybe_start_mixing(%{start_mixing_sent?: false} = state) do
       notify_children = [
         notify_child: {:audio_mixer, {:start_mixing, Membrane.Time.milliseconds(200)}},
-        notify_child: {:compositor, {:start_timer, Membrane.Time.milliseconds(200)}}
+        notify_child: {:compositor, {:start_composing, Membrane.Time.milliseconds(200)}}
       ]
 
       {notify_children, %{state | start_mixing_sent?: true}}

@@ -74,6 +74,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       child(:source, %Membrane.File.Source{location: state.file_path})
       |> then(parser)
       |> child(:payloader, payloader_bin)
+      |> child(:realtimer, Membrane.Realtimer)
       |> child(:track_sender, %StaticTrackSender{track: state.track})
       |> bin_output(pad)
     ]
