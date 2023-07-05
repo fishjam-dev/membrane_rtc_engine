@@ -4,8 +4,6 @@ defmodule TestVideoroom.Integration.ResultReceiver do
   use GenServer
   require Logger
 
-  @shared_folder "shared"
-
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end

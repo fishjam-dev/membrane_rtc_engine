@@ -25,7 +25,7 @@ defmodule TestBrowser.MixProject do
   defp deps do
     [
       {:cowlib, "~> 2.11", override: true},
-      {:stampede, github: "membraneframework-labs/stampede-elixir"},
+      {:stampede, github: "membraneframework-labs/stampede-elixir"}
     ]
   end
 end

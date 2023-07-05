@@ -6,7 +6,10 @@ defmodule TestBrowser.Mustang do
   def join(browser, options) do
     page = browser |> Playwright.Browser.new_page()
     _response = Playwright.Page.goto(page, options.target_url)
-    Playwright.Page.on(page, :console, fn msg -> Logger.info("Browser console: #{msg.params.message.message_text}") end)
+
+    Playwright.Page.on(page, :console, fn msg ->
+      Logger.info("Browser console: #{msg.params.message.message_text}")
+    end)
 
     page
     |> Playwright.Page.locator("[id=#{options.start_button}]")
@@ -46,7 +49,6 @@ defmodule TestBrowser.Mustang do
       {:notify_server, msg} = action ->
         Logger.info("mustang: #{options.id}, action: #{inspect(action)}")
         send(options.server, {msg, options.id})
-
     end)
 
     ctx

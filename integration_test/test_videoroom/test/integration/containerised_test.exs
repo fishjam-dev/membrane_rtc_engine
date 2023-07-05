@@ -76,20 +76,21 @@ defmodule TestVideoroom.Integration.ContainerisedTest do
     peer_id_to_browser_id = get_peer_id_mapping(results)
 
     Map.new(@packet_loss_tags_to_check, fn tag ->
-      acc_list = Enum.reduce(results, [], fn {browser_id, browser_results}, acc_list ->
-        tag_results = browser_results[tag][browser_id]
+      acc_list =
+        Enum.reduce(results, [], fn {browser_id, browser_results}, acc_list ->
+          tag_results = browser_results[tag][browser_id]
 
-        acc_list =
-          if Enum.empty?(acc_list) do
-            for _entry <- tag_results, do: %{}
-          else
-            acc_list
-          end
+          acc_list =
+            if Enum.empty?(acc_list) do
+              for _entry <- tag_results, do: %{}
+            else
+              acc_list
+            end
 
-        Enum.zip_with(acc_list, tag_results, fn acc_single, res ->
-          Map.put(acc_single, browser_id, label_stat_entries(res, peer_id_to_browser_id))
+          Enum.zip_with(acc_list, tag_results, fn acc_single, res ->
+            Map.put(acc_single, browser_id, label_stat_entries(res, peer_id_to_browser_id))
+          end)
         end)
-      end)
 
       {tag, acc_list}
     end)
@@ -133,7 +134,8 @@ defmodule TestVideoroom.Integration.ContainerisedTest do
         {frames_min, frames_max} =
           Map.delete(result, receiver_id)
           |> Enum.map(fn {other_receiver_id, other_browser_result} ->
-            other_browser_result[receiver_id]["framesReceived"] - frame_count_base[other_receiver_id][receiver_id]
+            other_browser_result[receiver_id]["framesReceived"] -
+              frame_count_base[other_receiver_id][receiver_id]
           end)
           |> Enum.min_max()
 
@@ -150,8 +152,8 @@ defmodule TestVideoroom.Integration.ContainerisedTest do
       result_filtered = Map.delete(result, @packet_loss_browser_id)
 
       for {receiver_id, browser_result} <- result_filtered do
-         # Assert that the browser received a similar amount of frames from every other browser
-         # without packet loss
+        # Assert that the browser received a similar amount of frames from every other browser
+        # without packet loss
         {frames_min, frames_max} =
           Map.delete(browser_result, @packet_loss_browser_id)
           |> Enum.map(fn {sender_id, stat_entry} ->
@@ -165,10 +167,10 @@ defmodule TestVideoroom.Integration.ContainerisedTest do
         # at least 1.5x less frames from the browser with packet loss
         if result_idx >= @packet_loss_results_ratio_warmup do
           packet_loss_frames =
-            browser_result[@packet_loss_browser_id]["framesReceived"] - frame_count_base[receiver_id][@packet_loss_browser_id]
+            browser_result[@packet_loss_browser_id]["framesReceived"] -
+              frame_count_base[receiver_id][@packet_loss_browser_id]
 
-          frame_ratio =
-            if packet_loss_frames == 0, do: 2, else: frames_max / packet_loss_frames
+          frame_ratio = if packet_loss_frames == 0, do: 2, else: frames_max / packet_loss_frames
 
           assert frame_ratio >= 1.5
         end
@@ -178,7 +180,8 @@ defmodule TestVideoroom.Integration.ContainerisedTest do
         {frames_min, frames_max} =
           Map.delete(result_filtered, receiver_id)
           |> Enum.map(fn {other_receiver_id, other_browser_result} ->
-            other_browser_result[receiver_id]["framesReceived"] - frame_count_base[other_receiver_id][receiver_id]
+            other_browser_result[receiver_id]["framesReceived"] -
+              frame_count_base[other_receiver_id][receiver_id]
           end)
           |> Enum.min_max()
 
