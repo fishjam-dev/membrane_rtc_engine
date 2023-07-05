@@ -77,7 +77,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     }
 
     sender_actions = [
-      {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
+      {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
       {:click, @change_own_medium, @variant_inactivity_time + @variant_request_time},
       # FIXME use @stats_number and @stats_interval
       {:get_stats, @simulcast_outbound_stats, 3, 1_000, tag: :after_disabling_medium_en},
@@ -167,7 +167,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     ]
 
     sender_actions = [
-      {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
+      {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
       {:wait, @variant_request_time},
       {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval,
        tag: :after_switching_to_low_en},
@@ -240,7 +240,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     }
 
     sender_actions = [
-      {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
+      {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval, tag: :after_warmup},
       {:click, @change_own_medium, @variant_inactivity_time + @variant_request_time},
       # FIXME use @stats_number and @stats_interval
       {:get_stats, @simulcast_outbound_stats, 3, 1_000, tag: :after_disabling_medium_en},
@@ -364,12 +364,15 @@ defmodule TestVideoroom.Integration.SimulcastTest do
          sender_stats_samples,
          receiver_stats_samples
        ) do
+    # Extract receiver stat samples from lists (only one other peer)
+    receiver_stats_samples = Enum.map(receiver_stats_samples, &hd/1)
+
     assert length(sender_stats_samples) == length(receiver_stats_samples)
 
-    # minimal number of consequtive stats that have to be
+    # minimal number of consecutive stats that have to be
     # equal. They are counted up to the end meaning
-    # [true, true, false] is not the same as 
-    # [false, true, true] i.e. the first one will 
+    # [true, true, false] is not the same as
+    # [false, true, true] i.e. the first one will
     # always fail as once we start getting equal
     # stats we cannot have regression
     min_equal_stats_number = div(length(sender_stats_samples), 2)

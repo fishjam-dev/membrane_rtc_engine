@@ -10,11 +10,6 @@ defmodule TestVideoroom.Application do
       TestVideoroomWeb.Endpoint
     ]
 
-    children =
-      if Application.fetch_env!(:test_videoroom, :use_result_receiver),
-        do: children ++ [{TestVideoroom.TestResultReceiver, restart: :temporary}],
-        else: children
-
     opts = [strategy: :one_for_one, name: TestVideoroom.Supervisor]
 
     Supervisor.start_link(children, opts)

@@ -23,7 +23,7 @@ defmodule TestBrowserTest do
     Process.sleep(@test_warmup_time)
 
     server = System.get_env("SERVER_HOSTNAME", "localhost")
-    server_receiver = {TestVideoroom.TestResultReceiver, String.to_atom(server <> "@" <> server)}
+    server_receiver = {TestVideoroom.Integration.ResultReceiver, String.to_atom(server <> "@" <> server)}
     stats_task = Task.async(fn -> receive_stats(server_receiver) end)
 
     hostname = with {:ok, hostname} <- :inet.gethostname(), do: to_string(hostname)
@@ -42,7 +42,7 @@ defmodule TestBrowserTest do
         {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval,
           tag: :after_applying_packet_loss_on_one_user},
 
-        # Get local stream stats so that we know our stream ID
+        # Get local stream stats so that we know our peer ID
         {:get_stats, @simulcast_outbound_stats, 1, 0, tag: :local_stream_stats}
       ],
       id: hostname

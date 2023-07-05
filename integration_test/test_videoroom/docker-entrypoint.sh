@@ -4,5 +4,5 @@
 if [ $# -gt 0 ]; then
   exec "$@"
 else
-  elixir --sname $(hostname) --cookie "$ERL_COOKIE" -S mix run --no-halt
+  elixir --sname $(hostname) --cookie "$ERL_COOKIE" -S mix test.containerised --only packet_loss_test
 fi

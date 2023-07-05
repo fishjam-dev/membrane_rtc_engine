@@ -15,6 +15,7 @@ rm -rf $SHARED_VOLUME_DIR
 docker compose build
 echo "Running packet loss test"
 docker compose up --exit-code-from=server server browser0 browser1 browser2 &
+COMPOSE_JOB_ID=$!
 
 cleanup() {
   docker compose down --rmi local --volumes
@@ -32,18 +33,15 @@ while [ ! -f "${SHARED_VOLUME_DIR}/ENABLE_PACKET_LOSS" ]; do
   sleep 1
 done
 
-# The netem command will return an error when a container is stopped before the packet loss duration
-# is up. This means we either need to kill it (and know when to do that), or ignore the error:
-set +e
-
 echo "Applying packet loss to $APPLY_LOSS_TO for $LOSS_DURATION seconds"
 pumba netem \
   --duration "${LOSS_DURATION}s" \
   loss \
   --percent 50 \
-  $APPLY_LOSS_TO
+  $APPLY_LOSS_TO &
 
-echo "Network condition simulation over. Waiting for the docker-compose job to complete..."
+NETEM_JOB_ID=$!
+trap "set +e; kill $NETEM_JOB_ID; cleanup" EXIT
 
-wait
+wait $COMPOSE_JOB_ID
 exit $?

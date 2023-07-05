@@ -35,6 +35,7 @@ class Room {
     this.encodings = ["l", "m", "h"];
     this.peerMetadata = null;
     this.trackMetadata = null;
+    this.peerIdToVideoTrack = {};
     this.selfId = null;
     this.simulcast = simulcast;
     this.remoteTracks = new Map();
@@ -71,6 +72,10 @@ class Room {
 
       video.srcObject = ctx.stream;
       this.remoteTracks.set(ctx.trackId, ctx);
+
+      if (ctx.track.kind === "video") {
+        this.peerIdToVideoTrack[ctx.endpoint.id] = ctx.track;
+      }
     });
 
     this.webrtc.on("trackAdded", (ctx) => {

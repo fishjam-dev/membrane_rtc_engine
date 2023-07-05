@@ -94,36 +94,47 @@ async function isAudioPlayingFirefox(peerConnection, audioTrack) {
   return packetsStart > 0 && packetsEnd > 0 && packetsEnd > packetsStart;
 }
 
-export async function inboundSimulcastStreamStats(peerConnection) {
+export async function inboundSimulcastStreamStats(room) {
+  // we are accessing room's private fields, in the name of science of course...
+  const peerConnection = room.webrtc.connection;
+
+  const stats = room.peers.map(async (peer) => {
+    const videoTrack = room.peerIdToVideoTrack[peer.id];
+    const track_stats = await peerConnection.getStats(videoTrack);
+
+    let data = { peerId: peer.id, height: null, width: null, framesPerSecond: 0 }
+    for (let [_key, report] of track_stats) {
+      if (report.type == "inbound-rtp") {
+        data = getDataFromReport(report)
+        data.framesReceived = report.framesReceived
+        data.peerId = peer.id
+        // The following works for one peer only...
+        data.encoding = room.getPeerEncoding()
+      }
+    }
+
+    return data;
+  });
+
+  return (await Promise.all(stats));
+}
+
+export async function outboundSimulcastStreamStats(room) {
+  const peerConnection = room.webrtc.connection;
   const stats = await peerConnection.getStats();
-  let data = { height: null, width: null, framesPerSecond: 0 }
+
+  let data = { peerId: room.selfId, "l": null, "m": null, "h": null }
   for (let [_key, report] of stats) {
-    if (report.type == "inbound-rtp") {
-      data = getDataFromReport(report)
-      data.framesReceived = report.framesReceived
+    if (report.type == "outbound-rtp") {
+      let rid = report.rid
+      data[rid] = getDataFromReport(report)
+      data[rid].framesSent = report.framesSent
+      data[rid].qualityLimitationDuration = report["qualityLimitationDurations"]
+      data[rid].qualityLimitationReason = report["qualityLimitationReason"]
     }
   }
 
   return data
-}
-
-
-
-export async function outboundSimulcastStreamStats(peerConnection) {
-  const stats = await peerConnection.getStats();
-
-  let streams = { "l": null, "m": null, "h": null }
-  for (let [_key, report] of stats) {
-    if (report.type == "outbound-rtp") {
-      let rid = report.rid
-      streams[rid] = getDataFromReport(report)
-      streams[rid].framesSent = report.framesSent
-      streams[rid].qualityLimitationDuration = report["qualityLimitationDurations"]
-      streams[rid].qualityLimitationReason = report["qualityLimitationReason"]
-    }
-  }
-
-  return streams
 }
 
 function getDataFromReport(values) {
@@ -134,7 +145,8 @@ function getDataFromReport(values) {
   return data
 }
 
-export async function remoteStreamsStats(peerConnection) {
+export async function remoteStreamsStats(room) {
+  const peerConnection = room.webrtc.connection;
   const streams = peerConnection.getRemoteStreams();
 
   const firefoxTrackActive = peerConnection
