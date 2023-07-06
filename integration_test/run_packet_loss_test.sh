@@ -1,5 +1,7 @@
 #!/bin/bash
 
+TEST_DEPS="docker pumba"
+
 # test phase durations (in seconds)
 LOSS_DURATION=60
 
@@ -11,6 +13,13 @@ APPLY_LOSS_TO="browser0"
 set -e
 
 rm -rf $SHARED_VOLUME_DIR
+
+for dep in $TEST_DEPS; do
+  if [ ! $(which $dep) ]; then
+    echo "Unable to run test (missing dependency: $dep)"
+    exit 1
+  fi
+done
 
 docker compose build
 echo "Running packet loss test"
