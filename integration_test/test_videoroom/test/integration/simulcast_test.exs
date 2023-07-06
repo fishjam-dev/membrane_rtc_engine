@@ -364,8 +364,8 @@ defmodule TestVideoroom.Integration.SimulcastTest do
          sender_stats_samples,
          receiver_stats_samples
        ) do
-    # Extract receiver stat samples from lists (only one other peer)
-    receiver_stats_samples = Enum.map(receiver_stats_samples, &hd/1)
+    # Receiver stat samples are a nested list of lists, so we need to flatten it (there is only one other peer)
+    receiver_stats_samples = List.flatten(receiver_stats_samples)
 
     assert length(sender_stats_samples) == length(receiver_stats_samples)
 

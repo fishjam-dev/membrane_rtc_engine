@@ -49,7 +49,32 @@ defmodule TestVideoroom.Integration.ContainerisedTest do
     end
   end
 
-  # We need to transform the results to be able to work with them easier
+  # We need to transform the results to be able to work with them more easily
+  # The results we receive have the following structure:
+  #   %{
+  #     "browser0" => %{    # Everything we received from the browser "browser0"
+  #       tag0: %{
+  #         "browser0" => [     # "browser0" => All entries from this browser, related to this tag
+  #                             # This layer is entirely redundant (there is only one entry in this map, "browser0")
+  #           [                   # Entries from the two other browsers, from around the same time
+  #             %{...},             # single stat entry from the first other browser
+  #             ${...}              # single stat entry from the second other browser
+  #           ],
+  #           [                   # Entries from the two other browsers (another reading)
+  #             ...
+  #           ],
+  #           ... # (as many entries as there have been readings for the given tag)
+  #         ]
+  #       },
+  #       tag1: %{
+  #         ...
+  #       }
+  #     },
+  #     "browser1" => %{    # Everything we received from the browser "browser1"
+  #       ...
+  #     }
+  #   }
+  #
   # After calling `prepare_results/1`, the results will have the following structure:
   #   %{
   #     tag0: [
@@ -118,29 +143,27 @@ defmodule TestVideoroom.Integration.ContainerisedTest do
   defp assert_packet_loss_stats(:after_warmup, tag_results) do
     frame_count_base = get_frame_count_base(tag_results)
 
-    for result <- tag_results do
-      for {receiver_id, browser_result} <- result do
-        # Assert that the browser received a similar amount of frames from every other browser
-        {frames_min, frames_max} =
-          Enum.map(browser_result, fn {sender_id, stat_entry} ->
-            stat_entry["framesReceived"] - frame_count_base[receiver_id][sender_id]
-          end)
-          |> Enum.min_max()
+    for result <- tag_results, {receiver_id, browser_result} <- result do
+      # Assert that the browser received a similar amount of frames from every other browser
+      {frames_min, frames_max} =
+        Enum.map(browser_result, fn {sender_id, stat_entry} ->
+          stat_entry["framesReceived"] - frame_count_base[receiver_id][sender_id]
+        end)
+        |> Enum.min_max()
 
-        assert frames_max - frames_min <= @max_frame_count_difference
+      assert frames_max - frames_min <= @max_frame_count_difference
 
-        # Assert that every other browser received a similar amount of frames from this given
-        # browser
-        {frames_min, frames_max} =
-          Map.delete(result, receiver_id)
-          |> Enum.map(fn {other_receiver_id, other_browser_result} ->
-            other_browser_result[receiver_id]["framesReceived"] -
-              frame_count_base[other_receiver_id][receiver_id]
-          end)
-          |> Enum.min_max()
+      # Assert that every other browser received a similar amount of frames from this given
+      # browser
+      {frames_min, frames_max} =
+        Map.delete(result, receiver_id)
+        |> Enum.map(fn {other_receiver_id, other_browser_result} ->
+          other_browser_result[receiver_id]["framesReceived"] -
+            frame_count_base[other_receiver_id][receiver_id]
+        end)
+        |> Enum.min_max()
 
-        assert frames_max - frames_min <= @max_frame_count_difference
-      end
+      assert frames_max - frames_min <= @max_frame_count_difference
     end
   end
 
