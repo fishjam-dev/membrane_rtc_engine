@@ -11,6 +11,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   @fixtures_dir "./test/fixtures/"
   @playlist_playable_delay 20_000
   @segment_delay 25_000
+  @tracks_added_delay 500
 
   setup do
     options = [
@@ -57,9 +58,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^file_endpoint_id,
-        message: :tracks_added
-      }
+                       endpoint_id: ^file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
 
@@ -106,16 +108,18 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^video_file_endpoint_id,
-        message: :tracks_added
-      }
+                       endpoint_id: ^video_file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^audio_file_endpoint_id,
-        message: :tracks_added
-      }
+                       endpoint_id: ^audio_file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
@@ -165,16 +169,18 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^video_file_endpoint_id,
-        message: :tracks_added
-      }
+                       endpoint_id: ^video_file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^audio_file_endpoint_id,
-        message: :tracks_added
-      }
+                       endpoint_id: ^audio_file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
@@ -222,16 +228,18 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^file_endpoint_id,
-        message: :tracks_added
-      }
+                       endpoint_id: ^file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint_2, id: file_endpoint_id_2)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^file_endpoint_id_2,
-        message: :tracks_added
-      }
+                       endpoint_id: ^file_endpoint_id_2,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
@@ -274,16 +282,18 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^file_endpoint_id,
-        message: :tracks_added
-      }
+                       endpoint_id: ^file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint_2, id: file_endpoint_id_2)
 
       assert_receive %Message.EndpointMessage{
-        endpoint_id: ^file_endpoint_id_2,
-        message: :tracks_added
-      }
+                       endpoint_id: ^file_endpoint_id_2,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
 
       Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
       Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
