@@ -152,8 +152,6 @@ if Enum.all?(
           track.stream_id == removed_track.stream_id
         end)
 
-      # is this still valid
-
       children_to_remove =
         if is_nil(state.mixer_config) and not sink_bin_used? do
           [{:hls_sink_bin, removed_track.stream_id}]
