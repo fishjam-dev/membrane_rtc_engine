@@ -88,8 +88,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_aac_plugin, "~> 0.15.0", optional: true},
       {:membrane_opus_plugin, "~> 0.17.1", optional: true},
       {:membrane_aac_fdk_plugin, "~> 0.15.1", optional: true},
-      {:membrane_audio_mix_plugin,
-       github: "membraneframework/membrane_audio_mix_plugin", optional: true},
+      {:membrane_audio_mix_plugin, "~> 0.15.2", optional: true},
       {:membrane_raw_audio_format, "~> 0.11.0", optional: true},
       {:membrane_h264_plugin, "~> 0.4.0", optional: true},
       {:membrane_h264_ffmpeg_plugin, "~> 0.27.0", optional: true},
@@ -211,7 +210,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp groups_for_extras() do
     [
       {"Developer docs", ~r/internal_docs\//},
-      # negative lookahead to match everything 
+      # negative lookahead to match everything
       # except upgrading directory
       {"Guides", ~r/guides\/^(.(?!upgrading\/))*$/},
       {"Upgrading", ~r/guides\/upgrading\//}
