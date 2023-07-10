@@ -4,12 +4,16 @@ defmodule Membrane.RTC.Engine.Endpoints.HLS.CompositorHandler.Utils do
   """
 
   alias Membrane.VideoCompositor.BaseVideoPlacement
+  alias Membrane.VideoCompositor.Transformations
   alias Membrane.VideoCompositor.Transformations.{CornersRounding, Cropping}
 
   @padding 5
   @z_value 0.1
   @corner_radius 20
 
+  @type video_format :: %{width: integer(), height: integer()}
+
+  @spec get_desired_stream_format(pos_integer(), video_format()) :: video_format()
   def get_desired_stream_format(1, output_stream_format) do
     output_stream_format
   end
@@ -28,6 +32,13 @@ defmodule Membrane.RTC.Engine.Endpoints.HLS.CompositorHandler.Utils do
     }
   end
 
+  @spec get_placement(
+          video_format(),
+          pos_integer(),
+          non_neg_integer(),
+          video_format(),
+          video_format()
+        ) :: BaseVideoPlacement.t()
   def get_placement(desired_stream_format, 1, 0, input_stream_format, _output_stream_format) do
     %BaseVideoPlacement{
       position: {0, 0},
@@ -63,6 +74,7 @@ defmodule Membrane.RTC.Engine.Endpoints.HLS.CompositorHandler.Utils do
     }
   end
 
+  @spec get_transformations(video_format(), video_format()) :: [Transformations.t()]
   def get_transformations(desired_stream_format, scaled_stream_format) do
     [
       get_cropping(desired_stream_format, scaled_stream_format),
@@ -95,13 +107,13 @@ defmodule Membrane.RTC.Engine.Endpoints.HLS.CompositorHandler.Utils do
       cropped_video_position: :input_position
     }
 
-  defp get_cropping_position(desired_stream_format, {width, height}) do
+  defp get_cropping_position(desired_stream_format, %{width: width, height: height}) do
     if desired_stream_format.width == width,
       do: {0.0, (height - desired_stream_format.height) / (2 * height)},
       else: {(width - desired_stream_format.width) / (2 * width), 0.0}
   end
 
-  defp get_cropping_size(desired_stream_format, {width, height}) do
+  defp get_cropping_size(desired_stream_format, %{width: width, height: height}) do
     if desired_stream_format.width == width,
       do: {1.0, desired_stream_format.height / height},
       else: {desired_stream_format.width / width, 1.0}

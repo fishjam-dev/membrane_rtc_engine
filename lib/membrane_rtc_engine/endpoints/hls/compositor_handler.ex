@@ -35,8 +35,8 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
 
     @behaviour Membrane.VideoCompositor.Handler
 
-    alias Membrane.VideoCompositor.{VideoConfig, Scene}
     alias Membrane.RTC.Engine.Endpoints.HLS.CompositorHandler.Utils
+    alias Membrane.VideoCompositor.{Scene, VideoConfig}
 
     @impl true
     def handle_init(ctx) do
@@ -84,7 +84,8 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
           output_stream_format
         )
 
-      scaled_stream_format = placement.size
+      {scaled_width, scaled_height} = placement.size
+      scaled_stream_format = %{width: scaled_width, height: scaled_height}
 
       # Compositor works in two steps.
       # First it scales and places video creating output in `scaled_stream_format`.
