@@ -76,6 +76,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       |> child(:payloader, payloader_bin)
       |> via_in(:input, toilet_capacity: 1000)
       |> child(:realtimer, Membrane.Realtimer)
+      |> via_in(:input, toilet_capacity: 1000)
       |> child(:track_sender, %StaticTrackSender{track: state.track})
       |> bin_output(pad)
     ]
