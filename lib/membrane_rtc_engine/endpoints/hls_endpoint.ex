@@ -456,6 +456,7 @@ if Enum.all?(
           })
           |> child(:video_parser_out, video_parser_out)
           |> via_in(Pad.ref(:input, :video),
+            toilet_capacity: 500,
             options: [
               encoding: :H264,
               segment_duration: state.hls_config.segment_duration,
@@ -485,6 +486,7 @@ if Enum.all?(
             }
           })
           |> child(:aac_encoder, Membrane.AAC.FDK.Encoder)
+          |> via_in(:input, toilet_capacity: 500)
           |> child(:aac_parser, %Membrane.AAC.Parser{out_encapsulation: :none})
           |> via_in(Pad.ref(:input, :audio),
             options: [
