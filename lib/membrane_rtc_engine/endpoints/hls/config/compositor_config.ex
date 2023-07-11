@@ -11,12 +11,10 @@ if Code.ensure_loaded?(Membrane.RawVideo) do
     * `stream_format` - output video specification in Membrane.RawVideo format
     * `layout_module` - Module implementing `Membrane.RTC.Engine.Endpoint.HLS.VideoLayoutMaker`
       behavior that should be used by the HLS endpoint.
-    * `background` - Struct representing module that generates video used as a background in composed video.
     """
     @type t() :: %__MODULE__{
             stream_format: Membrane.RawVideo.t(),
-            layout_module: module(),
-            background: struct() | nil
+            layout_module: module()
           }
     defstruct stream_format: %Membrane.RawVideo{
                 width: 1280,
@@ -25,7 +23,6 @@ if Code.ensure_loaded?(Membrane.RawVideo) do
                 framerate: {24, 1},
                 aligned: true
               },
-              layout_module: Membrane.RTC.Engine.Endpoint.HLS.CustomLayoutMaker,
-              background: nil
+              layout_module: Membrane.RTC.Engine.Endpoint.HLS.CustomLayoutMaker
   end
 end

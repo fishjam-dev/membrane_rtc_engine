@@ -177,7 +177,7 @@ defmodule Membrane.RTC.Engine.Track do
         {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
       end
   """
-  @spec get_depayloader(t()) :: Membrane.ChildrenSpec.child_definition_t() | nil
+  @spec get_depayloader(t()) :: Membrane.ChildrenSpec.child_definition() | nil
   def get_depayloader(track) do
     case Membrane.RTP.PayloadFormat.get(track.encoding).depayloader do
       nil ->
