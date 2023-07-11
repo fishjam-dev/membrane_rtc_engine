@@ -189,6 +189,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert_receive({:manifest, %{muxed_segments: 2}})
 
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
+      Process.sleep(1000)
 
       check_muxed_hls_playlist(tmp_dir, 2, 2)
     end
@@ -252,7 +253,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert_receive({:manifest, %{video_segments: 2}})
 
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
-
+      Process.sleep(1000)
       check_separate_hls_playlist(tmp_dir, 2, 3)
     end
 
@@ -306,6 +307,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert_receive({:manifest, %{video_segments: 2}})
 
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
+      Process.sleep(1000)
 
       check_separate_hls_playlist(tmp_dir, 2, 3)
     end

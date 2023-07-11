@@ -94,7 +94,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_h264_ffmpeg_plugin, "~> 0.27.0", optional: true},
       {:membrane_video_compositor_plugin,
        github: "membraneframework/membrane_video_compositor_plugin",
-       branch: "fix_handling_input_pad_removed_without_buffer",
+       branch: "fix_ci_adapter_request",
        optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.15.0", optional: true},
 
