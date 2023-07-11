@@ -61,6 +61,7 @@ if Enum.all?(
       :depayloader
     ]
 
+    @toilet_capacity 500
     @terminate_timeout 5000
 
     def_input_pad :input,
@@ -456,7 +457,7 @@ if Enum.all?(
           })
           |> child(:video_parser_out, video_parser_out)
           |> via_in(Pad.ref(:input, :video),
-            toilet_capacity: 500,
+            toilet_capacity: @toilet_capacity,
             options: [
               encoding: :H264,
               segment_duration: state.hls_config.segment_duration,
@@ -486,7 +487,7 @@ if Enum.all?(
             }
           })
           |> child(:aac_encoder, Membrane.AAC.FDK.Encoder)
-          |> via_in(:input, toilet_capacity: 500)
+          |> via_in(:input, toilet_capacity: @toilet_capacity)
           |> child(:aac_parser, %Membrane.AAC.Parser{out_encapsulation: :none})
           |> via_in(Pad.ref(:input, :audio),
             options: [
