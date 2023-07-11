@@ -34,6 +34,8 @@ RUN mix deps.compile
 COPY ${APP_PATH}/lib lib/
 RUN mix compile
 
+COPY ${APP_PATH}/test test/
+
 COPY ${APP_PATH}/config/runtime.exs config/
 
 COPY ${APP_PATH}/assets assets/

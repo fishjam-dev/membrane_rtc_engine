@@ -42,8 +42,9 @@ defmodule TestVideoroom.MixProject do
 
   defp aliases() do
     [
-      test: ["assets.deploy", "test"],
-      "assets.deploy": ["esbuild default --minify", "phx.digest"]
+      test: ["assets.deploy", "test --exclude containerised"],
+      "assets.deploy": ["esbuild default --minify", "phx.digest"],
+      "test.containerised": ["test --only containerised"]
     ]
   end
 end

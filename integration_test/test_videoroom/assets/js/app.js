@@ -108,8 +108,7 @@ async function refreshStats(statsFunction) {
       .webrtc.connection}`;
     return;
   }
-  // we are accessing room's private field, in the name of science of course...
-  const stats = await statsFunction(room.webrtc.connection);
+  const stats = await statsFunction(room);
 
   putStats(stats)
 }
@@ -147,11 +146,5 @@ localHighEncodingButton.onclick = () => { toggleSimulcastEncoding(localHighEncod
 peerLowEncodingButton.onclick = () => { room.selectPeerSimulcastEncoding("l") }
 peerMediumEncodingButton.onclick = () => { room.selectPeerSimulcastEncoding("m") }
 peerHighEncodingButton.onclick = () => { room.selectPeerSimulcastEncoding("h") }
-inboundSimulcastStatsButton.onclick = () => {
-  refreshStats(async (connection) => {
-    let stats = await inboundSimulcastStreamStats(connection)
-    stats.encoding = room.getPeerEncoding()
-    return stats
-  })
-}
+inboundSimulcastStatsButton.onclick = () => { refreshStats(inboundSimulcastStreamStats) }
 outboundSimulcastStatsButton.onclick = () => { refreshStats(outboundSimulcastStreamStats) }

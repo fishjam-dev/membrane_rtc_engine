@@ -56,8 +56,7 @@ config :test_videoroom,
     |> ConfigParser.parse_port_number("INTEGRATED_TLS_TURN_PORT"),
   integrated_turn_pkey: System.get_env("INTEGRATED_TURN_PKEY"),
   integrated_turn_cert: System.get_env("INTEGRATED_TURN_CERT"),
-  integrated_turn_domain: System.get_env("VIRTUAL_HOST"),
-  use_result_receiver: System.get_env("USE_RESULT_RECEIVER") == "true"
+  integrated_turn_domain: System.get_env("VIRTUAL_HOST")
 
 protocol = if System.get_env("USE_TLS") == "true", do: :https, else: :http
 

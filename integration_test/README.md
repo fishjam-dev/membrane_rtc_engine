@@ -13,4 +13,4 @@ Simple test using four containers: `test_videoroom` and three `test_browser`s. T
 to videoroom, start sending and receiving media, then we apply packet loss on one of the browser
 containers and verify that other browsers receive less frames only from this particular one.
 
-To run, execute `./test_packet_loss.sh`
+To run, execute `./run_packet_loss_test.sh`

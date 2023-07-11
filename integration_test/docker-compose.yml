@@ -25,7 +25,6 @@ services:
       USE_TLS: "true"
       KEY_FILE_PATH: "priv/cert/selfsigned_key.pem"
       CERT_FILE_PATH: "priv/cert/selfsigned.pem"
-      USE_RESULT_RECEIVER: "true"
     networks:
       network:
         ipv4_address: 192.168.0.50
