@@ -15,6 +15,7 @@ jobs:
 
     steps:
       - checkout
+      - run: apt update -y && apt upgrade -y
       - run: mix deps.get
       - run: mix coveralls.json
       - codecov/upload

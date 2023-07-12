@@ -92,10 +92,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_raw_audio_format, "~> 0.11.0", optional: true},
       {:membrane_h264_plugin, "~> 0.4.0", optional: true},
       {:membrane_h264_ffmpeg_plugin, "~> 0.27.0", optional: true},
-      {:membrane_video_compositor_plugin,
-       github: "membraneframework/membrane_video_compositor_plugin",
-       branch: "fix_handling_input_pad_removed_without_buffer",
-       optional: true},
+      {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true},
       {:membrane_http_adaptive_stream_plugin, "~> 0.15.0", optional: true},
 
       # Optional deps for RTSP endpoint
