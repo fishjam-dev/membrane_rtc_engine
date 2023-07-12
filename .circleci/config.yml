@@ -5,7 +5,7 @@ orbs:
 
 jobs:
   test:
-    resource_class: medium+	
+    resource_class: large
     docker:
       - image: membraneframeworklabs/docker_membrane:v1.8.1
         environment:
@@ -15,6 +15,7 @@ jobs:
 
     steps:
       - checkout
+      - run: apt update -y && apt upgrade -y
       - run: mix deps.get
       - run: mix coveralls.json
       - codecov/upload
