@@ -7,7 +7,7 @@ jobs:
   test:
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:v1.8.1
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
         environment:
           MIX_ENV: test
 
@@ -15,7 +15,6 @@ jobs:
 
     steps:
       - checkout
-      - run: apt update -y && apt upgrade -y
       - run: mix deps.get
       - run: mix coveralls.json
       - codecov/upload
@@ -23,7 +22,7 @@ jobs:
   lint:
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:v1.8.1
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
         environment:
           MIX_ENV: dev
 
@@ -41,7 +40,7 @@ jobs:
   integration_test:
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:v1.8.1
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
         environment:
           MIX_ENV: test
           NODE_ENV: development
