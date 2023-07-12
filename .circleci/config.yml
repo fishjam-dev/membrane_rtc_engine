@@ -5,7 +5,7 @@ orbs:
 
 jobs:
   test:
-    resource_class: xlarge
+    resource_class: medium+	
     docker:
       - image: membraneframeworklabs/docker_membrane:v1.8.1
         environment:
