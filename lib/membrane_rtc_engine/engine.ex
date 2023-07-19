@@ -44,6 +44,8 @@ defmodule Membrane.RTC.Engine do
   * `#{inspect(__MODULE__)}.Endpoint.RTSP` which is responsible for connecting to a remote RTSP stream source and
   sending the appropriate media track to other Endpoints. RTSP Endpoint is a Standalone Endpoint.
 
+  Each of these endpoints is available as a separate package. Refer to the `endpoints/` directory in the repo for usage examples.
+
   User can also implement custom Endpoints, see Custom Endpoints guide.
 
   ### Readiness state
@@ -393,13 +395,16 @@ defmodule Membrane.RTC.Engine do
 
     endpoint =
       case endpoint do
-        %Endpoint.WebRTC{} ->
-          %Endpoint.WebRTC{
-            endpoint
-            | telemetry_label: state.telemetry_label ++ [endpoint_id: endpoint_id],
-              parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
-              trace_context: state.trace_context
-          }
+        %_module{
+          telemetry_label: _label,
+          parent_span: _span,
+          trace_context: _ctx
+        } ->
+          struct(endpoint,
+            telemetry_label: state.telemetry_label ++ [endpoint_id: endpoint_id],
+            parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
+            trace_context: state.trace_context
+          )
 
         another_endpoint ->
           another_endpoint

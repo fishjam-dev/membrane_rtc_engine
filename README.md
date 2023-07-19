@@ -26,6 +26,16 @@ def deps do
 end
 ```
 
+To use a given Endpoint, you have to include it in your list of dependencies as well:
+```elixir
+def deps do
+  [
+    {:membrane_rtc_engine, "~> 0.16.0"},
+    {:membrane_rtc_engine_endpoint_webrtc, "~> 0.1.0"}
+  ]
+end
+```
+
 ## Usage
 
 For usage examples, please refer to our [membrane_demo](https://github.com/membraneframework/membrane_demo/tree/master/webrtc_videoroom) or
@@ -33,7 +43,11 @@ For usage examples, please refer to our [membrane_demo](https://github.com/membr
 
 ## Developing
 
-To make the development a little easier, we have added `mix integration_test` task, which runs integration tests from `integration/test_videoroom`.
+To make the development a little easier, we have added several tasks:
+ - `mix test.all`, which runs unit tests from the engine, unit tests from each endpoint, and
+   endpoint integration tests,
+ - `mix test.webrtc.integration`, which runs WebRTC Endpoint integration tests
+   (from `endpoints/webrtc/integration_test/test_videoroom`).
 
 ## Copyright and License
 

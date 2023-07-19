@@ -2,7 +2,7 @@ defmodule Membrane.RTC.Engine.Endpoint do
   @moduledoc """
   Module representing RTC Engine's endpoint.
 
-  For specific information about possible endpoints, refer to modules specified by `t:type/0`.
+  For specific information about possible endpoints, refer to the `endpoints/` directory in the repo.
   """
   use Bunch.Access
   alias Membrane.RTC.Engine.Track

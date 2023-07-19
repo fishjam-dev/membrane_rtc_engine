@@ -4,12 +4,12 @@ This section outlines how to implement a custom RTC Engine endpoint that
 saves tracks published by the WebRTC endpoint.
 
 > #### Before you continue {: .tip}
-> It is recommended to read [Track Lifcycle](guides/track_lifecycle.md) section before
+> It is recommended to read [Track Lifecycle](guides/track_lifecycle.md) section before
 > diving deeper in this guide.
 > You will also find there some information about publishing a track.
 
 > #### HLS endpoint {: .tip}
-> Another endpoint that saves WebRTC tracks and is shipped with the engine is [the HLS endpoint](`Membrane.RTC.Engine.Endpoint.HLS`).
+> Another endpoint that saves WebRTC tracks and is shipped with the engine is [the HLS endpoint](https://hexdocs.pm/membrane_rtc_engine_endpoint_hls/readme.html).
 
 ## General rules
 
@@ -22,14 +22,14 @@ don't process data
 
 ## Implementing `Membrane.Bin`
 
-To implement `Membrane.Bin` behavior we have to: 
+To implement `Membrane.Bin` behavior we have to:
 * `use Membrane.Bin`
 * specify some configuration options (if needed)
-* specify input and/or output pads 
+* specify input and/or output pads
 * implement some callbacks.
 
 Pads definition depends on what our bin is intended to do.
-For example, if our endpoint does not publish any tracks but only subscribes for tracks from other 
+For example, if our endpoint does not publish any tracks but only subscribes for tracks from other
 endpoints it can specify only input pads.
 Pads should be in the following form
 
@@ -90,8 +90,8 @@ end
 
 ## Consuming data
 
-Because `Membrane.Bin`s are not capable of sending or consuming any data on their own 
-(they can be more thought of as logical containers) we have to add at least one 
+Because `Membrane.Bin`s are not capable of sending or consuming any data on their own
+(they can be more thought of as logical containers) we have to add at least one
 casual Membrane element that will do this for us.
 
 In our case, we will need three elements:
@@ -99,7 +99,7 @@ In our case, we will need three elements:
 possible track variant and switching to other variants when the currently used one becomes inactive
 * [`Membrane.Stream.Serializer`](https://hexdocs.pm/membrane_stream_plugin/Membrane.Stream.Serializer.html) -
 used for serializing incoming Membrane stream
-* `Membrane.File.Sink` - used for saving serialized data into a file 
+* `Membrane.File.Sink` - used for saving serialized data into a file
 
 For each incoming track we will create separate serializer and sink.
 
@@ -108,7 +108,7 @@ For each incoming track we will create separate serializer and sink.
 Whenever some endpoint publishes its tracks, all other endpoints receive a message
 in form of `{:new_tracks, tracks}` where `tracks` is a list of `t:Membrane.RTC.Engine.Track.t/0`.
 
-To subscribe to any of the published tracks, an endpoint has to call `Membrane.RTC.Engine.subscribe/4`. 
+To subscribe to any of the published tracks, an endpoint has to call `Membrane.RTC.Engine.subscribe/4`.
 
 After subscribing to a track, the endpoint will be notified about its readiness in
 `c:Membrane.Bin.handle_pad_added/3` callback. An example implementation of `handle_pad_added`
@@ -133,7 +133,7 @@ def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
 end
 ```
 
-We simply link our input pad on which we will receive media data to the track receiver, 
+We simply link our input pad on which we will receive media data to the track receiver,
 serializer and then to the sink.
 
 The endpoint will be also notified when some tracks it subscribed to are removed with
@@ -143,16 +143,16 @@ The endpoint will be also notified when some tracks it subscribed to are removed
 >
 > After linking the input pad for a given track, our endpoint will start receiving events.
 > The very first event is always `TrackVariantResumed`. It informs that a given track
-> variant is available and can be requested with the `RequestTrackVariant` event. 
+> variant is available and can be requested with the `RequestTrackVariant` event.
 > The engine ensures that each endpoint always receives a track variant starting from
-> a keyframe, so before receiving the first media packets our endpoint 
+> a keyframe, so before receiving the first media packets our endpoint
 > will receive the `TrackVariantSwitched` event and finally media packets will
 > start flowing.
-> 
+>
 > When some track variant is paused, the endpoint will receive the `TrackVariantPaused` event.
 >
 > The whole process is shown in the following diagram
-> 
+>
 > ```ascii
 > Engine ---- TrackVariantResumed (:medium) ---> Endpoint
 > Engine <--- RequestTrackVariant (:medium) ---- Endpoint
@@ -163,7 +163,7 @@ The endpoint will be also notified when some tracks it subscribed to are removed
 > Engine <--- RequestTrackVariant (:low)    ---- Endpoint
 > ```
 >
-> Because this logic must be duplicated in each endpoint we encapsulated 
+> Because this logic must be duplicated in each endpoint we encapsulated
 > it into `TrackReceiver` that can easily be plugged in before the actual
 > Membrane element.
 >
