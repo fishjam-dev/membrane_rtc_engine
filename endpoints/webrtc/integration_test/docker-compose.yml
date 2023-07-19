@@ -1,0 +1,62 @@
+version: "3"
+
+x-browser-template: &browser-template
+  image: test_videoroom_browser_image
+  environment:
+    ERL_COOKIE: "panuozzo-pollo-e-pancetta"
+    SERVER_HOSTNAME: "mediaserver"
+  networks:
+    - network
+  depends_on:
+    - server
+
+services:
+  server:
+    build:
+      context: ../../..
+      dockerfile: endpoints/webrtc/integration_test/test_videoroom/Dockerfile
+    container_name: mediaserver
+    hostname: mediaserver
+    environment:
+      ERL_COOKIE: "panuozzo-pollo-e-pancetta"
+      VIRTUAL_HOST: "mediaserver"
+      INTEGRATED_TURN_IP: "192.168.0.50"
+      INTEGRATED_TURN_PORT_RANGE: "50000-50050"
+      USE_TLS: "true"
+      KEY_FILE_PATH: "priv/cert/selfsigned_key.pem"
+      CERT_FILE_PATH: "priv/cert/selfsigned.pem"
+    networks:
+      network:
+        ipv4_address: 192.168.0.50
+    volumes:
+      - ./tmp/shared:/app/shared
+
+  # Necessary for the browser container image to be built once instead of three times
+  browser_base:
+    build: test_browser
+    image: test_videoroom_browser_image
+    networks:
+      - network
+
+  browser0:
+    <<: *browser-template
+    container_name: browser0
+    hostname: browser0
+
+  browser1:
+    <<: *browser-template
+    container_name: browser1
+    hostname: browser1
+
+  browser2:
+    <<: *browser-template
+    container_name: browser2
+    hostname: browser2
+
+networks:
+  network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.0.0/24
