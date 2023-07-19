@@ -4,7 +4,6 @@ defmodule Membrane.RTC.Utils do
   require OpenTelemetry.Tracer, as: Tracer
   require Membrane.TelemetryMetrics
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTP.PayloadFormatResolver
 
@@ -22,6 +21,9 @@ defmodule Membrane.RTC.Utils do
   #  | etc.
   # to make it easier to reference CallbackContext types.
   @type ctx :: any()
+
+  # Taken from `Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver`
+  @type variant_switch_reason() :: :low_bandwidth | :variant_inactive | :other
 
   defmacro find_child(ctx, pattern: pattern) do
     quote do
@@ -158,7 +160,7 @@ defmodule Membrane.RTC.Utils do
 
   @spec emit_variant_switched_event(
           Track.variant(),
-          TrackReceiver.variant_switch_reason(),
+          variant_switch_reason(),
           Membrane.TelemetryMetrics.label()
         ) :: :ok
   def emit_variant_switched_event(variant, reason, telemetry_label) do
