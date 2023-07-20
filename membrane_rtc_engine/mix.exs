@@ -81,11 +81,11 @@ defmodule Membrane.RTC.Engine.MixProject do
     [
       "test.all": ["test.engine", "test.webrtc", "test.hls", "test.rtsp", "test.integration"],
       "test.engine": ["test"],
-      "test.webrtc": fn _args -> test_endpoint("webrtc") end,
+      "test.webrtc": fn _args -> test_package("membrane_rtc_engine_webrtc") end,
       "test.webrtc.integration": &run_webrtc_integration_tests/1,
-      "test.hls": fn _args -> test_endpoint("hls") end,
-      "test.rtsp": fn _args -> test_endpoint("rtsp") end,
-      "test.integration": fn _args -> test_endpoint("integration_test") end
+      "test.hls": fn _args -> test_package("membrane_rtc_engine_hls") end,
+      "test.rtsp": fn _args -> test_package("membrane_rtc_engine_rtsp") end,
+      "test.integration": fn _args -> test_package("integration_test") end
     ]
   end
 
@@ -197,7 +197,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   end
 
   defp run_webrtc_integration_tests(_cli_args) do
-    path = "endpoints/webrtc/integration_test/test_videoroom"
+    path = "../membrane_rtc_engine_webrtc/integration_test/test_videoroom"
 
     assert_execute("mix", ["deps.get"],
       cd: path,
@@ -246,8 +246,8 @@ defmodule Membrane.RTC.Engine.MixProject do
     end
   end
 
-  defp test_endpoint(endpoint) do
-    path = Path.join("endpoints/", endpoint)
+  defp test_package(name) do
+    path = Path.join("../", name)
 
     assert_execute("mix", ["deps.get"],
       cd: path,

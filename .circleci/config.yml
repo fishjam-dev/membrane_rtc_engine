@@ -13,8 +13,9 @@ workflows:
           base-revision: master
           config-path: .circleci/continue_config.yml
           mapping: |
-            (?!endpoints/).* engine-changed true
-            endpoints/webrtc/.* endpoint-webrtc-changed true
-            endpoints/hls/.* endpoint-hls-changed true
-            endpoints/rtsp/.* endpoint-rtsp-changed true
-            endpoints/integration_test/.* endpoint-integration-changed true
+            (?!(membrane_rtc_engine\w*|integration_test)/).* engine-changed true
+            membrane_rtc_engine/.* engine-changed true
+            membrane_rtc_engine_webrtc/.* webrtc-changed true
+            membrane_rtc_engine_hls/.* hls-changed true
+            membrane_rtc_engine_rtsp/.* rtsp-changed true
+            integration_test/.* integration-changed true

@@ -2,11 +2,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/endpoints/webrtc"
+  @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_webrtc"
 
   def project do
     [
-      app: :membrane_rtc_engine_endpoint_webrtc,
+      app: :membrane_rtc_engine_webrtc,
       version: @version,
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -46,7 +46,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
 
   defp deps do
     [
-      {:membrane_rtc_engine, path: "../.."},
+      # Engine deps
+      {:membrane_rtc_engine, path: "../membrane_rtc_engine"},
+
+      # Regular deps
       {:membrane_core, "~> 0.12.3"},
       {:membrane_webrtc_plugin, "~> 0.15.0"},
       {:membrane_rtp_plugin, "~> 0.23.0"},

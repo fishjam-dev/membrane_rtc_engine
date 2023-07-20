@@ -2,11 +2,11 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/endpoints/rtsp"
+  @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_rtsp"
 
   def project do
     [
-      app: :membrane_rtc_engine_endpoint_rtsp,
+      app: :membrane_rtc_engine_rtsp,
       version: @version,
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -46,8 +46,11 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP.MixProject do
 
   defp deps do
     [
-      {:membrane_rtc_engine, path: "../.."},
-      {:membrane_rtc_engine_endpoint_webrtc, path: "../webrtc"},
+      # Engine deps
+      {:membrane_rtc_engine, path: "../membrane_rtc_engine"},
+      {:membrane_rtc_engine_webrtc, path: "../membrane_rtc_engine_webrtc"},
+
+      # Regular deps
       {:membrane_core, "~> 0.12.3"},
       {:membrane_rtp_plugin, "~> 0.23.0"},
       {:membrane_rtp_format, "~> 0.7.0"},

@@ -1,58 +1,41 @@
 # Membrane RTC Engine
 
-[![Hex.pm](https://img.shields.io/hexpm/v/membrane_rtc_engine.svg)](https://hex.pm/packages/membrane_rtc_engine)
-[![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_rtc_engine)
-[![codecov](https://codecov.io/gh/jellyfish-dev/membrane_rtc_engine/branch/master/graph/badge.svg?token=9F1XHHUY2B)](https://codecov.io/gh/jellyfish-dev/membrane_rtc_engine)
-[![CircleCI](https://circleci.com/gh/jellyfish-dev/membrane_rtc_engine.svg?style=svg)](https://circleci.com/gh/jellyfish-dev/membrane_rtc_engine)
-
 Customizable Real-time Communication Engine/SFU library focused on WebRTC.
-
-## Client SDKs
-
-- [JS/TS](https://github.com/jellyfish-dev/membrane-webrtc-js)
-- [Android](https://github.com/jellyfish-dev/membrane-webrtc-android)
-- [iOS](https://github.com/jellyfish-dev/membrane-webrtc-ios)
-- [React Native](https://github.com/jellyfish-dev/react-native-membrane-webrtc)
-
-## Installation
-
-The package can be installed by adding `membrane_rtc_engine` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:membrane_rtc_engine, "~> 0.15.0"}
-  ]
-end
-```
-
-To use a given Endpoint, you have to include it in your list of dependencies as well:
-```elixir
-def deps do
-  [
-    {:membrane_rtc_engine, "~> 0.16.0"},
-    {:membrane_rtc_engine_endpoint_webrtc, "~> 0.1.0"}
-  ]
-end
-```
 
 ## Usage
 
 For usage examples, please refer to our [membrane_demo](https://github.com/membraneframework/membrane_demo/tree/master/webrtc_videoroom) or
 [membrane_videoroom](https://github.com/membraneframework/membrane_videoroom) repositories.
 
-## Developing
+## Repository structure
 
-To make the development a little easier, we have added several tasks:
- - `mix test.all`, which runs unit tests from the engine, unit tests from each endpoint, and
-   endpoint integration tests,
- - `mix test.webrtc.integration`, which runs WebRTC Endpoint integration tests
-   (from `endpoints/webrtc/integration_test/test_videoroom`).
+This repository currently holds the following packages:
 
-## Copyright and License
+- [`membrane_rtc_engine`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine) - BLABLABLA
+- [`membrane_rtc_engine_webrtc`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_webrtc) -
+  WebRTC Endpoint, responsible for establishing a connection with some WebRTC client (mainly browser) and exchanging media with it,
+- [`membrane_rtc_engine_hls`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_hls) -
+  HLS Endpoint, responsible for receiving media tracks from all other Endpoints and saving them to files by creating HLS playlists,
+- [`membrane_rtc_engine_rtsp`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_rtsp) -
+  RTSP Endpoint, responsible for connecting to a remote RTSP stream source and sending the appropriate media track to other Endpoints.
 
-Copyright 2021, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_rtc_engine)
+For more info about a given Endpoint, refer to its documentation.
 
-[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_rtc_engine)
+Each Endpoint is a separate package with its own source files, dependencies and tests.
+Ultimately, at a certain point in the future, the Endpoints are going to be entirely
+separate from each other (right now, due to certain shared modules, the `HLS` and `RTSP` Endpoints
+both depend on the `WebRTC` Endpoint).
 
-Licensed under the [Apache License, Version 2.0](LICENSE)
+To use a certain Endpoint in your app, you have to declare it in your dependencies list (as well as
+the Engine), e.g.
+```elixir
+def deps do
+  [
+    {:membrane_rtc_engine, "~> 0.16.0"},
+    {:membrane_rtc_engine_webrtc, "~> 0.1.0"}
+  ]
+end
+```
+
+The [`integration_test/`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/integration_test) directory
+contains test scenarios utilising multiple Endpoints of different types.
