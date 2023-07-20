@@ -36,21 +36,13 @@ For usage examples, please refer to our [membrane_demo](https://github.com/membr
 
 ## Developing
 
-To test an Endpoint, navigate to its directory and run `mix test`.
-
 To make development a little easier, we have added several tasks:
 - `mix test.all`, which runs unit tests from the engine, unit tests from each endpoint, and
   endpoint integration tests,
 - `mix test.webrtc.integration`, which runs WebRTC Endpoint integration tests
   (present [here](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_webrtc/integration_test/test_videoroom)).
-
-
-
-Alternatively, you can use convenience aliases from the root of the Engine repo:
-`mix test.webrtc`, `mix test.hls`, `mix test.rtsp` and `mix test.integration`.
-
-Or, to run all four of the above commands as well as the engine tests, use the alias `mix test.all`
-from the root of the Engine repo.
+- To test a given Endpoint, you can use the following aliases: `mix test.webrtc`,
+  `mix test.hls`, `mix test.rtsp` and `mix test.integration`.
 
 ## Copyright and License
 
