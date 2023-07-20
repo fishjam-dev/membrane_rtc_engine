@@ -103,13 +103,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       "README.md",
       "LICENSE",
       # guides
-      "../../guides/simulcast.md",
+      "../membrane_rtc_engine/guides/simulcast.md",
 
       # internal docs
-      "../../internal_docs/webrtc_media_events.md",
-      "../../internal_docs/protocol.md",
-      "../../internal_docs/webrtc_endpoint.md",
-      "../../internal_docs/simulcast.md": [filename: "internal_simulcast"]
+      "../membrane_rtc_engine/internal_docs/webrtc_media_events.md",
+      "../membrane_rtc_engine/internal_docs/protocol.md",
+      "../membrane_rtc_engine/internal_docs/webrtc_endpoint.md",
+      "../membrane_rtc_engine/internal_docs/simulcast.md": [filename: "internal_simulcast"]
     ]
   end
 
