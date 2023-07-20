@@ -15,15 +15,15 @@ RUN \
 RUN mix local.hex --force && \
   mix local.rebar --force
 
-WORKDIR /rtc_engine
-COPY config config/
-COPY lib lib/
-COPY mix.exs mix.lock ./
-ENV RTC_ENGINE_PATH=/rtc_engine
+ARG ENGINE_PATH=../membrane_rtc_engine
+WORKDIR /membrane_rtc_engine
+COPY ${ENGINE_PATH}/config config/
+COPY ${ENGINE_PATH}/lib lib/
+COPY ${ENGINE_PATH}/mix.exs ${ENGINE_PATH}/mix.lock ./
+ENV RTC_ENGINE_PATH=/membrane_rtc_engine
 
-ARG WEBRTC_PATH=endpoints/webrtc
-RUN mkdir -p /rtc_engine/endpoints/webrtc
-WORKDIR /rtc_engine/endpoints/webrtc
+ARG WEBRTC_PATH=../membrane_rtc_engine_webrtc
+WORKDIR /membrane_rtc_engine_webrtc
 COPY ${WEBRTC_PATH}/lib lib/
 COPY ${WEBRTC_PATH}/mix.exs ${WEBRTC_PATH}/mix.lock ./
 

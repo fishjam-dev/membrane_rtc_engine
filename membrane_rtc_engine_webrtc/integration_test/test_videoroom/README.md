@@ -77,7 +77,7 @@ There is one test of updating metadata functionalities:
 
 ## Running tests
 
-To start integration command simply run in root of `membrane_rtc_engine`:
+To start integration command simply run in root of the `membrane_rtc_engine` package:
 ```bash
 mix test.webrtc.integration
 ```
@@ -92,7 +92,7 @@ mix deps.get; cd assets; npm ci; cd ..; mix test
 Since this app depends on `membrane_rtc_engine`, to build the container, you need to include the
 entire repo in the context:
 ```bash
-docker build -t test_videoroom -f Dockerfile ../../../../
+docker build -t test_videoroom -f Dockerfile ../../../
 ```
 
 For use in tests, run `docker compose build` in the [parent of this directory](../).
