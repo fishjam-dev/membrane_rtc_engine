@@ -513,11 +513,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_child_pad_removed(_child, _pad, _ctx, state) do
-    {[], state}
-  end
-
-  @impl true
   def handle_parent_notification({:ready, other_endpoints}, ctx, state) do
     # We've received confirmation from the RTC Engine that our endpoint is ready
     # alongside information about other endpoints and tracks present in the room.
