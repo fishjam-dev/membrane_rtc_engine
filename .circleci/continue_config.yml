@@ -30,13 +30,10 @@ jobs:
       mix_test_args:
         type: string
         default: ""
-      upgrade_packages:
-        type: boolean
-        default: false
 
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:v1.8.1
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
         environment:
           MIX_ENV: test
 
@@ -45,10 +42,6 @@ jobs:
     steps:
       - checkout:
           path: ~/app
-      - when:
-          condition: << parameters.upgrade_packages >>
-          steps:
-            - run: apt update -y && apt upgrade -y
       - run: mix deps.get
       - run: mix coveralls.json << parameters.mix_test_args >>
       - codecov/upload:
@@ -64,7 +57,7 @@ jobs:
 
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:v1.8.1
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
         environment:
           MIX_ENV: dev
 
@@ -86,7 +79,7 @@ jobs:
   test_webrtc_integration:
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:v1.8.1
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
         environment:
           MIX_ENV: test
           NODE_ENV: development
@@ -140,7 +133,6 @@ workflows:
           codecov_flag: hls
           # TODO: remove once the compositor issues are resolved
           mix_test_args: "--exclude gpu"
-          upgrade_packages: true
 
   test-rtsp:
     when:

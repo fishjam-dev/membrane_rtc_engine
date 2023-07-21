@@ -525,6 +525,11 @@ defmodule Membrane.RTC.Engine do
     {actions, state}
   end
 
+  @impl true
+  def handle_child_pad_removed(_child, _pad, _ctx, state) do
+    {[], state}
+  end
+
   #
   # Endpoint Notifications
   #
