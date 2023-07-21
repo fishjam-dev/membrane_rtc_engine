@@ -9,7 +9,7 @@ saves tracks published by the WebRTC endpoint.
 > You will also find there some information about publishing a track.
 
 > #### HLS endpoint {: .tip}
-> Another endpoint that saves WebRTC tracks and is shipped with the engine is [the HLS endpoint](https://hexdocs.pm/membrane_rtc_engine_endpoint_hls/readme.html).
+> Another endpoint that saves WebRTC tracks and is shipped with the engine is [the HLS endpoint](https://hexdocs.pm/membrane_rtc_engine_hls/readme.html).
 
 ## General rules
 
