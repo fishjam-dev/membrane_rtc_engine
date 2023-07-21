@@ -68,6 +68,8 @@ defmodule Membrane.RTC.Engine.MixProject do
 
       # Test deps
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
+      {:membrane_realtimer_plugin, "~> 0.6.1", only: :test},
+      {:membrane_fake_plugin, "~> 0.10.0", only: :test},
 
       # Otel
       {:opentelemetry, "~> 1.0.0"},

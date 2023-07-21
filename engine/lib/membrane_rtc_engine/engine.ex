@@ -315,6 +315,14 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
+  Returns number of forwarded tracks in RTC Engine.
+  """
+  @spec get_forwarded_tracks(rtc_engine :: pid()) :: integer()
+  def get_forwarded_tracks(rtc_engine) do
+    Pipeline.call(rtc_engine, :get_forwarded_tracks)
+  end
+
+  @doc """
   Subscribes an endpoint for a track.
 
   The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
@@ -501,6 +509,13 @@ defmodule Membrane.RTC.Engine do
       end)
 
     {[reply: endpoints], state}
+  end
+
+  @impl true
+  def handle_call(:get_forwarded_tracks, _ctx, state) do
+    forwarded_tracks = Map.values(state.subscriptions) |> Enum.flat_map(& &1) |> Enum.count()
+    pending_forwarded_tracks = Enum.count(state.pending_subscriptions)
+    {[reply: forwarded_tracks + pending_forwarded_tracks], state}
   end
 
   @impl true
