@@ -65,6 +65,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       {:membrane_opus_plugin, "~> 0.17.1"},
       {:membrane_aac_fdk_plugin, "~> 0.15.1"},
       {:membrane_raw_audio_format, "~> 0.11.0"},
+      {:membrane_raw_video_format, "~> 0.3.0"},
       {:membrane_h264_plugin, "~> 0.4.0"},
       {:membrane_h264_ffmpeg_plugin, "~> 0.27.0"},
       {:membrane_http_adaptive_stream_plugin, "~> 0.15.0"},
