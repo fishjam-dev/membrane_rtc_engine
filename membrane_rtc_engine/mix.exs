@@ -3,6 +3,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   @version "0.16.0"
   @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
+  @source_ref "v#{@version}"
 
   def project do
     [
@@ -108,7 +109,9 @@ defmodule Membrane.RTC.Engine.MixProject do
       formatters: ["html"],
       groups_for_extras: groups_for_extras(),
       assets: "internal_docs/assets",
-      source_ref: "v#{@version}",
+      source_ref: @source_ref,
+      source_url_pattern:
+        "#{@github_url}/blob/#{@source_ref}/membrane_rtc_engine/%{path}#L%{line}",
       nest_modules_by_prefix: [
         Membrane.RTC.Engine,
         Membrane.RTC.Engine.Event,
