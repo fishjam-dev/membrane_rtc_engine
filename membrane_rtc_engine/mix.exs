@@ -66,6 +66,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:statistics, "~> 0.6.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
+      {:makeup_diff, "~> 0.1", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
       # Test deps
@@ -144,6 +145,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       "LICENSE",
       # guides
       "guides/upgrading/v0.14.md",
+      "guides/upgrading/v0.16.md",
       "guides/track_lifecycle.md",
       "guides/custom_endpoints.md",
       "guides/logs.md",
