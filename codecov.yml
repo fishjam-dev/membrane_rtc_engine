@@ -17,4 +17,13 @@ coverage:
         informational: true
 
 github_checks:
-    annotations: false
+  annotations: false
+
+flag_management:
+  default_rules:
+    carryforward: true
+    statuses:
+      - type: project
+        informational: true
+      - type: patch
+        informational: true

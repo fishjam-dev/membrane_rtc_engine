@@ -1,0 +1,191 @@
+version: 2.1
+
+orbs:
+  codecov: codecov/codecov@3.2.5
+
+parameters:
+  engine-changed:
+    type: boolean
+    default: false
+  webrtc-changed:
+    type: boolean
+    default: false
+  hls-changed:
+    type: boolean
+    default: false
+  rtsp-changed:
+    type: boolean
+    default: false
+  integration-changed:
+    type: boolean
+    default: false
+
+jobs:
+  test_package:
+    parameters:
+      workdir:
+        type: string
+      codecov_flag:
+        type: string
+      mix_test_args:
+        type: string
+        default: ""
+
+    resource_class: large
+    docker:
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
+        environment:
+          MIX_ENV: test
+
+    working_directory: << parameters.workdir >>
+
+    steps:
+      - checkout:
+          path: ~/app
+      - run: mix deps.get
+      - run: mix coveralls.json << parameters.mix_test_args >>
+      - codecov/upload:
+          flags: << parameters.codecov_flag >>
+
+  lint_package:
+    parameters:
+      workdir:
+        type: string
+      disable_dev_checks:
+        type: boolean
+        default: false
+
+    resource_class: large
+    docker:
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
+        environment:
+          MIX_ENV: dev
+
+    working_directory: << parameters.workdir >>
+
+    steps:
+      - checkout:
+          path: ~/app
+      - run: mix deps.get
+      - run: mix format --check-formatted
+      - unless:
+          condition: << parameters.disable_dev_checks >>
+          steps:
+            - run: mix compile --force --warnings-as-errors
+            - run: mix credo
+            - run: mix dialyzer
+            - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
+
+  test_webrtc_integration:
+    resource_class: large
+    docker:
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
+        environment:
+          MIX_ENV: test
+          NODE_ENV: development
+        user: root
+
+    working_directory: ~/app/membrane_rtc_engine
+
+    steps:
+      - checkout:
+          path: ~/app
+      # TODO remove this after updating Node in out docker_membrane repository
+      - run: npm install npm@9.2.0 -g
+      - run: mix test.webrtc.integration
+
+
+workflows:
+  test-and-lint-engine:
+    when: << pipeline.parameters.engine-changed >>
+    jobs:
+      - test_package:
+          name: test_engine
+          workdir: ~/app/membrane_rtc_engine
+          codecov_flag: engine
+      - lint_package:
+          name: lint_engine
+          workdir: ~/app/membrane_rtc_engine
+
+  test-webrtc:
+    when:
+      or:
+        - << pipeline.parameters.engine-changed >>
+        - << pipeline.parameters.webrtc-changed >>
+    jobs:
+      - test_package:
+          name: test_webrtc
+          workdir: ~/app/membrane_rtc_engine_webrtc
+          codecov_flag: webrtc
+      - test_webrtc_integration
+
+  test-hls:
+    when:
+      or:
+        - << pipeline.parameters.engine-changed >>
+        # TODO: remove once the HLS endpoint no longer depends on the WebRTC endpoint
+        - << pipeline.parameters.webrtc-changed >>
+        - << pipeline.parameters.hls-changed >>
+    jobs:
+      - test_package:
+          name: test_hls
+          workdir: ~/app/membrane_rtc_engine_hls
+          codecov_flag: hls
+          # TODO: remove once the compositor issues are resolved
+          mix_test_args: "--exclude gpu"
+
+  test-rtsp:
+    when:
+      or:
+        - << pipeline.parameters.engine-changed >>
+        # TODO: remove once the RTSP endpoint no longer depends on the WebRTC endpoint
+        - << pipeline.parameters.webrtc-changed >>
+        - << pipeline.parameters.rtsp-changed >>
+    jobs:
+      - test_package:
+          name: test_rtsp
+          workdir: ~/app/membrane_rtc_engine_rtsp
+          codecov_flag: rtsp
+
+  test-integration:
+    when:
+      or:
+        - << pipeline.parameters.engine-changed >>
+        - << pipeline.parameters.webrtc-changed >>
+        - << pipeline.parameters.hls-changed >>
+        - << pipeline.parameters.rtsp-changed >>
+        - << pipeline.parameters.integration-changed >>
+    jobs:
+      - test_package:
+          name: test_integration
+          workdir: ~/app/integration_test
+          codecov_flag: integration
+
+  lint-webrtc:
+    when: << pipeline.parameters.webrtc-changed >>
+    jobs:
+      - lint_package:
+          name: lint_webrtc
+          workdir: ~/app/membrane_rtc_engine_webrtc
+
+  lint-hls:
+    when: << pipeline.parameters.hls-changed >>
+    jobs:
+      - lint_package:
+          name: lint_hls
+          workdir: ~/app/membrane_rtc_engine_hls
+
+  lint-rtsp:
+    when: << pipeline.parameters.rtsp-changed >>
+    jobs:
+      - lint_package:
+          name: lint_rtsp
+          workdir: ~/app/membrane_rtc_engine_rtsp
+
+  lint-integration:
+    when: << pipeline.parameters.integration-changed >>
+    jobs:
+      - lint_package:
+          name: lint_integration
+          workdir: ~/app/integration_test
+          disable_dev_checks: true
