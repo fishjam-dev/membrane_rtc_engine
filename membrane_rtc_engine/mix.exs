@@ -3,7 +3,7 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   @version "0.16.0"
   @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
-  @source_ref "v#{@version}"
+  @source_ref "engine-v#{@version}"
 
   def project do
     [
