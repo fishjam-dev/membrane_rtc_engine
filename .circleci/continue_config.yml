@@ -76,6 +76,22 @@ jobs:
             - run: mix dialyzer
             - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
 
+  check_changelog_update:
+    parameters:
+      workdir:
+        type: string
+
+    machine:
+      image: ubuntu-2204:2022.04.2
+
+    working_directory: << parameters.workdir >>
+
+    steps:
+      - checkout:
+          path: ~/app
+      - run: |
+          git diff-tree --no-commit-id --name-only -r HEAD master . | grep -q "CHANGELOG.md"
+
   test_webrtc_integration:
     resource_class: large
     docker:
@@ -105,6 +121,9 @@ workflows:
           codecov_flag: engine
       - lint_package:
           name: lint_engine
+          workdir: ~/app/membrane_rtc_engine
+      - check_changelog_update:
+          name: check_changelog_update_engine
           workdir: ~/app/membrane_rtc_engine
 
   test-webrtc:
@@ -167,6 +186,9 @@ workflows:
       - lint_package:
           name: lint_webrtc
           workdir: ~/app/membrane_rtc_engine_webrtc
+      - check_changelog_update:
+          name: check_changelog_update_webrtc
+          workdir: ~/app/membrane_rtc_engine_webrtc
 
   lint-hls:
     when: << pipeline.parameters.hls-changed >>
@@ -174,12 +196,18 @@ workflows:
       - lint_package:
           name: lint_hls
           workdir: ~/app/membrane_rtc_engine_hls
+      - check_changelog_update:
+          name: check_changelog_update_hls
+          workdir: ~/app/membrane_rtc_engine_hls
 
   lint-rtsp:
     when: << pipeline.parameters.rtsp-changed >>
     jobs:
       - lint_package:
           name: lint_rtsp
+          workdir: ~/app/membrane_rtc_engine_rtsp
+      - check_changelog_update:
+          name: check_changelog_update_rtsp
           workdir: ~/app/membrane_rtc_engine_rtsp
 
   lint-integration:

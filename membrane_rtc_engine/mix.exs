@@ -145,6 +145,7 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp extras() do
     [
       "README.md",
+      "CHANGELOG.md",
       "LICENSE",
       # guides
       "guides/upgrading/v0.14.md",

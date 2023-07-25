@@ -105,6 +105,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
   defp extras() do
     [
       "README.md",
+      "CHANGELOG.md",
       "LICENSE",
       # guides
       "../membrane_rtc_engine/guides/simulcast.md",
