@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Support.FakeEndpoint do
+defmodule Membrane.RTC.Engine.Support.SinkEndpoint do
   @moduledoc false
 
   # Endpoint that subscribes on all published tracks and drops them.

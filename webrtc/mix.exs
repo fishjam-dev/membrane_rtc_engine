@@ -71,7 +71,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       # Test deps
       {:membrane_file_plugin, "~> 0.14.0"},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
-      {:membrane_realtimer_plugin, "~> 0.6.1", only: :test},
 
       # Otel
       {:opentelemetry_api, "~> 1.0.0"}
