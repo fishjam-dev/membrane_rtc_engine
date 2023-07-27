@@ -13,7 +13,7 @@ workflows:
           base-revision: master
           config-path: .circleci/continue_config.yml
           mapping: |
-            (?!(membrane_rtc_engine\w*|integration_test)/).* engine-changed true
+            (?!(membrane_rtc_engine\w*|integration_test)/).* repo-root-changed true
             membrane_rtc_engine/.* engine-changed true
             membrane_rtc_engine_webrtc/.* webrtc-changed true
             membrane_rtc_engine_hls/.* hls-changed true
