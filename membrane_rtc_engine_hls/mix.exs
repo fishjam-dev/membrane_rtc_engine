@@ -100,7 +100,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "LICENSE"],
+      extras: ["README.md", "CHANGELOG.md", "LICENSE"],
       formatters: ["html"],
       source_ref: @source_ref,
       source_url_pattern:
