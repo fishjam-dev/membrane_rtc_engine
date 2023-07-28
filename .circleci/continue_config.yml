@@ -4,6 +4,9 @@ orbs:
   codecov: codecov/codecov@3.2.5
 
 parameters:
+  repo-root-changed:
+    type: boolean
+    default: false
   engine-changed:
     type: boolean
     default: false
@@ -90,6 +93,7 @@ jobs:
       - checkout:
           path: ~/app
       - run: |
+          [[ "$(git branch --show-current)" == "master" ]] ||
           git diff-tree --no-commit-id --name-only -r HEAD master . | grep -q "CHANGELOG.md"
 
   test_webrtc_integration:
@@ -112,23 +116,21 @@ jobs:
 
 
 workflows:
-  test-and-lint-engine:
-    when: << pipeline.parameters.engine-changed >>
+  test-engine:
+    when:
+      or:
+        - << pipeline.parameters.repo-root-changed >>
+        - << pipeline.parameters.engine-changed >>
     jobs:
       - test_package:
           name: test_engine
           workdir: ~/app/membrane_rtc_engine
           codecov_flag: engine
-      - lint_package:
-          name: lint_engine
-          workdir: ~/app/membrane_rtc_engine
-      - check_changelog_update:
-          name: check_changelog_update_engine
-          workdir: ~/app/membrane_rtc_engine
 
   test-webrtc:
     when:
       or:
+        - << pipeline.parameters.repo-root-changed >>
         - << pipeline.parameters.engine-changed >>
         - << pipeline.parameters.webrtc-changed >>
     jobs:
@@ -141,6 +143,7 @@ workflows:
   test-hls:
     when:
       or:
+        - << pipeline.parameters.repo-root-changed >>
         - << pipeline.parameters.engine-changed >>
         # TODO: remove once the HLS endpoint no longer depends on the WebRTC endpoint
         - << pipeline.parameters.webrtc-changed >>
@@ -156,6 +159,7 @@ workflows:
   test-rtsp:
     when:
       or:
+        - << pipeline.parameters.repo-root-changed >>
         - << pipeline.parameters.engine-changed >>
         # TODO: remove once the RTSP endpoint no longer depends on the WebRTC endpoint
         - << pipeline.parameters.webrtc-changed >>
@@ -169,6 +173,7 @@ workflows:
   test-integration:
     when:
       or:
+        - << pipeline.parameters.repo-root-changed >>
         - << pipeline.parameters.engine-changed >>
         - << pipeline.parameters.webrtc-changed >>
         - << pipeline.parameters.hls-changed >>
@@ -179,6 +184,16 @@ workflows:
           name: test_integration
           workdir: ~/app/integration_test
           codecov_flag: integration
+
+  lint-engine:
+    when: << pipeline.parameters.engine-changed >>
+    jobs:
+      - lint_package:
+          name: lint_engine
+          workdir: ~/app/membrane_rtc_engine
+      - check_changelog_update:
+          name: check_changelog_update_engine
+          workdir: ~/app/membrane_rtc_engine
 
   lint-webrtc:
     when: << pipeline.parameters.webrtc-changed >>
