@@ -10,24 +10,21 @@ defmodule Membrane.RTC.Engine.Support.SinkEndpoint do
   alias Membrane.Fake.Sink
   alias Membrane.RTC.Engine
 
-  def_options(
-    rtc_engine: [
-      spec: pid(),
-      description: "Pid of parent Engine"
-    ],
-    owner: [
-      spec: pid(),
-      description: "Pid of endpoint owner"
-    ]
-  )
+  def_options rtc_engine: [
+                spec: pid(),
+                description: "Pid of parent Engine"
+              ],
+              owner: [
+                spec: pid(),
+                description: "Pid of endpoint owner"
+              ]
 
   @type encoding_t() :: String.t()
 
-  def_input_pad(:input,
+  def_input_pad :input,
     demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
-  )
 
   @impl true
   def handle_init(_ctx, opts) do

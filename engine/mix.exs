@@ -66,14 +66,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
-      # File Source
-      {:membrane_file_plugin, "~> 0.14.0"},
-      {:membrane_raw_audio_format, "~> 0.11.0"},
-      {:membrane_opus_plugin, "~> 0.17.1"},
-      {:membrane_h264_plugin, "~> 0.4.0"},
-      {:membrane_aac_fdk_plugin, "~> 0.15.0"},
-      {:membrane_realtimer_plugin, "~> 0.6.1"},
-
       # Test deps
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
       {:membrane_fake_plugin, "~> 0.10.0", only: :test},
@@ -84,9 +76,6 @@ defmodule Membrane.RTC.Engine.MixProject do
 
       # Because we use somewhere membrane_h264_ffmpeg_plugin we can't add only test to this dependency
       {:membrane_raw_video_format, "~> 0.3.0"},
-
-      # Because we use membrane_webrtc_plugin we can't add only test to these dependencies
-      {:ex_sdp, "~> 0.11.0"},
 
       # Otel
       {:opentelemetry, "~> 1.0.0"},

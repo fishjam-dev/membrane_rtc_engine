@@ -4,7 +4,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.HLS
   alias Membrane.RTC.Engine.Message
-  alias Membrane.RTC.Engine.Testing.FileSourceEndpoint
+  alias Membrane.RTC.Engine.Support.FileSourceEndpoint
   alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
 
   @fixtures_dir "./test/fixtures/"

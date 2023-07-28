@@ -4,10 +4,7 @@ defmodule Membrane.RTC.EngineTest do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.{Endpoint, Message, Track}
 
-  alias Membrane.RTC.Engine.Support.{SinkEndpoint, TestEndpoint}
-  alias Membrane.RTC.Engine.Testing.FileSourceEndpoint
-
-  @fixtures_dir "./test/fixtures/"
+  alias Membrane.RTC.Engine.Support.{FakeSourceEndpoint, SinkEndpoint, TestEndpoint}
 
   setup do
     options = [
@@ -234,17 +231,17 @@ defmodule Membrane.RTC.EngineTest do
 
       add_video_file_endpoint(rtc_engine, :video2, "2", "2")
 
-      assert_receive ^endpoint_id1, 1_000
-      assert_receive ^endpoint_id2, 1_000
-      assert_receive ^endpoint_id3, 1_000
+      assert_receive ^endpoint_id1, 5_000
+      assert_receive ^endpoint_id2, 5_000
+      assert_receive ^endpoint_id3, 5_000
 
       assert 6 = Engine.get_num_forwarded_tracks(rtc_engine)
 
       add_video_file_endpoint(rtc_engine, :video3, "3", "3")
 
-      assert_receive ^endpoint_id1, 1_000
-      assert_receive ^endpoint_id2, 1_000
-      assert_receive ^endpoint_id3, 1_000
+      assert_receive ^endpoint_id1, 5_000
+      assert_receive ^endpoint_id2, 5_000
+      assert_receive ^endpoint_id3, 5_000
 
       assert 9 = Engine.get_num_forwarded_tracks(rtc_engine)
     end
@@ -342,9 +339,6 @@ defmodule Membrane.RTC.EngineTest do
          stream_id,
          video_track_id
        ) do
-    file_name = "video.h264"
-    video_file_path = Path.join(@fixtures_dir, file_name)
-
     video_track =
       Engine.Track.new(
         :video,
@@ -358,12 +352,9 @@ defmodule Membrane.RTC.EngineTest do
         id: video_track_id
       )
 
-    %FileSourceEndpoint{
+    %FakeSourceEndpoint{
       rtc_engine: rtc_engine,
-      file_path: video_file_path,
-      track: video_track,
-      ssrc: 1234,
-      payload_type: 96
+      track: video_track
     }
   end
 end
