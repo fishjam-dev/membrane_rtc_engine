@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Metrics do
+defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Metrics do
   @moduledoc """
   Defines list of metrics, that Reporter instance can aggregate by listening on events emitted in RTC Engine.
   Suggested Reporter implementation is `Membrane.TelemetryMetrics.Reporter` from

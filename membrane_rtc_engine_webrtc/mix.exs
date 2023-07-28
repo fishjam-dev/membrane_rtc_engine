@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0-dev"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @github_url "#{@engine_github_url}/tree/master/membrane_rtc_engine_webrtc"
   @source_ref "webrtc-v#{@version}"
@@ -95,10 +95,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       extras: extras(),
       formatters: ["html"],
       groups_for_extras: groups_for_extras(),
+      assets: "internal_docs/assets",
       source_ref: @source_ref,
       source_url_pattern:
         "#{@engine_github_url}/blob/#{@source_ref}/membrane_rtc_engine_webrtc/%{path}#L%{line}",
-      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint]
+      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint],
+      before_closing_body_tag: &before_closing_body_tag/1
     ]
   end
 
@@ -108,22 +110,54 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       "CHANGELOG.md",
       "LICENSE",
       # guides
-      "../membrane_rtc_engine/guides/simulcast.md",
+      "guides/simulcast.md",
+      "guides/metrics.md",
 
       # internal docs
-      "../membrane_rtc_engine/internal_docs/webrtc_media_events.md",
-      "../membrane_rtc_engine/internal_docs/protocol.md",
-      "../membrane_rtc_engine/internal_docs/webrtc_endpoint.md",
-      "../membrane_rtc_engine/internal_docs/simulcast.md": [filename: "internal_simulcast"]
+      "internal_docs/webrtc_media_events.md",
+      "internal_docs/protocol.md",
+      "internal_docs/webrtc_endpoint.md",
+      "internal_docs/simulcast.md": [filename: "internal_simulcast"]
     ]
   end
 
   defp groups_for_extras() do
     [
-      {"Developer docs", ~r/internal_docs\//},
       # negative lookahead to match everything
       # except upgrading directory
-      {"Guides", ~r/guides\/^(.(?!upgrading\/))*$/}
+      {"Guides", ~r/guides\/(?!upgrading\/).*/},
+      {"Upgrading", ~r/guides\/upgrading\//},
+      {"Developer docs", ~r/internal_docs\//}
     ]
+  end
+
+  defp before_closing_body_tag(:html) do
+    """
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@9.1.1/dist/mermaid.min.js"></script>
+    <style>
+      .diagramWrapper svg {
+        background-color: white;
+      }
+    </style>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        mermaid.initialize({ startOnLoad: false });
+        let id = 0;
+        for (const codeEl of document.querySelectorAll("pre code.mermaid")) {
+          const preEl = codeEl.parentElement;
+          const graphDefinition = codeEl.textContent;
+          const graphEl = document.createElement("div");
+          graphEl.classList.add("diagramWrapper");
+          const graphId = "mermaid-graph-" + id++;
+          mermaid.render(graphId, graphDefinition, function (svgSource, bindListeners) {
+            graphEl.innerHTML = svgSource;
+            bindListeners && bindListeners(graphEl);
+            preEl.insertAdjacentElement("afterend", graphEl);
+            preEl.remove();
+          });
+        }
+      });
+    </script>
+    """
   end
 end
