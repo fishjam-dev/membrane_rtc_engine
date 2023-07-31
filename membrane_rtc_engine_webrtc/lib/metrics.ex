@@ -168,7 +168,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Metrics do
       %{},
       telemetry_label
     )
-    
+
     :ok
   end
 

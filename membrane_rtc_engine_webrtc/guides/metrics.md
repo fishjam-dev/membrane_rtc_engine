@@ -2,10 +2,21 @@
 
 WebRTC Endpoint uses [`membrane_telemetry_metrics`](https://github.com/membraneframework/membrane_telemetry_metrics) to aggregate data about media streams and generate reports about them.
 To enable metrics aggregation, you have to put line 
+
 ```elixir
 config :membrane_telemetry_metrics, enabled: true
 ```
-in your config file and start `Membrane.TelemetryMetrics.Reporter` with RTC Engine metrics by calling
+
+in your config file, add `telemetry_label` to your endpoint configuration
+
+```elixir
+%Endpoint.WebRTC{
+  telemetry_label: [room_id: room_id]
+}
+```
+
+and start `Membrane.TelemetryMetrics.Reporter` with RTC Engine metrics by calling
+
 ```elixir 
 {:ok, reporter} = Membrane.TelemetryMetrics.Reporter.start_link(Membrane.RTC.Engine.Endpoint.WebRTC.Metrics.metrics())
 ```
