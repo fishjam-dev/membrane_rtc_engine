@@ -60,6 +60,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:ex_sdp, "~> 0.11.0"},
       {:uuid, "~> 1.1"},
       {:statistics, "~> 0.6.0"},
+      # for colouring diffs in upgrade guides
+      {:makeup_diff, "~> 0.1", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},

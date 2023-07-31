@@ -66,6 +66,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   alias __MODULE__.{
     MediaEvent,
+    Metrics,
     SimulcastConfig,
     TrackReceiver,
     TrackSender
@@ -76,8 +77,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
-  @track_metadata_event [Membrane.RTC.Engine, :track, :metadata, :event]
-  @endpoint_metadata_event [Membrane.RTC.Engine, :endpoint, :metadata, :event]
+  @track_metadata_event [Membrane.RTC.Engine.Endpoint.WebRTC, :track, :metadata, :event]
+  @endpoint_metadata_event [Membrane.RTC.Engine.Endpoint.WebRTC, :endpoint, :metadata, :event]
 
   @life_span_id "webrtc_endpoint.life_span"
 
@@ -237,7 +238,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   @impl true
   def handle_init(ctx, opts) do
     Membrane.TelemetryMetrics.register(@endpoint_metadata_event, opts.telemetry_label)
-    Membrane.RTC.Utils.register_bandwidth_event(opts.telemetry_label)
+    Metrics.register_bandwidth_event(opts.telemetry_label)
 
     Membrane.TelemetryMetrics.execute(
       @endpoint_metadata_event,
@@ -496,7 +497,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_child_notification({:bandwidth_estimation, estimation} = msg, _from, _ctx, state) do
-    Membrane.RTC.Utils.emit_bandwidth_event(estimation, state.telemetry_label)
+    Metrics.emit_bandwidth_event(estimation, state.telemetry_label)
 
     state.connection_allocator_module.update_bandwidth_estimation(
       state.connection_prober,

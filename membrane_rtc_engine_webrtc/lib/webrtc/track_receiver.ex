@@ -24,12 +24,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{
     ConnectionAllocator.AllocationGrantedNotification,
     Forwarder,
+    Metrics,
     VariantSelector
   }
-
-  alias Membrane.RTC.Engine.Track
-
-  alias Membrane.RTC.Engine.Track
 
   alias Membrane.RTC.Engine.Event.{
     RequestTrackVariant,
@@ -167,8 +164,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         telemetry_label: telemetry_label
       }) do
     telemetry_label = telemetry_label ++ [track_id: "#{track.id}"]
-    Membrane.RTC.Utils.register_variant_switched_event(telemetry_label)
-    Membrane.RTC.Utils.register_paddings_sent_event(telemetry_label)
+    Metrics.register_variant_switched_event(telemetry_label)
+    Metrics.register_paddings_sent_event(telemetry_label)
 
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
 
@@ -232,7 +229,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   def handle_event(_pad, %TrackVariantSwitched{} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
 
-    Membrane.RTC.Utils.emit_variant_switched_event(
+    Metrics.emit_variant_switched_event(
       event.new_variant,
       event.reason,
       state.telemetry_label
@@ -295,7 +292,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
         paddings_num = min(state.enqueued_paddings_count, @max_paddings)
         paddings_bytes = paddings_num * 255
 
-        Membrane.RTC.Utils.emit_paddings_sent_event(
+        Metrics.emit_paddings_sent_event(
           paddings_num,
           paddings_bytes,
           state.telemetry_label

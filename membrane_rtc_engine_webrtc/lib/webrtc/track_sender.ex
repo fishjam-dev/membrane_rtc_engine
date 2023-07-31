@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   alias Membrane.{Buffer, Time}
   alias Membrane.RTC.Engine.BitrateEstimator
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.{Metrics, VariantTracker}
 
   alias Membrane.RTC.Engine.Event.{
     TrackVariantBitrate,
@@ -89,7 +89,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_pad_added(Pad.ref(:input, id), %{playback: playback}, state) do
     {_track_id, variant} = id
     telemetry_label = state.telemetry_label ++ [track_id: "#{state.track.id}:#{variant}"]
-    Membrane.RTC.Utils.telemetry_register(telemetry_label)
+    Metrics.telemetry_register(telemetry_label)
 
     {actions, state} =
       if playback == :playing and Track.is_simulcast?(state.track) do
@@ -279,7 +279,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         ctx,
         %{track: track} = state
       ) do
-    Membrane.RTC.Utils.emit_packet_arrival_event(
+    Metrics.emit_packet_arrival_event(
       buffer.payload,
       state.track.encoding,
       state.telemetry_label
