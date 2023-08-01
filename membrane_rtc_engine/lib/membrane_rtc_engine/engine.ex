@@ -84,7 +84,6 @@ defmodule Membrane.RTC.Engine do
 
   require Membrane.Logger
   require Membrane.OpenTelemetry
-  require Membrane.TelemetryMetrics
 
   alias Membrane.RTC.Engine.{
     DisplayManager,
@@ -120,7 +119,6 @@ defmodule Membrane.RTC.Engine do
   @type options_t() :: [
           id: String.t(),
           trace_ctx: map(),
-          telemetry_label: Membrane.TelemetryMetrics.label(),
           display_manager?: boolean(),
           toilet_capacity: pos_integer() | nil
         ]
@@ -130,7 +128,7 @@ defmodule Membrane.RTC.Engine do
 
     use Bunch.Access
 
-    @enforce_keys [:id, :component_path, :trace_context, :telemetry_label]
+    @enforce_keys [:id, :component_path, :trace_context]
     defstruct @enforce_keys ++
                 [
                   endpoints: %{},
@@ -145,7 +143,6 @@ defmodule Membrane.RTC.Engine do
             id: String.t(),
             component_path: String.t(),
             trace_context: map(),
-            telemetry_label: Membrane.TelemetryMetrics.label(),
             display_manager: pid() | nil,
             endpoints: %{Endpoint.id() => Endpoint.t()},
             pending_endpoints: %{Endpoint.id() => Endpoint.t()},
@@ -364,8 +361,6 @@ defmodule Membrane.RTC.Engine do
         nil
       end
 
-    telemetry_label = (options[:telemetry_label] || []) ++ [room_id: options[:id]]
-
     toilet_capacity = options[:toilet_capacity] || 200
     if toilet_capacity < 0, do: raise("toilet_capacity has to be a positive integer")
 
@@ -374,7 +369,6 @@ defmodule Membrane.RTC.Engine do
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
        trace_context: options[:trace_ctx],
-       telemetry_label: telemetry_label,
        display_manager: display_manager,
        toilet_capacity: toilet_capacity
      }}
@@ -399,12 +393,10 @@ defmodule Membrane.RTC.Engine do
     endpoint =
       case endpoint do
         %_module{
-          telemetry_label: _label,
           parent_span: _span,
           trace_context: _ctx
         } ->
           struct(endpoint,
-            telemetry_label: state.telemetry_label ++ [endpoint_id: endpoint_id],
             parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
             trace_context: state.trace_context
           )

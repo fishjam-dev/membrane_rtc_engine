@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.16.0"
+  @version "0.17.0-dev"
   @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @source_ref "engine-v#{@version}"
 
@@ -54,20 +54,16 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 0.12.3"},
-      {:membrane_webrtc_plugin, "~> 0.15.0"},
       {:membrane_rtp_plugin, "~> 0.23.0"},
-      # as we explicitly call Membrane.ICE.Metrics.metrics/0,
-      # we have to explicitly put it in deps
-      {:membrane_ice_plugin, "~> 0.16.0"},
       {:membrane_rtp_format, "~> 0.7.0"},
       {:membrane_opentelemetry, "~> 0.1.0"},
-      {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:ex_sdp, "~> 0.11.0"},
       {:uuid, "~> 1.1"},
       {:statistics, "~> 0.6.0"},
+      # for colouring diffs in upgrade guides
+      {:makeup_diff, "~> 0.1", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
-      {:makeup_diff, "~> 0.1", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
       # Test deps
@@ -124,7 +120,6 @@ defmodule Membrane.RTC.Engine.MixProject do
           Membrane.RTC.Engine,
           Membrane.RTC.Engine.Endpoint,
           Membrane.RTC.Engine.Message,
-          Membrane.RTC.Engine.Metrics,
           Membrane.RTC.Engine.Notifications.TrackNotification,
           Membrane.RTC.Engine.Track,
           Membrane.RTC.Engine.Track.BitrateEstimation
@@ -153,7 +148,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       "guides/track_lifecycle.md",
       "guides/custom_endpoints.md",
       "guides/logs.md",
-      "guides/metrics.md",
       "guides/traces.md",
       "guides/vad.md",
 
@@ -164,11 +158,11 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp groups_for_extras() do
     [
-      {"Developer docs", ~r/internal_docs\//},
       # negative lookahead to match everything
       # except upgrading directory
-      {"Guides", ~r/guides\/^(.(?!upgrading\/))*$/},
-      {"Upgrading", ~r/guides\/upgrading\//}
+      {"Guides", ~r/guides\/(?!upgrading\/).*/},
+      {"Upgrading", ~r/guides\/upgrading\//},
+      {"Developer docs", ~r/internal_docs\//}
     ]
   end
 

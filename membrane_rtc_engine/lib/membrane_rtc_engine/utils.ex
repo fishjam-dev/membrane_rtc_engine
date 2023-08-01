@@ -2,15 +2,6 @@ defmodule Membrane.RTC.Utils do
   @moduledoc false
 
   require OpenTelemetry.Tracer, as: Tracer
-  require Membrane.TelemetryMetrics
-
-  alias Membrane.RTC.Engine.Track
-  alias Membrane.RTP.PayloadFormatResolver
-
-  @rtp_packet_arrival_event [Membrane.RTC.Engine, :RTP, :packet, :arrival]
-  @variant_switched_event [Membrane.RTC.Engine, :RTP, :variant, :switched]
-  @paddings_sent_event [Membrane.RTC.Engine, :RTP, :paddings, :sent]
-  @bandwidth_event [Membrane.RTC.Engine, :endpoint, :bandwidth]
 
   # This is workaround to make dialyzer happy.
   # In other case we would have to specify all possible CallbackContext types here.
@@ -21,9 +12,6 @@ defmodule Membrane.RTC.Utils do
   #  | etc.
   # to make it easier to reference CallbackContext types.
   @type ctx :: any()
-
-  # Taken from `Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver`
-  @type variant_switch_reason() :: :low_bandwidth | :variant_inactive | :other
 
   defmacro find_child(ctx, pattern: pattern) do
     quote do
@@ -105,106 +93,4 @@ defmodule Membrane.RTC.Utils do
 
     {username, password}
   end
-
-  @spec telemetry_register(Membrane.TelemetryMetrics.label()) :: :ok
-  def telemetry_register(telemetry_label) do
-    Membrane.TelemetryMetrics.register(@rtp_packet_arrival_event, telemetry_label)
-    :ok
-  end
-
-  @spec register_bandwidth_event(Membrane.TelemetryMetrics.label()) :: :ok
-  def register_bandwidth_event(telemetry_label) do
-    Membrane.TelemetryMetrics.register(@bandwidth_event, telemetry_label)
-    :ok
-  end
-
-  @spec register_variant_switched_event(Membrane.TelemetryMetrics.label()) :: :ok
-  def register_variant_switched_event(telemetry_label) do
-    Membrane.TelemetryMetrics.register(@variant_switched_event, telemetry_label)
-    :ok
-  end
-
-  @spec register_paddings_sent_event(Membrane.TelemetryMetrics.label()) :: :ok
-  def register_paddings_sent_event(telemetry_label) do
-    Membrane.TelemetryMetrics.register(@paddings_sent_event, telemetry_label)
-    :ok
-  end
-
-  @spec emit_packet_arrival_event(
-          binary(),
-          :VP8 | :H264 | :OPUS,
-          Membrane.TelemetryMetrics.label()
-        ) :: :ok
-  def emit_packet_arrival_event(payload, codec, telemetry_label) do
-    Membrane.TelemetryMetrics.execute(
-      @rtp_packet_arrival_event,
-      packet_measurements(payload, codec),
-      %{},
-      telemetry_label
-    )
-
-    :ok
-  end
-
-  @spec emit_bandwidth_event(float(), Membrane.TelemetryMetrics.label()) :: :ok
-  def emit_bandwidth_event(bandwidth, telemetry_label) do
-    Membrane.TelemetryMetrics.execute(
-      @bandwidth_event,
-      %{bandwidth: bandwidth},
-      %{},
-      telemetry_label
-    )
-
-    :ok
-  end
-
-  @spec emit_variant_switched_event(
-          Track.variant(),
-          variant_switch_reason(),
-          Membrane.TelemetryMetrics.label()
-        ) :: :ok
-  def emit_variant_switched_event(variant, reason, telemetry_label) do
-    Membrane.TelemetryMetrics.execute(
-      @variant_switched_event,
-      %{variant: variant, reason: reason},
-      %{},
-      telemetry_label
-    )
-
-    :ok
-  end
-
-  @spec emit_paddings_sent_event(
-          non_neg_integer(),
-          non_neg_integer(),
-          Membrane.TelemetryMetrics.label()
-        ) :: :ok
-  def emit_paddings_sent_event(num, bytes, telemetry_label) do
-    Membrane.TelemetryMetrics.execute(
-      @paddings_sent_event,
-      %{num: num, bytes: bytes},
-      %{},
-      telemetry_label
-    )
-  end
-
-  defp packet_measurements(payload, codec) do
-    measurements =
-      case PayloadFormatResolver.keyframe_detector(codec) do
-        {:ok, detector} -> %{keyframe_indicator: detector.(payload) |> bool_to_int()}
-        :error -> %{}
-      end
-
-    case PayloadFormatResolver.frame_detector(codec) do
-      {:ok, detector} ->
-        frame_indicator = detector.(payload) |> bool_to_int()
-        Map.put(measurements, :frame_indicator, frame_indicator)
-
-      :error ->
-        measurements
-    end
-  end
-
-  defp bool_to_int(true), do: 1
-  defp bool_to_int(false), do: 0
 end

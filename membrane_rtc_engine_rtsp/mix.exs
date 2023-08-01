@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.RTSP.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0-dev"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @github_url "#{@engine_github_url}/tree/master/membrane_rtc_engine_rtsp"
   @source_ref "rtsp-v#{@version}"
