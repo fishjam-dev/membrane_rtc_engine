@@ -37,12 +37,12 @@ defmodule TestVideoroom.MixProject do
       {:cowlib, "~> 2.11", override: true},
       {:membrane_rtc_engine, path: rtc_engine_path()},
       {:membrane_rtc_engine_webrtc,
-       path: Path.join(rtc_engine_path(), "../membrane_rtc_engine_webrtc/")},
+       path: Path.join(rtc_engine_path(), "../webrtc/")},
       {:stampede, github: "membraneframework-labs/stampede-elixir"}
     ]
   end
 
-  defp rtc_engine_path(), do: System.get_env("RTC_ENGINE_PATH", "../../../membrane_rtc_engine/")
+  defp rtc_engine_path(), do: System.get_env("RTC_ENGINE_PATH", "../../../engine/")
 
   defp aliases() do
     [

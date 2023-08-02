@@ -3,7 +3,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
 
   @version "0.2.0-dev"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
-  @github_url "#{@engine_github_url}/tree/master/membrane_rtc_engine_hls"
+  @github_url "#{@engine_github_url}/tree/master/hls"
   @source_ref "hls-v#{@version}"
 
   def project do
@@ -58,8 +58,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
   defp deps do
     [
       # Engine deps
-      {:membrane_rtc_engine, path: "../membrane_rtc_engine"},
-      {:membrane_rtc_engine_webrtc, path: "../membrane_rtc_engine_webrtc"},
+      {:membrane_rtc_engine, path: "../engine"},
+      {:membrane_rtc_engine_webrtc, path: "../webrtc"},
 
       # Regular deps
       {:membrane_core, "~> 0.12.3"},
@@ -103,8 +103,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       extras: ["README.md", "CHANGELOG.md", "LICENSE"],
       formatters: ["html"],
       source_ref: @source_ref,
-      source_url_pattern:
-        "#{@engine_github_url}/blob/#{@source_ref}/membrane_rtc_engine_hls/%{path}#L%{line}",
+      source_url_pattern: "#{@engine_github_url}/blob/#{@source_ref}/hls/%{path}#L%{line}",
       nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint]
     ]
   end

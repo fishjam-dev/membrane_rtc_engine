@@ -11,13 +11,13 @@ For usage examples, please refer to our [membrane_demo](https://github.com/membr
 
 This repository currently holds the following packages:
 
-- [`membrane_rtc_engine`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine) - RTC Engine,
+- [`membrane_rtc_engine`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/engine) - RTC Engine,
   the main package responsible for exchanging media tracks between Endpoints,
-- [`membrane_rtc_engine_webrtc`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_webrtc) -
+- [`membrane_rtc_engine_webrtc`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/webrtc) -
   WebRTC Endpoint, responsible for establishing a connection with some WebRTC client (mainly browser) and exchanging media with it,
-- [`membrane_rtc_engine_hls`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_hls) -
+- [`membrane_rtc_engine_hls`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/hls) -
   HLS Endpoint, responsible for receiving media tracks from all other Endpoints and saving them to files by creating HLS playlists,
-- [`membrane_rtc_engine_rtsp`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/membrane_rtc_engine_rtsp) -
+- [`membrane_rtc_engine_rtsp`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/rtsp) -
   RTSP Endpoint, responsible for connecting to a remote RTSP stream source and sending the appropriate media track to other Endpoints.
 
 For more info about a given Endpoint, refer to its documentation.

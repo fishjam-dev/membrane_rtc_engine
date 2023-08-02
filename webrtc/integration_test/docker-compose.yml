@@ -14,7 +14,7 @@ services:
   server:
     build:
       context: ../..
-      dockerfile: membrane_rtc_engine_webrtc/integration_test/test_videoroom/Dockerfile
+      dockerfile: webrtc/integration_test/test_videoroom/Dockerfile
     container_name: mediaserver
     hostname: mediaserver
     environment:
