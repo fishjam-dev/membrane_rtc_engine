@@ -22,30 +22,30 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
   alias Membrane.RTC.Engine.Event.TrackVariantResumed
   alias Membrane.RTC.Engine.Track
 
-  def_options(
-    track: [
-      type: :struct,
-      spec: Membrane.RTC.Engine.Track.t(),
-      description: "Track this sender will maintain"
-    ]
-  )
+  def_options track: [
+                type: :struct,
+                spec: Membrane.RTC.Engine.Track.t(),
+                description: "Track this sender will maintain"
+              ],
+              detect_keyframe: [
+                spec: (Membrane.Buffer.t(), Track.t() -> boolean()),
+                description: "Function informing if buffer is a keyframe for this track"
+              ]
 
-  def_input_pad(:input,
+  def_input_pad :input,
     mode: :pull,
     demand_unit: :buffers,
     demand_mode: :manual,
     accepted_format: Membrane.RTP
-  )
 
-  def_output_pad(:output,
+  def_output_pad :output,
     mode: :pull,
     demand_mode: :manual,
     accepted_format: Membrane.RTP
-  )
 
   @impl true
-  def handle_init(_ctx, %__MODULE__{track: track}) do
-    {[], %{track: track, started?: false}}
+  def handle_init(_ctx, %__MODULE__{track: track, detect_keyframe: detect_keyframe}) do
+    {[], %{track: track, started?: false, detect_keyframe: detect_keyframe}}
   end
 
   @impl true
@@ -70,17 +70,12 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
 
   @impl true
   def handle_process(:input, buffer, _ctx, state) do
-    buffer = add_is_keyframe_flag(buffer, state.track)
+    buffer = add_is_keyframe_flag(buffer, state)
     {[buffer: {:output, buffer}, redemand: :output], state}
   end
 
-  defp add_is_keyframe_flag(buffer, %Track{encoding: encoding}) do
-    is_keyframe =
-      case encoding do
-        :OPUS -> true
-        :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
-        :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
-      end
+  defp add_is_keyframe_flag(buffer, state) do
+    is_keyframe = state.detect_keyframe.(buffer, state.track)
 
     new_metadata = Map.put(buffer.metadata, :is_keyframe, is_keyframe)
     %Buffer{buffer | metadata: new_metadata}

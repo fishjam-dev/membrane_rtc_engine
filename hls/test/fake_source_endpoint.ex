@@ -42,13 +42,24 @@ defmodule Membrane.RTC.Engine.Support.FakeSourceEndpoint do
 
   @impl true
   def handle_pad_added(Pad.ref(:output, {_track_id, _rid}) = pad, _ctx, state) do
+    detect_keyframe = fn buffer, track ->
+      case track.encoding do
+        :OPUS -> true
+        :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
+        :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
+      end
+    end
+
     spec = [
       child(:source, %TestSource{
         stream_format: %Membrane.RTP{},
         output: [],
         fast_start: true
       })
-      |> child(:track_sender, %StaticTrackSender{track: state.track})
+      |> child(:track_sender, %StaticTrackSender{
+        track: state.track,
+        detect_keyframe: detect_keyframe
+      })
       |> bin_output(pad)
     ]
 
