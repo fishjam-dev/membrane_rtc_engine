@@ -105,7 +105,7 @@ jobs:
           NODE_ENV: development
         user: root
 
-    working_directory: ~/app/membrane_rtc_engine
+    working_directory: ~/app/engine
 
     steps:
       - checkout:
@@ -124,7 +124,7 @@ workflows:
     jobs:
       - test_package:
           name: test_engine
-          workdir: ~/app/membrane_rtc_engine
+          workdir: ~/app/engine
           codecov_flag: engine
 
   test-webrtc:
@@ -136,7 +136,7 @@ workflows:
     jobs:
       - test_package:
           name: test_webrtc
-          workdir: ~/app/membrane_rtc_engine_webrtc
+          workdir: ~/app/webrtc
           codecov_flag: webrtc
       - test_webrtc_integration
 
@@ -151,7 +151,7 @@ workflows:
     jobs:
       - test_package:
           name: test_hls
-          workdir: ~/app/membrane_rtc_engine_hls
+          workdir: ~/app/hls
           codecov_flag: hls
           # TODO: remove once the compositor issues are resolved
           mix_test_args: "--exclude gpu"
@@ -167,7 +167,7 @@ workflows:
     jobs:
       - test_package:
           name: test_rtsp
-          workdir: ~/app/membrane_rtc_engine_rtsp
+          workdir: ~/app/rtsp
           codecov_flag: rtsp
 
   test-integration:
@@ -190,40 +190,40 @@ workflows:
     jobs:
       - lint_package:
           name: lint_engine
-          workdir: ~/app/membrane_rtc_engine
+          workdir: ~/app/engine
       - check_changelog_update:
           name: check_changelog_update_engine
-          workdir: ~/app/membrane_rtc_engine
+          workdir: ~/app/engine
 
   lint-webrtc:
     when: << pipeline.parameters.webrtc-changed >>
     jobs:
       - lint_package:
           name: lint_webrtc
-          workdir: ~/app/membrane_rtc_engine_webrtc
+          workdir: ~/app/webrtc
       - check_changelog_update:
           name: check_changelog_update_webrtc
-          workdir: ~/app/membrane_rtc_engine_webrtc
+          workdir: ~/app/webrtc
 
   lint-hls:
     when: << pipeline.parameters.hls-changed >>
     jobs:
       - lint_package:
           name: lint_hls
-          workdir: ~/app/membrane_rtc_engine_hls
+          workdir: ~/app/hls
       - check_changelog_update:
           name: check_changelog_update_hls
-          workdir: ~/app/membrane_rtc_engine_hls
+          workdir: ~/app/hls
 
   lint-rtsp:
     when: << pipeline.parameters.rtsp-changed >>
     jobs:
       - lint_package:
           name: lint_rtsp
-          workdir: ~/app/membrane_rtc_engine_rtsp
+          workdir: ~/app/rtsp
       - check_changelog_update:
           name: check_changelog_update_rtsp
-          workdir: ~/app/membrane_rtc_engine_rtsp
+          workdir: ~/app/rtsp
 
   lint-integration:
     when: << pipeline.parameters.integration-changed >>
