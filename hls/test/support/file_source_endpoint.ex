@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Support.FileEndpoint do
+defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
   @moduledoc false
 
   # Endpoint that publishes data from a file.
@@ -10,6 +10,7 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Support.StaticTrackSender
+  alias Membrane.RTP
   alias Membrane.RTP.PayloaderBin
 
   @type encoding_t() :: String.t()
@@ -77,7 +78,16 @@ defmodule Membrane.RTC.Engine.Support.FileEndpoint do
       |> via_in(:input, toilet_capacity: 1000)
       |> child(:realtimer, Membrane.Realtimer)
       |> via_in(:input, toilet_capacity: 1000)
-      |> child(:track_sender, %StaticTrackSender{track: state.track})
+      |> child(:track_sender, %StaticTrackSender{
+        track: state.track,
+        is_keyframe: fn buffer, track ->
+          case track.encoding do
+            :OPUS -> true
+            :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
+            :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
+          end
+        end
+      })
       |> bin_output(pad)
     ]
 

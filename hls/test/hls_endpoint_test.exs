@@ -4,7 +4,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.HLS
   alias Membrane.RTC.Engine.Message
-  alias Membrane.RTC.Engine.Support.FileEndpoint
+  alias Membrane.RTC.Engine.Support.FileSourceEndpoint
   alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
 
   @fixtures_dir "./test/fixtures/"
@@ -454,7 +454,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
         metadata: %{"mainPresenter" => true, "isScreenSharing" => false}
       )
 
-    %FileEndpoint{
+    %FileSourceEndpoint{
       rtc_engine: rtc_engine,
       file_path: video_file_path,
       track: video_track,
@@ -475,7 +475,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
         id: audio_track_id
       )
 
-    %FileEndpoint{
+    %FileSourceEndpoint{
       rtc_engine: rtc_engine,
       file_path: Path.join(@fixtures_dir, "audio.aac"),
       track: audio_track,

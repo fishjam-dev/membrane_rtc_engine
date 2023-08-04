@@ -2,9 +2,9 @@ defmodule Membrane.RTC.EngineTest do
   use ExUnit.Case
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.{Endpoint, Track}
+  alias Membrane.RTC.Engine.{Endpoint, Message, Track}
 
-  alias Membrane.RTC.Engine.Support.TestEndpoint
+  alias Membrane.RTC.Engine.Support.{FakeSourceEndpoint, SinkEndpoint, TestEndpoint}
 
   setup do
     options = [
@@ -181,6 +181,72 @@ defmodule Membrane.RTC.EngineTest do
     end
   end
 
+  describe "Engine.get_forwarded_tracks/2" do
+    test "get forwarded tracks", %{rtc_engine: rtc_engine} do
+      video_endpoint_id = :video1
+      video_endpoint = create_video_file_endpoint(rtc_engine, video_endpoint_id, "1", "1")
+      :ok = Engine.add_endpoint(rtc_engine, video_endpoint, id: video_endpoint_id)
+
+      assert 0 = Engine.get_num_forwarded_tracks(rtc_engine)
+
+      endpoint_id1 = :fake_endpoint1
+
+      :ok =
+        Engine.add_endpoint(rtc_engine, %SinkEndpoint{rtc_engine: rtc_engine, owner: self()},
+          id: endpoint_id1
+        )
+
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: ^video_endpoint_id,
+        message: :tracks_added
+      }
+
+      Engine.message_endpoint(rtc_engine, video_endpoint_id, :start)
+
+      assert_receive ^endpoint_id1, 1_000
+
+      assert 1 = Engine.get_num_forwarded_tracks(rtc_engine)
+
+      endpoint_id2 = :fake_endpoint2
+
+      :ok =
+        Engine.add_endpoint(rtc_engine, %SinkEndpoint{rtc_engine: rtc_engine, owner: self()},
+          id: endpoint_id2
+        )
+
+      assert_receive ^endpoint_id2, 1_000
+
+      assert 2 = Engine.get_num_forwarded_tracks(rtc_engine)
+
+      endpoint_id3 = :fake_endpoint3
+
+      :ok =
+        Engine.add_endpoint(rtc_engine, %SinkEndpoint{rtc_engine: rtc_engine, owner: self()},
+          id: endpoint_id3
+        )
+
+      assert_receive ^endpoint_id3, 1_000
+
+      assert 3 = Engine.get_num_forwarded_tracks(rtc_engine)
+
+      add_video_file_endpoint(rtc_engine, :video2, "2", "2")
+
+      assert_receive ^endpoint_id1, 5_000
+      assert_receive ^endpoint_id2, 5_000
+      assert_receive ^endpoint_id3, 5_000
+
+      assert 6 = Engine.get_num_forwarded_tracks(rtc_engine)
+
+      add_video_file_endpoint(rtc_engine, :video3, "3", "3")
+
+      assert_receive ^endpoint_id1, 5_000
+      assert_receive ^endpoint_id2, 5_000
+      assert_receive ^endpoint_id3, 5_000
+
+      assert 9 = Engine.get_num_forwarded_tracks(rtc_engine)
+    end
+  end
+
   test "engine sends EndpointCrashed message", %{rtc_engine: rtc_engine} do
     endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
     endpoint_id = :test_endpoint
@@ -246,5 +312,49 @@ defmodule Membrane.RTC.EngineTest do
       track_endpoint: track_endpoint,
       endpoint: endpoint
     ]
+  end
+
+  defp add_video_file_endpoint(
+         rtc_engine,
+         video_endpoint_id,
+         stream_id,
+         video_track_id
+       ) do
+    video_endpoint =
+      create_video_file_endpoint(rtc_engine, video_endpoint_id, stream_id, video_track_id)
+
+    :ok = Engine.add_endpoint(rtc_engine, video_endpoint, id: video_endpoint_id)
+
+    assert_receive %Message.EndpointMessage{
+      endpoint_id: ^video_endpoint_id,
+      message: :tracks_added
+    }
+
+    Engine.message_endpoint(rtc_engine, video_endpoint_id, :start)
+  end
+
+  defp create_video_file_endpoint(
+         rtc_engine,
+         video_file_endpoint_id,
+         stream_id,
+         video_track_id
+       ) do
+    video_track =
+      Engine.Track.new(
+        :video,
+        stream_id,
+        video_file_endpoint_id,
+        :H264,
+        90_000,
+        %ExSDP.Attribute.FMTP{
+          pt: 96
+        },
+        id: video_track_id
+      )
+
+    %FakeSourceEndpoint{
+      rtc_engine: rtc_engine,
+      track: video_track
+    }
   end
 end
