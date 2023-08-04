@@ -80,7 +80,7 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
       |> via_in(:input, toilet_capacity: 1000)
       |> child(:track_sender, %StaticTrackSender{
         track: state.track,
-        detect_keyframe: fn buffer, track ->
+        is_keyframe: fn buffer, track ->
           case track.encoding do
             :OPUS -> true
             :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)

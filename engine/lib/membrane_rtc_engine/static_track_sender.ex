@@ -27,7 +27,7 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
                 spec: Membrane.RTC.Engine.Track.t(),
                 description: "Track this sender will maintain"
               ],
-              detect_keyframe: [
+              is_keyframe: [
                 spec: (Membrane.Buffer.t(), Track.t() -> boolean()),
                 description: "Function informing if buffer is a keyframe for this track"
               ]
@@ -44,8 +44,8 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
     accepted_format: Membrane.RTP
 
   @impl true
-  def handle_init(_ctx, %__MODULE__{track: track, detect_keyframe: detect_keyframe}) do
-    {[], %{track: track, started?: false, detect_keyframe: detect_keyframe}}
+  def handle_init(_ctx, %__MODULE__{track: track, is_keyframe: is_keyframe}) do
+    {[], %{track: track, started?: false, is_keyframe: is_keyframe}}
   end
 
   @impl true
@@ -75,7 +75,7 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
   end
 
   defp add_is_keyframe_flag(buffer, state) do
-    is_keyframe = state.detect_keyframe.(buffer, state.track)
+    is_keyframe = state.is_keyframe.(buffer, state.track)
 
     new_metadata = Map.put(buffer.metadata, :is_keyframe, is_keyframe)
     %Buffer{buffer | metadata: new_metadata}

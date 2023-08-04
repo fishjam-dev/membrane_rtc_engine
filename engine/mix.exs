@@ -70,13 +70,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
       {:membrane_fake_plugin, "~> 0.10.0", only: :test},
 
-      # Because we use membrane_rtp_plugin we can't add only test to these dependencies
-      {:membrane_rtp_h264_plugin, "~> 0.16.0", only: :test},
-      {:membrane_rtp_vp8_plugin, "~> 0.8.0", only: :test},
-
-      # Because we use somewhere membrane_h264_ffmpeg_plugin we can't add only test to this dependency
-      {:membrane_raw_video_format, "~> 0.3.0", only: :test},
-
       # Otel
       {:opentelemetry, "~> 1.0.0"},
       {:opentelemetry_api, "~> 1.0.0"}
