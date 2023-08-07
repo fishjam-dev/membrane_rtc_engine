@@ -68,9 +68,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       {:membrane_aac_fdk_plugin, "~> 0.15.1"},
       {:membrane_raw_audio_format, "~> 0.11.0"},
       {:membrane_raw_video_format, "~> 0.3.0"},
-      {:membrane_h264_plugin, "~> 0.4.0"},
+      {:membrane_h264_plugin, "~> 0.5.0"},
       {:membrane_h264_ffmpeg_plugin, "~> 0.27.0"},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.15.0"},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.16.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
@@ -80,7 +80,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.14.0"},
+      {:membrane_file_plugin, "~> 0.15.0"},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
 
       # File Source

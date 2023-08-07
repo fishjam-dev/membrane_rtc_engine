@@ -387,11 +387,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     defp attach_video_track_spec(offset, track, _state),
       do: [
         get_child({:depayloader, track.id})
-        # TODO change to new parser once it supports Membrane.H264 stream format on input pad
-        |> child({:video_parser, track.id}, %Membrane.H264.FFmpeg.Parser{
-          attach_nalus?: true,
-          alignment: :au
-        })
+        |> child({:video_parser, track.id}, h264_parser_spec(track))
         |> child({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
         |> via_in(Pad.ref(:input, track.id),
           options: [timestamp_offset: offset]
@@ -418,12 +414,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         }
       }
 
-      # TODO change to new parser once it supports Membrane.H264 stream format on input pad
-      video_parser_out = %Membrane.H264.FFmpeg.Parser{
-        alignment: :au,
-        attach_nalus?: true
-      }
-
       {frames_per_second, 1} = state.mixer_config.video.stream_format.framerate
       seconds_number = Membrane.Time.as_seconds(state.hls_config.segment_duration)
 
@@ -434,7 +424,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
           tune: :zerolatency,
           gop_size: frames_per_second * seconds_number
         })
-        |> child(:video_parser_out, video_parser_out)
+        |> child(:video_parser_out, Membrane.H264.Parser)
         |> via_in(Pad.ref(:input, :video),
           toilet_capacity: 500,
           options: [

@@ -69,7 +69,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.14.0"},
+      {:membrane_file_plugin, "~> 0.15.0"},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
 
       # Otel
