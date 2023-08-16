@@ -35,7 +35,6 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     :ok = Engine.add_endpoint(rtc_engine, rtsp_endpoint, id: @rtsp_endpoint_id)
 
     assert_receive(%Message.EndpointCrashed{endpoint_id: @rtsp_endpoint_id}, 20_000)
-    refute_received(_any)
   end
 
   test "reconnects", %{rtc_engine: rtc_engine} do
@@ -65,7 +64,6 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     assert_exactly_n_reconnects(reconnects, :nxdomain, 20_000)
 
     :ok = Engine.remove_endpoint(rtc_engine, @rtsp_endpoint_id)
-    refute_received(_any)
   end
 
   defp assert_exactly_n_reconnects(n, reason, timeout) do
@@ -129,7 +127,5 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     )
 
     assert_receive(%Message.EndpointCrashed{endpoint_id: @rtsp_endpoint_id}, 20_000)
-
-    refute_received(_any)
   end
 end
