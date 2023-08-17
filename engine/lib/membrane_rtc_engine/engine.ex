@@ -419,10 +419,7 @@ defmodule Membrane.RTC.Engine do
 
       {[], state}
     else
-      {actions, state} = handle_add_endpoint(endpoint, opts, state)
-      %endpoint_type{} = endpoint
-      dispatch(%Message.EndpointAdded{endpoint_id: endpoint_id, endpoint_type: endpoint_type})
-      {actions, state}
+      handle_add_endpoint(endpoint, opts, state)
     end
   end
 
@@ -878,6 +875,7 @@ defmodule Membrane.RTC.Engine do
       |> put_in([:subscriptions, endpoint_id], %{})
       |> put_in([:pending_endpoints, endpoint_id], endpoint)
 
+    dispatch(%Message.EndpointAdded{endpoint_id: endpoint_id, endpoint_type: endpoint_module})
     {actions, state}
   end
 

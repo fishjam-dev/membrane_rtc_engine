@@ -22,7 +22,7 @@ defmodule TestVideoroom.Integration.Utils do
           |> then(&receive_stats(mustangs_number, pid, &1))
       end
     else
-      send(pid, acc)
+      send(pid, {:stats, acc})
     end
   end
 end

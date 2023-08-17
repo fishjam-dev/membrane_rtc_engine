@@ -51,7 +51,7 @@ defmodule TestVideoroom.Integration.BasicTest do
     |> Task.await_many(:infinity)
 
     receive do
-      acc ->
+      {:stats, acc} ->
         Enum.each(acc, fn
           {:after_warmup, browsers} ->
             Enum.each(browsers, fn {browser_id, stats_list} ->
@@ -100,7 +100,7 @@ defmodule TestVideoroom.Integration.BasicTest do
     |> Task.await_many(:infinity)
 
     receive do
-      acc ->
+      {:stats, acc} ->
         Enum.each(acc, fn
           {:after_warmup, browsers} ->
             Enum.each(browsers, fn {_browser_id, stats_list} ->
@@ -152,7 +152,7 @@ defmodule TestVideoroom.Integration.BasicTest do
     {_button, buttons_with_id} = Map.pop!(buttons_with_id, 3)
 
     receive do
-      acc ->
+      {:stats, acc} ->
         Enum.each(acc, fn
           {:after_warmup, browsers} ->
             Enum.each(browsers, fn {browser_id, stats_list} ->

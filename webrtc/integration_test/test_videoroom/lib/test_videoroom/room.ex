@@ -162,4 +162,9 @@ defmodule TestVideoroom.Room do
     {_elem, state} = pop_in(state, [:peer_channels, peer_id])
     {:noreply, state}
   end
+
+  @impl true
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
 end

@@ -249,23 +249,8 @@ defmodule Membrane.RTC.EngineTest do
 
   describe "engine sends messages" do
     test "Endpoint{Added, Crashed, Removed}, Track{Added, Removed}", %{rtc_engine: rtc_engine} do
-      endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
+      endpoint = %TestEndpoint{rtc_engine: rtc_engine}
       endpoint_id = :test_endpoint
-
-      :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
-
-      assert_receive %Message.EndpointAdded{
-        endpoint_id: ^endpoint_id,
-        endpoint_type: TestEndpoint
-      }
-
-      msg = {:execute_actions, [:some_invalid_action]}
-      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
-
-      assert_receive %Message.EndpointCrashed{
-        endpoint_id: ^endpoint_id,
-        endpoint_type: TestEndpoint
-      }
 
       :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
 
@@ -312,12 +297,30 @@ defmodule Membrane.RTC.EngineTest do
         message: :test_message
       }
 
-      Engine.remove_endpoint(rtc_engine, endpoint_id)
+      :ok = Engine.remove_endpoint(rtc_engine, endpoint_id)
 
       assert_receive %Message.EndpointRemoved{
         endpoint_id: ^endpoint_id,
         endpoint_type: TestEndpoint
       }
+
+      endpoint_id = :test_endpoint2
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
+
+      assert_receive %Message.EndpointAdded{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint
+      }
+
+      msg = {:execute_actions, [:some_invalid_action]}
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.EndpointCrashed{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint
+      }
+
+      refute_receive _any
     end
   end
 
