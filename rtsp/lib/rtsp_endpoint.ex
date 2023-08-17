@@ -6,9 +6,6 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
   ## Limitations
   Currently, only H264 streams are supported.
 
-  At the moment, if H264 parameters are passed out-of-band, only the HLS Endpoint
-  will be able to subscribe to tracks created by the RTSP Endpoint.
-
   If the RTSP Endpoint has yet to successfully connect to the stream source,
   a reconnect attempt can be made, either by the endpoint itself,
   or by calling `#{inspect(__MODULE__)}.request_reconnect/2`.
