@@ -15,19 +15,17 @@ RUN \
 RUN mix local.hex --force && \
   mix local.rebar --force
 
-ARG ENGINE_PATH=../engine
 WORKDIR /engine
-COPY ${ENGINE_PATH}/config config/
-COPY ${ENGINE_PATH}/lib lib/
-COPY ${ENGINE_PATH}/mix.exs ${ENGINE_PATH}/mix.lock ./
+COPY engine/lib lib/
+COPY engine/mix.exs engine/mix.lock ./
 ENV RTC_ENGINE_PATH=/engine
 
-ARG WEBRTC_PATH=../webrtc
 WORKDIR /webrtc
-COPY ${WEBRTC_PATH}/lib lib/
-COPY ${WEBRTC_PATH}/mix.exs ${WEBRTC_PATH}/mix.lock ./
+COPY webrtc/config config/
+COPY webrtc/lib lib/
+COPY webrtc/mix.exs webrtc/mix.lock ./
 
-ARG APP_PATH=${WEBRTC_PATH}/integration_test/test_videoroom
+ARG APP_PATH=webrtc/integration_test/test_videoroom
 ENV MIX_ENV=test
 
 WORKDIR /app
