@@ -125,9 +125,28 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
       when track_id == state.track.id do
     Membrane.Logger.debug("Pad added for track #{inspect(track_id)}, variant :high")
 
+    {sps, pps} =
+      case Map.get(state.track.fmtp, :sprop_parameter_sets) do
+        nil -> {<<>>, <<>>}
+        %{sps: sps, pps: pps} -> {<<0, 0, 0, 1>> <> sps, <<0, 0, 0, 1>> <> pps}
+      end
+
     structure = [
       get_child(:rtp)
-      |> via_out(Pad.ref(:output, state.ssrc), options: [depayloader: nil])
+      |> via_out(Pad.ref(:output, state.ssrc), options: [depayloader: Membrane.RTP.H264.Depayloader])
+      |> child(:parser, %Membrane.H264.Parser{
+        sps: sps,
+        pps: pps,
+        output_alignment: :nalu,
+        skip_until_keyframe?: true,
+        repeat_parameter_sets: true
+      })
+      |> child(:payloader, %Membrane.RTP.PayloaderBin{
+        payloader: Membrane.RTP.H264.Payloader,
+        ssrc: state.ssrc,
+        payload_type: state.track.ctx.rtpmap.payload_type,
+        clock_rate: state.track.ctx.rtpmap.clock_rate
+      })
       |> via_in(Pad.ref(:input, {track_id, :high}))
       |> child(
         {:track_sender, track_id},

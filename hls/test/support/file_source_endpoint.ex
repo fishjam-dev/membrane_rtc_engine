@@ -79,14 +79,7 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
       |> child(:realtimer, Membrane.Realtimer)
       |> via_in(:input, toilet_capacity: 1000)
       |> child(:track_sender, %StaticTrackSender{
-        track: state.track,
-        is_keyframe: fn buffer, track ->
-          case track.encoding do
-            :OPUS -> true
-            :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
-            :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
-          end
-        end
+        track: state.track
       })
       |> bin_output(pad)
     ]
@@ -141,9 +134,11 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
 
   defp convert_to_payloader_format(:H264) do
     fn link_builder ->
+      # TODO: Change to new parser once it supports timestamp generation
+      # for profiles with B-frames
       child(link_builder, :parser, %Membrane.H264.FFmpeg.Parser{
         framerate: {60, 1},
-        alignment: :nal
+        alignment: :nalu
       })
     end
   end

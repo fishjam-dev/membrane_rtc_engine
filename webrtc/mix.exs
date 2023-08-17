@@ -53,13 +53,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 0.12.3"},
-      {:membrane_webrtc_plugin, "~> 0.15.0"},
+      {:membrane_webrtc_plugin, "~> 0.16.0"},
       {:membrane_rtp_plugin, "~> 0.23.0"},
       {:membrane_ice_plugin, "~> 0.16.0"},
       {:membrane_rtp_format, "~> 0.7.0"},
       {:membrane_opentelemetry, "~> 0.1.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.8.0"},
-      {:membrane_rtp_h264_plugin, "~> 0.16.0"},
+      {:membrane_rtp_h264_plugin, "~> 0.17.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:ex_sdp, "~> 0.11.0"},
       {:qex, "~> 0.5"},

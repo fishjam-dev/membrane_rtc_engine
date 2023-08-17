@@ -33,9 +33,20 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
 
   defp deps do
     [
+      # Engine deps
       {:membrane_rtc_engine, path: "../engine"},
       {:membrane_rtc_engine_hls, path: "../hls"},
       {:membrane_rtc_engine_rtsp, path: "../rtsp"},
+
+      # Regular deps (for modules in `test/support/`)
+      {:membrane_core, "~> 0.12.7"},
+      {:membrane_rtp_plugin, "~> 0.23.0"},
+      {:membrane_rtp_h264_plugin, "~> 0.17.0"},
+      {:membrane_h264_format, "~> 0.5.0"},
+      {:membrane_h264_plugin, "~> 0.5.0"},
+      {:membrane_udp_plugin, "~> 0.10.0"},
+      {:membrane_file_plugin, "~> 0.15.0"},
+      {:qex, "~> 0.5.1"},
 
       # Test deps
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false}

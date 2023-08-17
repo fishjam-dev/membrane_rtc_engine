@@ -39,10 +39,9 @@ defmodule FakeRTSPserver do
         child(:file_src, %Membrane.File.Source{
           location: opts.fixture_path
         })
-        |> child(:parser, %Membrane.H264.FFmpeg.Parser{
+        |> child(:parser, %Membrane.H264.Parser{
           framerate: opts.framerate,
-          alignment: :nal,
-          skip_until_parameters?: false
+          output_alignment: :nalu
         })
         |> child(:stripper, H264ParamStripper)
         |> via_in(Pad.ref(:input, opts.ssrc), options: [payloader: Membrane.RTP.H264.Payloader])
