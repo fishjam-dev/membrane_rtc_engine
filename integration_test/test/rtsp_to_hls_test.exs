@@ -110,8 +110,6 @@ defmodule Membrane.RTC.Engine.Integration.RTSPtoHLStest do
     end)
 
     assert_receive(:output_files_present, 20_000)
-
-    refute_received(_any)
   end
 
   defp check_presence_of_output_files(dir, n_segment_files, retry_after, notify_pid) do

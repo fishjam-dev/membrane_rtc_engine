@@ -99,9 +99,6 @@ defmodule Membrane.RTC.Engine do
 
   alias Membrane.RTC.Engine.Exception.{PublishTrackError, TrackReadyError}
 
-  # `Membrane.Pipeline.call/3 currently has invalid typespec`
-  @dialyzer {:nowarn_function, [get_endpoints: 1]}
-
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
   @life_span_id "rtc_engine.life_span"
@@ -433,7 +430,8 @@ defmodule Membrane.RTC.Engine do
         Membrane.Logger.info("Endpoint #{inspect(id)} already removed")
         {[], state}
 
-      {:present, actions, state} ->
+      {{:present, endpoint}, actions, state} ->
+        dispatch(%Message.EndpointRemoved{endpoint_id: id, endpoint_type: endpoint.type})
         {actions, state}
     end
   end
@@ -532,8 +530,8 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
-    dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id})
-    {_status, actions, state} = handle_remove_endpoint(endpoint_id, ctx, state)
+    {{:present, endpoint}, actions, state} = handle_remove_endpoint(endpoint_id, ctx, state)
+    dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
     {actions, state}
   end
 
@@ -596,7 +594,15 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_endpoint_notification({:forward_to_parent, message}, endpoint_id, _ctx, state) do
-    dispatch(%Message.EndpointMessage{endpoint_id: endpoint_id, message: message})
+    endpoint =
+      Map.get(state.endpoints, endpoint_id) || Map.fetch!(state.pending_endpoints, endpoint_id)
+
+    dispatch(%Message.EndpointMessage{
+      endpoint_id: endpoint_id,
+      endpoint_type: endpoint.type,
+      message: message
+    })
+
     {[], state}
   end
 
@@ -744,6 +750,17 @@ defmodule Membrane.RTC.Engine do
         &Map.merge(&1, id_to_track)
       )
 
+    Enum.each(
+      tracks,
+      &dispatch(%Message.TrackAdded{
+        endpoint_id: endpoint_id,
+        endpoint_type: state.endpoints[endpoint_id].type,
+        track_id: &1.id,
+        track_type: &1.type,
+        track_encoding: &1.encoding
+      })
+    )
+
     tracks_msgs = build_track_added_actions(tracks, endpoint_id, state)
     {tracks_msgs, state}
   end
@@ -776,6 +793,17 @@ defmodule Membrane.RTC.Engine do
 
         {endpoint_id, subscriptions}
       end)
+
+    Enum.each(
+      tracks,
+      &dispatch(%Message.TrackRemoved{
+        endpoint_id: endpoint_id,
+        endpoint_type: state.endpoints[endpoint_id].type,
+        track_id: &1.id,
+        track_type: &1.type,
+        track_encoding: &1.encoding
+      })
+    )
 
     {tracks_msgs ++ [remove_child: track_tees], %{state | subscriptions: subscriptions}}
   end
@@ -847,6 +875,7 @@ defmodule Membrane.RTC.Engine do
       |> put_in([:subscriptions, endpoint_id], %{})
       |> put_in([:pending_endpoints, endpoint_id], endpoint)
 
+    dispatch(%Message.EndpointAdded{endpoint_id: endpoint_id, endpoint_type: endpoint_module})
     {actions, state}
   end
 
@@ -871,20 +900,20 @@ defmodule Membrane.RTC.Engine do
           |> Enum.map(&{:notify_child, {{:endpoint, &1}, {:endpoint_removed, endpoint_id}}})
 
         if endpoint_bin == nil or endpoint_bin.terminating? do
-          {:present, tracks_msgs ++ endpoint_removed_msgs, state}
+          {{:present, endpoint}, tracks_msgs ++ endpoint_removed_msgs, state}
         else
           actions = [remove_child: find_children_for_endpoint(endpoint, ctx)]
-          {:present, tracks_msgs ++ endpoint_removed_msgs ++ actions, state}
+          {{:present, endpoint}, tracks_msgs ++ endpoint_removed_msgs ++ actions, state}
         end
 
       Map.has_key?(state.pending_endpoints, endpoint_id) ->
-        {_pending_endpoint, state} = pop_in(state, [:pending_endpoints, endpoint_id])
+        {pending_endpoint, state} = pop_in(state, [:pending_endpoints, endpoint_id])
         endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
 
         if endpoint_bin == nil or endpoint_bin.terminating? do
-          {:present, [], state}
+          {{:present, pending_endpoint}, [], state}
         else
-          {:present, [remove_child: {:endpoint, endpoint_id}], state}
+          {{:present, pending_endpoint}, [remove_child: {:endpoint, endpoint_id}], state}
         end
 
       true ->

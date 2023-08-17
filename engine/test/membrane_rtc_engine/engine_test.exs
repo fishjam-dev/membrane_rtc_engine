@@ -247,13 +247,81 @@ defmodule Membrane.RTC.EngineTest do
     end
   end
 
-  test "engine sends EndpointCrashed message", %{rtc_engine: rtc_engine} do
-    endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
-    endpoint_id = :test_endpoint
-    :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
-    msg = {:execute_actions, [:some_invalid_action]}
-    :ok = Engine.message_endpoint(rtc_engine, :test_endpoint, msg)
-    assert_receive %Membrane.RTC.Engine.Message.EndpointCrashed{endpoint_id: :test_endpoint}
+  describe "engine sends messages" do
+    test "Endpoint{Added, Crashed, Removed}, Track{Added, Removed}", %{rtc_engine: rtc_engine} do
+      endpoint = %TestEndpoint{rtc_engine: rtc_engine}
+      endpoint_id = :test_endpoint
+
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
+
+      assert_receive %Message.EndpointAdded{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint
+      }
+
+      track_id = "track1"
+      track = video_track(endpoint_id, track_id, "")
+      track_encoding = track.encoding
+
+      msg =
+        {:execute_actions,
+         notify_parent: {:ready, ""}, notify_parent: {:publish, {:new_tracks, [track]}}}
+
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.TrackAdded{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint,
+        track_id: ^track_id,
+        track_type: :video,
+        track_encoding: ^track_encoding
+      }
+
+      msg = {:execute_actions, notify_parent: {:publish, {:removed_tracks, [track]}}}
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.TrackRemoved{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint,
+        track_id: ^track_id,
+        track_type: :video,
+        track_encoding: ^track_encoding
+      }
+
+      msg = {:execute_actions, notify_parent: {:forward_to_parent, :test_message}}
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.EndpointMessage{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint,
+        message: :test_message
+      }
+
+      :ok = Engine.remove_endpoint(rtc_engine, endpoint_id)
+
+      assert_receive %Message.EndpointRemoved{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint
+      }
+
+      endpoint_id = :test_endpoint2
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
+
+      assert_receive %Message.EndpointAdded{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint
+      }
+
+      msg = {:execute_actions, [:some_invalid_action]}
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.EndpointCrashed{
+        endpoint_id: ^endpoint_id,
+        endpoint_type: TestEndpoint
+      }
+
+      refute_receive _any
+    end
   end
 
   defp video_track(endpoint_id, track_id, metadata, stream_id \\ "test-stream") do

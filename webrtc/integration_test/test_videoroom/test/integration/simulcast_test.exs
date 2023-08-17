@@ -119,7 +119,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     |> Task.await_many(:infinity)
 
     receive do
-      stats ->
+      {:stats, stats} ->
         for tag <- Map.keys(tag_to_expected_encoding),
             browser_id_to_stats_samples = Map.get(stats, tag) do
           encoding = tag_to_expected_encoding[tag]
@@ -198,7 +198,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     |> Task.await_many(:infinity)
 
     receive do
-      stats ->
+      {:stats, stats} ->
         for tag <- Map.keys(tag_to_expected_encoding),
             browser_id_to_stats_samples = Map.get(stats, tag) do
           encoding = tag_to_expected_encoding[tag]
@@ -318,7 +318,7 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     |> Task.await_many(:infinity)
 
     receive do
-      stats ->
+      {:stats, stats} ->
         for tag <- Map.keys(tag_to_expected_encoding),
             browser_id_to_stats_samples = Map.get(stats, tag) do
           encoding = tag_to_expected_encoding[tag]

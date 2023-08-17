@@ -61,7 +61,7 @@ defmodule TestVideoroom.Integration.MetadataTest do
     |> Task.await_many(:infinity)
 
     receive do
-      stats ->
+      {:stats, stats} ->
         for {stage, browsers} <- stats do
           text = stage_to_text[stage]
 
