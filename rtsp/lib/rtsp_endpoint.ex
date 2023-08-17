@@ -130,7 +130,9 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
 
     structure = [
       get_child(:rtp)
-      |> via_out(Pad.ref(:output, state.ssrc), options: [depayloader: Membrane.RTP.H264.Depayloader])
+      |> via_out(Pad.ref(:output, state.ssrc),
+        options: [depayloader: Membrane.RTP.H264.Depayloader]
+      )
       |> child(:parser, %Membrane.H264.Parser{
         sps: sps,
         pps: pps,
