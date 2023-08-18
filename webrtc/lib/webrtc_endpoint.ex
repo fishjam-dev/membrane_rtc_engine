@@ -357,17 +357,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_child_notification({:removed_tracks, tracks}, :endpoint_bin, ctx, state) do
+  def handle_child_notification({:removed_tracks, tracks}, :endpoint_bin, _ctx, state) do
     tracks = Enum.map(tracks, &to_rtc_track(&1, Map.get(state.inbound_tracks, &1.id)))
     inbound_tracks = update_tracks(tracks, state.inbound_tracks)
 
-    track_senders =
-      tracks
-      |> Enum.map(&{:track_sender, &1.id})
-      |> Enum.filter(&Map.has_key?(ctx.children, &1))
-
     actions = [
-      remove_child: track_senders,
       notify_parent: {:publish, {:removed_tracks, tracks}}
     ]
 
@@ -511,11 +505,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     )
 
     {[notify_parent: {:forward_to_parent, {:media_event, media_event}}], state}
-  end
-
-  @impl true
-  def handle_child_pad_removed(_child, _pad, _ctx, state) do
-    {[], state}
   end
 
   @impl true
@@ -763,8 +752,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
-    {[], state}
+  def handle_pad_removed(Pad.ref(:output, {track_id, _variant}), ctx, state) do
+    if Map.has_key?(ctx.children, {:track_sender, track_id}) do
+      {[remove_child: {:track_sender, track_id}], state}
+    else
+      {[], state}
+    end
   end
 
   defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
