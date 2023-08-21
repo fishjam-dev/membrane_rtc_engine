@@ -141,9 +141,11 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
 
   defp convert_to_payloader_format(:H264) do
     fn link_builder ->
+      # TODO: Change to new parser once it supports timestamp generation
+      # for profiles with B-frames
       child(link_builder, :parser, %Membrane.H264.FFmpeg.Parser{
         framerate: {60, 1},
-        alignment: :nal
+        alignment: :nalu
       })
     end
   end

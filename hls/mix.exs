@@ -69,7 +69,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       {:membrane_raw_audio_format, "~> 0.11.0"},
       {:membrane_raw_video_format, "~> 0.3.0"},
       {:membrane_h264_plugin, "~> 0.5.0"},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.27.0"},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.28.0"},
       {:membrane_http_adaptive_stream_plugin, "~> 0.16.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},

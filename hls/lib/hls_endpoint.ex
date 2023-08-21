@@ -372,7 +372,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   defp attach_video_track_spec(_offset, track, %{mixer_config: nil} = state),
     do: [
       get_child({:depayloader, track.id})
-      |> child({:video_parser, track.id}, h264_parser_spec(track))
+      |> child({:video_parser, track.id}, %Membrane.H264.Parser{
+        framerate: {0, 1}
+      })
       |> via_in(Pad.ref(:input, {:video, track.id}),
         options: [
           encoding: :H264,
@@ -387,7 +389,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     defp attach_video_track_spec(offset, track, _state),
       do: [
         get_child({:depayloader, track.id})
-        |> child({:video_parser, track.id}, h264_parser_spec(track))
+        |> child({:video_parser, track.id}, %Membrane.H264.Parser{
+          framerate: {0, 1}
+        })
         |> child({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
         |> via_in(Pad.ref(:input, track.id),
           options: [timestamp_offset: offset]
@@ -495,21 +499,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     do: Path.join(state.output_directory, stream_id)
 
   defp get_hls_stream_directory(state, _stream_id), do: state.output_directory
-
-  defp h264_parser_spec(track) do
-    {sps, pps} =
-      case Map.get(track.fmtp, :sprop_parameter_sets) do
-        nil -> {<<>>, <<>>}
-        %{sps: sps, pps: pps} -> {<<0, 0, 0, 1>> <> sps, <<0, 0, 0, 1>> <> pps}
-      end
-
-    %Membrane.H264.Parser{
-      # FIXME: surely there must be a better way to do this
-      framerate: {0, 1},
-      sps: sps,
-      pps: pps
-    }
-  end
 
   unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do
     defp merge_strings(strings), do: Enum.join(strings, ", ")
