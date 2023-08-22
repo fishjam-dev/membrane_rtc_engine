@@ -1,16 +1,17 @@
 if Code.ensure_loaded?(Membrane.VideoCompositor) do
   defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler do
     @moduledoc """
-    Module implementing `Membrane.VideoCompositor.Handler` behavoir.
+    Module implementing `Membrane.VideoCompositor.Handler` behaviour.
     Responsible for updating `Membrane.VideoCompositor.Scene` for video compositor.
-    This module handles layout up to three video tracks.
+    This module handles layout for any amount of video tracks.
 
+    Example layouts:
     ```ascii
     1) One presenter
          _ _ _ _ _ _ _ _ _
         |                 |
         |                 |
-        |                 |
+        |        1        |
         |                 |
         |                 |
          - - - - - - - - -
@@ -18,17 +19,17 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
          _ _ _ _ _ _ _ _ _
         |        |        |
         |        |        |
-        |        |        |
+        |   1    |    2   |
         |        |        |
         |        |        |
          - - - - - - - - -
     3) Three presenters
          _ _ _ _ _ _ _ _ _
         |        |        |
-        |        |        |
+        |   1    |   2    |
         | _ _ _ _|_ _ _ _ |
         |    |       |    |
-        |    |       |    |
+        |    |   3   |    |
          - - - - - - - - -
     ```
     """
@@ -44,7 +45,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
 
     @impl true
     def handle_init(ctx) do
-      %{output_stream_format: ctx.output_stream_format, screenShare?: false}
+      %{output_stream_format: ctx.output_stream_format}
     end
 
     @impl true
@@ -56,17 +57,54 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     def handle_inputs_change(
           inputs,
           _ctx,
-          state
-        ) do
-      inputs_number = Enum.count(inputs)
+          %{output_stream_format: output_stream_format} = state
+        ) when map_size(inputs) > 0 do
+      inputs_amount = Enum.count(inputs)
+
+      max_inputs_in_row = :math.sqrt(inputs_amount) |> ceil()
+      row_amount = ceil(inputs_amount / max_inputs_in_row)
+
+      output_row_height = div(output_stream_format.height, row_amount)
+      output_col_width = div(output_stream_format.width, max_inputs_in_row)
+
+      desired_stream_format = %{
+        width: output_col_width - @padding * 2,
+        height: output_row_height - @padding * 2
+      }
 
       scene =
-        inputs
+        Enum.chunk_every(inputs, max_inputs_in_row)
         |> Enum.with_index()
-        |> Enum.map(fn {{ref, %{stream_format: stream_format}}, index} ->
-          video_config = get_video_config(stream_format, inputs_number, index, state)
+        |> Enum.flat_map(fn {row_inputs, row_index} ->
+          placement_height = row_index * output_row_height + @padding
+          inputs_in_row = Enum.count(row_inputs)
 
-          {ref, video_config}
+          Enum.with_index(row_inputs)
+          |> Enum.map(fn {{ref, %{stream_format: stream_format}}, col_index} ->
+            # Center the tiles if we have less of them than max_inputs_in_row
+            width_offset = div(output_col_width * (max_inputs_in_row - inputs_in_row), 2)
+            placement_width = col_index * output_col_width + @padding + width_offset
+
+            placement = %BaseVideoPlacement{
+              position: {placement_width, placement_height},
+              size: scale(desired_stream_format, stream_format),
+              z_value: @z_value
+            }
+
+            {scaled_width, scaled_height} = placement.size
+            scaled_stream_format = %{width: scaled_width, height: scaled_height}
+
+            # Compositor works in two steps.
+            # First it scales and places video creating output in `scaled_stream_format`.
+            # Then it does tranformations like cropping or cutting video.
+            # In transformation step compositor works on `scaled_stream_format` from previous step.
+            transformations = get_transformations(desired_stream_format, scaled_stream_format)
+
+            {ref, %VideoConfig{
+              placement: placement,
+              transformations: transformations
+            }}
+          end)
         end)
         |> Enum.into(%{})
         |> then(fn video_configs -> %Scene{video_configs: video_configs} end)
@@ -74,86 +112,9 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       {scene, state}
     end
 
-    defp get_video_config(input_stream_format, inputs_number, index, %{
-           output_stream_format: output_stream_format
-         }) do
-      desired_stream_format = get_desired_stream_format(inputs_number, output_stream_format)
-
-      placement =
-        get_placement(
-          desired_stream_format,
-          inputs_number,
-          index,
-          input_stream_format,
-          output_stream_format
-        )
-
-      {scaled_width, scaled_height} = placement.size
-      scaled_stream_format = %{width: scaled_width, height: scaled_height}
-
-      # Compositor works in two steps.
-      # First it scales and places video creating output in `scaled_stream_format`.
-      # Then it does tranformations like cropping or cutting video.
-      # In transformation step compositor works on `scaled_stream_format` from previous step.
-      transformations = get_transformations(desired_stream_format, scaled_stream_format)
-
-      %VideoConfig{
-        placement: placement,
-        transformations: transformations
-      }
-    end
-
-    defp get_desired_stream_format(1, output_stream_format) do
-      output_stream_format
-    end
-
-    defp get_desired_stream_format(2, %{width: width, height: height}) do
-      %{
-        width: round(1 / 2 * width) - @padding * 2,
-        height: height - @padding * 2
-      }
-    end
-
-    defp get_desired_stream_format(3, %{width: width, height: height}) do
-      %{
-        width: round(1 / 2 * width) - @padding * 2,
-        height: round(1 / 2 * height) - @padding * 2
-      }
-    end
-
-    defp get_placement(desired_stream_format, 1, 0, input_stream_format, _output_stream_format) do
-      %BaseVideoPlacement{
-        position: {0, 0},
-        size: scale(desired_stream_format, input_stream_format),
-        z_value: @z_value
-      }
-    end
-
-    defp get_placement(desired_stream_format, 2, index, input_stream_format, %{width: width}) do
-      %BaseVideoPlacement{
-        position: {round(1 / 2 * width) * index + @padding, @padding},
-        size: scale(desired_stream_format, input_stream_format),
-        z_value: @z_value
-      }
-    end
-
-    defp get_placement(desired_stream_format, 3, 2, input_stream_format, %{
-           height: height,
-           width: width
-         }) do
-      %BaseVideoPlacement{
-        position: {round(1 / 4 * width) + @padding, round(1 / 2 * height) + @padding},
-        size: scale(desired_stream_format, input_stream_format),
-        z_value: @z_value
-      }
-    end
-
-    defp get_placement(desired_stream_format, 3, index, input_stream_format, %{width: width}) do
-      %BaseVideoPlacement{
-        position: {round(1 / 2 * width) * index + @padding, @padding},
-        size: scale(desired_stream_format, input_stream_format),
-        z_value: @z_value
-      }
+    @impl true
+    def handle_inputs_change(_inputs, _ctx, state) do
+      {%Scene{video_configs: %{}}, state}
     end
 
     defp get_transformations(desired_stream_format, scaled_stream_format) do
