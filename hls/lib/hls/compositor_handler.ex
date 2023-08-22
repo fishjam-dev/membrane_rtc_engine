@@ -58,7 +58,8 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
           inputs,
           _ctx,
           %{output_stream_format: output_stream_format} = state
-        ) when map_size(inputs) > 0 do
+        )
+        when map_size(inputs) > 0 do
       inputs_amount = Enum.count(inputs)
 
       max_inputs_in_row = :math.sqrt(inputs_amount) |> ceil()
@@ -100,10 +101,11 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
             # In transformation step compositor works on `scaled_stream_format` from previous step.
             transformations = get_transformations(desired_stream_format, scaled_stream_format)
 
-            {ref, %VideoConfig{
-              placement: placement,
-              transformations: transformations
-            }}
+            {ref,
+             %VideoConfig{
+               placement: placement,
+               transformations: transformations
+             }}
           end)
         end)
         |> Enum.into(%{})
