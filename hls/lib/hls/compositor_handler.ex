@@ -62,7 +62,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
         when map_size(inputs) > 0 do
       inputs_amount = Enum.count(inputs)
 
-      max_inputs_in_row = :math.sqrt(inputs_amount) |> ceil()
+      max_inputs_in_row = inputs_amount |> :math.sqrt() |> ceil()
       row_amount = ceil(inputs_amount / max_inputs_in_row)
 
       output_row_height = div(output_stream_format.height, row_amount)
@@ -74,13 +74,15 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       }
 
       scene =
-        Enum.chunk_every(inputs, max_inputs_in_row)
+        inputs
+        |> Enum.chunk_every(max_inputs_in_row)
         |> Enum.with_index()
         |> Enum.flat_map(fn {row_inputs, row_index} ->
           placement_height = row_index * output_row_height + @padding
           inputs_in_row = Enum.count(row_inputs)
 
-          Enum.with_index(row_inputs)
+          row_inputs
+          |> Enum.with_index()
           |> Enum.map(fn {{ref, %{stream_format: stream_format}}, col_index} ->
             # Center the tiles if we have less of them than max_inputs_in_row
             width_offset = div(output_col_width * (max_inputs_in_row - inputs_in_row), 2)
