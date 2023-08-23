@@ -62,8 +62,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
         when map_size(inputs) > 0 do
       inputs_amount = Enum.count(inputs)
 
-      max_inputs_in_row = inputs_amount |> :math.sqrt() |> ceil()
-      row_amount = ceil(inputs_amount / max_inputs_in_row)
+      {max_inputs_in_row, row_amount} = calculate_grid(inputs_amount)
 
       output_row_height = div(output_stream_format.height, row_amount)
       output_col_width = div(output_stream_format.width, max_inputs_in_row)
@@ -84,9 +83,12 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
           row_inputs
           |> Enum.with_index()
           |> Enum.map(fn {{ref, %{stream_format: stream_format}}, col_index} ->
-            # Center the tiles if we have less of them than max_inputs_in_row
-            width_offset = div(output_col_width * (max_inputs_in_row - inputs_in_row), 2)
-            placement_width = col_index * output_col_width + @padding + width_offset
+            placement_width =
+              calculate_placement_width(
+                col_index,
+                output_col_width,
+                max_inputs_in_row - inputs_in_row
+              )
 
             placement = %BaseVideoPlacement{
               position: {placement_width, placement_height},
@@ -119,6 +121,20 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     @impl true
     def handle_inputs_change(_inputs, _ctx, state) do
       {%Scene{video_configs: %{}}, state}
+    end
+
+    defp calculate_grid(inputs_amount) do
+      max_inputs_in_row = inputs_amount |> :math.sqrt() |> ceil()
+      row_amount = ceil(inputs_amount / max_inputs_in_row)
+
+      {max_inputs_in_row, row_amount}
+    end
+
+    defp calculate_placement_width(col_index, output_col_width, inputs_difference) do
+      # Center the tiles if we have less of them than max_inputs_in_row
+      width_offset = div(output_col_width * inputs_difference, 2)
+
+      col_index * output_col_width + @padding + width_offset
     end
 
     defp get_transformations(desired_stream_format, scaled_stream_format) do
