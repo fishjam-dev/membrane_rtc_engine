@@ -426,7 +426,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         |> child(:encoder, %Membrane.H264.FFmpeg.Encoder{
           profile: :baseline,
           tune: :zerolatency,
-          gop_size: frames_per_second * seconds_number
+          gop_size: frames_per_second * seconds_number,
+          sc_threshold: 0
         })
         |> child(:video_parser_out, Membrane.H264.Parser)
         |> via_in(Pad.ref(:input, :video),
