@@ -426,7 +426,11 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         |> child(:encoder, %Membrane.H264.FFmpeg.Encoder{
           profile: :baseline,
           tune: :zerolatency,
-          gop_size: frames_per_second * seconds_number
+          gop_size: frames_per_second * seconds_number,
+          # This ensures that the encoder will *always* output I-frames in the same intervals,
+          # and *never* insert additional ones. We need this option, as otherwise the irregular
+          # I-frames mess with the creation of segments and partials
+          sc_threshold: 0
         })
         |> child(:video_parser_out, Membrane.H264.Parser)
         |> via_in(Pad.ref(:input, :video),
