@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.3.0-dev
+
 ## 0.2.0
 * Rename FileEndpoint to FileSourceEndpoint [#300](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/300/)
 * Move StaticTrackSender to membrane_rtc_engine [#300](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/300/)
