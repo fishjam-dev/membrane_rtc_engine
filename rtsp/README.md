@@ -14,7 +14,7 @@ The package can be installed by adding `membrane_rtc_engine_rtsp` to your list o
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine_rtsp, "~> 0.1.0"}
+    {:membrane_rtc_engine_rtsp, "~> 0.2.0"}
   ]
 end
 ```
