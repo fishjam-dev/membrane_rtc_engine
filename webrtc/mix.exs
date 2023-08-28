@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.2.1"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @github_url "#{@engine_github_url}/tree/master/webrtc"
   @source_ref "webrtc-v#{@version}"

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.1
+* Fix `endpoint_id` missing in WebRTC endpoint telemetry label [#315](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/315/)
+
 ## 0.2.0
 * Move metrics from the RTC Engine [#306](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/306)
 * Remove unused dependency `membrane_realtimer_plugin` [#300](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/300/)

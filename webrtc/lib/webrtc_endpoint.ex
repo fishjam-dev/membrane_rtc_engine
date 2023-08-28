@@ -237,6 +237,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_init(ctx, opts) do
+    {:endpoint, endpoint_id} = ctx.name
+
+    opts = Map.update!(opts, :telemetry_label, &(&1 ++ [endpoint_id: endpoint_id]))
+
     Membrane.TelemetryMetrics.register(@endpoint_metadata_event, opts.telemetry_label)
     Metrics.register_bandwidth_event(opts.telemetry_label)
 
@@ -279,7 +283,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         connection_allocator_module: connection_allocator_module
       })
 
-    {:endpoint, endpoint_id} = ctx.name
     {:ok, connection_prober} = state.connection_allocator_module.create()
 
     Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
