@@ -19,6 +19,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
+  alias Membrane.Time
 
   @compositor_deps [
     Membrane.H264.FFmpeg.Decoder,
@@ -41,6 +42,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     :depayloader
   ]
 
+  # Segment frequency has to be a little shorter then keyframe frequency
+  # to prevent race conditions in which keyframe comes just before `segment_duration`
+  @keyframe_window Time.milliseconds(100)
   @terminate_timeout 5000
 
   def_input_pad :input,
@@ -180,8 +184,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
   defp maybe_start_mixing(%{start_mixing_sent?: false} = state) do
     notify_children = [
-      notify_child: {:audio_mixer, {:start_mixing, Membrane.Time.milliseconds(200)}},
-      notify_child: {:compositor, {:start_composing, Membrane.Time.milliseconds(200)}}
+      notify_child: {:audio_mixer, {:start_mixing, Time.milliseconds(200)}},
+      notify_child: {:compositor, {:start_composing, Time.milliseconds(200)}}
     ]
 
     {notify_children, %{state | start_mixing_sent?: true}}
@@ -408,9 +412,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   if Enum.all?(@compositor_deps, &Code.ensure_loaded?/1) do
     defp generate_compositor(_state, ctx) when is_map_key(ctx.children, :compositor), do: []
 
-    defp generate_compositor(state, _ctx) do
+    defp generate_compositor(%{mixer_config: %{video: video_config}} = state, _ctx) do
       compositor = %Membrane.VideoCompositor{
-        output_stream_format: state.mixer_config.video.stream_format,
+        output_stream_format: video_config.stream_format,
         handler: Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler,
         queuing_strategy: %Membrane.VideoCompositor.QueueingStrategy.Live{
           latency: :wait_for_start_event,
@@ -418,8 +422,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         }
       }
 
-      {frames_per_second, 1} = state.mixer_config.video.stream_format.framerate
-      seconds_number = Membrane.Time.as_seconds(state.hls_config.segment_duration)
+      {frames_per_second, 1} = video_config.stream_format.framerate
+      seconds_number = Time.as_seconds(state.hls_config.segment_duration)
 
       [
         child(:compositor, compositor)
@@ -436,8 +440,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         |> via_in(Pad.ref(:input, :video),
           toilet_capacity: 500,
           options: [
+            max_framerate: frames_per_second,
             encoding: :H264,
-            segment_duration: state.hls_config.segment_duration,
+            segment_duration: state.hls_config.segment_duration - @keyframe_window,
             partial_segment_duration: state.hls_config.partial_segment_duration
           ]
         )
@@ -469,7 +474,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         |> via_in(Pad.ref(:input, :audio),
           options: [
             encoding: :AAC,
-            segment_duration: state.hls_config.segment_duration,
+            segment_duration: state.hls_config.segment_duration - @keyframe_window,
             partial_segment_duration: state.hls_config.partial_segment_duration
           ]
         )

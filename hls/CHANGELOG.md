@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.3.0-dev
+* Fix segment duration and add framerate to hls playlist [#316](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/316)
 
 ## 0.2.0
 * Rename FileEndpoint to FileSourceEndpoint [#300](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/300/)
