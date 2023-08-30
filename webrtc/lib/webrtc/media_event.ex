@@ -7,8 +7,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
 
   @type t() :: map()
 
-  @spec connected(Endpoint.id(), list()) :: t()
-  def connected(endpoint_id, other_endpoints) do
+  @spec connected(Endpoint.id(), list(), %{
+          Endpoint.id() => %{Track.id() => %{enabled: boolean(), active_encodings: [any()]}}
+        }) :: t()
+  def connected(endpoint_id, other_endpoints, endpoint_id_to_simulcast_configs) do
     other_endpoints =
       other_endpoints
       |> Enum.map(
@@ -16,7 +18,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
           id: &1.id,
           type: to_type_string(&1.type),
           metadata: &1.metadata,
-          trackIdToMetadata: Endpoint.get_active_track_metadata(&1)
+          trackIdToMetadata: Endpoint.get_active_track_metadata(&1),
+          trackIdToSimulcastConfig:
+            endpoint_id_to_simulcast_configs |> Map.get(&1.id) |> map_simulcast_config()
         }
       )
 
@@ -38,11 +42,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     %{type: "endpointUpdated", data: %{id: id, metadata: metadata}}
   end
 
-  @spec tracks_added(Endpoint.id(), map()) :: t()
-  def tracks_added(endpoint_id, track_id_to_metadata) do
+  @spec tracks_added(Endpoint.id(), map(), map()) :: t()
+  def tracks_added(endpoint_id, track_id_to_metadata, track_id_to_simulcast_config) do
     %{
       type: "tracksAdded",
-      data: %{endpointId: endpoint_id, trackIdToMetadata: track_id_to_metadata}
+      data: %{
+        endpointId: endpoint_id,
+        trackIdToMetadata: track_id_to_metadata,
+        trackIdToSimulcastConfig: map_simulcast_config(track_id_to_simulcast_config)
+      }
     }
   end
 
@@ -363,4 +371,15 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   defp to_track_variants(bitrate) when is_number(bitrate), do: %{high: bitrate}
 
   defp to_type_string(type), do: Module.split(type) |> List.last() |> String.downcase()
+
+  defp map_simulcast_config(track_id_to_simulcast_config),
+    do:
+      Map.new(track_id_to_simulcast_config, fn {track_id, simulcast_config} ->
+        simulcast_config = %{
+          enabled: simulcast_config.enabled,
+          activeEncodings: simulcast_config.active_encodings
+        }
+
+        {track_id, simulcast_config}
+      end)
 end
