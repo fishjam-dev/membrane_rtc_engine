@@ -138,7 +138,9 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       end)
 
       Enum.each(@variants, fn variant ->
-        Pipeline.execute_actions(pipeline, notify_child: {{:source, variant}, {:set_active, true}})
+        Pipeline.execute_actions(pipeline,
+          notify_child: {{:source, variant}, {:set_active, true}}
+        )
       end)
 
       Enum.each(@variants, fn variant ->

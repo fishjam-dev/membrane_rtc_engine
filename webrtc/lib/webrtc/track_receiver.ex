@@ -284,7 +284,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
     {paddings, state} =
       if state.enqueued_paddings_count > 0 and Forwarder.can_generate_padding_packet?(forwarder) do
         if state.enqueued_paddings_count > @max_paddings do
-          Membrane.Logger.warn(
+          Membrane.Logger.warning(
             "Sending only #{@max_paddings} enqueued paddings out of #{state.enqueued_paddings_count}"
           )
         end

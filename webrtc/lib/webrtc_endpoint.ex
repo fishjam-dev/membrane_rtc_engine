@@ -654,7 +654,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
           event: inspect(event)
         )
 
-        Membrane.Logger.warn("Invalid media event #{inspect(event)}. Ignoring.")
+        Membrane.Logger.warning("Invalid media event #{inspect(event)}. Ignoring.")
         {[], state}
     end
   end

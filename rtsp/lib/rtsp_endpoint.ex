@@ -122,10 +122,10 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
       when track_id == state.track.id do
     Membrane.Logger.debug("Pad added for track #{inspect(track_id)}, variant :high")
 
-    {sps, pps} =
+    {spss, ppss} =
       case Map.get(state.track.fmtp, :sprop_parameter_sets) do
-        nil -> {<<>>, <<>>}
-        %{sps: sps, pps: pps} -> {<<0, 0, 0, 1>> <> sps, <<0, 0, 0, 1>> <> pps}
+        nil -> {[], []}
+        %{sps: sps, pps: pps} -> {[sps], [pps]}
       end
 
     structure = [
@@ -134,10 +134,11 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
         options: [depayloader: Membrane.RTP.H264.Depayloader]
       )
       |> child(:parser, %Membrane.H264.Parser{
-        sps: sps,
-        pps: pps,
+        spss: spss,
+        ppss: ppss,
         output_alignment: :nalu,
-        skip_until_keyframe?: true,
+        output_stream_structure: :annexb,
+        skip_until_keyframe: true,
         repeat_parameter_sets: true
       })
       |> child(:payloader, %Membrane.RTP.PayloaderBin{
@@ -189,7 +190,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
 
   @impl true
   def handle_parent_notification(msg, _ctx, state) do
-    Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
+    Membrane.Logger.warning("Unexpected message: #{inspect(msg)}. Ignoring.")
     {[], state}
   end
 
@@ -242,7 +243,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
 
   @impl true
   def handle_child_notification(notification, element, _ctx, state) do
-    Membrane.Logger.warn(
+    Membrane.Logger.warning(
       "Unexpected notification from `#{inspect(element)}`: #{inspect(notification)}. Ignoring."
     )
 
@@ -302,7 +303,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
 
   @impl true
   def handle_info({:connection_info, {:connection_failed, reason} = msg}, _ctx, state) do
-    Membrane.Logger.warn("RTSP Endpoint: Connection failed: #{inspect(reason)}")
+    Membrane.Logger.warning("RTSP Endpoint: Connection failed: #{inspect(reason)}")
 
     if reason == :invalid_url do
       raise("RTSP Endpoint: Invalid URI. Endpoint shutting down")
@@ -313,7 +314,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
 
   @impl true
   def handle_info({:connection_info, :max_reconnects}, _ctx, state) do
-    Membrane.Logger.warn("RTSP Endpoint: Max reconnect attempts reached.")
+    Membrane.Logger.warning("RTSP Endpoint: Max reconnect attempts reached.")
     {[notify_parent: {:forward_to_parent, :max_reconnects}], state}
   end
 
@@ -329,7 +330,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
 
   @impl true
   def handle_info(info, _ctx, state) do
-    Membrane.Logger.warn("Unexpected info: #{inspect(info)}. Ignoring.")
+    Membrane.Logger.warning("Unexpected info: #{inspect(info)}. Ignoring.")
     {[], state}
   end
 end

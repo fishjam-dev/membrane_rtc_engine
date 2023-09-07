@@ -40,7 +40,9 @@ defmodule FakeRTSPserver do
           location: opts.fixture_path
         })
         |> child(:parser, %Membrane.H264.Parser{
-          framerate: opts.framerate,
+          generate_best_effort_timestamps: %{
+            framerate: opts.framerate
+          },
           output_alignment: :nalu
         })
         |> child(:stripper, H264ParamStripper)
