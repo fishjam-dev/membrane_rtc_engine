@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.3.0-dev
+* Bump deps [#318](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/318)
 
 ## 0.2.1
 * Fix `endpoint_id` missing in WebRTC endpoint telemetry label [#315](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/315/)
