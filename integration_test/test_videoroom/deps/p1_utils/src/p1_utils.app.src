@@ -1,0 +1,10 @@
+{application,p1_utils,
+             [{description,"Erlang utility modules from ProcessOne"},
+              {vsn,"1.0.23"},
+              {modules,[]},
+              {registered,[]},
+              {applications,[kernel,stdlib,crypto]},
+              {env,[]},
+              {mod,{p1_utils,[]}},
+              {licenses,["Apache 2.0"]},
+              {links,[{"Github","https://github.com/processone/p1_utils"}]}]}.

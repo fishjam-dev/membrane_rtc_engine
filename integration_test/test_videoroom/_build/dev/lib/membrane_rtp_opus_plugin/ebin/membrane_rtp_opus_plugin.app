@@ -1,0 +1,10 @@
+{application,membrane_rtp_opus_plugin,
+             [{applications,[kernel,stdlib,elixir,membrane_core,
+                             membrane_rtp_format,membrane_opus_format]},
+              {description,"Membrane Multimedia Framework (RTP Opus)"},
+              {modules,['Elixir.Membrane.RTP.Opus.Depayloader',
+                        'Elixir.Membrane.RTP.Opus.Payloader',
+                        'Elixir.Membrane.RTP.Opus.Plugin.App']},
+              {registered,[]},
+              {vsn,"0.7.0"},
+              {mod,{'Elixir.Membrane.RTP.Opus.Plugin.App',[]}}]}.

@@ -1,0 +1,169 @@
+%%%----------------------------------------------------------------------
+%%% File    : rebar.config
+%%% Author  : Mickael Remond <mremond@process-one.net>
+%%% Purpose : Rebar build script. Compliant with rebar and rebar3.
+%%% Created : 15 Dec 2015 by Mickael Remond <mremond@process-one.net>
+%%%
+%%% Copyright (C) 2002-2021 ProcessOne, SARL. All Rights Reserved.
+%%%
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
+%%%
+%%%     http://www.apache.org/licenses/LICENSE-2.0
+%%%
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
+%%%
+%%%----------------------------------------------------------------------
+Cfg = case file:consult(filename:join([filename:dirname(SCRIPT),"vars.config"])) of
+	  {ok, Terms} ->
+	      Terms;
+	  _Err ->
+	      []
+      end ++ [{cflags, "-g -O2 -Wall"}, {ldflags, "-lssl -lcrypto"}, {with_gcov, "false"}],
+{cflags, CfgCFlags} = lists:keyfind(cflags, 1, Cfg),
+{ldflags, CfgLDFlags} = lists:keyfind(ldflags, 1, Cfg),
+{with_gcov, CfgWithGCov} = lists:keyfind(with_gcov, 1, Cfg),
+
+SysVersion = lists:map(fun erlang:list_to_integer/1,
+		       string:tokens(erlang:system_info(version), ".")),
+
+IsRebar3 = case application:get_key(rebar, vsn) of
+	       {ok, VSN} ->
+		   [VSN1 | _] = string:tokens(VSN, "-"),
+		   [Maj|_] = string:tokens(VSN1, "."),
+		   (list_to_integer(Maj) >= 3);
+	       undefined ->
+		   lists:keymember(mix, 1, application:loaded_applications())
+	   end,
+
+ModCfg0 = fun(F, Cfg, [Key|Tail], Op, Default) ->
+		  {OldVal,PartCfg} = case lists:keytake(Key, 1, Cfg) of
+					 {value, {_, V1}, V2} -> {V1, V2};
+					 false -> {if Tail == [] -> Default; true -> [] end, Cfg}
+				     end,
+		  case Tail of
+		      [] ->
+			  [{Key, Op(OldVal)} | PartCfg];
+		      _ ->
+			  [{Key, F(F, OldVal, Tail, Op, Default)} | PartCfg]
+		  end
+	  end,
+	ModCfg = fun(Cfg, Keys, Op, Default) -> ModCfg0(ModCfg0, Cfg, Keys, Op,
+		  Default) end,
+
+	ModCfgS = fun(Cfg, Keys, Val) -> ModCfg0(ModCfg0, Cfg, Keys, fun(_V) ->
+		  Val end, "") end,
+
+
+FilterConfig = fun(F, Cfg, [{Path, true, ModFun, Default} | Tail]) ->
+		       F(F, ModCfg0(ModCfg0, Cfg, Path, ModFun, Default), Tail);
+		  (F, Cfg, [_ | Tail]) ->
+		       F(F, Cfg, Tail);
+		  (F, Cfg, []) ->
+		       Cfg
+	       end,
+
+AppendStr = fun(Append) ->
+		    fun("") ->
+			    Append;
+		       (Val) ->
+			    Val ++ " " ++ Append
+		    end
+	    end,
+AppendList = fun(Append) ->
+		     fun(Val) ->
+			     Val ++ Append
+		     end
+	     end,
+
+Rebar3DepsFilter = fun(DepsList) ->
+			   lists:map(fun({DepName,_, {git,_, {tag,Version}}}) ->
+					     {DepName, Version};
+					(Dep) ->
+					     Dep
+				     end, DepsList)
+		   end,
+
+GlobalDepsFilter = fun(Deps) ->
+			   DepNames = lists:map(fun({DepName, _, _}) -> DepName;
+						   ({DepName, _}) -> DepName
+						   end, Deps),
+			   lists:filtermap(fun(Dep) ->
+						 case code:lib_dir(Dep) of
+						     {error, _} ->
+							 {true,"Unable to locate dep '"++atom_to_list(Dep)++"' in system deps."};
+						     _ ->
+							 false
+						 end
+					 end, DepNames)
+		   end,
+
+GithubConfig = case {os:getenv("GITHUB_ACTIONS"), os:getenv("GITHUB_TOKEN")} of
+  {"true", Token} when is_list(Token) ->
+    CONFIG1 = [{coveralls_repo_token, Token},
+               {coveralls_service_job_id, os:getenv("GITHUB_RUN_ID")},
+               {coveralls_commit_sha, os:getenv("GITHUB_SHA")},
+               {coveralls_service_number, os:getenv("GITHUB_RUN_NUMBER")}],
+    case os:getenv("GITHUB_EVENT_NAME") =:= "pull_request"
+        andalso string:tokens(os:getenv("GITHUB_REF"), "/") of
+        [_, "pull", PRNO, _] ->
+            [{coveralls_service_pull_request, PRNO} | CONFIG1];
+        _ ->
+            CONFIG1
+    end;
+  _ ->
+    []
+end,
+
+Rules = [
+	 {[port_env, "CFLAGS"], SysVersion >= [7, 3],
+	  AppendStr("-DHAS_ERTS_EXIT"), "$CFLAGS"},
+	 {[port_env, "CFLAGS"], true,
+	  AppendStr(CfgCFlags), "$CFLAGS"},
+	 {[port_env, "LDFLAGS"], true,
+	  AppendStr(CfgLDFlags), "$LDFLAGS"},
+	 {[post_hooks], (not IsRebar3) and (CfgWithGCov == "true"),
+	  AppendList([{eunit, "gcov -o c_src fast_tls p1_sha"},
+		      {eunit, "mv *.gcov .eunit/"}]), []},
+	 {[post_hooks], IsRebar3 and (CfgWithGCov == "true"),
+	  AppendList([{eunit, "gcov -o c_src fast_tls p1_sha"},
+		      {eunit, "mv *.gcov _build/test/cover/"}]), []},
+	 {[port_env, "LDFLAGS"], CfgWithGCov == "true",
+	  AppendStr("--coverage"), ""},
+	 {[port_env, "CFLAGS"], CfgWithGCov == "true",
+	  AppendStr("--coverage"), ""},
+	 {[deps], IsRebar3,
+	  Rebar3DepsFilter, []},
+	 {[plugins], IsRebar3,
+	  AppendList([pc]), []},
+	 {[provider_hooks], IsRebar3,
+	  AppendList([{pre, [
+			     {compile, {pc, compile}},
+			     {clean, {pc, clean}}
+			    ]}]), []},
+	 {[plugins], os:getenv("COVERALLS") == "true",
+	  AppendList([{coveralls, {git,
+	                           "https://github.com/processone/coveralls-erl.git",
+	                           {branch, "addjsonfile"}}} ]), []},
+	 {[erl_opts], IsRebar3,
+	  AppendList([{d, 'REBAR3'}]), []},
+	 {[deps], os:getenv("USE_GLOBAL_DEPS") /= false,
+	  GlobalDepsFilter, []}
+	],
+
+
+Config = FilterConfig(FilterConfig, CONFIG, Rules) ++ GithubConfig,
+
+%io:format("Rules:~n~p~n~nCONFIG:~n~p~n~nConfig:~n~p~n", [Rules, CONFIG, Config]),
+
+Config.
+
+%% Local Variables:
+%% mode: erlang
+%% End:
+%% vim: set filetype=erlang tabstop=8:

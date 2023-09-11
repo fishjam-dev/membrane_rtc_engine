@@ -1,0 +1,13 @@
+{application,fast_tls,
+             [{description,"TLS / SSL OpenSSL-based native driver for Erlang / Elixir"},
+              {vsn,"1.1.13"},
+              {modules,[fast_tls,p1_sha]},
+              {registered,[]},
+              {applications,[kernel,stdlib,crypto,p1_utils]},
+              {files,["src/","c_src/fast_tls.c","c_src/uthash.h",
+                      "c_src/options.h","c_src/p1_sha.c","c_src/stdint.h",
+                      "c_src/ioqueue.h","c_src/ioqueue.c","configure",
+                      "vars.config.in","rebar.config","rebar.config.script",
+                      "README.md","LICENSE.txt"]},
+              {licenses,["Apache 2.0"]},
+              {links,[{"Github","https://github.com/processone/fast_tls"}]}]}.

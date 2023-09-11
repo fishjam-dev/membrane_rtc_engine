@@ -1,0 +1,12 @@
+{application,opentelemetry,
+             [{description,"Implementation of stable OpenTelemetry signals"},
+              {vsn,"1.0.5"},
+              {registered,[]},
+              {mod,{opentelemetry_app,[]}},
+              {applications,[kernel,stdlib,opentelemetry_api]},
+              {env,[]},
+              {modules,[]},
+              {doc,"doc"},
+              {licenses,["Apache-2.0"]},
+              {links,[{"GitHub",
+                       "https://github.com/open-telemetry/opentelemetry-erlang"}]}]}.
