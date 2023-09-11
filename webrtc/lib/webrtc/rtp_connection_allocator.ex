@@ -463,14 +463,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
             # FIXME: we're fortunatelly not probing, but if we were, this is the same as the probing timeout
             # So we would be delaying sending of the paddings significantly and stacking the calls, which may be a problem.
             10 ->
-              Logger.warn("Receiver #{inspect(pid)} didn't reply in time")
+              Logger.warning("Receiver #{inspect(pid)} didn't reply in time")
               false
           end
         end)
     end
     |> case do
       nil ->
-        Logger.warn("We're overusing the bandwidth, but we cannot decrease our usage")
+        Logger.warning("We're overusing the bandwidth, but we cannot decrease our usage")
         state
 
       value when is_map(value) ->

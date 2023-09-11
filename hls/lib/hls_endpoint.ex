@@ -227,7 +227,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
   @impl true
   def handle_child_notification(notification, _element, _context, state) do
-    Membrane.Logger.warn("Unexpected notification: #{inspect(notification)}. Ignoring.")
+    Membrane.Logger.warning("Unexpected notification: #{inspect(notification)}. Ignoring.")
     {[], state}
   end
 
@@ -259,7 +259,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
   @impl true
   def handle_parent_notification(msg, _ctx, state) do
-    Membrane.Logger.warn("Unexpected message: #{inspect(msg)}. Ignoring.")
+    Membrane.Logger.warning("Unexpected message: #{inspect(msg)}. Ignoring.")
     {[], state}
   end
 
@@ -377,7 +377,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     do: [
       get_child({:depayloader, track.id})
       |> child({:video_parser, track.id}, %Membrane.H264.Parser{
-        framerate: {0, 1}
+        generate_best_effort_timestamps: %{framerate: {0, 1}}
       })
       |> via_in(Pad.ref(:input, {:video, track.id}),
         options: [
@@ -394,7 +394,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       do: [
         get_child({:depayloader, track.id})
         |> child({:video_parser, track.id}, %Membrane.H264.Parser{
-          framerate: {0, 1}
+          generate_best_effort_timestamps: %{framerate: {0, 1}}
         })
         |> child({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
         |> via_in(Pad.ref(:input, track.id),

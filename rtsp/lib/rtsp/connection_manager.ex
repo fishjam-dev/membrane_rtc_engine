@@ -176,13 +176,13 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP.ConnectionManager do
 
     case pid do
       ^rtsp_session ->
-        Membrane.Logger.warn("RTSP.ConnectionManager: RTSP session crashed")
+        Membrane.Logger.warning("RTSP.ConnectionManager: RTSP session crashed")
 
       ^keep_alive ->
-        Membrane.Logger.warn("RTSP.ConnectionManager: Keep_alive process crashed")
+        Membrane.Logger.warning("RTSP.ConnectionManager: Keep_alive process crashed")
 
       process ->
-        Membrane.Logger.warn("RTSP.ConnectionManager: #{inspect(process)} process crashed")
+        Membrane.Logger.warning("RTSP.ConnectionManager: #{inspect(process)} process crashed")
     end
 
     {:disconnect, :reload, connection_status}

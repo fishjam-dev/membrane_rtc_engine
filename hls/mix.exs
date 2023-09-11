@@ -63,14 +63,14 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 0.12.3"},
-      {:membrane_aac_plugin, "~> 0.15.0"},
+      {:membrane_aac_plugin, "~> 0.16.0"},
       {:membrane_opus_plugin, "~> 0.17.1"},
       {:membrane_aac_fdk_plugin, "~> 0.15.1"},
       {:membrane_raw_audio_format, "~> 0.11.0"},
       {:membrane_raw_video_format, "~> 0.3.0"},
-      {:membrane_h264_plugin, "~> 0.5.0"},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.28.2"},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.16.0"},
+      {:membrane_h264_plugin, "~> 0.7.2"},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.29.0"},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.17.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},

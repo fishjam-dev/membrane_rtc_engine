@@ -96,7 +96,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     negotiable? =
       if negotiable? and length(track.variants) < 2 do
-        Membrane.Logger.warn(
+        Membrane.Logger.warning(
           "Attempted to enable negotiability on non-negotiable track. Disabling."
         )
 
