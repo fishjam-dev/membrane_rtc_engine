@@ -55,7 +55,7 @@ defmodule Membrane.RTC.Engine.Endpoint do
     do:
       update_in(endpoint, [:inbound_tracks, track_id, :metadata], fn _old_metadata -> metadata end)
 
-  @spec get_active_tracks(endpoint :: t()) :: %{Track.id() => Track.t()}
+  @spec get_active_tracks(endpoint :: t()) :: [Track.t()]
   def get_active_tracks(%__MODULE__{} = endpoint),
     do:
       endpoint.inbound_tracks
