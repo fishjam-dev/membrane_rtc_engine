@@ -7,10 +7,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
 
   @type t() :: map()
 
-  @spec connected(Endpoint.id(), list(), %{
-          Endpoint.id() => %{Track.id() => %{enabled: boolean(), active_encodings: [any()]}}
-        }) :: t()
-  def connected(endpoint_id, other_endpoints, endpoint_id_to_simulcast_configs) do
+  @spec connected(Endpoint.id(), list()) :: t()
+  def connected(endpoint_id, other_endpoints) do
+    endpoint_id_to_simulcast_config_map =
+      other_endpoints
+      |> Map.new(fn endpoint ->
+        track_id_to_simulcast_config =
+          endpoint |> Endpoint.get_active_tracks() |> tracks_to_simulcast_config()
+
+        {endpoint.id, track_id_to_simulcast_config}
+      end)
+
     other_endpoints =
       other_endpoints
       |> Enum.map(
@@ -20,7 +27,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
           metadata: &1.metadata,
           trackIdToMetadata: Endpoint.get_active_track_metadata(&1),
           trackIdToSimulcastConfig:
-            endpoint_id_to_simulcast_configs |> Map.get(&1.id) |> map_simulcast_config()
+            endpoint_id_to_simulcast_config_map |> Map.get(&1.id) |> map_simulcast_config()
         }
       )
 
@@ -42,8 +49,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     %{type: "endpointUpdated", data: %{id: id, metadata: metadata}}
   end
 
-  @spec tracks_added(Endpoint.id(), map(), map()) :: t()
-  def tracks_added(endpoint_id, track_id_to_metadata, track_id_to_simulcast_config) do
+  @spec tracks_added(Endpoint.id(), %{Track.id() => Track.t()}) :: t()
+  def tracks_added(endpoint_id, tracks) do
+    track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
+
+    track_id_to_simulcast_config = tracks_to_simulcast_config(tracks)
+
     %{
       type: "tracksAdded",
       data: %{
@@ -382,4 +393,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
       {track_id, simulcast_config}
     end)
   end
+
+  defp tracks_to_simulcast_config(tracks),
+    do:
+      Map.new(tracks, fn track ->
+        encodings = Enum.map(track.variants, &WebRTC.to_rid/1)
+        {track.id, %{enabled: encodings !== [:high], active_encodings: encodings}}
+      end)
 end

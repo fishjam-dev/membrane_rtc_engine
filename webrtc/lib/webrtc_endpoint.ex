@@ -530,18 +530,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     # FIXME: I don't think we actually need information about tracks in this media event
     {:endpoint, endpoint_id} = ctx.name
 
-    endpoint_id_to_simulcast_config_map =
-      other_endpoints
-      |> Map.new(fn endpoint ->
-        track_id_to_simulcast_config =
-          endpoint |> Endpoint.get_active_tracks() |> tracks_to_simulcast_config()
-
-        {endpoint.id, track_id_to_simulcast_config}
-      end)
-
     event =
       endpoint_id
-      |> MediaEvent.connected(other_endpoints, endpoint_id_to_simulcast_config_map)
+      |> MediaEvent.connected(other_endpoints)
       |> MediaEvent.encode()
 
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
@@ -613,13 +604,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       tracks
       |> Enum.group_by(& &1.origin)
       |> Enum.map(fn {origin, tracks} ->
-        track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
-
-        track_id_to_simulcast_config = tracks_to_simulcast_config(tracks)
-
         media_event =
           origin
-          |> MediaEvent.tracks_added(track_id_to_metadata, track_id_to_simulcast_config)
+          |> MediaEvent.tracks_added(tracks)
           |> MediaEvent.encode()
 
         {:notify_parent, {:forward_to_parent, {:media_event, media_event}}}
@@ -784,6 +771,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
     {[], state}
   end
+
+  @spec to_rid(:high | :medium | :low) :: "h" | "m" | "l"
+  def to_rid(:high), do: "h"
+  def to_rid(:medium), do: "m"
+  def to_rid(:low), do: "l"
 
   defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
     {[notify_parent: {:ready, metadata}], state}
@@ -958,18 +950,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     end)
   end
 
-  defp tracks_to_simulcast_config(tracks),
-    do:
-      Map.new(tracks, fn track ->
-        encodings = Enum.map(track.variants, &to_rid/1)
-        {track.id, %{enabled: encodings !== [:high], active_encodings: encodings}}
-      end)
-
   defp to_track_variant(rid) when rid in ["h", nil], do: :high
   defp to_track_variant("m"), do: :medium
   defp to_track_variant("l"), do: :low
-
-  defp to_rid(:high), do: "h"
-  defp to_rid(:medium), do: "m"
-  defp to_rid(:low), do: "l"
 end
