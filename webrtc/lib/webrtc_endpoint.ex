@@ -94,149 +94,146 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   """
   @type media_event_message_t() :: {:media_event, binary()}
 
-  def_options(
-    rtc_engine: [
-      spec: pid(),
-      description: "Pid of parent Engine"
-    ],
-    direction: [
-      spec: EndpointBin.direction(),
-      default: :sendrecv,
-      description: """
-      Direction of WebRTC Endpoint. Determines whether
-      EndpointBin can send, receive or both send and receive media.
-      For more information refer to t:EndpointBin.direction/0.
-      """
-    ],
-    ice_name: [
-      spec: String.t(),
-      description: "Ice name is used in creating credentials for ice connnection"
-    ],
-    handshake_opts: [
-      type: :list,
-      spec: Keyword.t(),
-      default: [],
-      description: """
-      Keyword list with options for handshake module. For more information please
-      refer to `Membrane.ICE.Bin`
-      """
-    ],
-    filter_codecs: [
-      spec: ({RTPMapping.t(), FMTP.t() | nil} -> boolean()),
-      default: &SDP.filter_encodings(&1),
-      description: "Defines function which will filter SDP m-line by codecs"
-    ],
-    log_metadata: [
-      spec: :list,
-      spec: Keyword.t(),
-      default: [],
-      description: "Logger metadata used for endpoint bin and all its descendants"
-    ],
-    webrtc_extensions: [
-      spec: [module()],
-      default: [],
-      description: """
-      List of WebRTC extensions to use.
+  def_options rtc_engine: [
+                spec: pid(),
+                description: "Pid of parent Engine"
+              ],
+              direction: [
+                spec: EndpointBin.direction(),
+                default: :sendrecv,
+                description: """
+                Direction of WebRTC Endpoint. Determines whether
+                EndpointBin can send, receive or both send and receive media.
+                For more information refer to t:EndpointBin.direction/0.
+                """
+              ],
+              ice_name: [
+                spec: String.t(),
+                description: "Ice name is used in creating credentials for ice connnection"
+              ],
+              handshake_opts: [
+                type: :list,
+                spec: Keyword.t(),
+                default: [],
+                description: """
+                Keyword list with options for handshake module. For more information please
+                refer to `Membrane.ICE.Bin`
+                """
+              ],
+              filter_codecs: [
+                spec: ({RTPMapping.t(), FMTP.t() | nil} -> boolean()),
+                default: &SDP.filter_encodings(&1),
+                description: "Defines function which will filter SDP m-line by codecs"
+              ],
+              log_metadata: [
+                spec: :list,
+                spec: Keyword.t(),
+                default: [],
+                description: "Logger metadata used for endpoint bin and all its descendants"
+              ],
+              webrtc_extensions: [
+                spec: [module()],
+                default: [],
+                description: """
+                List of WebRTC extensions to use.
 
-      Each module has to implement `Membrane.WebRTC.Extension.t()`.
-      See `membrane_webrtc_plugin` documentation for a list of possible extensions.
-      """
-    ],
-    extensions: [
-      spec: %{
-        (encoding_name :: atom() | :any) => [Membrane.RTP.SessionBin.extension_t()]
-      },
-      default: %{},
-      description: """
-      A map pointing from encoding names to lists of extensions that should be used for given encodings.
-      Encoding "`:any`" indicates that extensions should be applied regardless of encoding.
+                Each module has to implement `Membrane.WebRTC.Extension.t()`.
+                See `membrane_webrtc_plugin` documentation for a list of possible extensions.
+                """
+              ],
+              extensions: [
+                spec: %{
+                  (encoding_name :: atom() | :any) => [Membrane.RTP.SessionBin.extension_t()]
+                },
+                default: %{},
+                description: """
+                A map pointing from encoding names to lists of extensions that should be used for given encodings.
+                Encoding "`:any`" indicates that extensions should be applied regardless of encoding.
 
-      A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
-      It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
-      them are actively speaking.
-      """
-    ],
-    integrated_turn_domain: [
-      spec: binary() | nil,
-      default: nil,
-      description: "Domain address of integrated TURN Servers. Required for TLS TURN"
-    ],
-    integrated_turn_options: [
-      spec: Membrane.ICE.Endpoint.integrated_turn_options_t(),
-      default: []
-    ],
-    owner: [
-      spec: pid(),
-      description: """
-      Pid of parent all notifications will be send to.
+                A sample usage would be to add silence discarder to OPUS tracks when VAD extension is enabled.
+                It can greatly reduce CPU usage in rooms when there are a lot of people but only a few of
+                them are actively speaking.
+                """
+              ],
+              integrated_turn_domain: [
+                spec: binary() | nil,
+                default: nil,
+                description: "Domain address of integrated TURN Servers. Required for TLS TURN"
+              ],
+              integrated_turn_options: [
+                spec: Membrane.ICE.Endpoint.integrated_turn_options_t(),
+                default: []
+              ],
+              owner: [
+                spec: pid(),
+                description: """
+                Pid of parent all notifications will be send to.
 
-      To see possible notifications please refer to module docs.
-      """
-    ],
-    trace_context: [
-      spec: :list,
-      default: [],
-      description: "Trace context for otel propagation"
-    ],
-    parent_span: [
-      spec: :opentelemetry.span_ctx() | nil,
-      default: nil,
-      description: "Parent span of #{@life_span_id}"
-    ],
-    video_tracks_limit: [
-      spec: integer() | nil,
-      default: nil,
-      description: """
-      Maximal number of video tracks that will be sent to the the browser at the same time.
+                To see possible notifications please refer to module docs.
+                """
+              ],
+              trace_context: [
+                spec: :list,
+                default: [],
+                description: "Trace context for otel propagation"
+              ],
+              parent_span: [
+                spec: :opentelemetry.span_ctx() | nil,
+                default: nil,
+                description: "Parent span of #{@life_span_id}"
+              ],
+              video_tracks_limit: [
+                spec: integer() | nil,
+                default: nil,
+                description: """
+                Maximal number of video tracks that will be sent to the the browser at the same time.
 
-      This variable indicates how many video tracks should be sent to the browser at the same time.
-      If `nil` all video tracks this `#{inspect(__MODULE__)}` receives will be sent.
-      """
-    ],
-    rtcp_receiver_report_interval: [
-      spec: Membrane.Time.t() | nil,
-      default: nil,
-      description:
-        "Receiver reports's generation interval, set to nil to avoid reports generation"
-    ],
-    rtcp_sender_report_interval: [
-      spec: Membrane.Time.t() | nil,
-      default: nil,
-      description: "Sender reports's generation interval, set to nil to avoid reports generation"
-    ],
-    simulcast_config: [
-      spec: SimulcastConfig.t(),
-      default: %SimulcastConfig{},
-      description: "Simulcast configuration"
-    ],
-    metadata: [
-      spec: any(),
-      default: nil,
-      description: "Endpoint metadata"
-    ],
-    telemetry_label: [
-      spec: Membrane.TelemetryMetrics.label(),
-      default: [],
-      description: "Label passed to Membrane.TelemetryMetrics functions"
-    ],
-    toilet_capacity: [
-      spec: pos_integer(),
-      default: 200,
-      description: "TrackReceiver toilet capacity"
-    ]
-  )
+                This variable indicates how many video tracks should be sent to the browser at the same time.
+                If `nil` all video tracks this `#{inspect(__MODULE__)}` receives will be sent.
+                """
+              ],
+              rtcp_receiver_report_interval: [
+                spec: Membrane.Time.t() | nil,
+                default: nil,
+                description:
+                  "Receiver reports's generation interval, set to nil to avoid reports generation"
+              ],
+              rtcp_sender_report_interval: [
+                spec: Membrane.Time.t() | nil,
+                default: nil,
+                description:
+                  "Sender reports's generation interval, set to nil to avoid reports generation"
+              ],
+              simulcast_config: [
+                spec: SimulcastConfig.t(),
+                default: %SimulcastConfig{},
+                description: "Simulcast configuration"
+              ],
+              metadata: [
+                spec: any(),
+                default: nil,
+                description: "Endpoint metadata"
+              ],
+              telemetry_label: [
+                spec: Membrane.TelemetryMetrics.label(),
+                default: [],
+                description: "Label passed to Membrane.TelemetryMetrics functions"
+              ],
+              toilet_capacity: [
+                spec: pos_integer(),
+                default: 200,
+                description: "TrackReceiver toilet capacity"
+              ]
 
-  def_input_pad(:input,
+  def_input_pad :input,
     demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
-  )
 
-  def_output_pad(:output,
+  def_output_pad :output,
     demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
-  )
 
   @impl true
   def handle_init(ctx, opts) do
@@ -618,11 +615,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> Enum.map(fn {origin, tracks} ->
         track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
 
-        track_id_to_simulcast_config =
-          Map.new(tracks, fn track ->
-            encodings = Enum.map(track.variants, &to_rid/1)
-            {track.id, %{enabled: encodings == [:high], active_encodings: encodings}}
-          end)
+        track_id_to_simulcast_config = tracks_to_simulcast_config(tracks)
 
         media_event =
           origin
@@ -969,7 +962,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     do:
       Map.new(tracks, fn track ->
         encodings = Enum.map(track.variants, &to_rid/1)
-        {track.id, %{enabled: encodings == [:high], active_encodings: encodings}}
+        {track.id, %{enabled: encodings !== [:high], active_encodings: encodings}}
       end)
 
   defp to_track_variant(rid) when rid in ["h", nil], do: :high

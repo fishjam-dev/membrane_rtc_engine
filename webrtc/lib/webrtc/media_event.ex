@@ -372,8 +372,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
 
   defp to_type_string(type), do: Module.split(type) |> List.last() |> String.downcase()
 
-  defp map_simulcast_config(track_id_to_simulcast_config),
-    do:
+  defp map_simulcast_config(track_id_to_simulcast_config) do
       Map.new(track_id_to_simulcast_config, fn {track_id, simulcast_config} ->
         simulcast_config = %{
           enabled: simulcast_config.enabled,
@@ -382,4 +381,5 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
 
         {track_id, simulcast_config}
       end)
+    end
 end
