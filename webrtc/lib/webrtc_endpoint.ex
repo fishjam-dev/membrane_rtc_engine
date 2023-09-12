@@ -73,7 +73,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   }
 
   alias Membrane.RTC.Engine.Notifications.TrackNotification
-  alias Membrane.RTC.Engine.{Endpoint, Track}
+  alias Membrane.RTC.Engine.{Track}
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
@@ -772,7 +772,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     {[], state}
   end
 
-  @spec to_rid(:high | :medium | :low) :: "h" | "m" | "l"
+  @spec to_rid(:high | :medium | :low) :: String.t()
   def to_rid(:high), do: "h"
   def to_rid(:medium), do: "m"
   def to_rid(:low), do: "l"
