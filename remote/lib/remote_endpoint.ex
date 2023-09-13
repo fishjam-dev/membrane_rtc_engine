@@ -124,7 +124,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote do
         {[], state}
 
       _other ->
-        send(link_to || partner_endpoint, {:handshake, %Remote.LinkProposal{}, token})
+        send(state.partner_endpoint, {:handshake, %Remote.LinkProposal{}, state.token})
 
         {
           [notify_parent: :ready, setup: :complete],
@@ -134,7 +134,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote do
   end
 
   @impl true
-  def handle_info({:handshake, _link_proposal, incoming_token}, _ctx, %{token: token} = state) do
+  def handle_info({:handshake, _link_proposal, _incoming_token}, _ctx, state) do
     {[], state}
   end
 
@@ -154,7 +154,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote do
   end
 
   @impl true
-  def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
+  def handle_parent_notification({:new_tracks, _tracks}, _ctx, state) do
     {[], state}
   end
 
