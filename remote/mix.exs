@@ -59,32 +59,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote.MixProject do
     [
       # Engine deps
       {:membrane_rtc_engine, path: "../engine"},
-      # {:membrane_rtc_engine_webrtc, path: "../webrtc"},
 
       # Regular deps
       {:membrane_core, "~> 0.12.3"},
-      {:membrane_aac_plugin, "~> 0.15.0"},
-      {:membrane_opus_plugin, "~> 0.17.1"},
-      {:membrane_aac_fdk_plugin, "~> 0.15.1"},
-      {:membrane_raw_audio_format, "~> 0.11.0"},
-      {:membrane_raw_video_format, "~> 0.3.0"},
-      {:membrane_h264_plugin, "~> 0.5.0"},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.28.2"},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.16.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
-      # Optional deps for mixing audio and composing video
-      {:membrane_audio_mix_plugin, "~> 0.15.2", optional: true},
-      {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true},
-
       # Test deps
-      {:membrane_file_plugin, "~> 0.15.0"},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
-
-      # File Source
-      {:membrane_realtimer_plugin, "~> 0.6.1", only: :test}
     ]
   end
 

@@ -1,9 +1,10 @@
-defmodule Membrane.RTC.Engine.Endpoint.Remote.ConnectionSetup do
+defmodule Membrane.RTC.Engine.Endpoint.Remote.LinkProposal do
   @moduledoc """
+  Module that represents data needed to create link between Remote Endpoints
   """
-
   @typedoc """
-  * `stream_format` - defines audio mixer output stream_format.
+  * `token`
+  * `link_to`
   """
   @type t() :: %__MODULE__{
           token: String.t() | nil,
@@ -12,5 +13,4 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote.ConnectionSetup do
 
   defstruct token: nil,
             link_to: nil
-  # end
 end
