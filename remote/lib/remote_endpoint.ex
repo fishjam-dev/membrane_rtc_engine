@@ -7,10 +7,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.Remote
-  alias Membrane.RTC.Engine.Track
-  alias Membrane.Time
 
   def_input_pad :input,
     demand_unit: :buffers,
@@ -108,8 +105,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote do
   def handle_info(
         {:handshake, %Remote.LinkProposal{token: new_token, link_to: new_partner_endpoint},
          incoming_token},
-        context,
-        %{token: token, status: status, partner_endpoint: partner_endpoint} = state
+        _ctx,
+        %{status: status, token: token} = state
       )
       when token == incoming_token do
     state =
