@@ -57,7 +57,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote do
         status: :initialized
       })
 
-    {[setup: :incomplete], state}
+    {[], state}
   end
 
   @impl true
@@ -80,7 +80,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote do
           end
 
           {
-            [],
+            [setup: :incomplete],
             %{token: token, partner_endpoint: partner_endpoint, status: :linking}
           }
 
@@ -93,7 +93,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Remote do
           }
 
           {
-            [notify_parent: {:forward_to_parent, {:link_proposal, setup}}],
+            [setup: :incomplete, notify_parent: {:forward_to_parent, {:link_proposal, setup}}],
             %{token: token, partner_endpoint: nil, status: :waiting_for_partner}
           }
       end
