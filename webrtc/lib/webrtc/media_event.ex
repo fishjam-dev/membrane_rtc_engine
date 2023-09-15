@@ -374,35 +374,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   defp to_type_string(type), do: Module.split(type) |> List.last() |> String.downcase()
 
   defp to_tracks_info(tracks) do
-    track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
-
-    track_id_to_simulcast_config =
-      tracks
-      |> tracks_to_simulcast_config()
-      |> map_simulcast_config()
-
-    Map.new(track_id_to_metadata, fn {track_id, metadata} ->
-      track = %{metadata: metadata, simulcastConfig: track_id_to_simulcast_config[track_id]}
-
-      {track_id, track}
-    end)
+    Map.new(
+      tracks,
+      &{&1.id, %{metadata: &1.metadata, simulcastConfig: get_simulcast_config(&1)}}
+    )
   end
 
-  defp map_simulcast_config(track_id_to_simulcast_config) do
-    Map.new(track_id_to_simulcast_config, fn {track_id, simulcast_config} ->
-      simulcast_config = %{
-        enabled: simulcast_config.enabled,
-        activeEncodings: simulcast_config.active_encodings
-      }
-
-      {track_id, simulcast_config}
-    end)
+  defp get_simulcast_config(track) do
+    %{
+      enabled: track.variants != [:high],
+      activeEncodings: Enum.map(track.variants, &WebRTC.to_rid/1)
+    }
   end
-
-  defp tracks_to_simulcast_config(tracks),
-    do:
-      Map.new(tracks, fn track ->
-        encodings = Enum.map(track.variants, &WebRTC.to_rid/1)
-        {track.id, %{enabled: encodings != [:high], active_encodings: encodings}}
-      end)
 end
