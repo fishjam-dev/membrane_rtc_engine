@@ -208,7 +208,7 @@ Messages used by any WebRTC Endpoint plugin
 ### `connected`
 
 * Message sent to the client after connecting to the WebRTC Endpoint. It contains the id of that client's endpoint and a list of information about endpoints in the Engine
-  (id, metadata, a `trackIdToMetadata` and tracks like seen in `tracksAdded` like seen in `tracksAdded`)
+(id, metadata, a `trackIdToMetadata` and tracks like seen in `tracksAdded`)
 
   ```json
   {
