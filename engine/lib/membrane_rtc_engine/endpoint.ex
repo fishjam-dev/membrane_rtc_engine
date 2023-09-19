@@ -55,15 +55,19 @@ defmodule Membrane.RTC.Engine.Endpoint do
     do:
       update_in(endpoint, [:inbound_tracks, track_id, :metadata], fn _old_metadata -> metadata end)
 
-  @spec get_active_track_metadata(endpoint :: t()) :: %{Track.id() => any}
-  def get_active_track_metadata(%__MODULE__{} = endpoint),
+  @spec get_active_tracks(endpoint :: t()) :: [Track.t()]
+  def get_active_tracks(%__MODULE__{} = endpoint),
     do:
       endpoint.inbound_tracks
       |> Map.values()
       |> Enum.filter(& &1.active?)
-      |> Map.new(&{&1.id, &1.metadata})
 
-  def get_active_track_metadata(_endpoint), do: %{}
+  @spec get_active_track_metadata(endpoint :: t()) :: %{Track.id() => any}
+  def get_active_track_metadata(%__MODULE__{} = endpoint),
+    do:
+      endpoint
+      |> get_active_tracks()
+      |> Map.new(&{&1.id, &1.metadata})
 
   @spec update_track_encoding(endpoint :: t(), track_id :: Track.id(), encoding :: atom) :: t()
   def update_track_encoding(endpoint, track_id, value),

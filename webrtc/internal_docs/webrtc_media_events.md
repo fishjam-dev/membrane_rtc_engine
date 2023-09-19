@@ -51,7 +51,7 @@ Messages used by any WebRTC Endpoint plugin
 #### WebRTC endpoint receives these types of custom `media_event`s from client:
 
 | Name                                            | Description                                                               |
-| ----------------------------------------------- | -----------------------------------------------------------------------   |
+| ----------------------------------------------- | ------------------------------------------------------------------------- |
 | [renegotiateTracks](#renegotiatetracks)         | A request from a client to renegotiate tracks                             |
 | [prioritizeTrack](#prioritizetrack)             | A request to prioritize the track                                         |
 | [unprioritizeTrack](#unprioritizetrack)         | A request to unprioritize the track                                       |
@@ -62,13 +62,13 @@ Messages used by any WebRTC Endpoint plugin
 | [trackVariantBitrates](#trackVariantBitrate)    | Contains updated bitrates for track's variants                            |
 
 #### WebRTC endpoint sends these type of custom messages to client
-| Name                                    | Description                                                       |
-| --------------------------------------- | ----------------------------------------------------------------- |
-| [offerData](#offerdata)                 | Sends data needed by the client to create an offer                |
-| [candidate](#candidate-1)               | Contains an ICE candidate                                         |
-| [sdpAnswer](#sdpanswer)                 | Provides an SDP Answer to the client's offer                      |
-| [encodingSwitched](#encodingswitched)   | An information that a track will be sent with a specific encoding |
-| [vadNotification](#vadnotification)     | An update on Voice Activity Detection                             |
+| Name                                  | Description                                                       |
+| ------------------------------------- | ----------------------------------------------------------------- |
+| [offerData](#offerdata)               | Sends data needed by the client to create an offer                |
+| [candidate](#candidate-1)             | Contains an ICE candidate                                         |
+| [sdpAnswer](#sdpanswer)               | Provides an SDP Answer to the client's offer                      |
+| [encodingSwitched](#encodingswitched) | An information that a track will be sent with a specific encoding |
+| [vadNotification](#vadnotification)   | An update on Voice Activity Detection                             |
 
 
 ## Client -> WebRTC Endpoint
@@ -159,13 +159,25 @@ Messages used by any WebRTC Endpoint plugin
 ### `tracksAdded`
 
 * Informs that one of the clients has added one or more tracks.
-  It contains an id of endpoint associated with that client and a map of all tracks with `track_id`s as keys and `track_metadata` as value.
+  It contains:
+  - an id of endpoint associated with that client, 
+  - a map of all tracks with `track_id`'s as keys and objects with `track_metadata` and simulcast conifg as a value 
+  - (Depracated field use tracks) a map of all tracks with `track_id`s as keys and `track_metadata` as value.
 
   ```json
   {
     endpointId: endpoint_id,
     trackIdToMetadata: {
       track_id: any
+    },
+    tracks: {
+      track_id: {
+        metadata: any
+        simulcastConfig: {
+          enabled: boolean,
+          activeEncodings: string[]
+        }
+      }
     }
   }
   ```
@@ -196,7 +208,7 @@ Messages used by any WebRTC Endpoint plugin
 ### `connected`
 
 * Message sent to the client after connecting to the WebRTC Endpoint. It contains the id of that client's endpoint and a list of information about endpoints in the Engine
-  (id, metadata and a `trackIdToMetadata` like seen in `tracksAdded`)
+(id, metadata, a `trackIdToMetadata` and tracks like seen in `tracksAdded`)
 
   ```json
   {

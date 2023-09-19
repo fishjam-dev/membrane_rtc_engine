@@ -73,7 +73,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   }
 
   alias Membrane.RTC.Engine.Notifications.TrackNotification
-  alias Membrane.RTC.Engine.Track
+  alias Membrane.RTC.Engine.{Track}
   alias Membrane.WebRTC
   alias Membrane.WebRTC.{EndpointBin, SDP}
 
@@ -529,7 +529,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     # FIXME: I don't think we actually need information about tracks in this media event
     {:endpoint, endpoint_id} = ctx.name
-    event = MediaEvent.connected(endpoint_id, other_endpoints) |> MediaEvent.encode()
+
+    event =
+      endpoint_id
+      |> MediaEvent.connected(other_endpoints)
+      |> MediaEvent.encode()
 
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
@@ -600,11 +604,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       tracks
       |> Enum.group_by(& &1.origin)
       |> Enum.map(fn {origin, tracks} ->
-        track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
-
         media_event =
           origin
-          |> MediaEvent.tracks_added(track_id_to_metadata)
+          |> MediaEvent.tracks_added(tracks)
           |> MediaEvent.encode()
 
         {:notify_parent, {:forward_to_parent, {:media_event, media_event}}}
@@ -769,6 +771,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
     {[], state}
   end
+
+  @spec to_rid(:high | :medium | :low) :: String.t()
+  def to_rid(:high), do: "h"
+  def to_rid(:medium), do: "m"
+  def to_rid(:low), do: "l"
 
   defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
     {[notify_parent: {:ready, metadata}], state}
@@ -946,8 +953,4 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_track_variant(rid) when rid in ["h", nil], do: :high
   defp to_track_variant("m"), do: :medium
   defp to_track_variant("l"), do: :low
-
-  defp to_rid(:high), do: "h"
-  defp to_rid(:medium), do: "m"
-  defp to_rid(:low), do: "l"
 end

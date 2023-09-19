@@ -2,6 +2,7 @@
 
 ## 0.18.0-dev
 * Bump deps [#318](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/318)
+* Add `get_active_tracks` function in `Endpoint` module [#317](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/317)
 
 ## 0.17.0
 * Cleanup RTC Engine deps. Move metrics to the WebRTC Endpoint [#306](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/306)

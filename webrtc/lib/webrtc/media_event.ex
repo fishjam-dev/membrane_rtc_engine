@@ -2,6 +2,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   @moduledoc false
 
   alias Membrane.RTC.Engine.Endpoint
+  alias Membrane.RTC.Engine.Endpoint.WebRTC
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
@@ -16,7 +17,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
           id: &1.id,
           type: to_type_string(&1.type),
           metadata: &1.metadata,
-          trackIdToMetadata: Endpoint.get_active_track_metadata(&1)
+          # Deprecated Field, use tracks field instead. It will be removed in the future.
+          trackIdToMetadata: Endpoint.get_active_track_metadata(&1),
+          tracks: &1 |> Endpoint.get_active_tracks() |> to_tracks_info()
         }
       )
 
@@ -38,11 +41,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     %{type: "endpointUpdated", data: %{id: id, metadata: metadata}}
   end
 
-  @spec tracks_added(Endpoint.id(), map()) :: t()
-  def tracks_added(endpoint_id, track_id_to_metadata) do
+  @spec tracks_added(Endpoint.id(), %{Track.id() => Track.t()}) :: t()
+  def tracks_added(endpoint_id, tracks) do
+    track_id_to_metadata = Map.new(tracks, &{&1.id, &1.metadata})
+
     %{
       type: "tracksAdded",
-      data: %{endpointId: endpoint_id, trackIdToMetadata: track_id_to_metadata}
+      data: %{
+        endpointId: endpoint_id,
+        trackIdToMetadata: track_id_to_metadata,
+        tracks: to_tracks_info(tracks)
+      }
     }
   end
 
@@ -363,4 +372,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   defp to_track_variants(bitrate) when is_number(bitrate), do: %{high: bitrate}
 
   defp to_type_string(type), do: Module.split(type) |> List.last() |> String.downcase()
+
+  defp to_tracks_info(tracks) do
+    Map.new(
+      tracks,
+      &{&1.id, %{metadata: &1.metadata, simulcastConfig: get_simulcast_config(&1)}}
+    )
+  end
+
+  defp get_simulcast_config(track) do
+    %{
+      enabled: track.variants != [:high],
+      activeEncodings: Enum.map(track.variants, &WebRTC.to_rid/1)
+    }
+  end
 end
