@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0-dev
+## 0.3.0
 * Bump deps [#318](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/318)
 * Extend `connected` and `tracksAdded` media events with information about simulcast config. [#317](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/317)
 

@@ -14,7 +14,7 @@ The package can be installed by adding `membrane_rtc_engine` to your list of dep
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine, "~> 0.17.0"}
+    {:membrane_rtc_engine, "~> 0.17.1"}
   ]
 end
 ```
@@ -23,8 +23,8 @@ To use a given Endpoint, you have to include it in your list of dependencies as 
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine, "~> 0.17.0"},
-    {:membrane_rtc_engine_webrtc, "~> 0.2.0"}
+    {:membrane_rtc_engine, "~> 0.17.1"},
+    {:membrane_rtc_engine_webrtc, "~> 0.3.0"}
   ]
 end
 ```

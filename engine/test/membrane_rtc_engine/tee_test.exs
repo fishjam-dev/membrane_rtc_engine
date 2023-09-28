@@ -173,7 +173,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     actions = [event: {:input, %RequestTrackVariant{variant: "invalid_track_variant"}}]
     Pipeline.execute_actions(pipeline, notify_child: {:sink, {:execute_actions, actions}})
 
-    assert_receive {:EXIT, ^pipeline, {:membrane_child_crash, :tee}}
+    assert_receive {:EXIT, ^pipeline, {:membrane_child_crash, :tee, _exception}}
   end
 
   test "Tee correcly forwards variants" do
@@ -265,7 +265,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     buffer = %Buffer{payload: <<1, 2, 3, 4, 5>>, metadata: %{is_keyframe: false}}
     send_buffer(pipeline, :high, buffer)
 
-    assert_receive {:EXIT, ^pipeline, {:membrane_child_crash, :tee}}
+    assert_receive {:EXIT, ^pipeline, {:membrane_child_crash, :tee, _exception}}
   end
 
   test "Tee ignores KeyframeRequestEvent when there is no variant being forwarded" do

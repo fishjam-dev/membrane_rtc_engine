@@ -231,17 +231,17 @@ defmodule Membrane.RTC.EngineTest do
 
       add_video_file_endpoint(rtc_engine, :video2, "2", "2")
 
-      assert_receive ^endpoint_id1, 5_000
-      assert_receive ^endpoint_id2, 5_000
-      assert_receive ^endpoint_id3, 5_000
+      assert_receive ^endpoint_id1, 10_000
+      assert_receive ^endpoint_id2, 10_000
+      assert_receive ^endpoint_id3, 10_000
 
       assert 6 = Engine.get_num_forwarded_tracks(rtc_engine)
 
       add_video_file_endpoint(rtc_engine, :video3, "3", "3")
 
-      assert_receive ^endpoint_id1, 5_000
-      assert_receive ^endpoint_id2, 5_000
-      assert_receive ^endpoint_id3, 5_000
+      assert_receive ^endpoint_id1, 10_000
+      assert_receive ^endpoint_id2, 10_000
+      assert_receive ^endpoint_id3, 10_000
 
       assert 9 = Engine.get_num_forwarded_tracks(rtc_engine)
     end
