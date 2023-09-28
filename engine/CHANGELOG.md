@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.18.0-dev
+## 0.17.1
 * Bump deps [#318](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/318)
 * Add `get_active_tracks` function in `Endpoint` module [#317](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/317)
 

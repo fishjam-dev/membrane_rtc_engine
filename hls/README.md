@@ -14,7 +14,7 @@ The package can be installed by adding `membrane_rtc_engine_hls` to your list of
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine_hls, "~> 0.2.0"}
+    {:membrane_rtc_engine_hls, "~> 0.2.1"}
   ]
 end
 ```
