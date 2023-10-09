@@ -3,10 +3,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
   alias Membrane.HTTPAdaptiveStream.Storages.SendStorage
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.HLS
-  alias Membrane.RTC.Engine.Message
   alias Membrane.RTC.Engine.Endpoint.File, as: FileEndpoint
+  alias Membrane.RTC.Engine.Endpoint.HLS
   alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
+  alias Membrane.RTC.Engine.Message
 
   @fixtures_dir "./test/fixtures/"
   @playlist_playable_delay 20_000

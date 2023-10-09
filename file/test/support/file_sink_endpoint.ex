@@ -6,12 +6,12 @@ defmodule Membrane.RTC.Engine.Support.Sink do
 
   require Membrane.Logger
 
+  alias Membrane.ChildrenSpec.Builder
+  alias Membrane.File.Sink, as: FileSink
+  alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Endpoint.File, as: FileEndpoint
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
-  alias Membrane.RTC.Engine
-  alias Membrane.File.Sink, as: FileSink
-  alias Membrane.ChildrenSpec.Builder
-  alias Membrane.RTC.Engine.Endpoint.File, as: FileEndpoint
 
   @type encoding_t() :: String.t()
 

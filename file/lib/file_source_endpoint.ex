@@ -9,8 +9,10 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   require Membrane.Logger
 
+  alias Membrane.ChildrenSpec
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Support.StaticTrackSender
+  alias Membrane.RTC.Engine.Track
   alias Membrane.RTP
   alias Membrane.RTP.PayloaderBin
 
@@ -45,7 +47,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                   "Size of toilet between payloader and realtimer and between realtimer and track_sender"
               ],
               after_source_transformation: [
-                spec: (Builder.t(), Track.t() -> Builder.t()),
+                spec: (ChildrenSpec.builder(), Track.t() -> ChildrenSpec.builder()),
                 default: &__MODULE__.identitiy_transformation/1,
                 description:
                   "Additional pipeline transformation after `file_source` the output stream must be encoded in OPUS or H264"
@@ -56,6 +58,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     accepted_format: _any,
     availability: :on_request
 
+  @spec start_sending(pid(), any()) :: :ok
   def start_sending(engine, endpoint_id) do
     Engine.message_endpoint(engine, endpoint_id, :start)
   end
@@ -155,10 +158,10 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     {[notify_parent: track_ready], state}
   end
 
-  @spec identitiy_transformation(Builder.t()) :: Builder.t()
+  @spec identitiy_transformation(ChildrenSpec.builder()) :: ChildrenSpec.builder()
   def identitiy_transformation(link_builder), do: link_builder
 
-  @spec transform_aac_to_opus(Builder.t()) :: (Builder.t() -> Builder.t())
+  @spec transform_aac_to_opus(ChildrenSpec.builder()) :: ChildrenSpec.builder()
   def transform_aac_to_opus(link_builder) do
     link_builder
     |> child(:decoder, Membrane.AAC.FDK.Decoder)

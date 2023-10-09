@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.18.0-dev
+* Modify mix.exs because of adding file_endpoint
 
 ## 0.17.1
 * Bump deps [#318](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/318)

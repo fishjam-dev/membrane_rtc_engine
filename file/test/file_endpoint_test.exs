@@ -2,8 +2,8 @@ defmodule Membrane.RTC.FileEndpointTest do
   use ExUnit.Case
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Message
   alias Membrane.RTC.Engine.Endpoint.File, as: SourceEndpoint
+  alias Membrane.RTC.Engine.Message
   alias Membrane.RTC.Engine.Support.Sink, as: SinkEndpoint
 
   @fixtures_dir "./test/fixtures/"
@@ -30,7 +30,6 @@ defmodule Membrane.RTC.FileEndpointTest do
   @stream_id "test-stream"
 
   describe "File Endpoint test" do
-
     @tag :tmp_dir
     test "OPUS test", %{
       rtc_engine: rtc_engine,

@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.3.0-dev
+* Use file_endpoint in tests
 * Add cleanup feature [#324](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/324)
 
 ## 0.2.1
