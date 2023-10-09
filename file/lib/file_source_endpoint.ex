@@ -1,8 +1,9 @@
-defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
-  @moduledoc false
-
-  # Endpoint that publishes data from a file.
-  # Starts publishing data on receiving `:start` message.
+defmodule Membrane.RTC.Engine.Endpoint.File do
+  @moduledoc """
+  An Endpoint responsible for publishing data from a file (Currently supports only OPUS and H264).
+  It starts publishing data on receiving `:start` message.
+  After publishing track it sends to engine parent notification `:tracks_added`.
+  """
 
   use Membrane.Bin
 
@@ -29,11 +30,25 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
               ],
               ssrc: [
                 spec: RTP.ssrc_t(),
+                default: 1,
                 description: "SSRC of RTP packets"
               ],
               payload_type: [
                 spec: RTP.payload_type_t(),
+                defalt: 127,
                 description: "Payload type of RTP packets"
+              ],
+              toilet_capacity: [
+                spec: integer(),
+                default: 1_000,
+                description:
+                  "Size of toilet between payloader and realtimer and between realtimer and track_sender"
+              ],
+              after_source_transformation: [
+                spec: (Builder.t(), Track.t() -> Builder.t()),
+                default: &__MODULE__.identitiy_transformation/1,
+                description:
+                  "Additional pipeline transformation after `file_source` the output stream must be encoded in OPUS or H264"
               ]
 
   def_output_pad :output,
@@ -41,9 +56,13 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
     accepted_format: _any,
     availability: :on_request
 
+  def start_sending(engine, endpoint_id) do
+    Engine.message_endpoint(engine, endpoint_id, :start)
+  end
+
   @impl true
   def handle_init(_ctx, opts) do
-    if opts.track.encoding != :H264 and opts.track.encoding != :OPUS do
+    unless Enum.any?([:H264, :OPUS], &(&1 == opts.track.encoding)) do
       raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codecs are :H264 and :OPUS."
     end
 
@@ -73,11 +92,12 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
 
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
+      |> then(&state.after_source_transformation.(&1))
       |> then(parser)
       |> child(:payloader, payloader_bin)
-      |> via_in(:input, toilet_capacity: 1000)
+      |> via_in(:input, toilet_capacity: state.toilet_capacity)
       |> child(:realtimer, Membrane.Realtimer)
-      |> via_in(:input, toilet_capacity: 1000)
+      |> via_in(:input, toilet_capacity: state.toilet_capacity)
       |> child(:track_sender, %StaticTrackSender{
         track: state.track,
         is_keyframe: fn buffer, track ->
@@ -92,6 +112,16 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
     ]
 
     {[spec: spec], state}
+  end
+
+  @impl true
+  def handle_element_end_of_stream(:track_sender, _pad, _ctx, state) do
+    {[notify_parent: {:forward_to_parent, :finished}], state}
+  end
+
+  @impl true
+  def handle_element_end_of_stream(_other, _pad, _ctx, state) do
+    {[], state}
   end
 
   @impl true
@@ -125,17 +155,25 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
     {[notify_parent: track_ready], state}
   end
 
+  @spec identitiy_transformation(Builder.t()) :: Builder.t()
+  def identitiy_transformation(link_builder), do: link_builder
+
+  @spec transform_aac_to_opus(Builder.t()) :: (Builder.t() -> Builder.t())
+  def transform_aac_to_opus(link_builder) do
+    link_builder
+    |> child(:decoder, Membrane.AAC.FDK.Decoder)
+    |> child(:encoder, %Membrane.Opus.Encoder{
+      input_stream_format: %Membrane.RawAudio{
+        channels: 1,
+        sample_rate: 48_000,
+        sample_format: :s16le
+      }
+    })
+  end
+
   defp convert_to_payloader_format(:OPUS) do
     fn link_builder ->
-      child(link_builder, :decoder, Membrane.AAC.FDK.Decoder)
-      |> child(:encoder, %Membrane.Opus.Encoder{
-        input_stream_format: %Membrane.RawAudio{
-          channels: 1,
-          sample_rate: 48_000,
-          sample_format: :s16le
-        }
-      })
-      |> child(:parser, %Membrane.Opus.Parser{})
+      child(link_builder, :parser, %Membrane.Opus.Parser{})
     end
   end
 
