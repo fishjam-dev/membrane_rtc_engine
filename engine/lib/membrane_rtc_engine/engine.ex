@@ -43,11 +43,14 @@ defmodule Membrane.RTC.Engine do
   saving them to files by creating HLS playlists. HLS Endpoint is a Standalone Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.RTSP` which is responsible for connecting to a remote RTSP stream source and
   sending the appropriate media track to other Endpoints. RTSP Endpoint is a Standalone Endpoint.
+  * `#{inspect(__MODULE__)}.Endpoint.File` which is responsible for reading track from a file, payloading it into RTP, and
+  sending the appropriate it to other Endpoints. RTSP Endpoint is a Standalone Endpoint.
 
   Each of these endpoints is available as a separate package. Refer to the appropriate package for usage examples:
   * [`membrane_rtc_engine_webrtc`](https://hexdocs.pm/membrane_rtc_engine_webrtc/readme.html)
   * [`membrane_rtc_engine_hls`](https://hexdocs.pm/membrane_rtc_engine_hls/readme.html)
   * [`membrane_rtc_engine_rtsp`](https://hexdocs.pm/membrane_rtc_engine_rtsp/readme.html)
+  * [`membrane_rtc_engine_file`](https://hexdocs.pm/membrane_rtc_engine_file/readme.html)
 
   User can also implement custom Endpoints, see Custom Endpoints guide.
 

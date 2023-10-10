@@ -42,11 +42,12 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 spec: integer(),
                 default: 1_000,
                 description:
-                  "Size of toilet between payloader and realtimer and between realtimer and track_sender"
+                  "Size of toilet between payloader and realtimer and between realtimer and track_sender.
+                  It is measured in packets"
               ],
               after_source_transformation: [
                 spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
-                default: &__MODULE__.identity_transformation/1,
+                default: &Function.identity/1,
                 description: """
                 Additional pipeline transformation after `file_source` the output stream must be encoded in OPUS or H264.
 
@@ -157,7 +158,4 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
     {[notify_parent: track_ready], state}
   end
-
-  @spec identity_transformation(ChildrenSpec.builder()) :: ChildrenSpec.builder()
-  def identity_transformation(link_builder), do: link_builder
 end
