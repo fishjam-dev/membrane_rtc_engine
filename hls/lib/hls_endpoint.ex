@@ -49,7 +49,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
   def_input_pad :input,
     demand_unit: :buffers,
-    accepted_format: _any,
+    accepted_format: Membrane.RTP,
     availability: :on_request
 
   def_options rtc_engine: [

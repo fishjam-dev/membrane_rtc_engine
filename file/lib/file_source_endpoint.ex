@@ -27,7 +27,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 description: "Path to track file"
               ],
               track: [
-                spec: Engine.Track.t(),
+                spec: Track.t(),
                 description: "Track to publish"
               ],
               ssrc: [
@@ -47,19 +47,18 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
               after_source_transformation: [
                 spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
                 default: &__MODULE__.identity_transformation/1,
-                description:
-                  """
-                  Additional pipeline transformation after `file_source` the output stream must be encoded in OPUS or H264.
+                description: """
+                Additional pipeline transformation after `file_source` the output stream must be encoded in OPUS or H264.
 
-                  Example usage:
-                  * Reading OPUS file: `&child(&1, :parser, %Membrane.Opus.Parser{})`
-                  * Reading H264 file with constant framerate 60: `fn link_builder -> child(link_builder, :parser, %Membrane.H264.Parser{ generate_best_effort_timestamps: %{ framerate: {60, 1}}, output_alignment: :nalu }) end`
-                  """
+                Example usage:
+                * Reading OPUS file: `&child(&1, :parser, %Membrane.Opus.Parser{})`
+                * Reading H264 file with constant framerate 60: `fn link_builder -> child(link_builder, :parser, %Membrane.H264.Parser{ generate_best_effort_timestamps: %{ framerate: {60, 1}}, output_alignment: :nalu }) end`
+                """
               ]
 
   def_output_pad :output,
     demand_unit: :buffers,
-    accepted_format: _any,
+    accepted_format: Membrane.RTP,
     availability: :on_request
 
   @spec start_sending(pid(), any()) :: :ok
@@ -161,5 +160,4 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   @spec identity_transformation(ChildrenSpec.builder()) :: ChildrenSpec.builder()
   def identity_transformation(link_builder), do: link_builder
-
 end

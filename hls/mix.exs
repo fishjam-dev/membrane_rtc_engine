@@ -80,7 +80,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true},
 
       # Test deps
-      {:membrane_rtc_engine_file, path: "../file", only: :test},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
 
       # File Source
