@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
   use Mix.Project
 
-  @version "0.3.0-dev"
+  @version "0.1.0-dev"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @github_url "#{@engine_github_url}/tree/master/file"
   @source_ref "file-v#{@version}"
@@ -33,15 +33,6 @@ defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
         "coveralls.post": :test,
         "coveralls.html": :test,
         "coveralls.json": :test
-      ],
-
-      # dialyzer
-      # this is because of optional dependencies
-      # they are not included in PLT
-      dialyzer: [
-        plt_add_apps: [
-          :membrane_video_compositor_plugin
-        ]
       ]
     ]
   end
@@ -63,17 +54,15 @@ defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 0.12.3"},
-      {:membrane_aac_plugin, "~> 0.16.0"},
-      {:membrane_opus_plugin, "~> 0.17.1"},
-      {:membrane_aac_fdk_plugin, "~> 0.15.1"},
-      {:membrane_h264_plugin, "~> 0.7.2"},
       {:membrane_realtimer_plugin, "~> 0.6.1"},
+      {:membrane_file_plugin, "~> 0.15.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.15.0"},
+      {:membrane_opus_plugin, "~> 0.17.1", only: :test},
+      {:membrane_h264_plugin, "~> 0.7.2"},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false}
     ]
   end

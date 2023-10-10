@@ -584,7 +584,20 @@ defmodule Membrane.RTC.HLSEndpointTest do
       track: audio_track,
       ssrc: 2345,
       payload_type: 108,
-      after_source_transformation: &FileEndpoint.transform_aac_to_opus/1
+      after_source_transformation: &transform_aac_to_opus/1
     }
+  end
+
+  defp transform_aac_to_opus(link_builder) do
+    link_builder
+    |> child(:decoder, Membrane.AAC.FDK.Decoder)
+    |> child(:encoder, %Membrane.Opus.Encoder{
+      input_stream_format: %Membrane.RawAudio{
+        channels: 1,
+        sample_rate: 48_000,
+        sample_format: :s16le
+      }
+    })
+    |> child(:parser, %Membrane.Opus.Parser{})
   end
 end

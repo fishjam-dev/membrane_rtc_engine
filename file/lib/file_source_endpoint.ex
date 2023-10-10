@@ -32,12 +32,10 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
               ],
               ssrc: [
                 spec: RTP.ssrc_t(),
-                default: 1,
                 description: "SSRC of RTP packets"
               ],
               payload_type: [
                 spec: RTP.payload_type_t(),
-                defalt: 127,
                 description: "Payload type of RTP packets"
               ],
               toilet_capacity: [
@@ -47,10 +45,16 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                   "Size of toilet between payloader and realtimer and between realtimer and track_sender"
               ],
               after_source_transformation: [
-                spec: (ChildrenSpec.builder(), Track.t() -> ChildrenSpec.builder()),
-                default: &__MODULE__.identitiy_transformation/1,
+                spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
+                default: &__MODULE__.identity_transformation/1,
                 description:
-                  "Additional pipeline transformation after `file_source` the output stream must be encoded in OPUS or H264"
+                  """
+                  Additional pipeline transformation after `file_source` the output stream must be encoded in OPUS or H264.
+
+                  Example usage:
+                  * Reading OPUS file: `&child(&1, :parser, %Membrane.Opus.Parser{})`
+                  * Reading H264 file with constant framerate 60: `fn link_builder -> child(link_builder, :parser, %Membrane.H264.Parser{ generate_best_effort_timestamps: %{ framerate: {60, 1}}, output_alignment: :nalu }) end`
+                  """
               ]
 
   def_output_pad :output,
@@ -155,20 +159,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     {[notify_parent: track_ready], state}
   end
 
-  @spec identitiy_transformation(ChildrenSpec.builder()) :: ChildrenSpec.builder()
-  def identitiy_transformation(link_builder), do: link_builder
+  @spec identity_transformation(ChildrenSpec.builder()) :: ChildrenSpec.builder()
+  def identity_transformation(link_builder), do: link_builder
 
-  @spec transform_aac_to_opus(ChildrenSpec.builder()) :: ChildrenSpec.builder()
-  def transform_aac_to_opus(link_builder) do
-    link_builder
-    |> child(:decoder, Membrane.AAC.FDK.Decoder)
-    |> child(:encoder, %Membrane.Opus.Encoder{
-      input_stream_format: %Membrane.RawAudio{
-        channels: 1,
-        sample_rate: 48_000,
-        sample_format: :s16le
-      }
-    })
-    |> child(:parser, %Membrane.Opus.Parser{})
-  end
 end
