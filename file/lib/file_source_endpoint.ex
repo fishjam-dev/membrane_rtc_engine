@@ -91,12 +91,9 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
       clock_rate: state.track.clock_rate
     }
 
-    parser = convert_to_payloader_format(state.track.encoding)
-
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
       |> then(&state.after_source_transformation.(&1))
-      |> then(parser)
       |> child(:payloader, payloader_bin)
       |> via_in(:input, toilet_capacity: state.toilet_capacity)
       |> child(:realtimer, Membrane.Realtimer)
@@ -172,22 +169,6 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
         sample_format: :s16le
       }
     })
-  end
-
-  defp convert_to_payloader_format(:OPUS) do
-    fn link_builder ->
-      child(link_builder, :parser, %Membrane.Opus.Parser{})
-    end
-  end
-
-  defp convert_to_payloader_format(:H264) do
-    fn link_builder ->
-      child(link_builder, :parser, %Membrane.H264.Parser{
-        generate_best_effort_timestamps: %{
-          framerate: {60, 1}
-        },
-        output_alignment: :nalu
-      })
-    end
+    |> child(:parser, %Membrane.Opus.Parser{})
   end
 end

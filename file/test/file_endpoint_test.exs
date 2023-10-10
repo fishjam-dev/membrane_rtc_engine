@@ -1,6 +1,8 @@
 defmodule Membrane.RTC.FileEndpointTest do
   use ExUnit.Case
 
+  import Membrane.ChildrenSpec
+
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.File, as: SourceEndpoint
   alias Membrane.RTC.Engine.Message
@@ -176,7 +178,15 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: video_file_path,
       track: video_track,
       ssrc: 1234,
-      payload_type: 96
+      payload_type: 96,
+      after_source_transformation: fn link_builder ->
+        child(link_builder, :parser, %Membrane.H264.Parser{
+          generate_best_effort_timestamps: %{
+            framerate: {60, 1}
+          },
+          output_alignment: :nalu
+        })
+      end
     }
   end
 
@@ -211,7 +221,8 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: audio_file_path,
       track: audio_track,
       ssrc: 2345,
-      payload_type: 108
+      payload_type: 108,
+      after_source_transformation: &child(&1, :parser, %Membrane.Opus.Parser{})
     }
   end
 end
