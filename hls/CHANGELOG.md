@@ -3,6 +3,7 @@
 ## 0.3.0-dev
 
 ## 0.2.1
+* Add cleanup feature [#324](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/324)
 * Fix segment duration and add framerate to hls playlist [#316](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/316)
 * Bump deps [#318](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/318)
 
