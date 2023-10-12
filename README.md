@@ -20,7 +20,7 @@ This repository currently holds the following packages:
 - [`rtsp`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/rtsp) -
   RTSP Endpoint, responsible for connecting to a remote RTSP stream source and sending the appropriate media track to other Endpoints.
 - [`file`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/file) -
-  File Endpoint, responsible for reading track from a file, payloading it into RTP, and sending the appropriate it to other Endpoints.
+  File Endpoint, responsible for reading track from a file, payloading it into RTP, and sending it to other Endpoints.
 
 For more info about a given Endpoint, refer to its documentation.
 
