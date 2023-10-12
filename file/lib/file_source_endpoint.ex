@@ -1,8 +1,11 @@
 defmodule Membrane.RTC.Engine.Endpoint.File do
   @moduledoc """
-  An Endpoint responsible for publishing data from a file (Currently supports only OPUS and H264).
-  It starts publishing data on receiving `:start` message.
+  An Endpoint responsible for publishing data from a file.
+  By default support only OPUS and H264.
+  By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
+  It starts publishing data after calling function `start_sending` with proper arguments.
   After publishing track it sends to engine parent notification `:tracks_added`.
+  After sending all data from file it sends to engine parent notification `:finished`.
   """
 
   use Membrane.Bin
@@ -17,6 +20,8 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   alias Membrane.RTP.PayloaderBin
 
   @type encoding_t() :: String.t()
+
+  @toilet_capacity 1_000
 
   def_options rtc_engine: [
                 spec: pid(),
@@ -38,22 +43,14 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 spec: RTP.payload_type_t(),
                 description: "Payload type of RTP packets"
               ],
-              toilet_capacity: [
-                spec: integer(),
-                default: 1_000,
-                description:
-                  "Size of toilet between payloader and realtimer and between realtimer and track_sender.
-                  It is measured in packets"
-              ],
               after_source_transformation: [
                 spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
                 default: &Function.identity/1,
                 description: """
-                Additional pipeline transformation after `file_source` the output stream must be encoded in OPUS or H264.
+                Additional pipeline transformation after `file_source`. The output stream must be encoded in OPUS or H264.
 
                 Example usage:
-                * Reading OPUS file: `&child(&1, :parser, %Membrane.Opus.Parser{})`
-                * Reading H264 file with constant framerate 60: `fn link_builder -> child(link_builder, :parser, %Membrane.H264.Parser{ generate_best_effort_timestamps: %{ framerate: {60, 1}}, output_alignment: :nalu }) end`
+                * Reading ACC file: `fn link_builder ->  link_builder |> child(:decoder, Membrane.AAC.FDK.Decoder) |> child(:encoder, %Membrane.Opus.Encoder{ input_stream_format: %Membrane.RawAudio{ channels: 1, sample_rate: 48_000, sample_format: :s16le }}) end`
                 """
               ]
 
@@ -95,13 +92,16 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
       clock_rate: state.track.clock_rate
     }
 
+    parser = convert_to_payloader_format(state.track)
+
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
       |> then(&state.after_source_transformation.(&1))
+      |> then(parser)
       |> child(:payloader, payloader_bin)
-      |> via_in(:input, toilet_capacity: state.toilet_capacity)
+      |> via_in(:input, toilet_capacity: @toilet_capacity)
       |> child(:realtimer, Membrane.Realtimer)
-      |> via_in(:input, toilet_capacity: state.toilet_capacity)
+      |> via_in(:input, toilet_capacity: @toilet_capacity)
       |> child(:track_sender, %StaticTrackSender{
         track: state.track,
         is_keyframe: fn buffer, track ->
@@ -157,5 +157,22 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   def handle_parent_notification(:start, _ctx, state) do
     track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
     {[notify_parent: track_ready], state}
+  end
+
+  defp convert_to_payloader_format(%Track{encoding: :OPUS}) do
+    fn link_builder ->
+      child(link_builder, :parser, %Membrane.Opus.Parser{})
+    end
+  end
+
+  defp convert_to_payloader_format(%Track{encoding: :H264, framerate: framerate}) do
+    fn link_builder ->
+      child(link_builder, :parser, %Membrane.H264.Parser{
+        generate_best_effort_timestamps: %{
+          framerate: framerate
+        },
+        output_alignment: :nalu
+      })
+    end
   end
 end

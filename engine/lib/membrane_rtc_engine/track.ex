@@ -21,7 +21,8 @@ defmodule Membrane.RTC.Engine.Track do
     :clock_rate,
     :active?,
     :metadata,
-    :ctx
+    :ctx,
+    :framerate
   ]
   defstruct @enforce_keys ++ [:payload_type]
 
@@ -42,6 +43,8 @@ defmodule Membrane.RTC.Engine.Track do
   """
   @type variant :: :high | :medium | :low
 
+  @type framerate :: {non_neg_integer(), non_neg_integer()} | nil
+
   @typedoc """
   This module contains:
   * `type` - audio or video,
@@ -57,6 +60,7 @@ defmodule Membrane.RTC.Engine.Track do
   * `active?` - indicates whether track is still available or not (because client left a room)
   * `metadata` - any data passed by user to be linked with this track
   * `ctx` - any data Endpoints need to associate with `#{inspect(__MODULE__)}.t()` for internal usage
+  * `framerate` - framerate of video track used only when a track is read from a file. By default nil
   """
   @type t :: %__MODULE__{
           type: :audio | :video,
@@ -71,7 +75,8 @@ defmodule Membrane.RTC.Engine.Track do
           fmtp: FMTP.t(),
           active?: boolean(),
           metadata: any(),
-          ctx: map()
+          ctx: map(),
+          framerate: framerate()
         }
 
   @typedoc """
@@ -92,7 +97,8 @@ defmodule Membrane.RTC.Engine.Track do
           variants: [variant()],
           metadata: any(),
           ctx: map(),
-          payload_type: non_neg_integer() | nil
+          payload_type: non_neg_integer() | nil,
+          framerate: framerate()
         ]
 
   @doc """
@@ -125,7 +131,8 @@ defmodule Membrane.RTC.Engine.Track do
       active?: Keyword.get(opts, :active?, true),
       variants: Keyword.get(opts, :variants, [:high]),
       metadata: Keyword.get(opts, :metadata),
-      ctx: Keyword.get(opts, :ctx, %{})
+      ctx: Keyword.get(opts, :ctx, %{}),
+      framerate: Keyword.get(opts, :framerate),
     }
   end
 

@@ -1,8 +1,7 @@
 defmodule Membrane.RTC.FileEndpointTest do
   use ExUnit.Case
 
-  import Membrane.ChildrenSpec
-
+  alias ElixirSense.Core.Source
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.File, as: SourceEndpoint
   alias Membrane.RTC.Engine.Message
@@ -72,7 +71,7 @@ defmodule Membrane.RTC.FileEndpointTest do
         message: :tracks_subscribed
       }
 
-      Engine.message_endpoint(rtc_engine, @source_endpoint_id, :start)
+      SourceEndpoint.start_sending(rtc_engine, @source_endpoint_id)
 
       refute_receive %Message.EndpointCrashed{endpoint_id: @sink_endpoint_id}
 
@@ -132,7 +131,7 @@ defmodule Membrane.RTC.FileEndpointTest do
         message: :tracks_subscribed
       }
 
-      Engine.message_endpoint(rtc_engine, @source_endpoint_id, :start)
+      SourceEndpoint.start_sending(rtc_engine, @source_endpoint_id)
 
       refute_receive %Message.EndpointCrashed{endpoint_id: @sink_endpoint_id}
 
@@ -170,7 +169,8 @@ defmodule Membrane.RTC.FileEndpointTest do
         %ExSDP.Attribute.FMTP{
           pt: 96
         },
-        id: video_track_id
+        id: video_track_id,
+        framerate: {60, 1}
       )
 
     %SourceEndpoint{
@@ -178,15 +178,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: video_file_path,
       track: video_track,
       ssrc: 1234,
-      payload_type: 96,
-      after_source_transformation: fn link_builder ->
-        child(link_builder, :parser, %Membrane.H264.Parser{
-          generate_best_effort_timestamps: %{
-            framerate: {60, 1}
-          },
-          output_alignment: :nalu
-        })
-      end
+      payload_type: 96
     }
   end
 
@@ -221,8 +213,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: audio_file_path,
       track: audio_track,
       ssrc: 2345,
-      payload_type: 108,
-      after_source_transformation: &child(&1, :parser, %Membrane.Opus.Parser{})
+      payload_type: 108
     }
   end
 end

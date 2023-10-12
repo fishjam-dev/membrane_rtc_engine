@@ -546,7 +546,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
           pt: 96
         },
         id: video_track_id,
-        metadata: %{"mainPresenter" => true, "isScreenSharing" => false}
+        metadata: %{"mainPresenter" => true, "isScreenSharing" => false},
+        framerate: {60, 1}
       )
 
     %FileEndpoint{
@@ -554,15 +555,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_path: video_file_path,
       track: video_track,
       ssrc: 1234,
-      payload_type: 96,
-      after_source_transformation: fn link_builder ->
-        child(link_builder, :parser, %Membrane.H264.Parser{
-          generate_best_effort_timestamps: %{
-            framerate: {60, 1}
-          },
-          output_alignment: :nalu
-        })
-      end
+      payload_type: 96
     }
   end
 
@@ -598,6 +591,5 @@ defmodule Membrane.RTC.HLSEndpointTest do
         sample_format: :s16le
       }
     })
-    |> child(:parser, %Membrane.Opus.Parser{})
   end
 end

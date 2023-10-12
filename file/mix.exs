@@ -56,13 +56,13 @@ defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
       {:membrane_core, "~> 0.12.3"},
       {:membrane_realtimer_plugin, "~> 0.6.1"},
       {:membrane_file_plugin, "~> 0.15.0"},
+      {:membrane_opus_plugin, "~> 0.17.1"},
+      {:membrane_h264_plugin, "~> 0.7.2"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
-      # Test deps
-      {:membrane_opus_plugin, "~> 0.17.1", only: :test},
-      {:membrane_h264_plugin, "~> 0.7.2"},
+      # Test deps,
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false}
     ]
   end
