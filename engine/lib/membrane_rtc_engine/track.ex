@@ -132,7 +132,7 @@ defmodule Membrane.RTC.Engine.Track do
       variants: Keyword.get(opts, :variants, [:high]),
       metadata: Keyword.get(opts, :metadata),
       ctx: Keyword.get(opts, :ctx, %{}),
-      framerate: Keyword.get(opts, :framerate),
+      framerate: Keyword.get(opts, :framerate)
     }
   end
 
