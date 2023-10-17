@@ -22,7 +22,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.HLSConfig do
           header_naming_fun: (Manifest.Track.t(), counter :: non_neg_integer() -> String.t()),
           segment_naming_fun: (Manifest.Track.t() -> String.t()),
           segment_duration: Membrane.Time.t(),
-          partial_segment_duration: Membrane.Time.t() | nil
+          partial_segment_duration: Membrane.Time.t() | nil,
+          cleanup_after: Membrane.Time.t() | nil
         }
 
   defstruct manifest_name: "index",
@@ -35,7 +36,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.HLSConfig do
             header_naming_fun: &Manifest.Track.default_header_naming_fun/2,
             segment_naming_fun: &Manifest.Track.default_segment_naming_fun/1,
             segment_duration: Time.seconds(5),
-            partial_segment_duration: nil
+            partial_segment_duration: nil,
+            cleanup_after: nil
 
   @spec default_storage(String.t()) :: any
   def default_storage(directory),

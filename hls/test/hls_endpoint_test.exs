@@ -1,6 +1,7 @@
 defmodule Membrane.RTC.HLSEndpointTest do
   use ExUnit.Case
 
+  alias Membrane.HTTPAdaptiveStream.Storages.SendStorage
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.HLS
   alias Membrane.RTC.Engine.Message
@@ -134,6 +135,98 @@ defmodule Membrane.RTC.HLSEndpointTest do
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
 
       check_separate_hls_playlist(output_dir, 2, 3)
+    end
+
+    test "cleanup work properly", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+      video_file_endpoint_id = "video-file-endpoint"
+      audio_file_endpoint_id = "audio-file-endpoint"
+
+      video_file_name = "video.h264"
+      video_file_path = Path.join(@fixtures_dir, video_file_name)
+
+      hls_endpoint_id = "hls-endpoint"
+
+      video_track_id = "test-video-track"
+      audio_track_id = "test-audio-track"
+      stream_id = "test-stream"
+
+      output_dir = Path.join([tmp_dir, stream_id])
+
+      pid = self()
+
+      storage = fn _directory -> %SendStorage{destination: pid} end
+
+      hls_endpoint = %HLS{
+        rtc_engine: rtc_engine,
+        owner: self(),
+        output_directory: tmp_dir,
+        synchronize_tracks?: false,
+        hls_config: %HLSConfig{
+          mode: :vod,
+          target_window_duration: :infinity,
+          hls_mode: :separate_av,
+          segment_duration: Membrane.Time.seconds(3),
+          cleanup_after: Membrane.Time.seconds(1),
+          storage: storage
+        }
+      }
+
+      audio_file_endpoint =
+        create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
+
+      video_file_endpoint =
+        create_video_file_endpoint(
+          rtc_engine,
+          video_file_path,
+          stream_id,
+          video_file_endpoint_id,
+          video_track_id
+        )
+
+      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+
+      assert_receive %Message.EndpointMessage{
+                       endpoint_id: ^video_file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
+
+      :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
+
+      assert_receive %Message.EndpointMessage{
+                       endpoint_id: ^audio_file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
+
+      Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
+      Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
+
+      assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
+      assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
+
+      Enum.each(1..7, fn _idx -> assert_receive {SendStorage, :store, %{type: :segment}}, 5000 end)
+
+      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
+
+      manifests_no = 2
+      headers_no = 2
+      segments_no = 7
+
+      assert_receive {SendStorage, :remove, %{type: :manifest, name: "index.m3u8"}}, 5000
+
+      Enum.each(1..manifests_no, fn _idx ->
+        assert_receive {SendStorage, :remove, %{type: :manifest}}, 5000
+      end)
+
+      Enum.each(1..headers_no, fn _idx ->
+        assert_receive {SendStorage, :remove, %{type: :header}}, 5000
+      end)
+
+      Enum.each(1..segments_no, fn _idx ->
+        assert_receive {SendStorage, :remove, %{type: :segment}}, 5000
+      end)
     end
 
     @tag :gpu

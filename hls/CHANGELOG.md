@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.3.0-dev
+* Add cleanup feature [#324](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/324)
 
 ## 0.2.1
 * Fix segment duration and add framerate to hls playlist [#316](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/316)
