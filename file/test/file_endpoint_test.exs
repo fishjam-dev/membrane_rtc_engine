@@ -1,11 +1,10 @@
 defmodule Membrane.RTC.FileEndpointTest do
   use ExUnit.Case
 
-  alias ElixirSense.Core.Source
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.File, as: SourceEndpoint
+  alias Membrane.RTC.Engine.Endpoint
   alias Membrane.RTC.Engine.Message
-  alias Membrane.RTC.Engine.Support.Sink, as: SinkEndpoint
+  alias Membrane.RTC.Engine.Support
 
   @fixtures_dir "./test/fixtures/"
 
@@ -44,7 +43,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       :ok =
         Engine.add_endpoint(
           rtc_engine,
-          %SinkEndpoint{
+          %Support.Sink{
             rtc_engine: rtc_engine,
             file_path: output_file
           },
@@ -71,7 +70,7 @@ defmodule Membrane.RTC.FileEndpointTest do
         message: :tracks_subscribed
       }
 
-      SourceEndpoint.start_sending(rtc_engine, @source_endpoint_id)
+      Endpoint.File.start_sending(rtc_engine, @source_endpoint_id)
 
       refute_receive %Message.EndpointCrashed{endpoint_id: @sink_endpoint_id}
 
@@ -104,7 +103,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       :ok =
         Engine.add_endpoint(
           rtc_engine,
-          %SinkEndpoint{
+          %Support.Sink{
             rtc_engine: rtc_engine,
             file_path: output_file
           },
@@ -131,7 +130,7 @@ defmodule Membrane.RTC.FileEndpointTest do
         message: :tracks_subscribed
       }
 
-      SourceEndpoint.start_sending(rtc_engine, @source_endpoint_id)
+      Endpoint.File.start_sending(rtc_engine, @source_endpoint_id)
 
       refute_receive %Message.EndpointCrashed{endpoint_id: @sink_endpoint_id}
 
@@ -173,7 +172,7 @@ defmodule Membrane.RTC.FileEndpointTest do
         framerate: {60, 1}
       )
 
-    %SourceEndpoint{
+    %Endpoint.File{
       rtc_engine: rtc_engine,
       file_path: video_file_path,
       track: video_track,
@@ -208,7 +207,7 @@ defmodule Membrane.RTC.FileEndpointTest do
         id: audio_track_id
       )
 
-    %SourceEndpoint{
+    %Endpoint.File{
       rtc_engine: rtc_engine,
       file_path: audio_file_path,
       track: audio_track,

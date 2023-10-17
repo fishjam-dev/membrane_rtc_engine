@@ -92,7 +92,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
       clock_rate: state.track.clock_rate
     }
 
-    parser = convert_to_payloader_format(state.track)
+    parser = get_parser(state.track)
 
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
@@ -159,13 +159,13 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     {[notify_parent: track_ready], state}
   end
 
-  defp convert_to_payloader_format(%Track{encoding: :OPUS}) do
+  defp get_parser(%Track{encoding: :OPUS}) do
     fn link_builder ->
       child(link_builder, :parser, %Membrane.Opus.Parser{})
     end
   end
 
-  defp convert_to_payloader_format(%Track{encoding: :H264, framerate: framerate}) do
+  defp get_parser(%Track{encoding: :H264, framerate: framerate}) do
     fn link_builder ->
       child(link_builder, :parser, %Membrane.H264.Parser{
         generate_best_effort_timestamps: %{
