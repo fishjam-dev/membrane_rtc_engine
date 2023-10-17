@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.File do
   @moduledoc """
   An Endpoint responsible for publishing data from a file.
-  By default support only OPUS and H264.
+  By default only supports OPUS and H264 files.
   By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
   It starts publishing data after calling function `start_sending` with proper arguments.
   After publishing track it sends to engine parent notification `:tracks_added`.
