@@ -60,7 +60,7 @@ defmodule Membrane.RTC.Engine.Track do
   * `active?` - indicates whether track is still available or not (because client left a room)
   * `metadata` - any data passed by user to be linked with this track
   * `ctx` - any data Endpoints need to associate with `#{inspect(__MODULE__)}.t()` for internal usage
-  * `framerate` - framerate of video track used only when framerate is constant otherwise it should be set to nil. By default nil
+  * `framerate` - track framerate.  It's up to endpoints whether they set this field or not but if they do, they should only set it for video tracks with constant framerate. For audio tracks, framerate should always be `nil`. Defaults to `nil`.
   """
   @type t :: %__MODULE__{
           type: :audio | :video,
