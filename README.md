@@ -35,7 +35,7 @@ the Engine), e.g.
 def deps do
   [
     {:membrane_rtc_engine, "~> 0.18.0"},
-    {:membrane_rtc_engine_webrtc, "~> 0.3.1"}
+    {:membrane_rtc_engine_webrtc, "~> 0.4.0"}
   ]
 end
 ```
