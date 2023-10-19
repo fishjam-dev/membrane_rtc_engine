@@ -50,7 +50,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
     [
       # Engine deps
       {:membrane_rtc_engine, "~> 0.18.0"},
-      {:membrane_rtc_engine_webrtc, "~> 0.3.1"},
+      {:membrane_rtc_engine_webrtc, "~> 0.4.0"},
 
       # Regular deps
       {:membrane_core, "~> 0.12.3"},
