@@ -37,6 +37,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:membrane_rtc_engine, path: "../engine"},
       {:membrane_rtc_engine_hls, path: "../hls"},
       {:membrane_rtc_engine_rtsp, path: "../rtsp"},
+      {:membrane_rtc_engine_file, path: "../file"},
 
       # Regular deps (for modules in `test/support/`)
       {:membrane_core, "~> 0.12.7"},
@@ -46,7 +47,15 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:membrane_h264_plugin, "~> 0.7.2"},
       {:membrane_udp_plugin, "~> 0.10.0"},
       {:membrane_file_plugin, "~> 0.15.0"},
+      {:membrane_aac_plugin, "~> 0.16.0"},
+      {:membrane_aac_fdk_plugin, "~> 0.15.1"},
+      {:membrane_opus_plugin, "~> 0.17.1"},
       {:qex, "~> 0.5.1"},
+      {:membrane_audio_mix_plugin, "~> 0.15.2"},
+      {:membrane_video_compositor_plugin, "~> 0.5.1"},
+      {:membrane_raw_audio_format, "~> 0.11.0"},
+      {:membrane_raw_video_format, "~> 0.3.0"},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.29.0"},
 
       # Test deps
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false}

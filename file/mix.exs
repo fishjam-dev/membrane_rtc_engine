@@ -1,14 +1,14 @@
-defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
+defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
   use Mix.Project
 
-  @version "0.3.0-dev"
+  @version "0.1.0"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
-  @github_url "#{@engine_github_url}/tree/master/hls"
-  @source_ref "hls-v#{@version}"
+  @github_url "#{@engine_github_url}/tree/master/file"
+  @source_ref "file-v#{@version}"
 
   def project do
     [
-      app: :membrane_rtc_engine_hls,
+      app: :membrane_rtc_engine_file,
       version: @version,
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -16,11 +16,11 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       deps: deps(),
 
       # hex
-      description: "HLS Endpoint for Membrane RTC Engine",
+      description: "File Endpoint for Membrane RTC Engine",
       package: package(),
 
       # docs
-      name: "Membrane RTC Engine HLS Endpoint",
+      name: "Membrane RTC Engine File Endpoint",
       source_url: @github_url,
       homepage_url: "https://membrane.stream",
       docs: docs(),
@@ -33,15 +33,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
         "coveralls.post": :test,
         "coveralls.html": :test,
         "coveralls.json": :test
-      ],
-
-      # dialyzer
-      # this is because of optional dependencies
-      # they are not included in PLT
-      dialyzer: [
-        plt_add_apps: [
-          :membrane_video_compositor_plugin
-        ]
       ]
     ]
   end
@@ -63,27 +54,16 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 0.12.3"},
-      {:membrane_aac_plugin, "~> 0.16.0"},
+      {:membrane_realtimer_plugin, "~> 0.6.1"},
+      {:membrane_file_plugin, "~> 0.15.0"},
       {:membrane_opus_plugin, "~> 0.17.1"},
-      {:membrane_aac_fdk_plugin, "~> 0.15.1"},
-      {:membrane_raw_audio_format, "~> 0.11.0"},
-      {:membrane_raw_video_format, "~> 0.3.0"},
       {:membrane_h264_plugin, "~> 0.7.2"},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.29.0"},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.17.2"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
-      # Optional deps for mixing audio and composing video
-      {:membrane_audio_mix_plugin, "~> 0.15.2", optional: true},
-      {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true},
-
-      # Test deps
-      {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
-
-      # File Source
-      {:membrane_realtimer_plugin, "~> 0.6.1", only: :test}
+      # Test deps,
+      {:excoveralls, "~> 0.16.0", only: :test, runtime: false}
     ]
   end
 
@@ -104,7 +84,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       extras: ["README.md", "CHANGELOG.md", "LICENSE"],
       formatters: ["html"],
       source_ref: @source_ref,
-      source_url_pattern: "#{@engine_github_url}/blob/#{@source_ref}/hls/%{path}#L%{line}",
+      source_url_pattern: "#{@engine_github_url}/blob/#{@source_ref}/file/%{path}#L%{line}",
       nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint]
     ]
   end

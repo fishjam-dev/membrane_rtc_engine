@@ -1,19 +1,27 @@
-defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
-  @moduledoc false
-
-  # Endpoint that publishes data from a file.
-  # Starts publishing data on receiving `:start` message.
+defmodule Membrane.RTC.Engine.Endpoint.File do
+  @moduledoc """
+  An Endpoint responsible for publishing data from a file.
+  By default only supports OPUS and H264 files.
+  By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
+  It starts publishing data after calling function `start_sending` with proper arguments.
+  After publishing track it sends to engine parent notification `:tracks_added`.
+  After sending all data from file it sends to engine parent notification `:finished`.
+  """
 
   use Membrane.Bin
 
   require Membrane.Logger
 
+  alias Membrane.ChildrenSpec
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Support.StaticTrackSender
+  alias Membrane.RTC.Engine.Track
   alias Membrane.RTP
   alias Membrane.RTP.PayloaderBin
 
   @type encoding_t() :: String.t()
+
+  @toilet_capacity 1_000
 
   def_options rtc_engine: [
                 spec: pid(),
@@ -24,7 +32,7 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
                 description: "Path to track file"
               ],
               track: [
-                spec: Engine.Track.t(),
+                spec: Track.t(),
                 description: "Track to publish"
               ],
               ssrc: [
@@ -34,16 +42,31 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
               payload_type: [
                 spec: RTP.payload_type_t(),
                 description: "Payload type of RTP packets"
+              ],
+              after_source_transformation: [
+                spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
+                default: &Function.identity/1,
+                description: """
+                Additional pipeline transformation after `file_source`. The output stream must be encoded in OPUS or H264.
+
+                Example usage:
+                * Reading ACC file: `fn link_builder ->  link_builder |> child(:decoder, Membrane.AAC.FDK.Decoder) |> child(:encoder, %Membrane.Opus.Encoder{ input_stream_format: %Membrane.RawAudio{ channels: 1, sample_rate: 48_000, sample_format: :s16le }}) end`
+                """
               ]
 
   def_output_pad :output,
     demand_unit: :buffers,
-    accepted_format: _any,
+    accepted_format: Membrane.RTP,
     availability: :on_request
+
+  @spec start_sending(pid(), any()) :: :ok
+  def start_sending(engine, endpoint_id) do
+    Engine.message_endpoint(engine, endpoint_id, :start)
+  end
 
   @impl true
   def handle_init(_ctx, opts) do
-    if opts.track.encoding != :H264 and opts.track.encoding != :OPUS do
+    unless Enum.any?([:H264, :OPUS], &(&1 == opts.track.encoding)) do
       raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codecs are :H264 and :OPUS."
     end
 
@@ -69,15 +92,16 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
       clock_rate: state.track.clock_rate
     }
 
-    parser = convert_to_payloader_format(state.track.encoding)
+    parser = get_parser(state.track)
 
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
+      |> then(&state.after_source_transformation.(&1))
       |> then(parser)
       |> child(:payloader, payloader_bin)
-      |> via_in(:input, toilet_capacity: 1000)
+      |> via_in(:input, toilet_capacity: @toilet_capacity)
       |> child(:realtimer, Membrane.Realtimer)
-      |> via_in(:input, toilet_capacity: 1000)
+      |> via_in(:input, toilet_capacity: @toilet_capacity)
       |> child(:track_sender, %StaticTrackSender{
         track: state.track,
         is_keyframe: fn buffer, track ->
@@ -92,6 +116,16 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
     ]
 
     {[spec: spec], state}
+  end
+
+  @impl true
+  def handle_element_end_of_stream(:track_sender, _pad, _ctx, state) do
+    {[notify_parent: {:forward_to_parent, :finished}], state}
+  end
+
+  @impl true
+  def handle_element_end_of_stream(_other, _pad, _ctx, state) do
+    {[], state}
   end
 
   @impl true
@@ -125,25 +159,17 @@ defmodule Membrane.RTC.Engine.Support.FileSourceEndpoint do
     {[notify_parent: track_ready], state}
   end
 
-  defp convert_to_payloader_format(:OPUS) do
+  defp get_parser(%Track{encoding: :OPUS}) do
     fn link_builder ->
-      child(link_builder, :decoder, Membrane.AAC.FDK.Decoder)
-      |> child(:encoder, %Membrane.Opus.Encoder{
-        input_stream_format: %Membrane.RawAudio{
-          channels: 1,
-          sample_rate: 48_000,
-          sample_format: :s16le
-        }
-      })
-      |> child(:parser, %Membrane.Opus.Parser{})
+      child(link_builder, :parser, %Membrane.Opus.Parser{})
     end
   end
 
-  defp convert_to_payloader_format(:H264) do
+  defp get_parser(%Track{encoding: :H264, framerate: framerate}) do
     fn link_builder ->
       child(link_builder, :parser, %Membrane.H264.Parser{
         generate_best_effort_timestamps: %{
-          framerate: {60, 1}
+          framerate: framerate
         },
         output_alignment: :nalu
       })

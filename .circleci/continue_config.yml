@@ -19,6 +19,9 @@ parameters:
   rtsp-changed:
     type: boolean
     default: false
+  file-changed:
+    type: boolean
+    default: false
   integration-changed:
     type: boolean
     default: false
@@ -170,6 +173,20 @@ workflows:
           workdir: ~/app/rtsp
           codecov_flag: rtsp
 
+  test-file:
+    when:
+      or:
+        - << pipeline.parameters.repo-root-changed >>
+        - << pipeline.parameters.engine-changed >>
+        # TODO: remove once the File endpoint no longer depends on the WebRTC endpoint
+        - << pipeline.parameters.webrtc-changed >>
+        - << pipeline.parameters.file-changed >>
+    jobs:
+      - test_package:
+          name: test_file
+          workdir: ~/app/file
+          codecov_flag: file
+
   test-integration:
     when:
       or:
@@ -178,6 +195,7 @@ workflows:
         - << pipeline.parameters.webrtc-changed >>
         - << pipeline.parameters.hls-changed >>
         - << pipeline.parameters.rtsp-changed >>
+        - << pipeline.parameters.file-changed >>
         - << pipeline.parameters.integration-changed >>
     jobs:
       - test_package:
@@ -224,6 +242,16 @@ workflows:
       - check_changelog_update:
           name: check_changelog_update_rtsp
           workdir: ~/app/rtsp
+
+  lint-file:
+    when: << pipeline.parameters.file-changed >>
+    jobs:
+      - lint_package:
+          name: lint_file
+          workdir: ~/app/file
+      - check_changelog_update:
+          name: check_changelog_update_file
+          workdir: ~/app/file
 
   lint-integration:
     when: << pipeline.parameters.integration-changed >>

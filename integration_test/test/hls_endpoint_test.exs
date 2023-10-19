@@ -1,12 +1,14 @@
 defmodule Membrane.RTC.HLSEndpointTest do
   use ExUnit.Case
 
+  import Membrane.ChildrenSpec
+
   alias Membrane.HTTPAdaptiveStream.Storages.SendStorage
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Endpoint.File, as: FileEndpoint
   alias Membrane.RTC.Engine.Endpoint.HLS
-  alias Membrane.RTC.Engine.Message
-  alias Membrane.RTC.Engine.Support.FileSourceEndpoint
   alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
+  alias Membrane.RTC.Engine.Message
 
   @fixtures_dir "./test/fixtures/"
   @playlist_playable_delay 20_000
@@ -63,7 +65,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
+      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
@@ -121,8 +123,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
-      Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
+      FileEndpoint.start_sending(rtc_engine, video_file_endpoint_id)
+      FileEndpoint.start_sending(rtc_engine, audio_file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
@@ -275,8 +277,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
-      Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
+      FileEndpoint.start_sending(rtc_engine, video_file_endpoint_id)
+      FileEndpoint.start_sending(rtc_engine, audio_file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
       assert_receive({:segment, "muxed_segment_1" <> _}, @segment_delay)
@@ -335,8 +337,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
-      Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
+      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
+      FileEndpoint.start_sending(rtc_engine, file_endpoint_id_2)
 
       assert_receive({:playlist_playable, :audio, ^tmp_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
@@ -390,8 +392,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      Engine.message_endpoint(rtc_engine, file_endpoint_id, :start)
-      Engine.message_endpoint(rtc_engine, file_endpoint_id_2, :start)
+      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
+      FileEndpoint.start_sending(rtc_engine, file_endpoint_id_2)
 
       assert_receive({:playlist_playable, :audio, ^tmp_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
@@ -544,10 +546,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
           pt: 96
         },
         id: video_track_id,
-        metadata: %{"mainPresenter" => true, "isScreenSharing" => false}
+        metadata: %{"mainPresenter" => true, "isScreenSharing" => false},
+        framerate: {60, 1}
       )
 
-    %FileSourceEndpoint{
+    %FileEndpoint{
       rtc_engine: rtc_engine,
       file_path: video_file_path,
       track: video_track,
@@ -568,12 +571,25 @@ defmodule Membrane.RTC.HLSEndpointTest do
         id: audio_track_id
       )
 
-    %FileSourceEndpoint{
+    %FileEndpoint{
       rtc_engine: rtc_engine,
       file_path: Path.join(@fixtures_dir, "audio.aac"),
       track: audio_track,
       ssrc: 2345,
-      payload_type: 108
+      payload_type: 108,
+      after_source_transformation: &transform_aac_to_opus/1
     }
+  end
+
+  defp transform_aac_to_opus(link_builder) do
+    link_builder
+    |> child(:decoder, Membrane.AAC.FDK.Decoder)
+    |> child(:encoder, %Membrane.Opus.Encoder{
+      input_stream_format: %Membrane.RawAudio{
+        channels: 1,
+        sample_rate: 48_000,
+        sample_format: :s16le
+      }
+    })
   end
 end

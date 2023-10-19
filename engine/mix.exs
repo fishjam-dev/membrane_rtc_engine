@@ -78,12 +78,20 @@ defmodule Membrane.RTC.Engine.MixProject do
 
   defp aliases() do
     [
-      "test.all": ["test.engine", "test.webrtc", "test.hls", "test.rtsp", "test.integration"],
+      "test.all": [
+        "test.engine",
+        "test.webrtc",
+        "test.hls",
+        "test.rtsp",
+        "test.file",
+        "test.integration"
+      ],
       "test.engine": ["test"],
       "test.webrtc": fn _args -> test_package("webrtc") end,
       "test.webrtc.integration": &run_webrtc_integration_tests/1,
       "test.hls": fn _args -> test_package("hls") end,
       "test.rtsp": fn _args -> test_package("rtsp") end,
+      "test.file": fn _args -> test_package("file") end,
       "test.integration": fn _args -> test_package("integration_test") end
     ]
   end

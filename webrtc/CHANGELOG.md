@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.4.0-dev
+* Bump deps [#323](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/323)
 
 ## 0.3.0
 * Bump deps [#318](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/318)
