@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.4.0-dev
+
 ## 0.3.0
 * Add cleanup feature [#324](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/324)
 * Move tests to `integration_tests` [#323](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/323)
