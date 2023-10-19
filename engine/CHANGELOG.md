@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.19.0-dev
+
 ## 0.18.0
 * Modify `Track`, mix.exs and docs because of adding File Endpoint [#323](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/323)
 
