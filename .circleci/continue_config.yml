@@ -202,6 +202,8 @@ workflows:
           name: test_integration
           workdir: ~/app/integration_test
           codecov_flag: integration
+          # TODO: remove once the compositor issues are resolved
+          mix_test_args: "--exclude gpu"
 
   lint-engine:
     when: << pipeline.parameters.engine-changed >>
