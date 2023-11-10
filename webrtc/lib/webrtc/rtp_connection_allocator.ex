@@ -222,7 +222,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
   @impl true
   def handle_cast({:request_allocation, pid, target}, state) do
-    Logger.info("Receiver #{inspect(pid)} requested allocation of #{target / 1024} kbps")
+    Logger.debug("Receiver #{inspect(pid)} requested allocation of #{target / 1024} kbps")
     receiver = Map.fetch!(state.track_receivers, pid)
 
     state =

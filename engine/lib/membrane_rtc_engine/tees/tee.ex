@@ -153,7 +153,7 @@ defmodule Membrane.RTC.Engine.Tee do
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantPaused{} = event, _ctx, state) do
-    Membrane.Logger.info("Track variant #{inspect(id)} paused.")
+    Membrane.Logger.debug("Track variant #{inspect(id)} paused.")
     {_track_id, variant} = id
     state = Map.update!(state, :inactive_variants, &MapSet.put(&1, variant))
 
@@ -177,7 +177,7 @@ defmodule Membrane.RTC.Engine.Tee do
 
   @impl true
   def handle_event(Pad.ref(:input, id), %TrackVariantResumed{} = event, _ctx, state) do
-    Membrane.Logger.info("Track variant #{inspect(id)} resumed.")
+    Membrane.Logger.debug("Track variant #{inspect(id)} resumed.")
     {_track_id, variant} = id
     state = Map.update!(state, :inactive_variants, &MapSet.delete(&1, variant))
     {[forward: event], state}
