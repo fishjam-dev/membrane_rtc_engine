@@ -234,6 +234,11 @@ defmodule Membrane.RTC.Engine do
     do_start(:start_link, options, process_options)
   end
 
+  @spec get_tracks(rtc_engine :: pid()) :: [Track.t()]
+  def get_tracks(rtc_engine) do
+    Pipeline.call(rtc_engine, :get_tracks)
+  end
+
   defp do_start(func, options, process_options) when func in [:start, :start_link] do
     id = options[:id] || "#{UUID.uuid4()}"
     display_manager? = options[:display_manager?] || false
@@ -519,6 +524,16 @@ defmodule Membrane.RTC.Engine do
     forwarded_tracks = Map.values(state.subscriptions) |> Enum.flat_map(& &1) |> Enum.count()
     pending_forwarded_tracks = Enum.count(state.pending_subscriptions)
     {[reply: forwarded_tracks + pending_forwarded_tracks], state}
+  end
+
+  @impl true
+  def handle_call(:get_tracks, _ctx, state) do
+    tracks =
+      state.endpoints
+      |> Map.values()
+      |> Enum.flat_map(&Endpoint.get_tracks/1)
+
+    {[reply: tracks], state}
   end
 
   @impl true
