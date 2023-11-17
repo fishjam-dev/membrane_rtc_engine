@@ -272,7 +272,10 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
     chosen_tracks = Enum.map(tracks, fn track -> track.id end)
     skipped_tracks = track_ids -- chosen_tracks
-    Enum.each(skipped_tracks, &log_skipped_track/1)
+
+    Membrane.Logger.debug(
+      "Can't subscribe to tracks: #{inspect(skipped_tracks)}. No such tracks."
+    )
 
     {[], add_tracks(tracks, ctx, state)}
   end
@@ -340,7 +343,10 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
           put_in(state, [:tracks, track.id], track)
 
         {:error, :invalid_track_id} ->
-          log_skipped_track(track.id)
+          Membrane.Logger.debug(
+            "Couldn't subscribe to the track: #{inspect(track.id)}. No such track."
+          )
+
           state
 
         {:error, reason} ->
@@ -560,13 +566,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     do: Path.join(state.output_directory, stream_id)
 
   defp get_hls_stream_directory(state, _stream_id), do: state.output_directory
-
-  defp log_skipped_track(track_id) do
-    Membrane.Logger.debug("""
-    Couldn't subscribe to the track: #{inspect(track_id)}.
-    No such track.
-    """)
-  end
 
   unless Enum.all?(@compositor_deps ++ @audio_mixer_deps, &Code.ensure_loaded?/1) do
     defp merge_strings(strings), do: Enum.join(strings, ", ")
