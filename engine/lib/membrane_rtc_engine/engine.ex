@@ -234,11 +234,6 @@ defmodule Membrane.RTC.Engine do
     do_start(:start_link, options, process_options)
   end
 
-  @spec get_tracks(rtc_engine :: pid()) :: [Track.t()]
-  def get_tracks(rtc_engine) do
-    Pipeline.call(rtc_engine, :get_tracks)
-  end
-
   defp do_start(func, options, process_options) when func in [:start, :start_link] do
     id = options[:id] || "#{UUID.uuid4()}"
     display_manager? = options[:display_manager?] || false
@@ -317,6 +312,14 @@ defmodule Membrane.RTC.Engine do
   @spec get_endpoints(rtc_engine :: pid()) :: [%{id: String.t(), type: atom()}]
   def get_endpoints(rtc_engine) do
     Pipeline.call(rtc_engine, :get_endpoints)
+  end
+
+  @doc """
+  Returns list of the RTC Engine's tracks.
+  """
+  @spec get_tracks(rtc_engine :: pid()) :: [Track.t()]
+  def get_tracks(rtc_engine) do
+    Pipeline.call(rtc_engine, :get_tracks)
   end
 
   @doc """

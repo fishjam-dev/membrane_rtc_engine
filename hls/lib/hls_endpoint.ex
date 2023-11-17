@@ -103,15 +103,16 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
               ]
 
   @impl true
-  def handle_init(_context, options) do
-    unless options.subscribe_mode in [:auto, :manual] do
-      raise """
-      Cannot initialize HLS endpoint.
-      Invalid value for `:subscribe_mode`: #{options.subscribe_mode}.
-      Please set `:subscribe_mode` to either `:auto` or `:manual`.
-      """
-    end
+  def handle_init(_context, options) when options.subscribe_mode not in [:auto, :manual] do
+    raise("""
+    Cannot initialize HLS endpoint.
+    Invalid value for `:subscribe_mode`: #{options.subscribe_mode}.
+    Please set `:subscribe_mode` to either `:auto` or `:manual`.
+    """)
+  end
 
+  @impl true
+  def handle_init(_context, options) do
     state =
       options
       |> Map.from_struct()
