@@ -251,7 +251,12 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
   @impl true
   def handle_parent_notification({:new_tracks, tracks}, ctx, %{subscribe_mode: :auto} = state) do
-    {[], add_tracks(tracks, ctx, state)}
+    subscribed_tracks =
+      tracks
+      |> Enum.map(fn track -> track.id end)
+      |> subscribe_for_tracks(ctx, state)
+
+    {[], add_tracks(tracks, subscribed_tracks, state)}
   end
 
   @impl true
@@ -265,19 +270,14 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         ctx,
         %{subscribe_mode: :manual} = state
       ) do
-    tracks =
+    subscribed_tracks = subscribe_for_tracks(track_ids, ctx, state)
+
+    state =
       state.rtc_engine
       |> Engine.get_tracks()
-      |> Enum.filter(fn track -> track.id in track_ids end)
+      |> add_tracks(subscribed_tracks, state)
 
-    chosen_tracks = Enum.map(tracks, fn track -> track.id end)
-    skipped_tracks = track_ids -- chosen_tracks
-
-    Membrane.Logger.debug(
-      "Can't subscribe to tracks: #{inspect(skipped_tracks)}. No such tracks."
-    )
-
-    {[], add_tracks(tracks, ctx, state)}
+    {[], state}
   end
 
   @impl true
@@ -334,25 +334,31 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   @impl true
   def handle_info(_msg, _ctx, state), do: {[], state}
 
-  defp add_tracks(tracks, ctx, state) do
+  defp subscribe_for_tracks(track_ids, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
-    Enum.reduce(tracks, state, fn track, state ->
-      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
+    Enum.filter(track_ids, fn track_id ->
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track_id) do
         :ok ->
-          put_in(state, [:tracks, track.id], track)
+          true
 
         {:error, :invalid_track_id} ->
           Membrane.Logger.debug(
-            "Couldn't subscribe to the track: #{inspect(track.id)}. No such track."
+            "Couldn't subscribe to the track: #{inspect(track_id)}. No such track."
           )
 
-          state
+          false
 
         {:error, reason} ->
-          raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+          raise "Couldn't subscribe to the track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
       end
     end)
+  end
+
+  defp add_tracks(tracks, subscribed_tracks, state) do
+    tracks
+    |> Enum.filter(fn track -> track.id in subscribed_tracks end)
+    |> Enum.reduce(state, fn track, state -> put_in(state, [:tracks, track.id], track) end)
   end
 
   defp get_hls_sink_spec(state, stream_id \\ nil) do
