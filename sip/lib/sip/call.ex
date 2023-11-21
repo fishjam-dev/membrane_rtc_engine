@@ -223,9 +223,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       if status_code == 200 do
         case SDP.parse(response.body) do
           {:ok, connection_info} ->
-            send(Client.registry_id(state.client_id), {:call_ready, connection_info})
+            send(Client.registry_id(state.client_id), {{:call_ready, connection_info}, state.call_id})
           {:error, reason} ->
-            send(Client.registry_id(state.client_id), {:sdp_mismatch, reason})
+            send(Client.registry_id(state.client_id), {{:sdp_mismatch, reason}, state.call_id})
         end
       end
     end

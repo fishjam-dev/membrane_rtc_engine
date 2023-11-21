@@ -55,41 +55,24 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
     send(state.endpoint, :client_ready)
     {:noreply, %{state | registerd: true}}
   end
-  
+
   @impl true
-  def handle_info({:ok, call_id}, state) do
-    send(state.endpoint, {:call_ready, call_id})
+  def handle_info({msg, call_id}, %{call_id: state_call_id } = state) when call_id == state_call_id do
+    send(state.endpoint, {:call_info, msg})
     {:noreply, state}
   end
 
   @impl true
-  def handle_info({:ok, call_id}, %{register_call_id: register_call_id} = state) when register_call_id == call_id do
-    send(state.endpoint, :client_unregistered)
-    {:noreply, %{state | registerd: false}}
-  end
-
-  @impl true
-  def handle_info({:end, call_id}, state) do
-    send(state.endpoint, {:call_end, call_id})
-    {:noreply, %{state | call_id: nil}}
-  end
-
-  @impl true
-  def handle_info({:message_client, {:dial, phone_number}}, state) do
+  def handle_info({:dial, phone_number}, state) do
     {call_id, _pid} = Call.start_link(state.client_id, state.registrar_credentials, state.sip_port, state.rtp_port)
     Call.dial(call_id, phone_number)
     {:noreply, %{state | call_id: call_id}}
   end
 
   @impl true
-  def handle_info({:message_client, :hang_up}, state) do
+  def handle_info(:end_call, state) do
+    # TODO we should differ a request if a call is ongoing or we're trying to connect still
     Call.bye(state.call_id)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:call_ready, connection_info}, state) do
-    send(state.endpoint, {:call_ready, connection_info})
     {:noreply, state}
   end
 
@@ -131,11 +114,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
     Logger.info("Sipped receive_error: #{inspect(reason)}")
     Logger.info("from: #{inspect(client_or_server_key)}")
     # route the error to your UA or proxy process
+    # TODO Honestly I don't know how to handle those errors, probably is nicely to pass them up.
   end
 
   defp handle_request(:notify, call_id, incoming_request), do: Call.handle_notify(call_id, incoming_request)
   
-  #We should probably handle ACK requests to know if response had arrived
+  # TODO We should probably handle ACK requests to know if response had arrived
   defp handle_request(:ack, _call_id, _incoming_request), do: :ok
   defp handle_request(:bye, call_id, incoming_request), do: Call.handle_bye(call_id, incoming_request)
   
@@ -143,15 +127,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
 
   # We don't support incoming calls until new sip client implementation
   defp handle_request(:invite, _call_id, _incoming_request), do: :unsupported
-  # defp handle_request(:invite, incoming_request) do
-  #   case SDP.extract_data(req.body)
-  #     {:ok, %SDP.Data{} = data} ->
-  #       Call.handle_invite(incoming_request)
-  #     {:error, reason} ->
-  #       Logger.error(reason)
-  #       Call.respond(488, incoming_request)
-  #   end
-  # end
+
   defp handle_request(_method, call_id, incoming_request), do: :unsupported
 
   defp keep_me_registered(id, registrar_credentials, sip_port) do
@@ -162,10 +138,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
   end
 
   defp register_client(register_call_id) do
-    case Call.register(register_call_id) do
-      Process.sleep(@register_interval)
-      register_client(register_call_id)
-    end
+    Call.register(register_call_id)
+    Process.sleep(@register_interval)
+    register_client(register_call_id)
   end
 
 end

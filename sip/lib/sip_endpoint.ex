@@ -69,6 +69,22 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     defstruct @enforce_keys
   end
 
+  @doc """
+  Starts calling to a specified number
+  """
+  @spec dial(rtc_engine :: pid(), endpoint_id :: String.t(), phone_number :: String.t()) :: :ok
+  def request_reconnect(rtc_engine, endpoint_id, phone_number) do
+    Engine.message_endpoint(rtc_engine, endpoint_id, {:dial, phone_number})
+  end
+
+  @doc """
+  Ends ongoing call or cancels call try
+  """
+  @spec dial(rtc_engine :: pid(), endpoint_id :: String.t()) :: :ok
+  def end_call(rtc_engine, endpoint_id) do
+    Engine.message_endpoint(rtc_engine, endpoint_id, :end_call)
+  end
+
   def_output_pad :output,
     demand_unit: :buffers,
     accepted_format: Membrane.RTP,
@@ -228,8 +244,22 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   end
 
   @impl true
+  def handle_parent_notification({:dial, phone_number}, _ctx, state) do
+    Membrane.Logger.info("SIP Endpoint: Initializing call to #{inspect(phone_number)}...")
+    send(state.sip_client, {:dial, phone_number})
+    {[], state}
+  end
+
+  @impl true
+  def handle_parent_notification(:end_call, _ctx, state) do
+    Membrane.Logger.info("SIP Endpoint: Ending call")
+    send(state.sip_client, :end_call)
+    {[], state}
+  end
+
+  @impl true
   def handle_parent_notification(msg, _ctx, state) do
-    Membrane.Logger.warning("Unexpected message: #{inspect(msg)}. Ignoring.")
+    Membrane.Logger.warning("SIP Endpoint: Unexpected message: #{inspect(msg)}. Ignoring.")
     {[], state}
   end
 
@@ -241,7 +271,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         state
       )
       when is_nil(state.incoming_ssrc) or ssrc == state.incoming_ssrc do
-    Membrane.Logger.debug("New RTP stream connected: #{inspect(msg)}")
+    Membrane.Logger.debug("SIP Endpoint: New RTP stream connected: #{inspect(msg)}")
 
     state = %{state | incoming_ssrc: ssrc}
 
@@ -273,14 +303,20 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   @impl true
   def handle_child_notification(notification, element, _ctx, state) do
     Membrane.Logger.warning(
-      "Unexpected notification from `#{inspect(element)}`: #{inspect(notification)}. Ignoring."
+      "SIP Endpoint: Unexpected notification from `#{inspect(element)}`: #{inspect(notification)}. Ignoring."
     )
     {[], state}
   end
 
   @impl true
-  def handle_info({:call_ready, options}, ctx, state) do
-    Membrane.Logger.debug("Endpoint received source options: #{inspect(options)}")
+  def handle_info({:call_info, {:sdp_mismatch, reason}}, ctx, state) do
+    Membrane.Logger.debug("SIP Endpoint: Call connection error, received SDP answer is not matching our requirements: #{inspect(reason)} ")
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:call_info, {:call_ready, options}}, ctx, state) do
+    Membrane.Logger.debug("SIP Endpoint: Call connection initialized, received source options: #{inspect(options)}")
 
     {payload_type, rtpmap} = options.rtpmap
     {:endpoint, endpoint_id} = ctx.name
@@ -295,10 +331,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         %ExSDP.Attribute.FMTP{pt: payload_type}
       )
 
-    Membrane.Logger.debug("Publishing new RTSP track: #{inspect(track)}")
-
-    # pierce_nat_ctx =
-    #   if state.pierce_nat, do: %{uri: state.source_uri, port: options.server_port}, else: nil
+    Membrane.Logger.debug("SIP Endpoint: Publishing new RTSP track: #{inspect(track)}")
 
     structure = [
       child(:udp_source, %Membrane.UDP.Source{
@@ -344,8 +377,14 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   end
 
   @impl true
-  def handle_info({:sip_info, {:call_end, reason} = msg}, _ctx, state) do
+  def handle_info({:call_info, {:end, reason} = msg}, _ctx, state) do
     Membrane.Logger.warning("SIP Endpoint: Call ended with reason: #{inspect(reason)}")
+    {[notify_parent: {:forward_to_parent, msg}, terminate: :shutdown], state}
+  end
+
+  @impl true
+  def handle_info({:call_info, msg}, ctx, state) do
+    Membrane.Logger.debug("SIP Endpoint: Received info: #{inspect(msg)} ")
     {[notify_parent: {:forward_to_parent, msg}, terminate: :shutdown], state}
   end
 
@@ -384,7 +423,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_info(info, _ctx, state) do
-    Membrane.Logger.warning("Unexpected info: #{inspect(info)}. Ignoring.")
+    Membrane.Logger.warning("SIP Endpoint: Unexpected info: #{inspect(info)}. Ignoring.")
     {[], state}
   end
 
