@@ -30,23 +30,23 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
 
   @register_interval 45
 
-
   def start_link(id, settings) do
-    id = String.to_atom(id)
-    GenServer.start_link(__MODULE__, [id, settings], name: {:via, Registry, {SipEndpoint.ClientRegistry, id}})
+    client_id = String.to_atom(id)
+    GenServer.start_link(__MODULE__, [client_id, settings], name: registry_id(id))
   end
 
   @impl true
   def init(id, settings)
+    Sippet.register_core(id, __MODULE__)
+    {:ok, register_call_id} = keep_me_registered(id, state.registrar_credentials, state.sip_port, state.register_call_id)
+
     state = %{ settings |
       id: id,
-      register_call_id: Sippet.Message.create_call_id(),
+      register_call_id: register_call_id,
       call_id: nil,
       registered: false
     }
 
-    Sippet.register_core(id, __MODULE__)
-    keep_me_registered(id, state.registrar_credentials, state.sip_port, state.register_call_id)
     {noreply, state}
   end
 
@@ -76,8 +76,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
 
   @impl true
   def handle_info({:message_client, {:dial, phone_number}}, state) do
-    {:ok, call_id} = Call.start_link(client_id, registrar_credentials, sip_port)
-    Call.invite(call_id, phone_number)
+    {call_id, _pid} = Call.start_link(state.client_id, state.registrar_credentials, state.sip_port, state.rtp_port)
+    Call.dial(call_id, phone_number)
     {:noreply, %{state | call_id: call_id}}
   end
 
@@ -97,10 +97,10 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
 
   def registered?(id)
     id = String.to_existing_atom(id)
-    GenServer.call({:via, Registry, {SipEndpoint.ClientRegistry, id}}, :is_registered)
+    GenServer.call(registry_id(id), :is_registered)
   end
 
-  def registry_name(id)
+  def registry_id(id)
     {:via, Registry, {SipEndpoint.ClientRegistry, id}}
   end
 
@@ -122,7 +122,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
     if  do
 
       true ->  SipEndpoint.Call.apply_digest_auth(incoming_response)
-      false ->  SipEndpoint.Call.handle_response(incoming_response)
+      false ->  SipEndpoint.Call.handle_response(call_id, incoming_response)
     end
   end
 
@@ -151,15 +151,17 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
   # end
   defp handle_request(_method, call_id, incoming_request), do: Call.handle_bye(call_id, incoming_request)
 
-  defp keep_me_registered(id, registrar_credentials, sip_port, register_call_id) do
+  defp keep_me_registered(id, registrar_credentials, sip_port) do
+    {register_call_id, _pid} = Call.start_link(registrar_credentials, sip_port, nil)
     Membrane.Logger.debug("ConnectionManager: Starting Keep alive process")
-    {keep_alive, _ref} = spawn_monitor(fn -> register_client(id, registrar_credentials, sip_port, register_call_id) end)
+    {keep_alive, _ref} = spawn_monitor(fn -> register_client(register_call_id) end)
+    {:ok, register_call_id}
   end
 
-  defp register_client(id, registrar_credentials, sip_port, register_call_id) do
-    case Call.register(id, registrar_credentials, sip_port, register_call_id) do
+  defp register_client(register_call_id) do
+    case Call.register(register_call_id) do
       Process.sleep(@register_interval)
-      register_client(id, registrar_credentials, sip_port, register_call_id)
+      register_client(register_call_id)
     end
   end
 
