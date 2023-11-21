@@ -83,7 +83,13 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
 
   @impl true
   def handle_info({:message_client, :hang_up}, state) do
-    Call.bye(state.call_id, phone_number)
+    Call.bye(state.call_id)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:call_ready, connection_info}, state) do
+    send(state.endpoint, {:call_ready, connection_info})
     {:noreply, state}
   end
 
@@ -133,6 +139,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
   end
 
   defp handle_request(:notify, call_id, incoming_request), do: Call.handle_notify(call_id, incoming_request)
+  
+  #We should probably handle ACK requests to know if response had arrived
   defp handle_request(:ack, _call_id, _incoming_request), do: :ok
   defp handle_request(:bye, call_id, incoming_request), do: Call.handle_bye(call_id, incoming_request)
   

@@ -302,9 +302,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
     structure = [
       child(:udp_source, %Membrane.UDP.Source{
-        local_port_no: state.rtp_port,
-        # pierce_nat_ctx: pierce_nat_ctx,
-        # recv_buffer_size: @recv_buffer_size
+        local_port_no: state.rtp_port
       })
       |> via_in(Pad.ref(:rtp_input, make_ref()))
       |> child(:rtp, %Membrane.RTP.SessionBin{
@@ -322,19 +320,14 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000},
         output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 8_000}
       })
-      |> child(:g711_encoder, ...)
-      |> via_in(Pad.ref(:input, outgoing_ssrc), options: [payloader: G711...])
+      |> child(:g711_encoder, Membrane.G711.FFmpeg.Encoder)
+      |> via_in(Pad.ref(:input, outgoing_ssrc), options: [payloader: Membrane.RTP.G711.Payloader])
       |> get_child(:rtp)
       |> via_out(Pad.ref(:rtp_output, outgoing_ssrc), options: [encoding: :PCMA])
       |> child(:video_sink, %UDP.Sink{
-        destination_port_no: _______,
-        destination_address: {127, 0, 0, 1}
+        destination_port_no: options.port,
+        destination_address: options.connection_data.address
       })
-
-
-
-      |> via_in(Pad.ref(:input, make_ref())
-      |> child(:rtp, %Membrane.RTP.SessionBin
     ]
 
     actions = [
@@ -356,38 +349,28 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     {[notify_parent: {:forward_to_parent, msg}, terminate: :shutdown], state}
   end
 
-  @impl true
-  def handle_terminate_request(ctx, state) do
-    Process.send_after(self(), :terminate, @terminate_timeout)
+  # @impl true
+  # def handle_terminate_request(ctx, state) do
+  #   Process.send_after(self(), :terminate, 5000)
+  #       [
+  #         notify_child: {:audio_mixer, :schedule_eos},
+  #       ]
+  #     else
+  #       []
+  #     end
 
-    actions =
-      if Map.has_key?(ctx.children, :audio_mixer) do
-        [
-          notify_child: {:audio_mixer, :schedule_eos},
-          notify_child: {:compositor, :schedule_eos}
-        ]
-      else
-        []
-      end
+  #   children_to_remove =
+  #     state.tracks
+  #     |> Enum.flat_map(fn {id, _track} -> Enum.map(@track_children, &{&1, id}) end)
+  #     |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
-    children_to_remove =
-      state.tracks
-      |> Enum.flat_map(fn {id, _track} -> Enum.map(@track_children, &{&1, id}) end)
-      |> Enum.filter(&Map.has_key?(ctx.children, &1))
-
-    actions = actions ++ [remove_child: children_to_remove]
-    {actions, %{state | terminating?: true}}
-  end
-
-  @impl true
-  def handle_info(:terminate, _ctx, %{terminating?: true} = state),
-    do: {[terminate: :normal], state}
+  #   actions = [notify_child: {:audio_mixer, :schedule_eos}, remove_child: children_to_remove]
+  #   {actions, %{state | terminating?: true}}
+  # end
 
   # @impl true
-  # def handle_info({:sip_info, :max_reconnects}, _ctx, state) do
-  #   Membrane.Logger.warning("RTSP Endpoint: Max reconnect attempts reached.")
-  #   {[notify_parent: {:forward_to_parent, :max_reconnects}], state}
-  # end
+  # def handle_info(:terminate, _ctx, %{terminating?: true} = state),
+  #   do: {[terminate: :normal], state}
 
   # @impl true
   # def handle_info({:sip_info, :disconnected}, _ctx, state) do

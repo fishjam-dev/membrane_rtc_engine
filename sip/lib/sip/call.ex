@@ -6,21 +6,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
 
   alias Membrane.RTC.Engine.Endpoint.SIP.SDP
 
-  @type t :: %__MODULE__{
-          id: binary(),
-          callee: binary(),
-          endpoint: pid(),
-          rtp_in_port: port()
-        }
-
-  @enforce_keys [
-    :id,
-    :callee,
-    :endpoint
-  ]
-
-  defstruct @enforce_keys
-
   def start_link(client_id, registrar_credentials, sip_port, rtp_port) do
     call_id = Sippet.Message.create_call_id()
     {:ok, pid} = GenServer.start_link(__MODULE__, [call_id, client_id, registrar_credentials, sip_port, rtp_port], name: registry_id(call_id))
@@ -37,7 +22,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
   end
 
   def bye(call_id) do
-    GenServer.cast(registry_id(call_id), {:bye})
+    GenServer.cast(registry_id(call_id), :bye)
   end
 
   def registry_id(call_id) do
@@ -55,16 +40,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
     GenServer.cast(registry_id(call_id), {:handle_response, response})
   end
 
-  # def handle_invite(call_id, request) do  
-    # GenServer.cast(registry_id(call_id), {:send, 100})
-  # end
-
   def handle_notify(call_id, req) do
     GenServer.cast(registry_id(call_id), {:send, 200, req})
   end
 
   def handle_bye(call_id, req) do
-    send(Client.registry_name(state.client_id), {:end, call_id})
+    send(Client.registry_id(state.client_id), {:end, call_id})
     respond(call_id, 200, req)
     GenServer.stop(registry_id(call_id), :shutdown)
   end
@@ -81,7 +62,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       content_length: 0
     } |> create_headers()
 
-    message = Sippet.Message.build_request(:ack, calee)
+    message = Sippet.Message.build_request(:ack, to_string(calee))
       |> Map.put(:headers, headers)
     Sippet.send(client_id, message)
   end
@@ -93,41 +74,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
     Sippet.send(state.client_id, request)
     new_cseq
   end
-
-  # defp new_request(method, from, to, cseq) do
-
-  #   from = {"", Sippet.URI.parse!("sip:78054@sip.ifon.pl"), %{"tag" => Sippet.Message.create_tag()}}
-
-  #   message = Sippet.Message.build_request(:register, "sip:sip.ifon.pl")
-  #   |> Sippet.Message.put_header(:max_forwards, 70)
-  #   |> Sippet.Message.put_header(:from, {"", Sippet.URI.parse!("sip:78054@sip.ifon.pl"), %{"tag" => Sippet.Message.create_tag()}})
-  #   |> Sippet.Message.put_header(:to, {"", Sippet.URI.parse!("sip:78054@sip.ifon.pl"), %{}})
-  #   |> Sippet.Message.put_header(:via, [
-  #     {{2, 0}, :udp, {"49.13.56.174", 5060}, %{"branch" => Sippet.Message.create_branch()}}
-  #   ])
-  #   |> Sippet.Message.put_header(:contact, [{"", Sippet.URI.parse!("sip:78054@49.13.56.174"), %{}}])
-  #   |> Sippet.Message.put_header(:user_agent, user_agent())
-  #   |> Sippet.Message.put_header(:call_id, call_id)
-  #   |> Sippet.Message.put_header(:cseq, {cseq, :register})
-  #   |> Sippet.Message.put_header(:content_length, 0)
-
-
-  #   to = {"", Sippet.URI.parse!(addr), %{}}
-  #   message = Sippet.Message.build_request(method, addr)
-  #     |> Sippet.Message.put_header(:max_forwards, 70)
-  #     |> Sippet.Message.put_header(:from, from)
-  #     |> Sippet.Message.put_header(:to, to)
-  #     |> Sippet.Message.put_header(:via, [
-  #       {{2, 0}, :udp, {"49.13.56.174", 5060}, %{"branch" => Sippet.Message.create_branch()}}
-  #     ])
-  #     |> Sippet.Message.put_header(:contact, [{"", Sippet.URI.parse!("sip:78054@49.13.56.174"), %{}}] )
-  #     |> Sippet.Message.put_header(:user_agent, user_agent())
-  #     |> Sippet.Message.put_header(:call_id, call_id)
-  #     |> Sippet.Message.put_header(:cseq, cseq)
-  #     |> Sippet.Message.put_header(:content_length, content_length)
-  #     |> Sippet.Message.put_header(:content_type, "application/sdp")
-  #     |> Map.replace(:body, body)
-  # end
 
   defp create_headers(headers_base) do
     %{
@@ -142,8 +88,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       content_length: headers_base.content_length
     }
   end
-
-  # def send_bye()
 
   @impl true
   def init(call_id, client_id, %RegistrarCredentials{domain: domain, username: username} = registrar_credentials, sip_port, rtp_port) do
@@ -183,7 +127,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
 
   @impl true
   def handle_cast(:register, state) do
-
     cseq = state.cseq + 1
 
     headers = %{ state.headers_base |
@@ -203,32 +146,30 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
 
   @impl true
   def handle_cast({:invite, phone_number}, state) do
-
-    to_address = Sippet.URI%{scheme: "SIP", userinfo: phone_number, host: state.registrar_credentials.domain},
-    {body, content_length} = Membrane.RTC.Engine.Endpoint.SIP.SDP.proposal(state.external_ip, state.rtp_port)
+    calee = Sippet.URI%{scheme: "SIP", userinfo: phone_number, host: state.registrar_credentials.domain},
+    {body, content_length} = SDP.proposal(state.external_ip, state.rtp_port)
     cseq = state.cseq + 1
 
     headers = %{ state.headers_base |
-      to: {"", to_address, %{}},
+      to: {"", calee, %{}},
       call_id: state.call_id,
       method: :register,
       cseq: cseq,
       content_length: content_length
     } |> create_headers()
 
-    message = Sippet.Message.build_request(:invite, to_address |> to_string())
+    message = Sippet.Message.build_request(:invite, calee |> to_string())
     |> Map.put(:headers, headers)
     |> Sippet.Message.put_header(:content_type, "application/sdp")
     |> Map.replace(:body, body)
     
     Sippet.send(state.client_id, message)
 
-    {:noreply, %{state | cseq: cseq}}
+    {:noreply, %{state | cseq: cseq, calee: calee}}
   end
 
   @impl true
   def handle_cast(:bye, state) do
-
     to_address = Sippet.URI%{scheme: "SIP", userinfo: phone_number, host: state.registrar_credentials.domain},
     cseq = state.cseq + 1
 
@@ -269,7 +210,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
     if status_code == 401 && Sippet.Message.has_header?(response, :www_authenticate) do
       apply_digest_auth(response, state)
     else
-      send(Client.registry_name(state.client_id), {:response, status_code, reason_phrase})
+      send(Client.registry_id(state.client_id), {:response, status_code, reason_phrase})
     end
 
     if state.cseq.method == :invite do
@@ -279,6 +220,14 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
         state.call_id,
         state.cseq
       )
+      if status_code == 200 do
+        case SDP.parse(response.body) do
+          {:ok, connection_info} ->
+            send(Client.registry_id(state.client_id), {:call_ready, connection_info})
+          {:error, reason} ->
+            send(Client.registry_id(state.client_id), {:sdp_mismatch, reason})
+        end
+      end
     end
     {:noreply, state}
   end

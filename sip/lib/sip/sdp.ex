@@ -39,11 +39,11 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.SDP do
     end
   end
 
-  def create_answer(body) do
+  def parse(body) do
     with {:ok, sdp} <- ExSDP.parse(body),
          audio_media when not is_nil(audio_media) <- Enum.find(sdp.media, fn media -> media.type == :audio end),
          common_payload_types when length(common_payload_types) != 0 <- @accepted_payload_types -- @accepted_payload_types -- audio_media.fmt,
-         choosen_payload_type <- List.first(common_payload_types)do
+         choosen_payload_type <- List.first(common_payload_types) do
       {:ok, %{
         rptmap: {choosen_payload_type, Membrane.RTP.PayloadFormat.get_payload_type_mapping()},
         connection_data: audio_media.connection_data || sdp.connection_data,
