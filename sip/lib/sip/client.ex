@@ -124,12 +124,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
   def receive_response(incoming_response, client_key) do
     Logger.info("Sipped receive_response: #{inspect(incoming_response)}")
     Logger.info("from: #{inspect(server_key)}")
-    call_id = Sippet.Message.get_header(incoming_request, :call_id)
-    if  do
-
-      true ->  SipEndpoint.Call.apply_digest_auth(incoming_response)
-      false ->  SipEndpoint.Call.handle_response(call_id, incoming_response)
-    end
+    SipEndpoint.Call.handle_response(call_id, incoming_response)
   end
 
   def receive_error(reason, client_or_server_key) do
@@ -157,7 +152,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Client do
   #       Call.respond(488, incoming_request)
   #   end
   # end
-  defp handle_request(_method, call_id, incoming_request), do: Call.handle_bye(call_id, incoming_request)
+  defp handle_request(_method, call_id, incoming_request), do: :unsupported
 
   defp keep_me_registered(id, registrar_credentials, sip_port) do
     {register_call_id, _pid} = Call.start_link(registrar_credentials, sip_port, nil)

@@ -54,7 +54,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
     GenServer.cast(registry_id(call_id), {:send, code, req})
   end
 
-  defp send_ack(calee, headers_base, call_id, cseq)
+  defp send_ack(callee, headers_base, call_id, cseq)
     headers = %{ headers_base |
       call_id: call_id,
       method: :ack,
@@ -62,7 +62,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       content_length: 0
     } |> create_headers()
 
-    message = Sippet.Message.build_request(:ack, to_string(calee))
+    message = Sippet.Message.build_request(:ack, to_string(callee))
       |> Map.put(:headers, headers)
     Sippet.send(client_id, message)
   end
@@ -104,7 +104,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       registrar_credentials: registrar_credentials,
       sip_port: sip_port,
       rtp_port: rtp_port,
-      calee: nil,
+      callee: nil,
       headers_base: %{
         from: {
           caller_identifier,
@@ -146,26 +146,26 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
 
   @impl true
   def handle_cast({:invite, phone_number}, state) do
-    calee = Sippet.URI%{scheme: "SIP", userinfo: phone_number, host: state.registrar_credentials.domain},
+    callee = Sippet.URI%{scheme: "SIP", userinfo: phone_number, host: state.registrar_credentials.domain},
     {body, content_length} = SDP.proposal(state.external_ip, state.rtp_port)
     cseq = state.cseq + 1
 
     headers = %{ state.headers_base |
-      to: {"", calee, %{}},
+      to: {"", callee, %{}},
       call_id: state.call_id,
       method: :register,
       cseq: cseq,
       content_length: content_length
     } |> create_headers()
 
-    message = Sippet.Message.build_request(:invite, calee |> to_string())
+    message = Sippet.Message.build_request(:invite, callee |> to_string())
     |> Map.put(:headers, headers)
     |> Sippet.Message.put_header(:content_type, "application/sdp")
     |> Map.replace(:body, body)
     
     Sippet.send(state.client_id, message)
 
-    {:noreply, %{state | cseq: cseq, calee: calee}}
+    {:noreply, %{state | cseq: cseq, callee: callee}}
   end
 
   @impl true
@@ -215,7 +215,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
 
     if state.cseq.method == :invite do
       send_ack(
-        state.calee,
+        state.callee,
         %{state.headers_base | to: Sippet.Message.get_header(response, :to)},
         state.call_id,
         state.cseq
