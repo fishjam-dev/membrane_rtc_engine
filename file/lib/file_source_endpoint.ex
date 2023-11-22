@@ -14,6 +14,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   alias Membrane.ChildrenSpec
   alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Endpoint.File.TrackConfig
   alias Membrane.RTC.Engine.Support.StaticTrackSender
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTP
@@ -31,13 +32,14 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 spec: Path.t(),
                 description: "Path to track file"
               ],
-              track: [
-                spec: Track.t(),
-                description: "Track to publish"
+              track_config: [
+                spec: TrackConfig.t(),
+                description: "Configuration of the track being published"
               ],
               ssrc: [
                 spec: RTP.ssrc_t(),
-                description: "SSRC of RTP packets"
+                description: "SSRC of RTP packets",
+                default: nil
               ],
               payload_type: [
                 spec: RTP.payload_type_t(),
@@ -47,10 +49,14 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
                 default: &Function.identity/1,
                 description: """
-                Additional pipeline transformation after `file_source`. The output stream must be encoded in OPUS or H264.
+                Additional pipeline transformation after `file_source`.
+                The output stream must be encoded in OPUS or H264.
 
                 Example usage:
-                * Reading ACC file: `fn link_builder ->  link_builder |> child(:decoder, Membrane.AAC.FDK.Decoder) |> child(:encoder, %Membrane.Opus.Encoder{ input_stream_format: %Membrane.RawAudio{ channels: 1, sample_rate: 48_000, sample_format: :s16le }}) end`
+                * Reading ACC file: `fn link_builder ->  link_builder
+                |> child(:decoder, Membrane.AAC.FDK.Decoder)
+                |> child(:encoder, %Membrane.Opus.Encoder{input_stream_format:
+                %Membrane.RawAudio{ channels: 1, sample_rate: 48_000, sample_format: :s16le }}) end`
                 """
               ]
 
@@ -65,12 +71,33 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   @impl true
-  def handle_init(_ctx, opts) do
-    unless Enum.any?([:H264, :OPUS], &(&1 == opts.track.encoding)) do
-      raise "Unsupported track codec: #{inspect(opts.track.encoding)}. The only supported codecs are :H264 and :OPUS."
+  def handle_init(ctx, opts) do
+    unless Enum.any?([:H264, :OPUS], &(&1 == opts.track_config.encoding)) do
+      raise "Unsupported track codec: #{inspect(opts.track_config.encoding)}. The only supported codecs are :H264 and :OPUS."
     end
 
-    {[notify_parent: {:ready, nil}], Map.from_struct(opts)}
+    {:endpoint, endpoint_id} = ctx.name
+
+    track =
+      Track.new(
+        opts.track_config.type,
+        opts.track_config.stream_id || Track.stream_id(),
+        endpoint_id,
+        opts.track_config.encoding,
+        opts.track_config.clock_rate,
+        opts.track_config.fmtp,
+        opts.track_config.opts
+      )
+
+    state =
+      Map.from_struct(opts)
+      |> Map.drop([:track_config])
+      |> Map.merge(%{
+        track: track,
+        ssrc: opts.ssrc || new_ssrc()
+      })
+
+    {[notify_parent: {:ready, nil}], state}
   end
 
   @impl true
@@ -174,5 +201,9 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
         output_alignment: :nalu
       })
     end
+  end
+
+  defp new_ssrc() do
+    :crypto.strong_rand_bytes(4) |> :binary.decode_unsigned()
   end
 end

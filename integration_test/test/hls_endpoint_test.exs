@@ -3,6 +3,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
   import Membrane.ChildrenSpec
 
+  alias ExSDP.Attribute.FMTP
   alias Membrane.HTTPAdaptiveStream.Storages.SendStorage
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.File, as: FileEndpoint
@@ -45,8 +46,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
-
-      track_id = "test-track-id"
       stream_id = "test-stream"
 
       output_dir = Path.join([tmp_dir, stream_id])
@@ -54,8 +53,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :single)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint =
-        create_video_file_endpoint(rtc_engine, file_path, stream_id, file_endpoint_id, track_id)
+      file_endpoint = create_video_file_endpoint(rtc_engine, file_path, stream_id)
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
@@ -85,25 +83,19 @@ defmodule Membrane.RTC.HLSEndpointTest do
       video_file_path = Path.join(@fixtures_dir, video_file_name)
 
       hls_endpoint_id = "hls-endpoint"
-
-      video_track_id = "test-video-track"
-      audio_track_id = "test-audio-track"
       stream_id = "test-stream"
 
       output_dir = Path.join([tmp_dir, stream_id])
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple)
 
-      audio_file_endpoint =
-        create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, stream_id)
 
       video_file_endpoint =
         create_video_file_endpoint(
           rtc_engine,
           video_file_path,
-          stream_id,
-          video_file_endpoint_id,
-          video_track_id
+          stream_id
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
@@ -147,9 +139,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
       video_file_path = Path.join(@fixtures_dir, video_file_name)
 
       hls_endpoint_id = "hls-endpoint"
-
-      video_track_id = "test-video-track"
-      audio_track_id = "test-audio-track"
       stream_id = "test-stream"
 
       output_dir = Path.join([tmp_dir, stream_id])
@@ -173,16 +162,13 @@ defmodule Membrane.RTC.HLSEndpointTest do
         }
       }
 
-      audio_file_endpoint =
-        create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, stream_id)
 
       video_file_endpoint =
         create_video_file_endpoint(
           rtc_engine,
           video_file_path,
-          stream_id,
-          video_file_endpoint_id,
-          video_track_id
+          stream_id
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
@@ -241,23 +227,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
       video_file_path = Path.join(@fixtures_dir, video_file_name)
 
       hls_endpoint_id = "hls-endpoint"
-
-      video_track_id = "test-video-track"
-      audio_track_id = "test-audio-track"
-      stream_id = "test-stream"
-
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :muxed, %MixerConfig{})
 
-      audio_file_endpoint =
-        create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id)
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine)
 
       video_file_endpoint =
         create_video_file_endpoint(
           rtc_engine,
-          video_file_path,
-          stream_id,
-          video_file_endpoint_id,
-          video_track_id
+          video_file_path
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
@@ -298,27 +275,18 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
-
-      track_id = "test-track-id"
-      track_id_2 = "test-track-id_2"
-      stream_id = "video-mixer-test-stream"
-      stream_id_2 = "video-mixer-test-stream_2"
       file_endpoint_id = "video-mixer-file-endpoint-id"
       file_endpoint_id_2 = "video-mixer-file-endpoint-id_2"
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple, %MixerConfig{})
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint =
-        create_video_file_endpoint(rtc_engine, file_path, stream_id, file_endpoint_id, track_id)
+      file_endpoint = create_video_file_endpoint(rtc_engine, file_path)
 
       file_endpoint_2 =
         create_video_file_endpoint(
           rtc_engine,
-          file_path,
-          stream_id_2,
-          file_endpoint_id_2,
-          track_id_2
+          file_path
         )
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
@@ -360,21 +328,15 @@ defmodule Membrane.RTC.HLSEndpointTest do
     } do
       hls_endpoint_id = "hls-endpoint"
 
-      track_id = "test-track-id"
-      track_id_2 = "test-track-id_2"
-      stream_id = "audio-mixer-test-stream"
-      stream_id_2 = "audio-mixer-test-stream_2"
       file_endpoint_id = "audio-mixer-file-endpoint-id"
       file_endpoint_id_2 = "audio-mixer-file-endpoint-id_2"
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple, %MixerConfig{})
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint =
-        create_audio_file_endnpoint(rtc_engine, stream_id, file_endpoint_id, track_id)
+      file_endpoint = create_audio_file_endpoint(rtc_engine)
 
-      file_endpoint_2 =
-        create_audio_file_endnpoint(rtc_engine, stream_id_2, file_endpoint_id_2, track_id_2)
+      file_endpoint_2 = create_audio_file_endpoint(rtc_engine)
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
@@ -531,51 +493,45 @@ defmodule Membrane.RTC.HLSEndpointTest do
   defp create_video_file_endpoint(
          rtc_engine,
          video_file_path,
-         stream_id,
-         video_file_endpoint_id,
-         video_track_id
+         stream_id \\ nil
        ) do
-    video_track =
-      Engine.Track.new(
-        :video,
-        stream_id,
-        video_file_endpoint_id,
-        :H264,
-        90_000,
-        %ExSDP.Attribute.FMTP{
-          pt: 96
-        },
-        id: video_track_id,
+    video_track_config = %FileEndpoint.TrackConfig{
+      type: :video,
+      stream_id: stream_id,
+      encoding: :H264,
+      clock_rate: 90_000,
+      fmtp: %FMTP{
+        pt: 96
+      },
+      opts: [
         metadata: %{"mainPresenter" => true, "isScreenSharing" => false},
         framerate: {60, 1}
-      )
+      ]
+    }
 
     %FileEndpoint{
       rtc_engine: rtc_engine,
       file_path: video_file_path,
-      track: video_track,
-      ssrc: 1234,
+      track_config: video_track_config,
       payload_type: 96
     }
   end
 
-  defp create_audio_file_endnpoint(rtc_engine, stream_id, audio_file_endpoint_id, audio_track_id) do
-    audio_track =
-      Engine.Track.new(
-        :audio,
-        stream_id,
-        audio_file_endpoint_id,
-        :OPUS,
-        48_000,
-        nil,
-        id: audio_track_id
-      )
+  defp create_audio_file_endpoint(rtc_engine, stream_id \\ nil) do
+    audio_track_config = %FileEndpoint.TrackConfig{
+      type: :audio,
+      stream_id: stream_id,
+      encoding: :OPUS,
+      clock_rate: 48_000,
+      fmtp: %FMTP{
+        pt: 108
+      }
+    }
 
     %FileEndpoint{
       rtc_engine: rtc_engine,
       file_path: Path.join(@fixtures_dir, "audio.aac"),
-      track: audio_track,
-      ssrc: 2345,
+      track_config: audio_track_config,
       payload_type: 108,
       after_source_transformation: &transform_aac_to_opus/1
     }
