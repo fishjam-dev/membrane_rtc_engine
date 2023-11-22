@@ -1,6 +1,8 @@
 defmodule Membrane.RTC.FileEndpointTest do
   use ExUnit.Case
 
+  alias ExSDP.Attribute.FMTP
+
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint
   alias Membrane.RTC.Engine.Message
@@ -27,7 +29,6 @@ defmodule Membrane.RTC.FileEndpointTest do
   @source_endpoint_id "source-endpoint-id"
   @sink_endpoint_id "sink-endpoint-id"
   @track_id "test-track-id"
-  @stream_id "test-stream"
 
   describe "File Endpoint test" do
     @tag :tmp_dir
@@ -53,10 +54,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_endpoint =
         create_audio_file_endpoint(
           rtc_engine,
-          file_path,
-          @stream_id,
-          @source_endpoint_id,
-          @track_id
+          file_path
         )
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: @source_endpoint_id)
@@ -113,10 +111,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_endpoint =
         create_video_file_endpoint(
           rtc_engine,
-          file_path,
-          @stream_id,
-          @source_endpoint_id,
-          @track_id
+          file_path
         )
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: @source_endpoint_id)
@@ -153,40 +148,30 @@ defmodule Membrane.RTC.FileEndpointTest do
 
   defp create_video_file_endpoint(
          rtc_engine,
-         video_file_path,
-         stream_id,
-         video_source_endpoint_id,
-         video_track_id
+         video_file_path
        ) do
-    video_track =
-      Engine.Track.new(
-        :video,
-        stream_id,
-        video_source_endpoint_id,
-        :H264,
-        90_000,
-        %ExSDP.Attribute.FMTP{
+    video_track_config =
+      %Endpoint.File.TrackConfig{
+        type: :video,
+        encoding: :H264,
+        clock_rate: 90_000,
+        fmtp: %FMTP{
           pt: 96
         },
-        id: video_track_id,
-        framerate: {60, 1}
-      )
+        opts: [framerate: {60, 1}]
+      }
 
     %Endpoint.File{
       rtc_engine: rtc_engine,
       file_path: video_file_path,
-      track: video_track,
-      ssrc: 1234,
+      track_config: video_track_config,
       payload_type: 96
     }
   end
 
   defp create_audio_file_endpoint(
          rtc_engine,
-         audio_file_path,
-         stream_id,
-         audio_source_endpoint_id,
-         audio_track_id
+         audio_file_path
        ) do
     ext = String.split(audio_file_path, ".") |> List.last()
 
@@ -196,22 +181,19 @@ defmodule Membrane.RTC.FileEndpointTest do
         "opus" -> :OPUS
       end
 
-    audio_track =
-      Engine.Track.new(
-        :audio,
-        stream_id,
-        audio_source_endpoint_id,
-        encoding,
-        48_000,
-        nil,
-        id: audio_track_id
-      )
+    audio_track_config = %Endpoint.File.TrackConfig{
+      type: :audio,
+      encoding: encoding,
+      clock_rate: 48_000,
+      fmtp: %FMTP{
+        pt: 108
+      }
+    }
 
     %Endpoint.File{
       rtc_engine: rtc_engine,
       file_path: audio_file_path,
-      track: audio_track,
-      ssrc: 2345,
+      track_config: audio_track_config,
       payload_type: 108
     }
   end

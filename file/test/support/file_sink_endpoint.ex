@@ -6,28 +6,29 @@ defmodule Membrane.RTC.Engine.Support.Sink do
 
   require Membrane.Logger
 
-  alias Membrane.ChildrenSpec.Builder
   alias Membrane.File.Sink, as: FileSink
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.File, as: FileEndpoint
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
   @type encoding_t() :: String.t()
 
-  def_options rtc_engine: [
-                spec: pid(),
-                description: "Pid of parent Engine"
-              ],
-              file_path: [
-                spec: Path.t(),
-                description: "Path to track file"
-              ]
+  def_options(
+    rtc_engine: [
+      spec: pid(),
+      description: "Pid of parent Engine"
+    ],
+    file_path: [
+      spec: Path.t(),
+      description: "Path to track file"
+    ]
+  )
 
-  def_input_pad :input,
+  def_input_pad(:input,
     demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
+  )
 
   @impl true
   def handle_init(_ctx, opts) do
