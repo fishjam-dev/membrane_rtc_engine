@@ -150,16 +150,15 @@ defmodule Membrane.RTC.FileEndpointTest do
          rtc_engine,
          video_file_path
        ) do
-    video_track_config =
-      %Endpoint.File.TrackConfig{
-        type: :video,
-        encoding: :H264,
-        clock_rate: 90_000,
-        fmtp: %FMTP{
-          pt: 96
-        },
-        opts: [framerate: {60, 1}]
-      }
+    video_track_config = %Endpoint.File.TrackConfig{
+      type: :video,
+      encoding: :H264,
+      clock_rate: 90_000,
+      fmtp: %FMTP{
+        pt: 96
+      },
+      opts: [framerate: {60, 1}]
+    }
 
     %Endpoint.File{
       rtc_engine: rtc_engine,
