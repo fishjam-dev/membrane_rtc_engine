@@ -11,6 +11,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File.TrackConfig do
   """
   @type t() :: %__MODULE__{
           type: :audio | :video,
+          stream_id: String.t() | nil,
           encoding: Track.encoding(),
           clock_rate: Membrane.RTP.clock_rate_t(),
           fmtp: FMTP.t(),
@@ -19,5 +20,5 @@ defmodule Membrane.RTC.Engine.Endpoint.File.TrackConfig do
 
   @enforce_keys [:type, :encoding, :clock_rate, :fmtp]
 
-  defstruct @enforce_keys ++ [opts: []]
+  defstruct @enforce_keys ++ [opts: [], stream_id: nil]
 end

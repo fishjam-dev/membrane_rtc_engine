@@ -28,7 +28,6 @@ defmodule Membrane.RTC.FileEndpointTest do
 
   @source_endpoint_id "source-endpoint-id"
   @sink_endpoint_id "sink-endpoint-id"
-  @track_id "test-track-id"
 
   describe "File Endpoint test" do
     @tag :tmp_dir
@@ -39,7 +38,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_name = "audio.opus"
       file_path = Path.join(@fixtures_dir, file_name)
 
-      output_file = Path.join([tmp_dir, "#{@track_id}.opus"])
+      output_file = Path.join([tmp_dir, "out_audio.opus"])
 
       :ok =
         Engine.add_endpoint(
@@ -96,7 +95,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_name = "video.h264"
       file_path = Path.join(@fixtures_dir, file_name)
 
-      output_file = Path.join([tmp_dir, "#{@track_id}.h264"])
+      output_file = Path.join([tmp_dir, "out_video.h264"])
 
       :ok =
         Engine.add_endpoint(

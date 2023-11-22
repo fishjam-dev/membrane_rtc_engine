@@ -81,7 +81,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     track =
       Track.new(
         opts.track_config.type,
-        Track.stream_id(),
+        opts.track_config.stream_id || Track.stream_id(),
         endpoint_id,
         opts.track_config.encoding,
         opts.track_config.clock_rate,
