@@ -1,6 +1,10 @@
 defmodule Membrane.RTC.Engine.Endpoint.File.TrackConfig do
-  alias Membrane.RTC.Engine.Track
+  @moduledoc """
+  Track Configuration, used to create track after
+  initialization of File Endpoint.
+  """
   alias ExSDP.Attribute.FMTP
+  alias Membrane.RTC.Engine.Track
 
   @typedoc """
   The options passed to the `Membrane.RTC.Engine.Track.new/7`
