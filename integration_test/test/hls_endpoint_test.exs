@@ -84,8 +84,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_path = Path.join(@fixtures_dir, file_name)
 
       hls_endpoint_id = "hls-endpoint"
-
-      track_id = "test-track-id"
       stream_id = "test-stream"
 
       output_dir = Path.join([tmp_dir, stream_id])
@@ -94,8 +92,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_endpoint = %{hls_endpoint | subscribe_mode: :manual}
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint =
-        create_video_file_endpoint(rtc_engine, file_path, stream_id, file_endpoint_id, track_id)
+      file_endpoint = create_video_file_endpoint(rtc_engine, file_path, stream_id)
 
       :erlang.trace(:all, true, [:call])
       :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
