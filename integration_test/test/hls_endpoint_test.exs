@@ -74,6 +74,65 @@ defmodule Membrane.RTC.HLSEndpointTest do
       check_separate_hls_playlist(output_dir, 2, 2)
     end
 
+    test "creates correct hls stream with manual track addition", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: tmp_dir
+    } do
+      file_endpoint_id = "file-endpoint-id"
+
+      file_name = "video.h264"
+      file_path = Path.join(@fixtures_dir, file_name)
+
+      hls_endpoint_id = "hls-endpoint"
+
+      track_id = "test-track-id"
+      stream_id = "test-stream"
+
+      output_dir = Path.join([tmp_dir, stream_id])
+
+      hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :single)
+      hls_endpoint = %{hls_endpoint | subscribe_mode: :manual}
+      :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
+
+      file_endpoint =
+        create_video_file_endpoint(rtc_engine, file_path, stream_id, file_endpoint_id, track_id)
+
+      :erlang.trace(:all, true, [:call])
+      :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
+
+      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
+
+      assert_receive %Message.EndpointMessage{
+                       endpoint_id: ^file_endpoint_id,
+                       message: :tracks_added
+                     },
+                     @tracks_added_delay
+
+      assert_receive %Message.TrackAdded{track_id: track_id}
+
+      refute_receive {:trace, _pid, :call,
+                      {Membrane.RTC.Engine, :subscribe,
+                       [^rtc_engine, "hls-endpoint", ^track_id, _opts]}},
+                     @tracks_added_delay
+
+      Engine.message_endpoint(rtc_engine, hls_endpoint_id, {:subscribe, [track_id]})
+
+      assert_receive {:trace, _pid, :call,
+                      {Membrane.RTC.Engine, :subscribe,
+                       [^rtc_engine, "hls-endpoint", ^track_id, _opts]}},
+                     @tracks_added_delay
+
+      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
+
+      assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
+      assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
+      assert_receive({:manifest, %{video_segments: 2}})
+
+      Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
+
+      check_separate_hls_playlist(output_dir, 2, 2)
+    end
+
     test "creates correct hls stream from multiple (h264, opus) inputs belonging to the same stream",
          %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
       video_file_endpoint_id = "video-file-endpoint"

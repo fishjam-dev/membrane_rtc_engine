@@ -91,7 +91,25 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
                 description: """
                 HLS stream and playlist configuration.
                 """
+              ],
+              subscribe_mode: [
+                spec: :auto | :manual,
+                default: :auto,
+                description: """
+                Whether tracks should be subscribed automatically when they're ready.
+                If set to `:manual` hls endpoint will subscribe only to tracks send using message:
+                `{:subscribe, tracks}`
+                """
               ]
+
+  @impl true
+  def handle_init(_context, options) when options.subscribe_mode not in [:auto, :manual] do
+    raise("""
+    Cannot initialize HLS endpoint.
+    Invalid value for `:subscribe_mode`: #{options.subscribe_mode}.
+    Please set `:subscribe_mode` to either `:auto` or `:manual`.
+    """)
+  end
 
   @impl true
   def handle_init(_context, options) do
@@ -232,27 +250,46 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   end
 
   @impl true
-  def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
-    {:endpoint, endpoint_id} = ctx.name
+  def handle_parent_notification({:new_tracks, tracks}, ctx, %{subscribe_mode: :auto} = state) do
+    subscribed_tracks =
+      tracks
+      |> Enum.map(fn track -> track.id end)
+      |> subscribe_for_tracks(ctx, state)
+
+    {[], add_tracks(tracks, subscribed_tracks, state)}
+  end
+
+  @impl true
+  def handle_parent_notification({:new_tracks, _tracks}, _ctx, %{subscribe_mode: :manual} = state) do
+    {[], state}
+  end
+
+  @impl true
+  def handle_parent_notification(
+        {:subscribe, track_ids},
+        ctx,
+        %{subscribe_mode: :manual} = state
+      ) do
+    subscribed_tracks = subscribe_for_tracks(track_ids, ctx, state)
 
     state =
-      Enum.reduce(tracks, state, fn track, state ->
-        case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
-          :ok ->
-            put_in(state, [:tracks, track.id], track)
+      state.rtc_engine
+      |> Engine.get_tracks()
+      |> add_tracks(subscribed_tracks, state)
 
-          {:error, :invalid_track_id} ->
-            Membrane.Logger.debug("""
-            Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
-            It had to be removed just after publishing it. Ignoring.
-            """)
+    {[], state}
+  end
 
-            state
-
-          {:error, reason} ->
-            raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
-        end
-      end)
+  @impl true
+  def handle_parent_notification(
+        {:subscribe, _tracks} = msg,
+        _ctx,
+        %{subscribe_mode: :auto} = state
+      ) do
+    Membrane.Logger.warning("""
+    Unexpected message: #{inspect(msg)}.
+    If you want to add tracks manually set `:subscribe_mode` option to `:manual`.
+    """)
 
     {[], state}
   end
@@ -296,6 +333,33 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
   @impl true
   def handle_info(_msg, _ctx, state), do: {[], state}
+
+  defp subscribe_for_tracks(track_ids, ctx, state) do
+    {:endpoint, endpoint_id} = ctx.name
+
+    Enum.filter(track_ids, fn track_id ->
+      case Engine.subscribe(state.rtc_engine, endpoint_id, track_id) do
+        :ok ->
+          true
+
+        {:error, :invalid_track_id} ->
+          Membrane.Logger.debug(
+            "Couldn't subscribe to the track: #{inspect(track_id)}. No such track."
+          )
+
+          false
+
+        {:error, reason} ->
+          raise "Couldn't subscribe to the track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
+      end
+    end)
+  end
+
+  defp add_tracks(tracks, subscribed_tracks, state) do
+    tracks
+    |> Enum.filter(fn track -> track.id in subscribed_tracks end)
+    |> Enum.reduce(state, fn track, state -> put_in(state, [:tracks, track.id], track) end)
+  end
 
   defp get_hls_sink_spec(state, stream_id \\ nil) do
     directory = get_hls_stream_directory(state, stream_id)
