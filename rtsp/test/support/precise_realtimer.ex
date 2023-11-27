@@ -3,8 +3,8 @@ defmodule Membrane.RTC.Engine.PreciseRealtimer do
 
   use Membrane.Filter
 
-  def_input_pad :input, demand_mode: :auto, accepted_format: _any
-  def_output_pad :output, demand_mode: :auto, accepted_format: _any
+  def_input_pad :input, accepted_format: _any
+  def_output_pad :output, accepted_format: _any
 
   def_options timer_resolution: [
                 spec: Membrane.Time.t()
@@ -26,7 +26,7 @@ defmodule Membrane.RTC.Engine.PreciseRealtimer do
   end
 
   @impl true
-  def handle_process(:input, buffer, _ctx, state) do
+  def handle_buffer(:input, buffer, _ctx, state) do
     {[], %{state | queue: Qex.push(state.queue, {:buffer, {:output, buffer}})}}
   end
 

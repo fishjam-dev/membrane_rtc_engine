@@ -33,15 +33,11 @@ defmodule Membrane.RTC.Engine.FilterTee do
                 description: "Codec of track #{inspect(__MODULE__)} will forward."
               ]
 
-  def_input_pad :input,
-    availability: :always,
-    mode: :pull,
-    demand_mode: :auto,
-    accepted_format: _any
+  def_input_pad :input, accepted_format: _any
 
   def_output_pad :output,
     availability: :on_request,
-    mode: :push,
+    flow_control: :push,
     accepted_format: _any
 
   @impl true
@@ -67,12 +63,12 @@ defmodule Membrane.RTC.Engine.FilterTee do
   end
 
   @impl true
-  def handle_process(:input, %Membrane.Buffer{} = buffer, _ctx, %{type: :audio} = state) do
+  def handle_buffer(:input, %Membrane.Buffer{} = buffer, _ctx, %{type: :audio} = state) do
     {[forward: buffer], state}
   end
 
   @impl true
-  def handle_process(
+  def handle_buffer(
         :input,
         %Membrane.Buffer{} = buffer,
         _ctx,
@@ -82,7 +78,7 @@ defmodule Membrane.RTC.Engine.FilterTee do
   end
 
   @impl true
-  def handle_process(:input, %Membrane.Buffer{} = buffer, ctx, %{type: :video} = state) do
+  def handle_buffer(:input, %Membrane.Buffer{} = buffer, ctx, %{type: :video} = state) do
     pads =
       ctx.pads
       |> Map.keys()

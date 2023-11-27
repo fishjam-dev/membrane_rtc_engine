@@ -27,13 +27,11 @@ defmodule Membrane.RTC.Engine.Tee do
 
   def_input_pad :input,
     availability: :on_request,
-    mode: :pull,
-    demand_mode: :auto,
     accepted_format: Membrane.RTP
 
   def_output_pad :output,
     availability: :on_request,
-    mode: :push,
+    flow_control: :push,
     accepted_format: Membrane.RTP
 
   @impl true
@@ -241,7 +239,7 @@ defmodule Membrane.RTC.Engine.Tee do
   end
 
   @impl true
-  def handle_process(Pad.ref(:input, {_track_id, variant}), buffer, ctx, state) do
+  def handle_buffer(Pad.ref(:input, {_track_id, variant}), buffer, ctx, state) do
     if variant in state.inactive_variants do
       raise TrackVariantStateError, track: state.track, variant: variant
     end

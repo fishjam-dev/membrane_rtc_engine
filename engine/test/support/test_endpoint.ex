@@ -18,12 +18,10 @@ defmodule Membrane.RTC.Engine.Support.TestEndpoint do
               ]
 
   def_input_pad :input,
-    availability: :on_request,
     accepted_format: _any,
-    demand_mode: :auto
+    availability: :on_request
 
   def_output_pad :output,
-    demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
 

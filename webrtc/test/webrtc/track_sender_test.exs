@@ -67,7 +67,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       refute_sink_stream_format(pipeline, {:sink, :medium}, %Membrane.RTP{}, 0)
       refute_sink_stream_format(pipeline, {:sink, :low}, %Membrane.RTP{}, 0)
 
-      Pipeline.terminate(pipeline, blocking?: true)
+      Pipeline.terminate(pipeline)
     end
 
     test "sends TrackVariantResumed event when adding output pad" do
@@ -93,7 +93,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       assert_sink_event(pipeline, {:sink, :low}, %TrackVariantResumed{variant: :low})
       refute_sink_event(pipeline, {:sink, :low}, %TrackVariantResumed{variant: :low})
 
-      Pipeline.terminate(pipeline, blocking?: true)
+      Pipeline.terminate(pipeline)
     end
 
     test "sends TrackVariantPaused event when variant becomes inactive" do
@@ -110,7 +110,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         assert_sink_event(pipeline, {:sink, variant}, %TrackVariantPaused{}, 3_000)
       end)
 
-      Pipeline.terminate(pipeline, blocking?: true)
+      Pipeline.terminate(pipeline)
     end
 
     test "doesn't send TrackVariantPaused event when track is not a simulcast one" do
@@ -120,7 +120,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       Pipeline.execute_actions(pipeline, notify_child: {{:source, :high}, {:set_active, false}})
       refute_sink_event(pipeline, {:sink, :high}, %TrackVariantPaused{}, 5_000)
 
-      Pipeline.terminate(pipeline, blocking?: true)
+      Pipeline.terminate(pipeline)
     end
 
     test "sends TrackVariantResumed event when variant becomes active" do
@@ -147,7 +147,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         assert_sink_event(pipeline, {:sink, variant}, %TrackVariantResumed{}, 15_000)
       end)
 
-      Pipeline.terminate(pipeline, blocking?: true)
+      Pipeline.terminate(pipeline)
     end
   end
 
@@ -164,7 +164,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       })
     end)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    Pipeline.terminate(pipeline)
   end
 
   test "sends TrackVariantBitrate after getting :variant_bitrates notification" do
@@ -184,7 +184,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       })
     end)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    Pipeline.terminate(pipeline)
   end
 
   defp test_is_keyframe(%Track{type: :audio} = track, expected_is_keyframe_value) do
@@ -197,7 +197,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       metadata: %{is_keyframe: ^expected_is_keyframe_value}
     })
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    Pipeline.terminate(pipeline)
   end
 
   defp test_is_keyframe(track, expected_is_keyframe_value) do
@@ -212,7 +212,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
       })
     end)
 
-    Pipeline.terminate(pipeline, blocking?: true)
+    Pipeline.terminate(pipeline)
   end
 
   defp build_h264_track(variants \\ @variants) do

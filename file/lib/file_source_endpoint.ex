@@ -61,7 +61,6 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
               ]
 
   def_output_pad :output,
-    demand_unit: :buffers,
     accepted_format: Membrane.RTP,
     availability: :on_request
 

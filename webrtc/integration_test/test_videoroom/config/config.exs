@@ -35,4 +35,7 @@ config :logger, level: :debug
 
 config :phoenix, :json_library, Jason
 
+# The CI image is too old for the precompiled deps to work
+config :bundlex, :disable_precompiled_os_deps, apps: [:ex_libsrtp]
+
 import_config "#{config_env()}.exs"

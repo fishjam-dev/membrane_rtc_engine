@@ -22,7 +22,6 @@ defmodule Membrane.RTC.Engine.Support.SinkEndpoint do
   @type encoding_t() :: String.t()
 
   def_input_pad :input,
-    demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
 
@@ -43,7 +42,7 @@ defmodule Membrane.RTC.Engine.Support.SinkEndpoint do
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
-    {[remove_child: {:fake_sink, track_id}], state}
+    {[remove_children: {:fake_sink, track_id}], state}
   end
 
   @impl true

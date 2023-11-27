@@ -564,7 +564,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     receivers =
       Map.new(state.track_receivers, fn {key, value} ->
         duration_in_s = Time.as_seconds(now - value.last_estimation_ts)
-        sender_rate = value.bits_since_last_estimation |> Ratio.div(duration_in_s) |> Ratio.ceil()
+
+        sender_rate =
+          value.bits_since_last_estimation
+          |> Ratio.new()
+          |> Ratio.div(duration_in_s)
+          |> Ratio.ceil()
 
         {key,
          %{

@@ -34,28 +34,29 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
   defp deps do
     [
       # Engine deps
-      {:membrane_rtc_engine, path: "../engine", override: true},
+      {:membrane_rtc_engine, path: "../engine"},
       {:membrane_rtc_engine_hls, path: "../hls"},
       {:membrane_rtc_engine_rtsp, path: "../rtsp"},
       {:membrane_rtc_engine_file, path: "../file"},
 
       # Regular deps (for modules in `test/support/`)
-      {:membrane_core, "~> 0.12.7"},
-      {:membrane_rtp_plugin, "~> 0.23.0"},
-      {:membrane_rtp_h264_plugin, "~> 0.18.0"},
-      {:membrane_h264_format, "~> 0.6.0"},
-      {:membrane_h264_plugin, "~> 0.7.2"},
-      {:membrane_udp_plugin, "~> 0.10.0"},
-      {:membrane_file_plugin, "~> 0.15.0"},
-      {:membrane_aac_plugin, "~> 0.16.0"},
-      {:membrane_aac_fdk_plugin, "~> 0.15.1"},
-      {:membrane_opus_plugin, "~> 0.17.1"},
+      {:membrane_core, "~> 1.0"},
+      {:bundlex, "~> 1.3"},
+      {:membrane_rtp_plugin, "~> 0.24.1"},
+      {:membrane_rtp_h264_plugin, "~> 0.19.0"},
+      {:membrane_h264_format, ">= 0.0.0"},
+      {:membrane_h264_plugin, "~> 0.9.0"},
+      {:membrane_udp_plugin, ">= 0.0.0"},
+      {:membrane_file_plugin, "~> 0.16.0"},
+      {:membrane_aac_plugin, "~> 0.18.0"},
+      {:membrane_aac_fdk_plugin, "~> 0.18.1"},
+      {:membrane_opus_plugin, "~> 0.19.0"},
       {:qex, "~> 0.5.1"},
-      {:membrane_audio_mix_plugin, "~> 0.15.2"},
-      {:membrane_video_compositor_plugin, "~> 0.5.1"},
-      {:membrane_raw_audio_format, "~> 0.11.0"},
+      {:membrane_audio_mix_plugin, "~> 0.16.0"},
+      {:membrane_video_compositor_plugin, "~> 0.6.0"},
+      {:membrane_raw_audio_format, "~> 0.12.0"},
       {:membrane_raw_video_format, "~> 0.3.0"},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.29.0"},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.31.0"},
 
       # Test deps
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false}

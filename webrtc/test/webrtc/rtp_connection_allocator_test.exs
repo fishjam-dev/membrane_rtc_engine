@@ -332,13 +332,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocatorTest do
 
     expected_amount_of_paddings =
       epochs
-      |> Enum.reduce(0, fn {duration, rate}, acc ->
+      |> Enum.reduce(Ratio.new(0), fn {duration, rate}, acc ->
         duration
         |> Time.as_seconds()
-        |> Ratio.mult(rate)
+        |> Ratio.mult(Ratio.new(rate))
         |> Ratio.add(acc)
       end)
-      |> Ratio.div(@padding_packet_size)
+      |> Ratio.div(Ratio.new(@padding_packet_size))
       |> Ratio.floor()
 
     if expected_amount_of_paddings > 1 do

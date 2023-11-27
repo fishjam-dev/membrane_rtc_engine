@@ -62,28 +62,25 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       {:membrane_rtc_engine_webrtc, path: "../webrtc"},
 
       # Regular deps
-      {:membrane_core, "~> 0.12.3"},
-      {:membrane_aac_plugin, "~> 0.16.0"},
-      {:membrane_opus_plugin, "~> 0.17.1"},
-      {:membrane_aac_fdk_plugin, "~> 0.15.1"},
-      {:membrane_raw_audio_format, "~> 0.11.0"},
+      {:membrane_core, "~> 1.0"},
+      {:membrane_aac_plugin, "~> 0.18.0"},
+      {:membrane_opus_plugin, "~> 0.19.0"},
+      {:membrane_aac_fdk_plugin, "~> 0.18.1"},
+      {:membrane_raw_audio_format, "~> 0.12.0"},
       {:membrane_raw_video_format, "~> 0.3.0"},
-      {:membrane_h264_plugin, "~> 0.7.2"},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.29.0"},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.17.2"},
+      {:membrane_h264_plugin, "~> 0.9.0"},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.31.0"},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.18.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
       # Optional deps for mixing audio and composing video
-      {:membrane_audio_mix_plugin, "~> 0.15.2", optional: true},
-      {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true},
+      {:membrane_audio_mix_plugin, "~> 0.16.0", optional: true},
+      {:membrane_video_compositor_plugin, "~> 0.6.0", optional: true},
 
       # Test deps
-      {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
-
-      # File Source
-      {:membrane_realtimer_plugin, "~> 0.6.1", only: :test}
+      {:excoveralls, "~> 0.16.0", only: :test, runtime: false}
     ]
   end
 
