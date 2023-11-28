@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.4.0-dev
+* Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
 
 ## 0.3.0
 * Add manual track subscription [#328](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/328)

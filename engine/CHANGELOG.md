@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.19.0-dev
+* Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
 * Add `get_tracks` function in `Engine` module [#328](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/328)
 * Change some logs to debug [#327](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/327)
 
