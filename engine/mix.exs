@@ -57,8 +57,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:membrane_rtp_plugin, "~> 0.24.1"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_opentelemetry, "~> 0.1.0"},
-      {:ex_sdp, "~> 0.11.0"},
-      {:uuid, "~> 1.1"},
+      {:ex_sdp, "~> 0.13.1"},
+      {:elixir_uuid, "~> 1.2"},
       {:statistics, "~> 0.6.0"},
       # for colouring diffs in upgrade guides
       {:makeup_diff, "~> 0.1", only: :dev, runtime: false},
