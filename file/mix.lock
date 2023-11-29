@@ -76,6 +76,5 @@
   "telemetry_metrics": {:hex, :telemetry_metrics, "0.6.1", "315d9163a1d4660aedc3fee73f33f1d355dcc76c5c3ab3d59e76e3edf80eef1f", [:mix], [{:telemetry, "~> 0.4 or ~> 1.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "7be9e0871c41732c233be71e4be11b96e56177bf15dde64a8ac9ce72ac9834c6"},
   "unicode_util_compat": {:hex, :unicode_util_compat, "0.7.0", "bc84380c9ab48177092f43ac89e4dfa2c6d62b40b8bd132b1059ecc7232f9a78", [:rebar3], [], "hexpm", "25eee6d67df61960cf6a794239566599b09e17e668d3700247bc498638152521"},
   "unifex": {:hex, :unifex, "1.1.0", "26b1bcb6c3b3454e1ea15f85b2e570aaa5b5c609566aa9f5c2e0a8b213379d6b", [:mix], [{:bunch, "~> 1.0", [hex: :bunch, repo: "hexpm", optional: false]}, {:bundlex, "~> 1.0", [hex: :bundlex, repo: "hexpm", optional: false]}, {:shmex, "~> 0.5.0", [hex: :shmex, repo: "hexpm", optional: false]}], "hexpm", "d8f47e9e3240301f5b20eec5792d1d4341e1a3a268d94f7204703b48da4aaa06"},
-  "uuid": {:hex, :uuid, "1.1.8", "e22fc04499de0de3ed1116b770c7737779f226ceefa0badb3592e64d5cfb4eb9", [:mix], [], "hexpm", "c790593b4c3b601f5dc2378baae7efaf5b3d73c4c6456ba85759905be792f2ac"},
   "zarex": {:hex, :zarex, "1.0.3", "a9e9527a1c31df7f39499819bd76ccb15b0b4e479eed5a4a40db9df7ad7db25c", [:mix], [], "hexpm", "4400a7d33bbf222383ce9a3d5ec9411798eb2b12e86c65ad8e6ac08d8116ca8b"},
 }

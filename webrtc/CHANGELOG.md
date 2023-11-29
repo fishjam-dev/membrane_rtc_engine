@@ -2,6 +2,7 @@
 
 ## 0.5.0-dev
 * Change some logs to debug [#327](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/327)
+* Update deps [#333](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/333)
 
 ## 0.4.0
 * Bump deps [#323](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/323)
