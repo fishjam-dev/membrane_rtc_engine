@@ -53,7 +53,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 0.12.3"},
-      {:membrane_webrtc_plugin, "~> 0.16.1"},
+      {:membrane_webrtc_plugin, "~> 0.16.2"},
       {:membrane_rtp_plugin, "~> 0.23.0"},
       {:membrane_ice_plugin, "~> 0.16.0"},
       {:membrane_rtp_format, "~> 0.7.0"},
@@ -61,7 +61,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       {:membrane_rtp_vp8_plugin, "~> 0.8.0"},
       {:membrane_rtp_h264_plugin, "~> 0.18.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:ex_sdp, "~> 0.11.0"},
+      {:ex_sdp, "~> 0.13.1"},
       {:qex, "~> 0.5"},
       {:jason, "~> 1.2"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
