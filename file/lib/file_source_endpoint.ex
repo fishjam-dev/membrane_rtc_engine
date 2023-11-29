@@ -94,8 +94,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
       |> Map.drop([:track_config])
       |> Map.merge(%{
         track: track,
-        ssrc: opts.ssrc || new_ssrc(),
-        demuxer_to_pad: %{}
+        ssrc: opts.ssrc || new_ssrc()
       })
 
     {[notify_parent: {:ready, nil}], state}
@@ -111,25 +110,31 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   @impl true
   def handle_pad_added(Pad.ref(:output, {_track_id, _rid}) = pad, _ctx, state) do
-    if state.track.encoding == :OPUS and
-         state.after_source_transformation == (&Function.identity/1) do
-      build_pipeline_ogg_demuxer(state, pad)
-    else
-      build_full_pipeline(state, pad)
-    end
+    actions =
+      if state.track.encoding == :OPUS and
+           state.after_source_transformation == (&Function.identity/1) do
+        build_pipeline_ogg_demuxer(state)
+      else
+        build_full_pipeline(state, pad)
+      end
+
+    {actions, state}
   end
 
   @impl true
   def handle_child_notification(
         {:new_track, {track_id, :opus}},
-        {:ogg_demuxer, demuxer_id} = child_name,
-        _ctx,
+        :ogg_demuxer,
+        ctx,
         state
       ) do
-    {output_pad, state} = pop_in(state.demuxer_to_pad[demuxer_id])
+    [output_pad] =
+      ctx.pads
+      |> Map.keys()
+      |> Enum.filter(&match?({Membrane.Pad, :output, _pad_id}, &1))
 
     spec = [
-      get_child(child_name)
+      get_child(:ogg_demuxer)
       |> via_out(Pad.ref(:output, track_id))
       |> child(:parser, %Membrane.Opus.Parser{})
       |> then(get_rest_of_pipeline(state, output_pad))
@@ -179,27 +184,17 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     {[notify_parent: track_ready], state}
   end
 
-  defp get_parser(%Track{encoding: :OPUS}) do
-    fn link_builder ->
-      child(link_builder, :parser, %Membrane.Opus.Parser{})
-    end
-  end
-
-  defp build_pipeline_ogg_demuxer(state, pad) do
-    demuxer_id = UUID.uuid4()
-
+  defp build_pipeline_ogg_demuxer(state) do
     demuxer = fn link_builder ->
-      child(link_builder, {:ogg_demuxer, demuxer_id}, Membrane.Ogg.Demuxer)
+      child(link_builder, :ogg_demuxer, Membrane.Ogg.Demuxer)
     end
-
-    state = put_in(state.demuxer_to_pad[demuxer_id], pad)
 
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
       |> then(demuxer)
     ]
 
-    {[spec: spec], state}
+    [spec: spec]
   end
 
   defp build_full_pipeline(state, pad) do
@@ -212,7 +207,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
       |> then(get_rest_of_pipeline(state, pad))
     ]
 
-    {[spec: spec], state}
+    [spec: spec]
   end
 
   defp get_rest_of_pipeline(state, pad) do
@@ -241,6 +236,12 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
         end
       })
       |> bin_output(pad)
+    end
+  end
+
+  defp get_parser(%Track{encoding: :OPUS}) do
+    fn link_builder ->
+      child(link_builder, :parser, %Membrane.Opus.Parser{})
     end
   end
 
