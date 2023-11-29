@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.File do
   @moduledoc """
   An Endpoint responsible for publishing data from a file.
-  By default only supports OPUS inside Ogg container and raw H264 files.
+  By default only supports OPUS encapsulated in container and raw H264 files.
   By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
   It starts publishing data after calling function `start_sending` with proper arguments.
   After publishing track it sends to engine parent notification `:tracks_added`.
@@ -185,25 +185,19 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   defp build_pipeline_ogg_demuxer(state) do
-    demuxer = fn link_builder ->
-      child(link_builder, :ogg_demuxer, Membrane.Ogg.Demuxer)
-    end
-
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
-      |> then(demuxer)
+      |> child(:ogg_demuxer, Membrane.Ogg.Demuxer)
     ]
 
     [spec: spec]
   end
 
   defp build_full_pipeline(state, pad) do
-    parser = get_parser(state.track)
-
     spec = [
       child(:source, %Membrane.File.Source{location: state.file_path})
       |> then(&state.after_source_transformation.(&1))
-      |> then(parser)
+      |> then(get_parser(state.track))
       |> then(get_rest_of_pipeline(state, pad))
     ]
 

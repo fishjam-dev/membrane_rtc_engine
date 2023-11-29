@@ -36,7 +36,7 @@ defmodule Membrane.RTC.Engine do
   Associating Endpoint with client will send some Media Events to the Endpoint's Client Library
   e.g. one which indicates which tracks belong to which client.
 
-  Currently RTC Engine ships with the implementation of three Endpoints:
+  Currently RTC Engine ships with the implementation of the following Endpoints:
   * `#{inspect(__MODULE__)}.Endpoint.WebRTC` which is responsible for establishing a connection with some WebRTC
   client (mainly browser) and exchanging media with it. WebRTC Endpoint is a Client Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.HLS` which is responsible for receiving media tracks from all other Endpoints and
