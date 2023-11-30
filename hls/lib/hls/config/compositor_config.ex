@@ -22,5 +22,5 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorConfig do
               framerate: {24, 1},
               aligned: true
             },
-            layout_module: Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler
+            layout_module: Membrane.RTC.Engine.Endpoint.HLS.RecordingHandler
 end

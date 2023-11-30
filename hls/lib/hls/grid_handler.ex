@@ -1,5 +1,5 @@
 if Code.ensure_loaded?(Membrane.VideoCompositor) do
-  defmodule Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler do
+  defmodule Membrane.RTC.Engine.Endpoint.HLS.GridHandler do
     @moduledoc """
     Module implementing `Membrane.VideoCompositor.Handler` behaviour.
     Responsible for updating `Membrane.VideoCompositor.Scene` for video compositor.
