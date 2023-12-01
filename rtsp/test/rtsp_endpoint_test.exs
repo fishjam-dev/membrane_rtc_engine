@@ -15,7 +15,7 @@ defmodule Membrane.RTC.RTSPEndpointTest do
     Engine.register(pid, self())
 
     on_exit(fn ->
-      Engine.terminate(pid, blocking?: true)
+      Engine.terminate(pid)
     end)
 
     [rtc_engine: pid]

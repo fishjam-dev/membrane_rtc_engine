@@ -48,7 +48,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   @terminate_timeout 5000
 
   def_input_pad :input,
-    demand_unit: :buffers,
     accepted_format: Membrane.RTP,
     availability: :on_request
 
@@ -163,7 +162,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
     children_to_remove = track_children ++ children_to_remove
 
-    {[remove_child: children_to_remove], state}
+    {[remove_children: children_to_remove], state}
   end
 
   @impl true
@@ -323,7 +322,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       |> Enum.flat_map(fn {id, _track} -> Enum.map(@track_children, &{&1, id}) end)
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
-    actions = actions ++ [remove_child: children_to_remove]
+    actions = actions ++ [remove_children: children_to_remove]
     {actions, %{state | terminating?: true}}
   end
 
@@ -494,7 +493,11 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         |> child(:encoder, %Membrane.H264.FFmpeg.Encoder{
           profile: :baseline,
           tune: :zerolatency,
-          gop_size: frames_per_second * seconds_number,
+          gop_size:
+            Ratio.new(frames_per_second)
+            |> Ratio.mult(seconds_number)
+            |> Ratio.to_float()
+            |> round(),
           # This ensures that the encoder will *always* output I-frames in the same intervals,
           # and *never* insert additional ones. We need this option, as otherwise the irregular
           # I-frames mess with the creation of segments and partials

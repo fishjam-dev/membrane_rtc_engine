@@ -23,7 +23,6 @@ defmodule Membrane.RTC.Engine.Support.FakeSourceEndpoint do
               ]
 
   def_output_pad :output,
-    demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
 

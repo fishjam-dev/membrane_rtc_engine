@@ -53,11 +53,11 @@ defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
       {:membrane_rtc_engine_webrtc, path: "../webrtc"},
 
       # Regular deps
-      {:membrane_core, "~> 0.12.3"},
-      {:membrane_realtimer_plugin, "~> 0.6.1"},
-      {:membrane_file_plugin, "~> 0.15.0"},
-      {:membrane_opus_plugin, "~> 0.17.1"},
-      {:membrane_h264_plugin, "~> 0.7.2"},
+      {:membrane_core, "~> 1.0"},
+      {:membrane_realtimer_plugin, "~> 0.9.0"},
+      {:membrane_file_plugin, "~> 0.16.0"},
+      {:membrane_opus_plugin, "~> 0.19.0"},
+      {:membrane_h264_plugin, "~> 0.9.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},

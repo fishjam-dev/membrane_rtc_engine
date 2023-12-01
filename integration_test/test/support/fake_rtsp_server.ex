@@ -13,11 +13,11 @@ defmodule FakeRTSPserver do
     use Membrane.Filter
     alias Membrane.H264
 
-    def_input_pad(:input, demand_mode: :auto, accepted_format: %H264{})
-    def_output_pad(:output, demand_mode: :auto, accepted_format: %H264{})
+    def_input_pad(:input, accepted_format: %H264{})
+    def_output_pad(:output, accepted_format: %H264{})
 
     @impl true
-    def handle_process(:input, buffer, _ctx, state) do
+    def handle_buffer(:input, buffer, _ctx, state) do
       actions =
         if buffer.metadata.h264.type in [:sps, :pps], do: [], else: [buffer: {:output, buffer}]
 
@@ -64,7 +64,7 @@ defmodule FakeRTSPserver do
         })
       ]
 
-      {[spec: spec, playback: :playing], %{}}
+      {[spec: spec], %{}}
     end
   end
 
@@ -138,7 +138,7 @@ defmodule FakeRTSPserver do
             server_udp_port: @test_udp_port
           }
 
-          Pipeline.start_link(Map.merge(pipeline_opts, state.stream_ctx))
+          Membrane.Pipeline.start_link(Pipeline, Map.merge(pipeline_opts, state.stream_ctx))
         end
 
         :playing

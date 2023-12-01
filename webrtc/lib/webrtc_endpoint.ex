@@ -226,12 +226,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
               ]
 
   def_input_pad :input,
-    demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
 
   def_output_pad :output,
-    demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
 
@@ -370,7 +368,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
     actions = [
-      remove_child: track_senders,
+      remove_children: track_senders,
       notify_parent: {:publish, {:removed_tracks, tracks}}
     ]
 
@@ -764,7 +762,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
-    {[remove_child: {:track_receiver, track_id}], state}
+    {[remove_children: {:track_receiver, track_id}], state}
   end
 
   @impl true

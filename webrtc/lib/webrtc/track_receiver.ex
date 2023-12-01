@@ -144,13 +144,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
               ]
 
   def_input_pad :input,
-    availability: :always,
-    mode: :push,
+    flow_control: :push,
     accepted_format: Membrane.RTP
 
   def_output_pad :output,
-    availability: :always,
-    mode: :push,
+    flow_control: :push,
     accepted_format: Membrane.RTP
 
   @impl true
@@ -270,7 +268,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_process(_pad, buffer, _ctx, state) do
+  def handle_buffer(_pad, buffer, _ctx, state) do
     state = update_bandwidth(buffer, :input, state)
 
     forwarder =

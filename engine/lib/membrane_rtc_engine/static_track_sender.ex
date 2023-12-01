@@ -33,14 +33,12 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
               ]
 
   def_input_pad :input,
-    mode: :pull,
+    flow_control: :manual,
     demand_unit: :buffers,
-    demand_mode: :manual,
     accepted_format: Membrane.RTP
 
   def_output_pad :output,
-    mode: :pull,
-    demand_mode: :manual,
+    flow_control: :manual,
     accepted_format: Membrane.RTP
 
   @impl true
@@ -69,7 +67,7 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
   end
 
   @impl true
-  def handle_process(:input, buffer, _ctx, state) do
+  def handle_buffer(:input, buffer, _ctx, state) do
     buffer = add_is_keyframe_flag(buffer, state)
     {[buffer: {:output, buffer}, redemand: :output], state}
   end

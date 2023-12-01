@@ -23,7 +23,6 @@ defmodule Membrane.RTC.Engine.Support.Sink do
               ]
 
   def_input_pad :input,
-    demand_unit: :buffers,
     accepted_format: _any,
     availability: :on_request
 
