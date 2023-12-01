@@ -13,6 +13,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
 
     @padding 5
     @z_value 0.1
+    @bar_ratio 5
     @base_position %{width: 0, height: 0}
 
     @impl true
@@ -32,8 +33,8 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
           %{output_stream_format: output_stream_format} = state
         ) do
       split_inputs =
-        Enum.split_with(inputs, fn {_ref, %{metadata: %{"type" => type}}} ->
-          type == "screenshare"
+        Enum.split_with(inputs, fn {_ref, %{metadata: metadata}} ->
+          Map.get(metadata, "type") == "screenshare"
         end)
 
       # WINDOW
@@ -50,25 +51,27 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
             grid = videos |> length() |> calculate_grid()
             videos_config_grid(videos, output_stream_format, @base_position, grid)
 
-          # Only one screen share possible
           {[screenshare], []} ->
             screenshare_config(screenshare, output_stream_format, @base_position)
 
           {[screenshare], videos} ->
             videos_window_resolution = %{
               width: output_stream_format.width,
-              height: div(output_stream_format.height, 5)
+              height: div(output_stream_format.height, @bar_ratio)
             }
 
             sh_window_resolution = %{
               width: output_stream_format.width,
-              height: div(output_stream_format.height * 4, 5)
+              height: output_stream_format.height - videos_window_resolution.height
             }
 
             sh_window_position = %{width: 0, height: videos_window_resolution.height}
 
             videos_config_bar(videos, videos_window_resolution, @base_position) ++
               screenshare_config(screenshare, sh_window_resolution, sh_window_position)
+
+          {_screenshares, _videos} ->
+            raise "The recording handler accepts only a single screen share"
         end
 
       {to_scene(videos_config), state}
@@ -100,8 +103,7 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
     defp videos_config_bar(videos, window_resolution, window_position) do
       column_width = div(window_resolution.width, length(videos))
 
-      desired_resolution =
-        %{
+      desired_resolution = %{
           width: column_width - @padding * 2,
           height: window_resolution.height - @padding * 2
         }
