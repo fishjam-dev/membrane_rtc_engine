@@ -104,9 +104,9 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
       column_width = div(window_resolution.width, length(videos))
 
       desired_resolution = %{
-          width: column_width - @padding * 2,
-          height: window_resolution.height - @padding * 2
-        }
+        width: column_width - @padding * 2,
+        height: window_resolution.height - @padding * 2
+      }
 
       scaled_resolutions =
         Enum.map(videos, fn {_ref, video} -> scale(desired_resolution, video.stream_format) end)
