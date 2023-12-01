@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.File do
   @moduledoc """
   An Endpoint responsible for publishing data from a file.
-  By default only supports OPUS and H264 files.
+  By default only supports OPUS encapsulated in Ogg container and raw H264 files.
   By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
   It starts publishing data after calling function `start_sending` with proper arguments.
   After publishing track it sends to engine parent notification `:tracks_added`.
@@ -51,6 +51,9 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 description: """
                 Additional pipeline transformation after `file_source`.
                 The output stream must be encoded in OPUS or H264.
+
+                Use this option when the provided file uses encoding other than
+                Ogg encapsulated OPUS audio or H264 video.
 
                 Example usage:
                 * Reading ACC file: `fn link_builder ->  link_builder
@@ -109,36 +112,34 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   @impl true
   def handle_pad_added(Pad.ref(:output, {_track_id, _rid}) = pad, _ctx, state) do
-    payloader = Membrane.RTP.PayloadFormat.get(state.track.encoding).payloader
+    actions =
+      if state.track.encoding == :OPUS and
+           state.after_source_transformation == (&Function.identity/1) do
+        build_pipeline_ogg_demuxer(state)
+      else
+        build_full_pipeline(state, pad)
+      end
 
-    payloader_bin = %PayloaderBin{
-      payloader: payloader,
-      ssrc: state.ssrc,
-      payload_type: state.payload_type,
-      clock_rate: state.track.clock_rate
-    }
+    {actions, state}
+  end
 
-    parser = get_parser(state.track)
+  @impl true
+  def handle_child_notification(
+        {:new_track, {track_id, :opus}},
+        :ogg_demuxer,
+        ctx,
+        state
+      ) do
+    [output_pad] =
+      ctx.pads
+      |> Map.keys()
+      |> Enum.filter(&match?({Membrane.Pad, :output, _pad_id}, &1))
 
     spec = [
-      child(:source, %Membrane.File.Source{location: state.file_path})
-      |> then(&state.after_source_transformation.(&1))
-      |> then(parser)
-      |> child(:payloader, payloader_bin)
-      |> via_in(:input, toilet_capacity: @toilet_capacity)
-      |> child(:realtimer, Membrane.Realtimer)
-      |> via_in(:input, toilet_capacity: @toilet_capacity)
-      |> child(:track_sender, %StaticTrackSender{
-        track: state.track,
-        is_keyframe: fn buffer, track ->
-          case track.encoding do
-            :OPUS -> true
-            :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
-            :VP8 -> Membrane.RTP.VP8.Utils.is_keyframe(buffer.payload)
-          end
-        end
-      })
-      |> bin_output(pad)
+      get_child(:ogg_demuxer)
+      |> via_out(Pad.ref(:output, track_id))
+      |> child(:parser, %Membrane.Opus.Parser{})
+      |> then(get_rest_of_pipeline(state, output_pad))
     ]
 
     {[spec: spec], state}
@@ -183,6 +184,55 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   def handle_parent_notification(:start, _ctx, state) do
     track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
     {[notify_parent: track_ready], state}
+  end
+
+  defp build_pipeline_ogg_demuxer(state) do
+    spec = [
+      child(:source, %Membrane.File.Source{location: state.file_path})
+      |> child(:ogg_demuxer, Membrane.Ogg.Demuxer)
+    ]
+
+    [spec: spec]
+  end
+
+  defp build_full_pipeline(state, pad) do
+    spec = [
+      child(:source, %Membrane.File.Source{location: state.file_path})
+      |> then(&state.after_source_transformation.(&1))
+      |> then(get_parser(state.track))
+      |> then(get_rest_of_pipeline(state, pad))
+    ]
+
+    [spec: spec]
+  end
+
+  defp get_rest_of_pipeline(state, pad) do
+    payloader = Membrane.RTP.PayloadFormat.get(state.track.encoding).payloader
+
+    payloader_bin = %PayloaderBin{
+      payloader: payloader,
+      ssrc: state.ssrc,
+      payload_type: state.payload_type,
+      clock_rate: state.track.clock_rate
+    }
+
+    fn link_builder ->
+      link_builder
+      |> child(:payloader, payloader_bin)
+      |> via_in(:input, toilet_capacity: @toilet_capacity)
+      |> child(:realtimer, Membrane.Realtimer)
+      |> via_in(:input, toilet_capacity: @toilet_capacity)
+      |> child(:track_sender, %StaticTrackSender{
+        track: state.track,
+        is_keyframe: fn buffer, track ->
+          case track.encoding do
+            :OPUS -> true
+            :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
+          end
+        end
+      })
+      |> bin_output(pad)
+    end
   end
 
   defp get_parser(%Track{encoding: :OPUS}) do

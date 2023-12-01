@@ -4,6 +4,7 @@
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
 * Add `get_tracks` function in `Engine` module [#328](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/328)
 * Change some logs to debug [#327](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/327)
+* Miniscule doc fix [#333](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/333)
 
 ## 0.18.0
 * Modify `Track`, mix.exs and docs because of adding File Endpoint [#323](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/323)

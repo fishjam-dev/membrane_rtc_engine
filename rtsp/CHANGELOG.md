@@ -1,7 +1,9 @@
 # Changelog
 
 ## 0.4.0-dev
+
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
+* Change core dependency in mix.exs from 1.0.0 to 1.0
 
 ## 0.3.0
 * Bump deps [#323](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/323)

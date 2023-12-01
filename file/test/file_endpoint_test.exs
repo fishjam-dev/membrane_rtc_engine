@@ -28,6 +28,7 @@ defmodule Membrane.RTC.FileEndpointTest do
 
   @source_endpoint_id "source-endpoint-id"
   @sink_endpoint_id "sink-endpoint-id"
+  @out_opus_reference "out_audio.opus"
 
   describe "File Endpoint test" do
     @tag :tmp_dir
@@ -37,6 +38,7 @@ defmodule Membrane.RTC.FileEndpointTest do
     } do
       file_name = "audio.opus"
       file_path = Path.join(@fixtures_dir, file_name)
+      reference_path = Path.join(@fixtures_dir, @out_opus_reference)
 
       output_file = Path.join([tmp_dir, "out_audio.opus"])
 
@@ -83,8 +85,8 @@ defmodule Membrane.RTC.FileEndpointTest do
       :ok = Engine.remove_endpoint(rtc_engine, @sink_endpoint_id)
 
       assert File.exists?(output_file)
-      assert File.read!(output_file) |> byte_size() == File.read!(file_path) |> byte_size()
-      assert File.read!(output_file) == File.read!(file_path)
+      assert File.read!(output_file) |> byte_size() == File.read!(reference_path) |> byte_size()
+      assert File.read!(output_file) == File.read!(reference_path)
     end
 
     @tag :tmp_dir
