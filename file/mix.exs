@@ -57,6 +57,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
       {:membrane_realtimer_plugin, "~> 0.9.0"},
       {:membrane_file_plugin, "~> 0.16.0"},
       {:membrane_opus_plugin, "~> 0.19.0"},
+      {:membrane_ogg_plugin, "~> 0.3.0"},
       {:membrane_h264_plugin, "~> 0.9.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
