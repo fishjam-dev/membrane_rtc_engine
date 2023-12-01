@@ -117,7 +117,7 @@ callback can look like this
 ```elixir
 @impl true
 def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-  structure = [
+  spec = [
     bin_input(pad)
     |> child({:track_receiver, track_id}, %TrackReceiver{
       track: Map.fetch!(state.tracks, track_id),
@@ -129,7 +129,7 @@ def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
     })
   ]
 
-  {[spec: structure], state}
+  {[spec: spec], state}
 end
 ```
 
@@ -211,7 +211,7 @@ defmodule RecordingEndpoint do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-    structure = [
+    spec = [
       bin_input(pad)
       |> child({:track_receiver, track_id}, %TrackReceiver{
         track: Map.fetch!(state.tracks, track_id),
@@ -223,7 +223,7 @@ defmodule RecordingEndpoint do
       })
     ]
 
-    {[spec: structure], state}
+    {[spec: spec], state}
   end
 
   @impl true
@@ -234,7 +234,7 @@ defmodule RecordingEndpoint do
       {:sink, track_id}
     ]
 
-    {[remove_child: children], state}
+    {[remove_children: children], state}
   end
 
   @impl true

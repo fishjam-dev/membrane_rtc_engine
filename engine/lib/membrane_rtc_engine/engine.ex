@@ -234,6 +234,11 @@ defmodule Membrane.RTC.Engine do
     do_start(:start_link, options, process_options)
   end
 
+  @spec terminate(pid) :: :ok
+  def terminate(engine) do
+    Membrane.Pipeline.terminate(engine)
+  end
+
   defp do_start(func, options, process_options) when func in [:start, :start_link] do
     id = options[:id] || "#{UUID.uuid4()}"
     display_manager? = options[:display_manager?] || false
@@ -382,7 +387,7 @@ defmodule Membrane.RTC.Engine do
     toilet_capacity = options[:toilet_capacity] || 200
     if toilet_capacity < 0, do: raise("toilet_capacity has to be a positive integer")
 
-    {[playback: :playing],
+    {[],
      %State{
        id: options[:id],
        component_path: Membrane.ComponentPath.get_formatted(),
@@ -750,7 +755,10 @@ defmodule Membrane.RTC.Engine do
         &Endpoint.update_track_encoding(&1, track_id, encoding)
       )
 
-    spec = {links, crash_group: {endpoint_id, :temporary}, log_metadata: [rtc_engine: state.id]}
+    spec =
+      {links,
+       group: endpoint_id, crash_group_mode: :temporary, log_metadata: [rtc_engine: state.id]}
+
     {[spec: spec], state}
   end
 
@@ -826,7 +834,7 @@ defmodule Membrane.RTC.Engine do
       })
     )
 
-    {tracks_msgs ++ [remove_child: track_tees], %{state | subscriptions: subscriptions}}
+    {tracks_msgs ++ [remove_children: track_tees], %{state | subscriptions: subscriptions}}
   end
 
   defp validate_track(track) do
@@ -878,7 +886,8 @@ defmodule Membrane.RTC.Engine do
     spec = {
       child(endpoint_name, endpoint_entry),
       node: opts[:node],
-      crash_group: {endpoint_id, :temporary},
+      group: endpoint_id,
+      crash_group_mode: :temporary,
       log_metadata: [rtc_engine: state.id]
     }
 
@@ -923,7 +932,7 @@ defmodule Membrane.RTC.Engine do
         if endpoint_bin == nil or endpoint_bin.terminating? do
           {{:present, endpoint}, tracks_msgs ++ endpoint_removed_msgs, state}
         else
-          actions = [remove_child: find_children_for_endpoint(endpoint, ctx)]
+          actions = [remove_children: find_children_for_endpoint(endpoint, ctx)]
           {{:present, endpoint}, tracks_msgs ++ endpoint_removed_msgs ++ actions, state}
         end
 
@@ -934,7 +943,7 @@ defmodule Membrane.RTC.Engine do
         if endpoint_bin == nil or endpoint_bin.terminating? do
           {{:present, pending_endpoint}, [], state}
         else
-          {{:present, pending_endpoint}, [remove_child: {:endpoint, endpoint_id}], state}
+          {{:present, pending_endpoint}, [remove_children: {:endpoint, endpoint_id}], state}
         end
 
       true ->

@@ -9,6 +9,7 @@ defmodule Membrane.RTC.Engine.Support.TestSink do
   alias Membrane.Testing.Notification
 
   def_input_pad :input,
+    flow_control: :manual,
     demand_unit: :buffers,
     accepted_format: _any
 
@@ -60,7 +61,7 @@ defmodule Membrane.RTC.Engine.Support.TestSink do
   end
 
   @impl true
-  def handle_write(:input, buf, _ctx, state) do
+  def handle_buffer(:input, buf, _ctx, state) do
     case state do
       %{autodemand: false} -> {notify({:buffer, buf}), state}
       %{autodemand: true} -> {[demand: :input] ++ notify({:buffer, buf}), state}

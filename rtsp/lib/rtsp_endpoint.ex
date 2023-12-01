@@ -45,7 +45,6 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
   @recv_buffer_size 1024 * 1024
 
   def_output_pad :output,
-    demand_unit: :buffers,
     accepted_format: Membrane.RTP,
     availability: :on_request
 
@@ -128,7 +127,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
         %{sps: sps, pps: pps} -> {[sps], [pps]}
       end
 
-    structure = [
+    spec = [
       get_child(:rtp)
       |> via_out(Pad.ref(:output, state.ssrc),
         options: [depayloader: Membrane.RTP.H264.Depayloader]
@@ -162,7 +161,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
       |> bin_output(pad)
     ]
 
-    {[spec: structure], state}
+    {[spec: spec], state}
   end
 
   @impl true
@@ -278,7 +277,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
     pierce_nat_ctx =
       if state.pierce_nat, do: %{uri: state.source_uri, port: options.server_port}, else: nil
 
-    structure = [
+    spec = [
       child(:udp_source, %Membrane.UDP.Source{
         local_port_no: state.rtp_port,
         pierce_nat_ctx: pierce_nat_ctx,
@@ -291,7 +290,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP do
     ]
 
     actions = [
-      spec: structure,
+      spec: spec,
       notify_parent: {:forward_to_parent, :rtsp_setup_complete},
       notify_parent: {:publish, {:new_tracks, [track]}}
     ]

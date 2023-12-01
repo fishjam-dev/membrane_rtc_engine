@@ -52,14 +52,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       {:membrane_rtc_engine, path: "../engine"},
 
       # Regular deps
-      {:membrane_core, "~> 0.12.3"},
-      {:membrane_webrtc_plugin, "~> 0.16.2"},
-      {:membrane_rtp_plugin, "~> 0.23.0"},
-      {:membrane_ice_plugin, "~> 0.16.0"},
-      {:membrane_rtp_format, "~> 0.7.0"},
+      {:membrane_core, "~> 1.0"},
+      {:membrane_webrtc_plugin, "~> 0.17.0"},
+      {:membrane_rtp_plugin, "~> 0.24.1"},
+      {:membrane_ice_plugin, "~> 0.17.0"},
+      {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_opentelemetry, "~> 0.1.0"},
-      {:membrane_rtp_vp8_plugin, "~> 0.8.0"},
-      {:membrane_rtp_h264_plugin, "~> 0.18.0"},
+      {:membrane_rtp_vp8_plugin, "~> 0.9.0"},
+      {:membrane_rtp_h264_plugin, "~> 0.19.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
       {:ex_sdp, "~> 0.13.1"},
       {:qex, "~> 0.5"},
@@ -69,7 +69,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
       # Test deps
-      {:membrane_file_plugin, "~> 0.15.0"},
+      {:membrane_file_plugin, "~> 0.16.0"},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
 
       # Otel

@@ -15,7 +15,7 @@ defmodule Membrane.RTC.EngineTest do
 
     Engine.register(pid, self())
 
-    on_exit(fn -> assert :ok = Engine.terminate(pid, blocking?: true) end)
+    on_exit(fn -> assert :ok = Engine.terminate(pid) end)
 
     [rtc_engine: pid]
   end
