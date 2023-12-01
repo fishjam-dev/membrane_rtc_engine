@@ -52,6 +52,9 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 Additional pipeline transformation after `file_source`.
                 The output stream must be encoded in OPUS or H264.
 
+                Use this option when the provided file uses encoding other than
+                Ogg encapsulated OPUS audio or H264 video.
+
                 Example usage:
                 * Reading ACC file: `fn link_builder ->  link_builder
                 |> child(:decoder, Membrane.AAC.FDK.Decoder)
