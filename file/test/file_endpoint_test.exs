@@ -11,17 +11,13 @@ defmodule Membrane.RTC.FileEndpointTest do
   @fixtures_dir "./test/fixtures/"
 
   setup do
-    options = [
-      id: "test_rtc"
-    ]
+    options = [ id: "test_rtc" ]
 
     {:ok, pid} = Engine.start_link(options, [])
 
     Engine.register(pid, self())
 
-    on_exit(fn ->
-      Engine.terminate(pid)
-    end)
+    on_exit(fn -> Engine.terminate(pid) end)
 
     [rtc_engine: pid]
   end
@@ -32,124 +28,111 @@ defmodule Membrane.RTC.FileEndpointTest do
 
   describe "File Endpoint test" do
     @tag :tmp_dir
-    test "OPUS test", %{
-      rtc_engine: rtc_engine,
-      tmp_dir: tmp_dir
-    } do
-      file_name = "audio.opus"
-      file_path = Path.join(@fixtures_dir, file_name)
-      reference_path = Path.join(@fixtures_dir, @out_opus_reference)
-
-      output_file = Path.join([tmp_dir, "out_audio.opus"])
-
-      :ok =
-        Engine.add_endpoint(
-          rtc_engine,
-          %Support.Sink{
-            rtc_engine: rtc_engine,
-            file_path: output_file
-          },
-          id: @sink_endpoint_id
-        )
-
-      file_endpoint =
-        create_audio_file_endpoint(
-          rtc_engine,
-          file_path
-        )
-
-      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: @source_endpoint_id)
-
-      assert_receive %Message.EndpointMessage{
-        endpoint_id: @source_endpoint_id,
-        message: :tracks_added
-      }
-
-      assert_receive %Message.EndpointMessage{
-        message: :tracks_subscribed
-      }
-
-      Endpoint.File.start_sending(rtc_engine, @source_endpoint_id)
-
-      refute_receive %Message.EndpointCrashed{endpoint_id: @sink_endpoint_id}
-
-      assert_receive %Message.EndpointMessage{
-                       message: :finished,
-                       endpoint_id: @source_endpoint_id
-                     },
-                     25_000
-
-      assert_receive %Message.EndpointMessage{message: :finished, endpoint_id: @sink_endpoint_id},
-                     25_000
-
-      :ok = Engine.remove_endpoint(rtc_engine, @sink_endpoint_id)
-
-      assert File.exists?(output_file)
-      assert File.read!(output_file) |> byte_size() == File.read!(reference_path) |> byte_size()
-      assert File.read!(output_file) == File.read!(reference_path)
+    test "test audio no autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+      test_endpoint(
+        type: :audio,
+        rtc_engine: rtc_engine,
+        tmp_dir: tmp_dir,
+        autoplay: false,
+        reference_path: @out_opus_reference
+      )
     end
 
     @tag :tmp_dir
-    test "h264 test", %{
-      rtc_engine: rtc_engine,
-      tmp_dir: tmp_dir
-    } do
-      file_name = "video.h264"
-      file_path = Path.join(@fixtures_dir, file_name)
+    test "test audio with autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+      test_endpoint(
+        type: :audio,
+        rtc_engine: rtc_engine,
+        tmp_dir: tmp_dir,
+        autoplay: true,
+        reference_path: @out_opus_reference
+      )
+    end
 
-      output_file = Path.join([tmp_dir, "out_video.h264"])
+    @tag :tmp_dir
+    test "test video no autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+      test_endpoint(type: :video, rtc_engine: rtc_engine, tmp_dir: tmp_dir, autoplay: false)
+    end
 
-      :ok =
-        Engine.add_endpoint(
-          rtc_engine,
-          %Support.Sink{
-            rtc_engine: rtc_engine,
-            file_path: output_file
-          },
-          id: @sink_endpoint_id
-        )
-
-      file_endpoint =
-        create_video_file_endpoint(
-          rtc_engine,
-          file_path
-        )
-
-      :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: @source_endpoint_id)
-
-      assert_receive %Message.EndpointMessage{
-        endpoint_id: @source_endpoint_id,
-        message: :tracks_added
-      }
-
-      assert_receive %Message.EndpointMessage{
-        message: :tracks_subscribed
-      }
-
-      Endpoint.File.start_sending(rtc_engine, @source_endpoint_id)
-
-      refute_receive %Message.EndpointCrashed{endpoint_id: @sink_endpoint_id}
-
-      assert_receive %Message.EndpointMessage{
-                       message: :finished,
-                       endpoint_id: @source_endpoint_id
-                     },
-                     25_000
-
-      assert_receive %Message.EndpointMessage{message: :finished, endpoint_id: @sink_endpoint_id},
-                     25_000
-
-      :ok = Engine.remove_endpoint(rtc_engine, @sink_endpoint_id)
-
-      assert File.exists?(output_file)
-      assert File.read!(output_file) |> byte_size() == File.read!(file_path) |> byte_size()
-      assert File.read!(output_file) == File.read!(file_path)
+    @tag :tmp_dir
+    test "test video with autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+      test_endpoint(type: :video, rtc_engine: rtc_engine, tmp_dir: tmp_dir, autoplay: true)
     end
   end
 
-  defp create_video_file_endpoint(
+  defp test_endpoint(opts) do
+    file_name = get_filename(opts[:type])
+    file_path = Path.join(@fixtures_dir, file_name)
+
+    reference_path =
+      if Keyword.has_key?(opts, :reference_path) do
+        Path.join(@fixtures_dir, opts[:reference_path])
+      else
+        file_path
+      end
+
+    output_file = Path.join([opts[:tmp_dir], "out_#{file_name}"])
+    rtc_engine = opts[:rtc_engine]
+
+    :ok =
+      Engine.add_endpoint(
+        rtc_engine,
+        %Support.Sink{
+          rtc_engine: rtc_engine,
+          file_path: output_file
+        },
+        id: @sink_endpoint_id
+      )
+
+    file_endpoint =
+      create_file_endpoint(
+        opts[:type],
+        rtc_engine,
+        file_path,
+        opts[:autoplay]
+      )
+
+    :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: @source_endpoint_id)
+
+    assert_receive %Message.EndpointMessage{
+      endpoint_id: @source_endpoint_id,
+      message: :tracks_added
+    }
+
+    assert_receive %Message.EndpointMessage{
+      message: :tracks_subscribed
+    }
+
+    unless opts[:autoplay] do
+      Endpoint.File.start_sending(rtc_engine, @source_endpoint_id)
+    end
+
+    refute_receive %Message.EndpointCrashed{endpoint_id: @sink_endpoint_id}
+
+    assert_receive %Message.EndpointMessage{
+                     message: :finished,
+                     endpoint_id: @source_endpoint_id
+                   },
+                   25_000
+
+    assert_receive %Message.EndpointMessage{message: :finished, endpoint_id: @sink_endpoint_id},
+                   25_000
+
+    :ok = Engine.remove_endpoint(rtc_engine, @sink_endpoint_id)
+
+    assert File.exists?(output_file)
+    assert File.read!(output_file) |> byte_size() == File.read!(reference_path) |> byte_size()
+    assert File.read!(output_file) == File.read!(reference_path)
+  end
+
+  defp get_filename(:video), do: "video.h264"
+  defp get_filename(:audio), do: "audio.ogg"
+
+  defp create_file_endpoint(
+         :video,
          rtc_engine,
-         video_file_path
+         video_file_path,
+         autoplay
        ) do
     video_track_config = %Endpoint.File.TrackConfig{
       type: :video,
@@ -165,20 +148,23 @@ defmodule Membrane.RTC.FileEndpointTest do
       rtc_engine: rtc_engine,
       file_path: video_file_path,
       track_config: video_track_config,
-      payload_type: 96
+      payload_type: 96,
+      autoplay: autoplay
     }
   end
 
-  defp create_audio_file_endpoint(
+  defp create_file_endpoint(
+         :audio,
          rtc_engine,
-         audio_file_path
+         audio_file_path,
+         autoplay
        ) do
     ext = String.split(audio_file_path, ".") |> List.last()
 
     encoding =
       case ext do
         "aac" -> :AAC
-        "opus" -> :OPUS
+        "ogg" -> :OPUS
       end
 
     audio_track_config = %Endpoint.File.TrackConfig{
@@ -194,7 +180,8 @@ defmodule Membrane.RTC.FileEndpointTest do
       rtc_engine: rtc_engine,
       file_path: audio_file_path,
       track_config: audio_track_config,
-      payload_type: 108
+      payload_type: 108,
+      autoplay: autoplay
     }
   end
 end

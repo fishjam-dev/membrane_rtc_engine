@@ -3,7 +3,8 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   An Endpoint responsible for publishing data from a file.
   By default only supports OPUS encapsulated in Ogg container and raw H264 files.
   By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
-  It starts publishing data after calling function `start_sending` with proper arguments.
+  It starts publishing data immediately after initialization, if `autoplay` is set to true (default),
+  or if `autoplay` is disabled - after calling `start_sending` function with proper arguments.
   After publishing track it sends to engine parent notification `:tracks_added`.
   After sending all data from file it sends to engine parent notification `:finished`.
   """
@@ -44,6 +45,13 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
               payload_type: [
                 spec: RTP.payload_type_t(),
                 description: "Payload type of RTP packets"
+              ],
+              autoplay: [
+                spec: boolean(),
+                default: true,
+                description: "Indicates, whether the endpoint should start sending
+                media immediately after initialization. If set to `false`,
+                the `start_sending` function has to be used."
               ],
               after_source_transformation: [
                 spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
@@ -104,10 +112,15 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   @impl true
   def handle_playing(_ctx, state) do
-    {[
-       notify_parent: {:publish, {:new_tracks, [state.track]}},
-       notify_parent: {:forward_to_parent, :tracks_added}
-     ], state}
+    maybe_start_action = if state.autoplay, do: get_track_ready_notification(state), else: []
+
+    actions =
+      [
+        notify_parent: {:publish, {:new_tracks, [state.track]}},
+        notify_parent: {:forward_to_parent, :tracks_added}
+      ] ++ maybe_start_action
+
+    {actions, state}
   end
 
   @impl true
@@ -182,8 +195,11 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   @impl true
   def handle_parent_notification(:start, _ctx, state) do
-    track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
-    {[notify_parent: track_ready], state}
+    {get_track_ready_notification(state), state}
+  end
+
+  defp get_track_ready_notification(state) do
+    [notify_parent: {:track_ready, state.track.id, :high, state.track.encoding}]
   end
 
   defp build_pipeline_ogg_demuxer(state) do

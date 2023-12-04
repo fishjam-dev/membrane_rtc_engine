@@ -63,8 +63,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
-
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{video_segments: 2}})
@@ -119,8 +117,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        [^rtc_engine, "hls-endpoint", ^track_id, _opts]}},
                      @tracks_added_delay
 
-      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
-
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{video_segments: 2}})
@@ -170,9 +166,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        message: :tracks_added
                      },
                      @tracks_added_delay
-
-      FileEndpoint.start_sending(rtc_engine, video_file_endpoint_id)
-      FileEndpoint.start_sending(rtc_engine, audio_file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
@@ -310,9 +303,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      FileEndpoint.start_sending(rtc_engine, video_file_endpoint_id)
-      FileEndpoint.start_sending(rtc_engine, audio_file_endpoint_id)
-
       assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
       assert_receive({:segment, "muxed_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{muxed_segments: 2}})
@@ -361,9 +351,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
-      FileEndpoint.start_sending(rtc_engine, file_endpoint_id_2)
-
       assert_receive({:playlist_playable, :audio, ^tmp_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
 
@@ -409,9 +396,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        message: :tracks_added
                      },
                      @tracks_added_delay
-
-      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
-      FileEndpoint.start_sending(rtc_engine, file_endpoint_id_2)
 
       assert_receive({:playlist_playable, :audio, ^tmp_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :video, ^tmp_dir}, @playlist_playable_delay)
