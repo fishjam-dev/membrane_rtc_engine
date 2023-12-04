@@ -237,9 +237,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      Engine.message_endpoint(rtc_engine, video_file_endpoint_id, :start)
-      Engine.message_endpoint(rtc_engine, audio_file_endpoint_id, :start)
-
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
 

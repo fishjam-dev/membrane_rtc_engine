@@ -11,7 +11,7 @@ defmodule Membrane.RTC.FileEndpointTest do
   @fixtures_dir "./test/fixtures/"
 
   setup do
-    options = [ id: "test_rtc" ]
+    options = [id: "test_rtc"]
 
     {:ok, pid} = Engine.start_link(options, [])
 
