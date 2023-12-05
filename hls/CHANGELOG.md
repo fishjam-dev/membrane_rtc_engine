@@ -4,6 +4,7 @@
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
 
 ## 0.3.0
+* Add recording layout [#335](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/335)
 * Add manual track subscription [#328](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/328)
 * Add cleanup feature [#324](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/324)
 * Move tests to `integration_tests` [#323](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/323)

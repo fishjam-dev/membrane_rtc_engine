@@ -461,7 +461,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         })
         |> child({:decoder, track.id}, Membrane.H264.FFmpeg.Decoder)
         |> via_in(Pad.ref(:input, track.id),
-          options: [timestamp_offset: offset]
+          options: [timestamp_offset: offset, metadata: track.metadata]
         )
         |> get_child(:compositor)
       ]
@@ -478,7 +478,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     defp generate_compositor(%{mixer_config: %{video: video_config}} = state, _ctx) do
       compositor = %Membrane.VideoCompositor{
         output_stream_format: video_config.stream_format,
-        handler: Membrane.RTC.Engine.Endpoint.HLS.CompositorHandler,
+        handler: Membrane.RTC.Engine.Endpoint.HLS.RecordingHandler,
         queuing_strategy: %Membrane.VideoCompositor.QueueingStrategy.Live{
           latency: :wait_for_start_event,
           eos_strategy: :schedule_eos
