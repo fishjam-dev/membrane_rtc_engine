@@ -234,9 +234,33 @@ defmodule Membrane.RTC.Engine do
     do_start(:start_link, options, process_options)
   end
 
-  @spec terminate(pid) :: :ok
-  def terminate(engine) do
-    Membrane.Pipeline.terminate(engine)
+  @doc """
+  Terminates the engine.
+
+  Accepts three options:
+    * `asynchronous?` - if set to `true`, pipline termination won't be blocking and
+      will be executed in the process, which pid is returned as function result. If
+      set to `false`, engine termination will be blocking and will be executed in
+      the process that called this function. Defaults to `false`.
+    * `timeout` - tells how much time (ms) to wait for engine to get gracefully
+      terminated. Defaults to 5000.
+    * `force?` - if set to `true` and engine is still alive after `timeout`,
+      engine will be killed using `Process.exit/2` with reason `:kill`, and function
+      will return `{:error, :timeout}`. If set to `false` and engine is still alive
+      after `timeout`, function will raise an error. Defaults to `false`.
+
+  Returns:
+    * `{:ok, pid}` - if option `asynchronous?: true` was passed.
+    * `:ok` - if engine was gracefully terminated within `timeout`.
+    * `{:error, :timeout}` - if engine was killed after a `timeout`.
+  """
+  @spec terminate(pid,
+          timeout: timeout(),
+          force?: boolean(),
+          asynchronous?: boolean()
+        ) :: :ok | {:ok, pid()} | {:error, :timeout}
+  def terminate(engine, opts \\ []) do
+    Membrane.Pipeline.terminate(engine, opts)
   end
 
   defp do_start(func, options, process_options) when func in [:start, :start_link] do
