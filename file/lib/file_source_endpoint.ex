@@ -104,23 +104,23 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
       |> Map.drop([:track_config])
       |> Map.merge(%{
         track: track,
-        ssrc: opts.ssrc || new_ssrc()
+        ssrc: opts.ssrc || new_ssrc(),
+        started: false
       })
 
     {[notify_parent: {:ready, nil}], state}
   end
 
   @impl true
-  def handle_playing(_ctx, state) do
-    maybe_start_action = if state.autoplay, do: get_track_ready_notification(state), else: []
+  def handle_playing(_ctx, %{autoplay: false} = state) do
+    {get_new_tracks_actions(state), state}
+  end
 
-    actions =
-      [
-        notify_parent: {:publish, {:new_tracks, [state.track]}},
-        notify_parent: {:forward_to_parent, :tracks_added}
-      ] ++ maybe_start_action
+  @impl true
+  def handle_playing(_ctx, %{autoplay: true} = state) do
+    actions = get_new_tracks_actions(state) ++ get_track_ready_notification(state)
 
-    {actions, state}
+    {actions, %{state | started: true}}
   end
 
   @impl true
@@ -194,12 +194,31 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   @impl true
+  def handle_parent_notification(:start, _ctx, %{autoplay: true} = state) do
+    Membrane.Logger.warning("Trying to manually start sending media in autoplay mode")
+    {[], state}
+  end
+
+  @impl true
+  def handle_parent_notification(:start, _ctx, %{started: true} = state) do
+    Membrane.Logger.warning("Trying to manually start sending media when already started")
+    {[], state}
+  end
+
+  @impl true
   def handle_parent_notification(:start, _ctx, state) do
-    {get_track_ready_notification(state), state}
+    {get_track_ready_notification(state), %{state | started: true}}
   end
 
   defp get_track_ready_notification(state) do
     [notify_parent: {:track_ready, state.track.id, :high, state.track.encoding}]
+  end
+
+  defp get_new_tracks_actions(state) do
+    [
+      notify_parent: {:publish, {:new_tracks, [state.track]}},
+      notify_parent: {:forward_to_parent, :tracks_added}
+    ]
   end
 
   defp build_pipeline_ogg_demuxer(state) do

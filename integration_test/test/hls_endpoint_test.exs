@@ -90,7 +90,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_endpoint = %{hls_endpoint | subscribe_mode: :manual}
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint = create_video_file_endpoint(rtc_engine, file_path, stream_id)
+      file_endpoint =
+        create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id, autoplay: false)
 
       :erlang.trace(:all, true, [:call])
       :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
@@ -116,6 +117,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
                       {Membrane.RTC.Engine, :subscribe,
                        [^rtc_engine, "hls-endpoint", ^track_id, _opts]}},
                      @tracks_added_delay
+
+      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
@@ -147,7 +150,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
         create_video_file_endpoint(
           rtc_engine,
           video_file_path,
-          stream_id
+          stream_id: stream_id
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
@@ -217,7 +220,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
         create_video_file_endpoint(
           rtc_engine,
           video_file_path,
-          stream_id
+          stream_id: stream_id
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
@@ -530,11 +533,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
   defp create_video_file_endpoint(
          rtc_engine,
          video_file_path,
-         stream_id \\ nil
+         opts \\ []
        ) do
     video_track_config = %FileEndpoint.TrackConfig{
       type: :video,
-      stream_id: stream_id,
+      stream_id: Keyword.get(opts, :stream_id),
       encoding: :H264,
       clock_rate: 90_000,
       fmtp: %FMTP{
@@ -550,7 +553,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       rtc_engine: rtc_engine,
       file_path: video_file_path,
       track_config: video_track_config,
-      payload_type: 96
+      payload_type: 96,
+      autoplay: Keyword.get(opts, :autoplay, true)
     }
   end
 
