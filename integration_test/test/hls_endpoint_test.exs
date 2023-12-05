@@ -53,7 +53,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :single)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint = create_video_file_endpoint(rtc_engine, file_path, stream_id)
+      file_endpoint = create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id)
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
