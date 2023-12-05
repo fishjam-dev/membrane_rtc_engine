@@ -234,9 +234,13 @@ defmodule Membrane.RTC.Engine do
     do_start(:start_link, options, process_options)
   end
 
-  @spec terminate(pid) :: :ok
-  def terminate(engine) do
-    Membrane.Pipeline.terminate(engine)
+  @spec terminate(pid,
+          timeout: timeout(),
+          force?: boolean(),
+          asynchronous?: boolean()
+        ) :: :ok
+  def terminate(engine, opts \\ []) do
+    Membrane.Pipeline.terminate(engine, opts)
   end
 
   defp do_start(func, options, process_options) when func in [:start, :start_link] do
