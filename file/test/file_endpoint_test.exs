@@ -123,8 +123,6 @@ defmodule Membrane.RTC.FileEndpointTest do
     assert File.exists?(output_file)
     assert File.read!(output_file) |> byte_size() == File.read!(reference_path) |> byte_size()
     assert File.read!(output_file) == File.read!(reference_path)
-
-    Process.sleep(200)
   end
 
   defp get_filename(:video), do: "video.h264"
