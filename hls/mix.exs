@@ -77,7 +77,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
 
       # Optional deps for mixing audio and composing video
       {:membrane_audio_mix_plugin, "~> 0.16.0", optional: true},
-      {:membrane_video_compositor_plugin, "~> 0.6.0", optional: true},
+      {:membrane_video_compositor_plugin, "~> 0.7.0", optional: true},
 
       # Test deps
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false}
