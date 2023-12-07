@@ -53,7 +53,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:membrane_opus_plugin, "~> 0.19.0"},
       {:qex, "~> 0.5.1"},
       {:membrane_audio_mix_plugin, "~> 0.16.0"},
-      {:membrane_video_compositor_plugin, "~> 0.6.0"},
+      {:membrane_video_compositor_plugin, "~> 0.7.0"},
       {:membrane_raw_audio_format, "~> 0.12.0"},
       {:membrane_raw_video_format, "~> 0.3.0"},
       {:membrane_h264_ffmpeg_plugin, "~> 0.31.0"},
