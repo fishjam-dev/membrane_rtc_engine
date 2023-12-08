@@ -94,7 +94,7 @@ defmodule Membrane.RTC.EngineTest do
       assert_receive {:new_tracks, [%Track{id: "track1"}]}
     end
 
-    test "doesn't crash if send in wrong order", %{rtc_engine: rtc_engine} do
+    test "doesn't crash if sent in wrong order", %{rtc_engine: rtc_engine} do
       endpoint_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
       first_endpoint = "endpoint1"
       second_endpoint = "endpoint2"
