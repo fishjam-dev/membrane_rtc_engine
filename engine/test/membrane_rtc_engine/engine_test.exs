@@ -93,6 +93,46 @@ defmodule Membrane.RTC.EngineTest do
 
       assert_receive {:new_tracks, [%Track{id: "track1"}]}
     end
+
+    test "doesn't crash if sent in wrong order", %{rtc_engine: rtc_engine} do
+      endpoint_spec = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
+      first_endpoint = "endpoint1"
+      second_endpoint = "endpoint2"
+
+      Engine.add_endpoint(rtc_engine, endpoint_spec, id: first_endpoint)
+
+      endpoint1_track = video_track("endpoint1", "track1", "track1-metadata", "stream1")
+
+      Engine.message_endpoint(
+        rtc_engine,
+        "endpoint1",
+        {:execute_actions, [notify_parent: {:publish, {:new_tracks, [endpoint1_track]}}]}
+      )
+
+      refute_receive {:ready, []}
+      refute_receive {:new_tracks, []}
+
+      Engine.message_endpoint(
+        rtc_engine,
+        "endpoint1",
+        {:execute_actions,
+         [
+           notify_parent: {:ready, "endpoint1-metadata"},
+           notify_parent: {:publish, {:new_tracks, [endpoint1_track]}}
+         ]}
+      )
+
+      Engine.add_endpoint(rtc_engine, endpoint_spec, id: second_endpoint)
+
+      Engine.message_endpoint(
+        rtc_engine,
+        "endpoint2",
+        {:execute_actions, [notify_parent: {:ready, "endpoint2-metadata"}]}
+      )
+
+      assert_receive {:ready, []}
+      assert_receive {:new_tracks, [%Track{id: "track1"}]}
+    end
   end
 
   describe ":update_track_metadata" do

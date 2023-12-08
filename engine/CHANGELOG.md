@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.19.0-dev
+* Discard messages from endpoints that are not marked as ready [#339](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/339)
 * Extend Engine.terminate API [#337](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/337)
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
 * Add `get_tracks` function in `Engine` module [#328](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/328)
