@@ -584,7 +584,7 @@ defmodule Membrane.RTC.Engine do
       handle_endpoint_notification(notification, endpoint_id, ctx, state)
     else
       Membrane.Logger.warning(
-        "Error handling notification: #{inspect(notification)}, endpoint: #{endpoint_id} is not ready"
+        "Ignoring notification: #{inspect(notification)}, endpoint: #{endpoint_id} is not ready"
       )
 
       {[], state}
