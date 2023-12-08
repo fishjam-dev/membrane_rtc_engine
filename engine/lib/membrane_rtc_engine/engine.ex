@@ -569,11 +569,24 @@ defmodule Membrane.RTC.Engine do
   end
 
   @impl true
-  def handle_child_notification(notification, {:endpoint, endpoint_id}, ctx, state) do
-    if Map.has_key?(state.endpoints, endpoint_id) or
-         Map.has_key?(state.pending_endpoints, endpoint_id) do
+  def handle_child_notification(
+        notification,
+        {:endpoint, endpoint_id},
+        ctx,
+        %{endpoints: endpoints, pending_endpoints: pending_endpoints} = state
+      ) do
+    handle_notification? =
+      Map.has_key?(endpoints, endpoint_id) or
+        (Map.has_key?(pending_endpoints, endpoint_id) and
+           endpoint_ready_notification?(notification))
+
+    if handle_notification? do
       handle_endpoint_notification(notification, endpoint_id, ctx, state)
     else
+      Membrane.Logger.warning(
+        "Error handling notification: #{inspect(notification)}, endpoint: #{endpoint_id} is not ready"
+      )
+
       {[], state}
     end
   end
@@ -1154,4 +1167,8 @@ defmodule Membrane.RTC.Engine do
       for {_, pid} <- entries, do: send(pid, message)
     end)
   end
+
+  defp endpoint_ready_notification?(:ready), do: true
+  defp endpoint_ready_notification?({:ready, _metadata}), do: true
+  defp endpoint_ready_notification?(_notification), do: false
 end
