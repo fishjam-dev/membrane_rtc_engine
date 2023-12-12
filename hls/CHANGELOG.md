@@ -3,6 +3,7 @@
 ## 0.4.0-dev
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
 * Update Membrane Video Compositor dependency [#338](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/338)
+* Fix bug in Reques Handler [#341](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/341)
 
 ## 0.3.0
 * Add recording layout [#335](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/335)
