@@ -86,6 +86,7 @@ defmodule Membrane.RTC.Engine do
   import Membrane.RTC.Utils
 
   require Membrane.Logger
+  require Membrane.OpenTelemetry
 
   alias Membrane.RTC.Engine.{
     DisplayManager,
@@ -103,10 +104,14 @@ defmodule Membrane.RTC.Engine do
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
+  @life_span_id "rtc_engine.life_span"
+
   @typedoc """
   RTC Engine configuration options.
 
   * `id` is used by logger. If not provided it will be generated.
+  * `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
+  Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
   * `display_manager?` - set to `true` if you want to limit number of tracks sent from `#{inspect(__MODULE__)}.Endpoint.WebRTC` to a browser.
   * `toilet_capacity` - sets capacity of buffer between engine and endpoints. Use it when you expect bursts of data for your tracks. If not provided it will be set to 200.
   """
@@ -384,6 +389,17 @@ defmodule Membrane.RTC.Engine do
   def handle_init(_ctx, options) do
     Logger.metadata(rtc_engine: options[:id])
 
+    if Keyword.has_key?(options, :trace_ctx),
+      do: Membrane.OpenTelemetry.attach(options[:trace_ctx])
+
+    start_span_opts =
+      case options[:parent_span] do
+        nil -> []
+        parent_span -> [parent_span: parent_span]
+      end
+
+    Membrane.OpenTelemetry.start_span(@life_span_id, start_span_opts)
+
     display_manager =
       if options[:display_manager?] do
         {:ok, pid} = DisplayManager.start_link(ets_name: options[:id], engine: self())
@@ -420,6 +436,21 @@ defmodule Membrane.RTC.Engine do
   def handle_info({:add_endpoint, endpoint, opts}, _ctx, state) do
     endpoint_id = opts[:id] || UUID.uuid4()
     opts = Keyword.put(opts, :id, endpoint_id)
+
+    endpoint =
+      case endpoint do
+        %_module{
+          parent_span: _span,
+          trace_context: _ctx
+        } ->
+          struct(endpoint,
+            parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
+            trace_context: state.trace_context
+          )
+
+        another_endpoint ->
+          another_endpoint
+      end
 
     if Map.has_key?(state.endpoints, endpoint_id) do
       Membrane.Logger.warning(
