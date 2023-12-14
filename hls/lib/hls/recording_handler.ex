@@ -33,8 +33,9 @@ if Code.ensure_loaded?(Membrane.VideoCompositor) do
           %{output_stream_format: output_stream_format} = state
         ) do
       split_inputs =
-        Enum.split_with(inputs, fn {_ref, %{metadata: metadata}} ->
-          Map.get(metadata, "type") == "screenshare"
+        Enum.split_with(inputs, fn
+          {_ref, %{metadata: %{"type" => "screenshare"}}} -> true
+          {_ref, _metadata} -> false
         end)
 
       # WINDOW
