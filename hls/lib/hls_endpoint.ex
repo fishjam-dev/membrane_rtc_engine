@@ -265,18 +265,25 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
   @impl true
   def handle_parent_notification(
-        {:subscribe, track_ids},
+        {:subscribe, endpoints},
         ctx,
         %{subscribe_mode: :manual} = state
       ) do
-    subscribed_tracks = subscribe_for_tracks(track_ids, ctx, state)
+    subscribed_tracks = Map.keys(state.tracks)
 
-    state =
+    tracks =
       state.rtc_engine
       |> Engine.get_tracks()
-      |> add_tracks(subscribed_tracks, state)
+      |> Enum.filter(fn track ->
+        track.origin in endpoints and track.id not in subscribed_tracks
+      end)
 
-    {[], state}
+    new_subscribed_tracks =
+      tracks
+      |> Enum.map(fn track -> track.id end)
+      |> subscribe_for_tracks(ctx, state)
+
+    {[], add_tracks(tracks, new_subscribed_tracks, state)}
   end
 
   @impl true
