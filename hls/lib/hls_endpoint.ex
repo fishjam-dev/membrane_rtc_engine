@@ -47,62 +47,59 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   @keyframe_window Time.milliseconds(100)
   @terminate_timeout 5000
 
-  def_input_pad(:input,
+  def_input_pad :input,
     accepted_format: Membrane.RTP,
     availability: :on_request
-  )
 
-  def_options(
-    rtc_engine: [
-      spec: pid(),
-      description: "Pid of parent Engine"
-    ],
-    owner: [
-      spec: pid(),
-      description: """
-      Pid of parent all notifications will be send to.
-      These notifications are:
-      * `{:playlist_playable, content_type}`
-      * `{:cleanup, clean_function}`
-      """
-    ],
-    output_directory: [
-      spec: Path.t(),
-      description: "Path to directory under which HLS output will be saved",
-      default: "hls_output"
-    ],
-    synchronize_tracks?: [
-      spec: boolean(),
-      default: true,
-      description: """
-      Set to false if source is different than webrtc.
-      If set to true HLS Endpoint will calculate track offset based on `handle_pad_added` call.
-      """
-    ],
-    mixer_config: [
-      spec: MixerConfig.t() | nil,
-      default: nil,
-      description: """
-      Audio and video mixer configuration. If you don't want to use compositor pass nil.
-      """
-    ],
-    hls_config: [
-      spec: HLSConfig.t(),
-      default: %HLSConfig{},
-      description: """
-      HLS stream and playlist configuration.
-      """
-    ],
-    subscribe_mode: [
-      spec: :auto | :manual,
-      default: :auto,
-      description: """
-      Whether tracks should be subscribed automatically when they're ready.
-      If set to `:manual` hls endpoint will subscribe only to tracks send using message:
-      `{:subscribe, tracks}`
-      """
-    ]
-  )
+  def_options rtc_engine: [
+                spec: pid(),
+                description: "Pid of parent Engine"
+              ],
+              owner: [
+                spec: pid(),
+                description: """
+                Pid of parent all notifications will be send to.
+                These notifications are:
+                * `{:playlist_playable, content_type}`
+                * `{:cleanup, clean_function}`
+                """
+              ],
+              output_directory: [
+                spec: Path.t(),
+                description: "Path to directory under which HLS output will be saved",
+                default: "hls_output"
+              ],
+              synchronize_tracks?: [
+                spec: boolean(),
+                default: true,
+                description: """
+                Set to false if source is different than webrtc.
+                If set to true HLS Endpoint will calculate track offset based on `handle_pad_added` call.
+                """
+              ],
+              mixer_config: [
+                spec: MixerConfig.t() | nil,
+                default: nil,
+                description: """
+                Audio and video mixer configuration. If you don't want to use compositor pass nil.
+                """
+              ],
+              hls_config: [
+                spec: HLSConfig.t(),
+                default: %HLSConfig{},
+                description: """
+                HLS stream and playlist configuration.
+                """
+              ],
+              subscribe_mode: [
+                spec: :auto | :manual,
+                default: :auto,
+                description: """
+                Whether tracks should be subscribed automatically when they're ready.
+                If set to `:manual` hls endpoint will subscribe only to tracks send using message:
+                `{:subscribe, tracks}`
+                """
+              ]
 
   @impl true
   def handle_init(_context, options) when options.subscribe_mode not in [:auto, :manual] do
