@@ -47,59 +47,62 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   @keyframe_window Time.milliseconds(100)
   @terminate_timeout 5000
 
-  def_input_pad :input,
+  def_input_pad(:input,
     accepted_format: Membrane.RTP,
     availability: :on_request
+  )
 
-  def_options rtc_engine: [
-                spec: pid(),
-                description: "Pid of parent Engine"
-              ],
-              owner: [
-                spec: pid(),
-                description: """
-                Pid of parent all notifications will be send to.
-                These notifications are:
-                * `{:playlist_playable, content_type}`
-                * `{:cleanup, clean_function}`
-                """
-              ],
-              output_directory: [
-                spec: Path.t(),
-                description: "Path to directory under which HLS output will be saved",
-                default: "hls_output"
-              ],
-              synchronize_tracks?: [
-                spec: boolean(),
-                default: true,
-                description: """
-                Set to false if source is different than webrtc.
-                If set to true HLS Endpoint will calculate track offset based on `handle_pad_added` call.
-                """
-              ],
-              mixer_config: [
-                spec: MixerConfig.t() | nil,
-                default: nil,
-                description: """
-                Audio and video mixer configuration. If you don't want to use compositor pass nil.
-                """
-              ],
-              hls_config: [
-                spec: HLSConfig.t(),
-                default: %HLSConfig{},
-                description: """
-                HLS stream and playlist configuration.
-                """
-              ],
-              subscribe_mode: [
-                spec: :auto | :manual,
-                default: :auto,
-                description: """
-                Whether tracks should be subscribed automatically when they're ready.
-                If set to `:manual` hls endpoint will subscribe only to tracks send using message:
-                `{:subscribe, tracks}`
-                """
-              ]
+  def_options(
+    rtc_engine: [
+      spec: pid(),
+      description: "Pid of parent Engine"
+    ],
+    owner: [
+      spec: pid(),
+      description: """
+      Pid of parent all notifications will be send to.
+      These notifications are:
+      * `{:playlist_playable, content_type}`
+      * `{:cleanup, clean_function}`
+      """
+    ],
+    output_directory: [
+      spec: Path.t(),
+      description: "Path to directory under which HLS output will be saved",
+      default: "hls_output"
+    ],
+    synchronize_tracks?: [
+      spec: boolean(),
+      default: true,
+      description: """
+      Set to false if source is different than webrtc.
+      If set to true HLS Endpoint will calculate track offset based on `handle_pad_added` call.
+      """
+    ],
+    mixer_config: [
+      spec: MixerConfig.t() | nil,
+      default: nil,
+      description: """
+      Audio and video mixer configuration. If you don't want to use compositor pass nil.
+      """
+    ],
+    hls_config: [
+      spec: HLSConfig.t(),
+      default: %HLSConfig{},
+      description: """
+      HLS stream and playlist configuration.
+      """
+    ],
+    subscribe_mode: [
+      spec: :auto | :manual,
+      default: :auto,
+      description: """
+      Whether tracks should be subscribed automatically when they're ready.
+      If set to `:manual` hls endpoint will subscribe only to tracks send using message:
+      `{:subscribe, tracks}`
+      """
+    ]
+  )
 
   @impl true
   def handle_init(_context, options) when options.subscribe_mode not in [:auto, :manual] do
@@ -119,7 +122,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         tracks: %{},
         stream_beginning: nil,
         terminating?: false,
-        start_mixing_sent?: false
+        start_mixing_sent?: false,
+        subscribed_endpoints: []
       })
 
     {[notify_parent: :ready], state}
@@ -259,8 +263,18 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   end
 
   @impl true
-  def handle_parent_notification({:new_tracks, _tracks}, _ctx, %{subscribe_mode: :manual} = state) do
-    {[], state}
+  def handle_parent_notification({:new_tracks, tracks}, ctx, %{subscribe_mode: :manual} = state) do
+    subscribed_tracks = Map.keys(state.tracks)
+
+    subscribed_tracks =
+      tracks
+      |> Enum.filter(fn track ->
+        track.origin in state.subscribed_endpoints and track.id not in subscribed_tracks
+      end)
+      |> Enum.map(fn track -> track.id end)
+      |> subscribe_for_tracks(ctx, state)
+
+    {[], add_tracks(tracks, subscribed_tracks, state)}
   end
 
   @impl true
@@ -283,12 +297,19 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       |> Enum.map(fn track -> track.id end)
       |> subscribe_for_tracks(ctx, state)
 
-    {[], add_tracks(tracks, new_subscribed_tracks, state)}
+    new_state =
+      tracks
+      |> add_tracks(new_subscribed_tracks, state)
+      |> Map.update!(:subscribed_endpoints, fn subscribed ->
+        subscribed |> Enum.concat(endpoints) |> Enum.uniq()
+      end)
+
+    {[], new_state}
   end
 
   @impl true
   def handle_parent_notification(
-        {:subscribe, _tracks} = msg,
+        {:subscribe, _endpoints} = msg,
         _ctx,
         %{subscribe_mode: :auto} = state
       ) do
