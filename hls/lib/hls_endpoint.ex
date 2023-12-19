@@ -119,7 +119,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         tracks: %{},
         stream_beginning: nil,
         terminating?: false,
-        start_mixing_sent?: false
+        start_mixing_sent?: false,
+        subscribed_endpoints: []
       })
 
     {[notify_parent: :ready], state}
@@ -259,8 +260,18 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   end
 
   @impl true
-  def handle_parent_notification({:new_tracks, _tracks}, _ctx, %{subscribe_mode: :manual} = state) do
-    {[], state}
+  def handle_parent_notification({:new_tracks, tracks}, ctx, %{subscribe_mode: :manual} = state) do
+    subscribed_tracks = Map.keys(state.tracks)
+
+    subscribed_tracks =
+      tracks
+      |> Enum.filter(fn track ->
+        track.origin in state.subscribed_endpoints and track.id not in subscribed_tracks
+      end)
+      |> Enum.map(fn track -> track.id end)
+      |> subscribe_for_tracks(ctx, state)
+
+    {[], add_tracks(tracks, subscribed_tracks, state)}
   end
 
   @impl true
@@ -283,12 +294,19 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       |> Enum.map(fn track -> track.id end)
       |> subscribe_for_tracks(ctx, state)
 
-    {[], add_tracks(tracks, new_subscribed_tracks, state)}
+    new_state =
+      tracks
+      |> add_tracks(new_subscribed_tracks, state)
+      |> Map.update!(:subscribed_endpoints, fn subscribed ->
+        subscribed |> Enum.concat(endpoints) |> Enum.uniq()
+      end)
+
+    {[], new_state}
   end
 
   @impl true
   def handle_parent_notification(
-        {:subscribe, _tracks} = msg,
+        {:subscribe, _endpoints} = msg,
         _ctx,
         %{subscribe_mode: :auto} = state
       ) do
