@@ -29,6 +29,7 @@ defmodule WebRTCToHLS.MixProject do
       {:jason, "~> 1.2"},
       {:phoenix_inline_svg, "~> 1.4"},
       {:uuid, "~> 1.1"},
+      {:esbuild, "~> 0.4", runtime: Mix.env() == :dev},
       {:cowlib, "~> 2.11.0", override: true},
 
       # rtc engine dependencies
@@ -38,10 +39,7 @@ defmodule WebRTCToHLS.MixProject do
 
       # hls dependencies
       {:membrane_audio_mix_plugin, "~> 0.15.2", optional: true},
-      {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true},
-
-      {:credo, ">= 0.0.0", only: :dev, runtime: false},
-      {:esbuild, "~> 0.4", runtime: Mix.env() == :dev}
+      {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true}
     ]
   end
 
