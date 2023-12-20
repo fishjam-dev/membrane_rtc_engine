@@ -1,4 +1,6 @@
 defmodule WebRTCToHLSWeb.StreamChannel do
+  @moduledoc false
+
   use Phoenix.Channel
 
   require Logger
@@ -7,9 +9,10 @@ defmodule WebRTCToHLSWeb.StreamChannel do
 
   @impl true
   def join("stream", _params, socket) do
-    case Stream.start(self()) do
+    peer_id = UUID.uuid4()
+
+    case Stream.start(self(), peer_id) do
       {:ok, stream} ->
-        peer_id = UUID.uuid4()
         Process.monitor(stream)
         {:ok, assign(socket, %{stream: stream, peer_id: peer_id})}
 

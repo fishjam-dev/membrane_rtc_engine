@@ -1,6 +1,7 @@
 import Config
 
 config :phoenix, :json_library, Jason
+config :opentelemetry, traces_exporter: :none
 
 config :esbuild,
   version: "0.12.15",

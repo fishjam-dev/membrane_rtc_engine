@@ -21,7 +21,6 @@ defmodule WebRTCToHLS.MixProject do
 
   defp deps do
     [
-      {:membrane_rtc_engine, "~> 0.8.0"},
       {:plug_cowboy, "~> 2.5.2"},
       {:phoenix, "~> 1.6"},
       {:phoenix_html, "~> 3.0"},
@@ -30,17 +29,19 @@ defmodule WebRTCToHLS.MixProject do
       {:jason, "~> 1.2"},
       {:phoenix_inline_svg, "~> 1.4"},
       {:uuid, "~> 1.1"},
-      {:esbuild, "~> 0.4", runtime: Mix.env() == :dev},
       {:cowlib, "~> 2.11.0", override: true},
 
-      # HLS_Endpoint deps
-      {:membrane_http_adaptive_stream_plugin, "~> 0.8.0"},
-      {:membrane_mp4_plugin, "~> 0.16.0"},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.21.5"},
-      {:membrane_aac_plugin, "~> 0.12.0"},
-      {:membrane_aac_format, "~> 0.7.0"},
-      {:membrane_aac_fdk_plugin, "~> 0.13.0"},
-      {:membrane_opus_plugin, "~> 0.15.0"}
+      # rtc engine dependencies
+      {:membrane_rtc_engine, "~> 0.18.0"},
+      {:membrane_rtc_engine_hls, "~> 0.3.0"},
+      {:membrane_rtc_engine_webrtc, "~> 0.4.0"},
+
+      # hls dependencies
+      {:membrane_audio_mix_plugin, "~> 0.15.2", optional: true},
+      {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true},
+
+      {:credo, ">= 0.0.0", only: :dev, runtime: false},
+      {:esbuild, "~> 0.4", runtime: Mix.env() == :dev}
     ]
   end
 

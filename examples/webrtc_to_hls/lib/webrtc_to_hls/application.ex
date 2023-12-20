@@ -4,9 +4,6 @@ defmodule WebRTCToHLS.Application do
 
   require Membrane.Logger
 
-  alias Membrane.TelemetryMetrics.Reporter
-  alias WebRTCToHLS.StorageCleanup
-
   @cert_file_path "priv/integrated_turn_cert.pem"
 
   @impl true
@@ -15,12 +12,9 @@ defmodule WebRTCToHLS.Application do
     create_integrated_turn_cert_file()
 
     children = [
-      {Reporter, [metrics: Membrane.RTC.Engine.Metrics.metrics(), name: WebRTCToHLSReporter]},
       WebRTCToHLSWeb.Endpoint,
       {Phoenix.PubSub, name: WebRTCToHLS.PubSub}
     ]
-
-    StorageCleanup.clean_unused_directories()
 
     opts = [strategy: :one_for_one, name: __MODULE__]
     Supervisor.start_link(children, opts)
@@ -50,7 +44,7 @@ defmodule WebRTCToHLS.Application do
         @cert_file_path
       )
     else
-      Membrane.Logger.warn("""
+      Membrane.Logger.warning("""
       Integrated TURN certificate or private key path not specified.
       Integrated TURN will not handle TLS connections.
       """)

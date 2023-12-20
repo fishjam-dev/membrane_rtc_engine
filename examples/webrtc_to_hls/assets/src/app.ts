@@ -1,11 +1,6 @@
-import {
-  MembraneWebRTC,
-  Peer,
-  SerializedMediaEvent,
-  TrackContext,
-} from "@membraneframework/membrane-webrtc-js";
 import { Push, Socket } from "phoenix";
 import { setErrorMessage, setPlayerInfo, setPreview } from "./ui";
+import { WebRTCEndpoint } from "@jellyfish-dev/membrane-webrtc-js";
 
 const awaitPhoenixPush = async (push: Push): Promise<any> => {
   return new Promise((resolve, reject) => {
@@ -70,7 +65,7 @@ export const setup = async () => {
   };
 
   const leave = () => {
-    webrtc.leave();
+    webrtc.disconnect();
     webrtcChannel.leave();
     socketOff();
   };
@@ -92,22 +87,21 @@ export const setup = async () => {
   callbacksRefs.push(socket.onError(leave));
   callbacksRefs.push(socket.onClose(leave));
 
-  const webrtc = new MembraneWebRTC({
-    callbacks: {
-      onSendMediaEvent: (mediaEvent: SerializedMediaEvent) => {
-        webrtcChannel.push("mediaEvent", { data: mediaEvent });
-      },
-      onJoinSuccess: () => {
-        localStream
-          .getTracks()
-          .forEach((track) => webrtc.addTrack(track, localStream, {}));
-      },
-    },
+  const webrtc = new WebRTCEndpoint();
+
+  webrtc.on("sendMediaEvent", (mediaEvent: string) => {
+    webrtcChannel.push("mediaEvent", { data: mediaEvent })
+  })
+
+  webrtc.on("connected", () => {
+    localStream
+      .getTracks()
+      .forEach((track) => webrtc.addTrack(track, localStream, {}));
   });
 
   await awaitPhoenixPush(webrtcChannel.join());
 
-  webrtc.join({
+  webrtc.connect({
     displayName: "It's me, Mario!",
   });
 

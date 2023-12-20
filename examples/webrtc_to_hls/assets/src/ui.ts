@@ -56,8 +56,6 @@ export function setPlayerInfo(streamId: string) {
   player.appendChild(playerLink);
 
   const streamInfo = document.createElement("span");
-  streamInfo.innerText =
-    "If you want to use any external player (a lot of them can break due to poor support for stream discontinuities) you can use the URL below.";
   const streamUrl = document.createElement("span");
   streamUrl.innerText = `${window.location.origin}/video/${streamId}/index.m3u8`;
 

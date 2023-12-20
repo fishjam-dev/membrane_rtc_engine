@@ -3,21 +3,22 @@ defmodule WebRTCToHLS.Stream do
 
   use GenServer
 
-  alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Message
-  alias Membrane.RTC.Engine.MediaEvent
-  alias Membrane.RTC.Engine.Endpoint.{WebRTC, HLS}
-  alias Membrane.ICE.TURNManager
-  alias Membrane.WebRTC.Extension.{Mid, Rid}
-  alias WebRTCToHLS.StorageCleanup
-
   require Membrane.Logger
-  require OpenTelemetry.Tracer, as: Tracer
+
+  alias Membrane.ICE.TURNManager
+
+  alias Membrane.RTC.Engine
+  alias Membrane.RTC.Engine.Endpoint.{HLS, WebRTC}
+  alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
+  alias Membrane.RTC.Engine.Message.{EndpointCrashed, EndpointMessage, EndpointRemoved}
+
+  alias Membrane.WebRTC.Extension.{Mid, Rid}
+  alias Membrane.WebRTC.Track.Encoding
 
   @mix_env Mix.env()
 
-  def start(channel_pid) do
-    GenServer.start(__MODULE__, [channel_pid])
+  def start(channel_pid, peer_id) do
+    GenServer.start(__MODULE__, %{channel_pid: channel_pid, peer_id: peer_id})
   end
 
   def start_link(opts) do
@@ -25,21 +26,103 @@ defmodule WebRTCToHLS.Stream do
   end
 
   @impl true
-  def init([channel_pid]) do
+  def init(%{channel_pid: channel_pid, peer_id: peer_id}) do
     Membrane.Logger.info("Spawning room process: #{inspect(self())}")
 
-    turn_mock_ip = Application.fetch_env!(:membrane_webrtc_to_hls_demo, :integrated_turn_ip)
-    turn_ip = if @mix_env == :prod, do: {0, 0, 0, 0}, else: turn_mock_ip
-
-    room_id = UUID.uuid4()
-
-    trace_ctx = create_context("room:#{room_id}")
-
     rtc_engine_options = [
-      id: room_id,
-      trace_ctx: trace_ctx,
+      id: UUID.uuid4(),
       display_manager?: false
     ]
+
+    {:ok, rtc_engine} = Membrane.RTC.Engine.start(rtc_engine_options, [])
+
+    Engine.register(rtc_engine, self())
+    Process.monitor(rtc_engine)
+    Process.monitor(channel_pid)
+
+    hls_endpoint = hls_endpoint(rtc_engine)
+    webrtc_endpoint = webrtc_endpoint(rtc_engine, peer_id)
+
+    :ok = Engine.add_endpoint(rtc_engine, hls_endpoint)
+    :ok = Engine.add_endpoint(rtc_engine, webrtc_endpoint, id: peer_id)
+
+    {:ok,
+     %{
+       rtc_engine: rtc_engine,
+       channel_pid: channel_pid,
+       peer_id: peer_id
+     }}
+  end
+
+  @impl true
+  def handle_info({:playlist_playable, :audio, _playlist_idl}, state) do
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:playlist_playable, :video, playlist_idl}, state) do
+    send(state.channel_pid, {:playlist_playable, playlist_idl})
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(%EndpointMessage{endpoint_id: _to, message: {:media_event, data}}, state) do
+    send(state.channel_pid, {:media_event, data})
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(
+        %EndpointRemoved{endpoint_id: endpoint_id, endpoint_type: type},
+        state
+      ) do
+    if type == WebRTC,
+      do: Membrane.Logger.info("Peer #{inspect(endpoint_id)} left RTC Engine"),
+      else:
+        Membrane.Logger.info(
+          "HLS Endpoint #{inspect(endpoint_id)} has been removed from RTC Engine"
+        )
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(%EndpointCrashed{endpoint_id: endpoint_id}, state) do
+    Membrane.Logger.error("Endpoint #{inspect(endpoint_id)} has crashed!")
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:media_event, _from, event}, state) do
+    Engine.message_endpoint(state.rtc_engine, state.peer_id, {:media_event, event})
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    if pid == state.channel_pid, do: Engine.terminate(state.rtc_engine)
+    {:stop, :normal, state}
+  end
+
+  @impl true
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
+
+  defp hls_endpoint(rtc_engine) do
+    %HLS{
+      rtc_engine: rtc_engine,
+      owner: self(),
+      mixer_config: %MixerConfig{},
+      output_directory:
+        Application.fetch_env!(:membrane_webrtc_to_hls_demo, :hls_output_mount_path),
+      hls_config: %HLSConfig{cleanup_after: Membrane.Time.second()}
+    }
+  end
+
+  defp webrtc_endpoint(rtc_engine, peer_id) do
+    turn_mock_ip = Application.fetch_env!(:membrane_webrtc_to_hls_demo, :integrated_turn_ip)
+    turn_ip = if @mix_env == :prod, do: {0, 0, 0, 0}, else: turn_mock_ip
 
     turn_cert_file =
       case Application.fetch_env(:membrane_webrtc_to_hls_demo, :integrated_turn_cert_pkey) do
@@ -71,68 +154,14 @@ defmodule WebRTCToHLS.Stream do
       TURNManager.ensure_tls_turn_launched(integrated_turn_options, port: tls_turn_port)
     end
 
-    {:ok, pid} = Membrane.RTC.Engine.start(rtc_engine_options, [])
-    Engine.register(pid, self())
-    Process.monitor(pid)
-
-    endpoint = %HLS{
-      rtc_engine: pid,
-      owner: self(),
-      output_directory:
-        Application.fetch_env!(:membrane_webrtc_to_hls_demo, :hls_output_mount_path),
-      target_window_duration: :infinity
-    }
-
-    :ok = Engine.add_endpoint(pid, endpoint)
-
-    {:ok,
-     %{
-       rtc_engine: pid,
-       channel_pid: channel_pid,
-       peer: nil,
-       network_options: network_options,
-       trace_ctx: trace_ctx
-     }}
-  end
-
-  @impl true
-  def handle_info({:playlist_playable, :audio, _playlist_idl, _peer_id}, state) do
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:playlist_playable, :video, playlist_idl, _peer_id}, state) do
-    send(state.channel_pid, {:playlist_playable, playlist_idl})
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:add_peer_channel, peer_channel_pid, _peer_id}, state) do
-    state = %{state | channel_pid: peer_channel_pid}
-    Process.monitor(peer_channel_pid)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info(%Message.MediaEvent{to: _, data: data}, state) do
-    send(state.channel_pid, {:media_event, data})
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info(%Message.NewPeer{rtc_engine: rtc_engine, peer: peer}, state) do
-    Membrane.Logger.info("New peer: #{inspect(peer)}. Accepting.")
-    peer_channel_pid = state.channel_pid
-    peer_node = node(peer_channel_pid)
-
     handshake_opts =
-      if state.network_options[:dtls_pkey] &&
-           state.network_options[:dtls_cert] do
+      if network_options[:dtls_pkey] &&
+           network_options[:dtls_cert] do
         [
           client_mode: false,
           dtls_srtp: true,
-          pkey: state.network_options[:dtls_pkey],
-          cert: state.network_options[:dtls_cert]
+          pkey: network_options[:dtls_pkey],
+          cert: network_options[:dtls_cert]
         ]
       else
         [
@@ -141,88 +170,33 @@ defmodule WebRTCToHLS.Stream do
         ]
       end
 
-    endpoint = %WebRTC{
+    %WebRTC{
       rtc_engine: rtc_engine,
-      ice_name: peer.id,
+      ice_name: peer_id,
       owner: self(),
-      integrated_turn_options: state.network_options[:integrated_turn_options],
-      integrated_turn_domain: state.network_options[:integrated_turn_domain],
+      integrated_turn_options: network_options[:integrated_turn_options],
+      integrated_turn_domain: network_options[:integrated_turn_domain],
       handshake_opts: handshake_opts,
-      log_metadata: [peer_id: peer.id],
-      trace_context: state.trace_ctx,
+      log_metadata: [peer_id: peer_id],
       webrtc_extensions: [Mid, Rid],
-      filter_codecs: fn {rtp, fmtp} ->
-        case rtp.encoding do
-          "opus" -> true
-          "H264" -> fmtp.profile_level_id === 0x42E01F
-          _unsupported_codec -> false
-        end
-      end
+      filter_codecs: &filter_codecs_h264/1
     }
-
-    Engine.accept_peer(rtc_engine, peer.id)
-    :ok = Engine.add_endpoint(rtc_engine, endpoint, peer_id: peer.id, node: peer_node)
-
-    state = %{state | peer: peer}
-
-    {:noreply, state}
   end
 
-  @impl true
-  def handle_info(%Message.PeerLeft{peer: peer}, state) do
-    Membrane.Logger.info("Peer #{inspect(peer.id)} left RTC Engine")
-    {:noreply, state}
-  end
+  defp filter_codecs_h264(%Encoding{name: "H264", format_params: fmtp}) do
+    import Bitwise
 
-  @impl true
-  def handle_info(%Message.EndpointCrashed{endpoint_id: endpoint_id}, state) do
-    Membrane.Logger.error("Endpoint #{inspect(endpoint_id)} has crashed!")
-
-    error_message = "WebRTC endpoint has crashed, please refresh the page to reconnect"
-    data = MediaEvent.create_error_event(error_message)
-    send(state.peer_channel, {:media_event, data})
-
-    {:noreply, state}
-  end
-
-  # media_event coming from client
-  @impl true
-  def handle_info({:media_event, _from, _event} = msg, state) do
-    Engine.receive_media_event(state.rtc_engine, msg)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:cleanup, _clean_function, stream_id}, state) do
-    StorageCleanup.remove_directory(stream_id)
-    {:stop, :normal, state}
-  end
-
-  @impl true
-  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
-    if pid == state.rtc_engine do
-      {:stop, :normal, state}
-    else
-      Engine.remove_peer(state.rtc_engine, state.peer.id)
-      state = %{state | peer: nil, channel_pid: nil}
-      {:noreply, state}
+    # Only accept constrained baseline
+    # based on RFC 6184, Table 5.
+    case fmtp.profile_level_id >>> 16 do
+      0x42 -> (fmtp.profile_level_id &&& 0x00_4F_00) == 0x00_40_00
+      0x4D -> (fmtp.profile_level_id &&& 0x00_8F_00) == 0x00_80_00
+      0x58 -> (fmtp.profile_level_id &&& 0x00_CF_00) == 0x00_C0_00
+      _otherwise -> false
     end
   end
 
-  defp create_context(name) do
-    metadata = [
-      {:"library.language", :elixir},
-      {:"library.name", :membrane_rtc_engine},
-      {:"library.version", "server:#{Application.spec(:membrane_rtc_engine, :vsn)}"}
-    ]
-
-    root_span = Tracer.start_span(name)
-    parent_ctx = Tracer.set_current_span(root_span)
-    otel_ctx = OpenTelemetry.Ctx.attach(parent_ctx)
-    OpenTelemetry.Span.set_attributes(root_span, metadata)
-    OpenTelemetry.Span.end_span(root_span)
-    OpenTelemetry.Ctx.attach(otel_ctx)
-
-    otel_ctx
-  end
+  defp filter_codecs_h264(encoding), do: filter_codecs(encoding)
+  defp filter_codecs(%Encoding{name: "opus"}), do: true
+  defp filter_codecs(_rtp_mapping), do: false
 end

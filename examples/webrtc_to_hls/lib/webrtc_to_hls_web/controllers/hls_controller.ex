@@ -1,11 +1,10 @@
 defmodule WebRTCToHLSWeb.HLSController do
   use WebRTCToHLSWeb, :controller
 
-  alias WebRTCToHLS.Helpers
   alias Plug
 
   def index(conn, %{"prefix" => prefix, "filename" => filename}) do
-    path = Helpers.hls_output_path(prefix, filename)
+    path = Path.join(prefix, filename)
 
     if File.exists?(path) do
       conn |> Plug.Conn.send_file(200, path)
