@@ -21,7 +21,6 @@ defmodule VideoRoom.MixProject do
 
   defp deps do
     [
-      {:membrane_rtc_engine, "~> 0.8.0"},
       {:plug_cowboy, "~> 2.0"},
       {:phoenix, "~> 1.6"},
       {:phoenix_html, "~> 3.0"},
@@ -30,9 +29,19 @@ defmodule VideoRoom.MixProject do
       {:poison, "~> 3.1"},
       {:jason, "~> 1.2"},
       {:phoenix_inline_svg, "~> 1.4"},
-      {:uuid, "~> 1.1"},
       {:telemetry, "~> 1.0.0", override: true},
-      {:esbuild, "~> 0.4", runtime: Mix.env() == :dev}
+      {:esbuild, "~> 0.4", runtime: Mix.env() == :dev},
+
+      # rtc engine dependencies
+      {:membrane_rtc_engine,
+       github: "jellyfish-dev/membrane_rtc_engine",
+       sparse: "engine",
+       ref: "91499e6958c9243f535d9e7486ae46915f492372",
+       override: true},
+      {:membrane_rtc_engine_webrtc,
+       github: "jellyfish-dev/membrane_rtc_engine",
+       sparse: "webrtc",
+       ref: "91499e6958c9243f535d9e7486ae46915f492372"}
     ]
   end
 

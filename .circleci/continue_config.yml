@@ -28,6 +28,9 @@ parameters:
   webrtc-to-hls-changed:
     type: boolean
     default: false
+  webrtc-videoroom-changed:
+    type: boolean
+    default: false
 
 jobs:
   test_package:
@@ -272,4 +275,12 @@ workflows:
       - lint_package:
           name: lint_webrtc_to_hls
           workdir: ~/app/examples/webrtc_to_hls
+          disable_dev_checks: true
+  
+  lint-webrtc-videoroom:
+    when: << pipeline.parameters.webrtc-videoroom-changed >>
+    jobs:
+      - lint_package:
+          name: lint_webrtc_videoroom
+          workdir: ~/app/examples/webrtc_videoroom
           disable_dev_checks: true

@@ -241,31 +241,6 @@ _In case of the absence of a physical camera, it is necessary to use a virtual c
 
 </details>
 
-## Run with docker
-
-The Videoroom demo provides a `Dockerfile` that you can use to run the Videoroom application yourself without any additional setup and dependencies.
-
-### To run:
-
-```shell
-docker run -p 4000:4000 membraneframework/demo_webrtc_videoroom:latest
-```
-
-Or build and run a docker image from the source:
-
-```shell
-docker build  -t membrane_videoroom .
-docker run -p 50000-50050:50000-50050/udp -p 4000:4000/tcp -e PORT_RANGE=50000-50050 -e EXTERNAL_IP=<IPv4 address> membrane_videoroom
-```
-
-where:
-
-- `EXTERNAL_IP` - your local IPv4 address (not to be confused with loopback)
-
-[Instructions on how to find your IPv4 address](https://github.com/membraneframework/membrane_videoroom#launching-of-the-application-1)
-
-Then go to <http://localhost:4000/>.
-
 ## Run distributed
 
 The Videoroom demo does not automatically start a cluster, but you can check the distributed functionalities by starting one manually.
