@@ -266,7 +266,7 @@ workflows:
           workdir: ~/app/integration_test
           disable_dev_checks: true
   
-  lint-webrtc-to-hls:
+  lint-example-webrtc-to-hls:
     when: << pipeline.parameters.webrtc-to-hls-changed >>
     jobs:
       - lint_package:
