@@ -241,46 +241,6 @@ _In case of the absence of a physical camera, it is necessary to use a virtual c
 
 </details>
 
-## Run distributed
-
-The Videoroom demo does not automatically start a cluster, but you can check the distributed functionalities by starting one manually.
-
-Open two terminals. On the first run:
-
-```shell
-SERVER_PORT=4001 iex --sname one -S mix phx.server
-```
-
-On the second, run:
-
-```shell
-SERVER_PORT=4002 iex --sname two -S mix phx.server
-```
-
-This will start two videoroom instances, one running on port `4001` on node `one@{your-local-hostname}`
-and the other on port `4002` on node `two@{your-local-hostname}`.
-
-To create a cluster, run this on the first terminal:
-
-```elixir
-iex(one@{your-local-hostname})1> :net_kernel.connect_node(:'two@{your-local-hostname}')
-true
-```
-
-You can check that the cluster has been created with:
-
-```elixir
-iex(one@{your-local-hostname})2> :erlang.nodes()
-[:two@{your-local-hostname}]
-```
-
-Then, open two tabs on your browser. Go to <http://localhost:4001/> on one, and <http://localhost:4002/> on the other.
-Join the same room, and you shall see two participants in the room. Every participant's EndPoint will be running on their respective node.
-
-_You might be asked to grant access to your camera, as some operating systems require that._
-
-_In case of the absence of a physical camera, it is necessary to use a virtual camera (e.g. OBS, [see how to set up the virtual camera in OBS](https://obsproject.com/kb/virtual-camera-guide))_
-
 ## Copyright and License
 
 Copyright 2020, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane)
