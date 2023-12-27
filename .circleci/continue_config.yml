@@ -25,6 +25,9 @@ parameters:
   integration-changed:
     type: boolean
     default: false
+  webrtc-to-hls-changed:
+    type: boolean
+    default: false
 
 jobs:
   test_package:
@@ -261,4 +264,12 @@ workflows:
       - lint_package:
           name: lint_integration
           workdir: ~/app/integration_test
+          disable_dev_checks: true
+  
+  lint-example-webrtc-to-hls:
+    when: << pipeline.parameters.webrtc-to-hls-changed >>
+    jobs:
+      - lint_package:
+          name: lint_webrtc_to_hls
+          workdir: ~/app/examples/webrtc_to_hls
           disable_dev_checks: true

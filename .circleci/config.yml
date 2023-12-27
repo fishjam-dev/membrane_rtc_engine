@@ -20,3 +20,4 @@ workflows:
             rtsp/.* rtsp-changed true
             file/.* file-changed true
             integration_test/.* integration-changed true
+            examples/webrtc_to_hls/.* webrtc-to-hls-changed true
