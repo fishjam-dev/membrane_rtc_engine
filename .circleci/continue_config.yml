@@ -281,6 +281,6 @@ workflows:
     when: << pipeline.parameters.webrtc-videoroom-changed >>
     jobs:
       - lint_package:
-          name: lint_webrtc_videoroom
+          name: lint_example_webrtc_videoroom
           workdir: ~/app/examples/webrtc_videoroom
           disable_dev_checks: true
