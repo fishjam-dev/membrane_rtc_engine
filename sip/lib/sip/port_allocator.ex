@@ -35,25 +35,27 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.PortAllocator do
   end
 
   @impl true
-  def handle_call(:get_port, {pid, tag}, state) do
-    {port, available} = List.pop_at(state.available, 0)
+  def handle_call(:get_port, _from, %{available: []} = state) do
+    {:reply, {:error, :no_available_port}, state}
+  end
 
+  @impl true
+  def handle_call(:get_port, {pid, _tag} = from, state) do
+    [port | available] = state.available
     state = %{state | available: available}
 
-    with false <- is_nil(port),
-         {:ok, socket} <- :gen_udp.open(port),
-         :ok <- :gen_udp.close(socket) do
-      state = %{state | in_use: Map.update(state.in_use, pid, [port], &[port | &1])}
+    case :gen_udp.open(port) do
+      {:ok, socket} ->
+        :ok = :gen_udp.close(socket)
 
-      {:reply, {:ok, port}, state}
-    else
-      true ->
-        {:reply, {:error, :no_available_port}, state}
+        state = %{state | in_use: Map.update(state.in_use, pid, [port], &[port | &1])}
+
+        {:reply, {:ok, port}, state}
 
       {:error, reason} ->
         Logger.warning("Opening port #{port} failed with reason: #{reason}")
 
-        handle_call(:get_port, {pid, tag}, state)
+        handle_call(:get_port, from, state)
     end
   end
 
