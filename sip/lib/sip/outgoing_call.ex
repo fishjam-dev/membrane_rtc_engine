@@ -6,6 +6,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   alias Membrane.RTC.Engine.Endpoint.SIP.{Call, SippetCore}
   alias Membrane.RTC.Engine.Endpoint.SIP.Call.SDP
 
+  @death_timeout_ms 5000
+
   ## CALL MANAGEMENT API
 
   @spec cancel(Call.id()) :: :ok
@@ -63,7 +65,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
         _state = build_and_send_request(:bye, state)
 
         # Give Sippet time to send the request (this is async)
-        Process.sleep(250)
+        Process.sleep(20)
 
         raise "SIP Client: Received SDP answer is not matching our requirements: #{inspect(reason)}"
     end
@@ -107,6 +109,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   end
 
   @impl Call
+  def handle_response(method, 200, _response, state) when method in [:cancel, :bye] do
+    send(self(), :die)
+    state
+  end
+
+  @impl Call
   def handle_response(_method, status_code, response, state) do
     Call.handle_generic_response(status_code, response, state)
   end
@@ -120,11 +128,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   @impl Call
   def handle_request(:bye, request, state) do
     respond(request, 200)
-
-    # Give Sippet time to respond to the BYE (this is async)
-    Process.sleep(250)
-
     notify_endpoint(state.endpoint, {:end, hangup_cause(request)})
+    Process.send_after(self(), :die, @death_timeout_ms)
     state
   end
 
@@ -133,11 +138,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   @impl GenServer
   def handle_cast(:cancel, state) do
     state = build_and_send_request(:cancel, state)
-
-    # Give Sippet time to send the request (this is async)
-    Process.sleep(250)
-
     notify_endpoint(state.endpoint, {:end, :cancelled})
+    Process.send_after(self(), :die, @death_timeout_ms)
 
     {:noreply, state}
   end
@@ -145,13 +147,15 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   @impl GenServer
   def handle_cast(:bye, state) do
     state = build_and_send_request(:bye, state)
-
-    # Give Sippet time to send the request (this is async)
-    Process.sleep(250)
-
     notify_endpoint(state.endpoint, {:end, :user_hangup})
+    Process.send_after(self(), :die, @death_timeout_ms)
 
     {:noreply, state}
+  end
+
+  @impl GenServer
+  def handle_info(:die, state) do
+    {:stop, :normal, state}
   end
 
   ## PRIVATE FUNCTIONS

@@ -653,18 +653,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     case state.endpoint_state do
       :calling ->
         OutgoingCall.cancel(state.call_id)
-        Process.sleep(250)
 
       :in_call ->
         OutgoingCall.bye(state.call_id)
-        Process.sleep(250)
 
       _other ->
         nil
-    end
-
-    unless state.endpoint_state in [:unregistered, :unregistered_call_pending, :registered] do
-      Call.stop(state.call_id)
     end
 
     Call.stop(state.register_call_id)
