@@ -35,6 +35,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   }
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{TrackReceiver, TrackSender}
+  alias Membrane.RTC.Engine.Notifications.TrackNotification
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTP.SessionBin
 
@@ -417,13 +418,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_parent_notification({topic, _data}, _ctx, state)
-      when topic in [
-             :remove_tracks,
-             :ready,
-             :endpoint_added,
-             :endpoint_removed,
-             :bitrate_estimation
-           ] do
+      when topic in [:remove_tracks, :ready, :endpoint_added, :endpoint_removed] do
+    {[], state}
+  end
+
+  @impl true
+  def handle_parent_notification(%TrackNotification{}, _ctx, state) do
     {[], state}
   end
 
