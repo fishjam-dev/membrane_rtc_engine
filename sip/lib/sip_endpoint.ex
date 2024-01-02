@@ -284,7 +284,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
       |> via_out(Pad.ref(:output, state.incoming_ssrc),
         options: [depayloader: Membrane.RTP.G711.Depayloader]
       )
-      |> child({:audio_codec_decoder, track_id}, Membrane.G711.FFmpeg.Decoder)
+      |> child({:audio_codec_decoder, track_id}, Membrane.G711.Decoder)
       |> child({:converter, track_id}, %Membrane.FFmpeg.SWResample.Converter{
         input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 8_000},
         output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000}
@@ -362,8 +362,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     new_endpoint_state =
       case state.endpoint_state do
         :unregistered_call_pending ->
-          Logger.info("SIP Endpoint: Call attempt cancelled")
-          :unregistered
+          Logger.info("SIP Endpoint: Cancelling call attempt")
+          send(self(), {:call_info, {:end, :cancelled}})
+          :ending_call
 
         :calling ->
           Logger.info("SIP Endpoint: Cancelling call attempt")
@@ -578,8 +579,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000},
         output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 8_000}
       })
-      |> child(:audio_codec_encoder, Membrane.G711.FFmpeg.Encoder)
-      |> child(:audio_codec_parser, %Membrane.G711.FFmpeg.Parser{overwrite_pts?: true})
+      |> child(:audio_codec_encoder, Membrane.G711.Encoder)
+      |> child(:audio_codec_parser, %Membrane.G711.Parser{overwrite_pts?: true})
       |> via_in(Pad.ref(:input, state.outgoing_ssrc),
         options: [payloader: Membrane.RTP.G711.Payloader]
       )
