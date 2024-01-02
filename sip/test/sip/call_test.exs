@@ -3,6 +3,10 @@ defmodule Membrane.RTC.CallTest do
 
   alias Membrane.RTC.Engine.Endpoint.SIP.{Call, OutgoingCall, RegistrarCredentials}
 
+  setup_all do
+    Application.ensure_started(:membrane_rtc_engine_sip)
+  end
+
   setup do
     state =
       Call.init_state("my-call-id", %Call.Settings{
