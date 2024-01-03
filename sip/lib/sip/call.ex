@@ -283,7 +283,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
         handle_unauthorized(response, state)
 
       407 ->
-        raise "SIP Client: Received 407 response. Proxy authorization is unsupported"
+        handle_unauthorized(response, state)
+
+      # raise "SIP Client: Received 407 response. Proxy authorization is unsupported"
 
       redirect when redirect in 300..399 ->
         raise """
@@ -307,12 +309,13 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       not Enum.empty?(authorization_headers) ->
         raise "SIP Client: Unable to authorize using digest auth (incorrect credentials?)"
 
-      not Sippet.Message.has_header?(response, :www_authenticate) ->
-        raise "SIP Client: Unable to authorize using digest auth (no `www-authenticate` header present)"
-
-      true ->
+      Sippet.Message.has_header?(response, :www_authenticate) or
+          Sippet.Message.has_header?(response, :proxy_authenticate) ->
         request = Auth.apply_digest(state.last_message, response, state.registrar_credentials)
         make_request(request, state)
+
+      true ->
+        raise "SIP Client: Unable to authorize using digest auth (no `www-authenticate` or `proxy-authenticate` header present)"
     end
   end
 end
