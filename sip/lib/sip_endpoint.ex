@@ -109,7 +109,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
             outgoing_track: Track.t(),
             incoming_tracks: %{Track.id() => Track.t()},
             outgoing_ssrc: Membrane.RTP.ssrc_t(),
-            incoming_ssrc: Membrane.RTP.ssrc_t() | nil,
+            first_ssrc: Membrane.RTP.ssrc_t() | nil,
+            ssrcs_to_add: [Membrane.RTP.ssrc_t()],
             register_call_id: Call.id(),
             call_id: Call.id() | nil,
             phone_number: String.t() | nil,
@@ -127,7 +128,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
       :outgoing_track,
       :incoming_tracks,
       :outgoing_ssrc,
-      :incoming_ssrc,
+      :first_ssrc,
+      :ssrcs_to_add,
       :register_call_id,
       :call_id,
       :phone_number,
@@ -225,7 +227,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
           outgoing_track: track,
           incoming_tracks: %{},
           outgoing_ssrc: SessionBin.generate_receiver_ssrc([], []),
-          incoming_ssrc: nil,
+          first_ssrc: nil,
+          ssrcs_to_add: [],
           register_call_id: register_call_id,
           call_id: nil,
           phone_number: nil,
@@ -280,45 +283,34 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
       when track_id == state.outgoing_track.id do
     Logger.debug("Pad added for track #{inspect(track_id)}, variant :high")
 
-    spec = [
-      get_child(:rtp)
-      |> via_out(Pad.ref(:output, state.incoming_ssrc),
-        options: [depayloader: Membrane.RTP.G711.Depayloader]
-      )
-      |> child({:audio_codec_decoder, track_id}, Membrane.G711.Decoder)
-      |> child({:converter, track_id}, %Membrane.FFmpeg.SWResample.Converter{
-        input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 8_000},
-        output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000}
-      })
-      |> child({:raw_audio_parser, track_id}, %Membrane.RawAudioParser{
-        stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000},
-        overwrite_pts?: true
-      })
-      |> child({:opus_encoder, track_id}, %Membrane.Opus.Encoder{
-        input_stream_format: %Membrane.RawAudio{
-          channels: 1,
-          sample_rate: 48_000,
-          sample_format: :s16le
-        }
-      })
-      |> child({:opus_parser, track_id}, Membrane.Opus.Parser)
-      |> child({:payloader, track_id}, %Membrane.RTP.PayloaderBin{
-        payloader: Membrane.RTP.Opus.Payloader,
-        ssrc: state.incoming_ssrc,
-        payload_type: Membrane.RTP.PayloadFormat.get(:OPUS),
-        clock_rate: 48_000
-      })
-      |> via_in(Pad.ref(:input, {track_id, :high}))
-      |> child(
-        {:track_sender, track_id},
-        %TrackSender{
-          track: state.outgoing_track,
-          variant_bitrates: %{}
-        }
-      )
-      |> via_out(pad)
-      |> bin_output(pad)
-    ]
+    [ssrc | _] = state.ssrcs_to_add
+
+    spec =
+      if ssrc == state.first_ssrc do
+        [
+          get_rtp_stream_pipeline(ssrc)
+          |> child(:funnel, %Membrane.Funnel{})
+          |> child({:payloader, track_id}, %Membrane.RTP.PayloaderBin{
+            payloader: Membrane.RTP.Opus.Payloader,
+            ssrc: state.first_ssrc,
+            payload_type: Membrane.RTP.PayloadFormat.get(:OPUS),
+            clock_rate: 48_000
+          })
+          |> via_in(Pad.ref(:input, {track_id, :high}))
+          |> child(
+            {:track_sender, track_id},
+            %TrackSender{
+              track: state.outgoing_track,
+              variant_bitrates: %{}
+            }
+          )
+          |> via_out(pad)
+          |> bin_output(pad)
+        ]
+      else
+        get_rtp_stream_pipeline(ssrc)
+        |> get_child(:funnel)
+      end
 
     {[spec: spec], state}
   end
@@ -440,10 +432,10 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         _ctx,
         state
       )
-      when is_nil(state.incoming_ssrc) or ssrc == state.incoming_ssrc do
+      when is_nil(state.first_ssrc) or ssrc == state.first_ssrc do
     Logger.debug("SIP Endpoint: New RTP stream connected: #{inspect(msg)}")
 
-    state = %{state | incoming_ssrc: ssrc}
+    state = %{state | first_ssrc: ssrc}
 
     if fmt != state.payload_type do
       raise """
@@ -457,17 +449,26 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
        notify_parent:
          {:track_ready, state.outgoing_track.id, :high, state.outgoing_track.encoding},
        notify_parent: {:forward_to_parent, :received_rtp_stream}
-     ], state}
+     ], %{state | ssrcs_to_add: [ssrc | state.ssrcs_to_add]}}
   end
 
   @impl true
   def handle_child_notification(
-        {:new_rtp_stream, _ssrc, _fmt, _extensions} = msg,
+        {:new_rtp_stream, ssrc, fmt, _extensions},
         :rtp,
         _ctx,
-        _state
+        state
       ) do
-    raise "Received unexpected, second RTP stream: #{inspect(msg)}"
+    Logger.warning("Received another RTP stream with ssrc: #{ssrc}")
+
+    if fmt != state.payload_type do
+      raise """
+      Payload type mismatch between RTP mapping and received stream
+      (expected #{inspect(state.payload_type)}, got #{inspect(fmt)})
+      """
+    end
+
+    {[], %{state | ssrcs_to_add: [ssrc | state.ssrcs_to_add]}}
   end
 
   @impl true
@@ -699,5 +700,29 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     |> Map.put(:endpoint, self())
     |> then(&struct(Call.Settings, &1))
     |> module.start_link()
+  end
+
+  defp get_rtp_stream_pipeline(ssrc) do
+    get_child(:rtp)
+    |> via_out(Pad.ref(:output, ssrc),
+      options: [depayloader: Membrane.RTP.G711.Depayloader]
+    )
+    |> child({:audio_codec_decoder, ssrc}, Membrane.G711.Decoder)
+    |> child({:converter, ssrc}, %Membrane.FFmpeg.SWResample.Converter{
+      input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 8_000},
+      output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000}
+    })
+    |> child({:raw_audio_parser, ssrc}, %Membrane.RawAudioParser{
+      stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000},
+      overwrite_pts?: true
+    })
+    |> child({:opus_encoder, ssrc}, %Membrane.Opus.Encoder{
+      input_stream_format: %Membrane.RawAudio{
+        channels: 1,
+        sample_rate: 48_000,
+        sample_format: :s16le
+      }
+    })
+    |> child({:opus_parser, ssrc}, Membrane.Opus.Parser)
   end
 end

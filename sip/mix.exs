@@ -62,6 +62,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
       # Regular deps
       {:membrane_core, "~> 1.0"},
       {:membrane_rtp_plugin, "~> 0.24.0"},
+      {:membrane_funnel_plugin, "~> 0.9.0"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_udp_plugin, "~> 0.13.0"},
       {:membrane_raw_audio_format, "~> 0.12.0"},
