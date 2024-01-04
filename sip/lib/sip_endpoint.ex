@@ -110,7 +110,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
             incoming_tracks: %{Track.id() => Track.t()},
             outgoing_ssrc: Membrane.RTP.ssrc_t(),
             first_ssrc: Membrane.RTP.ssrc_t() | nil,
-            ssrcs_to_add: [Membrane.RTP.ssrc_t()],
             register_call_id: Call.id(),
             call_id: Call.id() | nil,
             phone_number: String.t() | nil,
@@ -129,7 +128,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
       :incoming_tracks,
       :outgoing_ssrc,
       :first_ssrc,
-      :ssrcs_to_add,
       :register_call_id,
       :call_id,
       :phone_number,
@@ -228,7 +226,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
           incoming_tracks: %{},
           outgoing_ssrc: SessionBin.generate_receiver_ssrc([], []),
           first_ssrc: nil,
-          ssrcs_to_add: [],
           register_call_id: register_call_id,
           call_id: nil,
           phone_number: nil,
@@ -283,34 +280,26 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
       when track_id == state.outgoing_track.id do
     Logger.debug("Pad added for track #{inspect(track_id)}, variant :high")
 
-    [ssrc | _] = state.ssrcs_to_add
-
-    spec =
-      if ssrc == state.first_ssrc do
-        [
-          get_rtp_stream_pipeline(ssrc)
-          |> child(:funnel, %Membrane.Funnel{})
-          |> child({:payloader, track_id}, %Membrane.RTP.PayloaderBin{
-            payloader: Membrane.RTP.Opus.Payloader,
-            ssrc: state.first_ssrc,
-            payload_type: Membrane.RTP.PayloadFormat.get(:OPUS),
-            clock_rate: 48_000
-          })
-          |> via_in(Pad.ref(:input, {track_id, :high}))
-          |> child(
-            {:track_sender, track_id},
-            %TrackSender{
-              track: state.outgoing_track,
-              variant_bitrates: %{}
-            }
-          )
-          |> via_out(pad)
-          |> bin_output(pad)
-        ]
-      else
-        get_rtp_stream_pipeline(ssrc)
-        |> get_child(:funnel)
-      end
+    spec = [
+      get_rtp_stream_pipeline(state.first_ssrc)
+      |> child(:funnel, %Membrane.Funnel{})
+      |> child({:payloader, track_id}, %Membrane.RTP.PayloaderBin{
+        payloader: Membrane.RTP.Opus.Payloader,
+        ssrc: state.first_ssrc,
+        payload_type: Membrane.RTP.PayloadFormat.get(:OPUS),
+        clock_rate: 48_000
+      })
+      |> via_in(Pad.ref(:input, {track_id, :high}))
+      |> child(
+        {:track_sender, track_id},
+        %TrackSender{
+          track: state.outgoing_track,
+          variant_bitrates: %{}
+        }
+      )
+      |> via_out(pad)
+      |> bin_output(pad)
+    ]
 
     {[spec: spec], state}
   end
@@ -449,7 +438,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
        notify_parent:
          {:track_ready, state.outgoing_track.id, :high, state.outgoing_track.encoding},
        notify_parent: {:forward_to_parent, :received_rtp_stream}
-     ], %{state | ssrcs_to_add: [ssrc | state.ssrcs_to_add]}}
+     ], state}
   end
 
   @impl true
@@ -468,7 +457,11 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
       """
     end
 
-    {[], %{state | ssrcs_to_add: [ssrc | state.ssrcs_to_add]}}
+    spec =
+      get_rtp_stream_pipeline(ssrc)
+      |> get_child(:funnel)
+
+    {[spec: spec], state}
   end
 
   @impl true
