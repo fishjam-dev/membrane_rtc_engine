@@ -116,15 +116,15 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
 
       defguardp is_request_pending(state, cseq) when is_map_key(state.pending_requests, cseq)
 
-      @impl GenServer
-      def handle_cast({:response, %{headers: %{cseq: {cseq, _method}}}}, state)
-          when not is_request_pending(state, cseq) do
-        Logger.warning(
-          "SIP Client: Received response with CSeq #{cseq}, for which there is no pending request. Ignoring."
-        )
+      # @impl GenServer
+      # def handle_cast({:response, %{headers: %{cseq: {cseq, _method}}}}, state)
+      #     when not is_request_pending(state, cseq) do
+      #   Logger.warning(
+      #     "SIP Client: Received response with CSeq #{cseq}, for which there is no pending request. Ignoring."
+      #   )
 
-        {:noreply, state}
-      end
+      #   {:noreply, state}
+      # end
 
       @impl GenServer
       def handle_cast({:response, %{headers: %{cseq: {cseq, method}}} = response}, state) do
