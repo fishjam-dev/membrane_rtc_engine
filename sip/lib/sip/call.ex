@@ -229,9 +229,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
 
   @spec build_headers(atom(), state(), String.t()) :: map()
   def build_headers(method, state, branch \\ Sippet.Message.create_branch()) do
-    # XXX: Maybe we can optimise the digest auth process
+    # XXX: Consider optimising the digest auth process
     # (right now, we do the exchange `request, 401, request with digest` every time)
-    # (this might be a stupid idea, so sorry)
 
     headers =
       state.headers_base
@@ -302,13 +301,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       success when success in [200, 204] ->
         state
 
-      401 ->
+      unauthorized when unauthorized in [401, 407] ->
         handle_unauthorized(response, state)
-
-      407 ->
-        handle_unauthorized(response, state)
-
-      # raise "SIP Client: Received 407 response. Proxy authorization is unsupported"
 
       redirect when redirect in 300..399 ->
         raise """
@@ -326,7 +320,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
   end
 
   defp handle_unauthorized(response, state) do
-    authorization_headers = Map.get(state.last_message.headers, :authorization, [])
+    headers = state.last_message.headers
+    authorization_headers = headers[:authorization] || headers[:proxy_authorization] || []
 
     cond do
       not Enum.empty?(authorization_headers) ->
