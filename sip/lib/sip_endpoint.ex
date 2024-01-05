@@ -12,12 +12,11 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   ## Setup
   The range of ports available to SIP Endpoints can be modified by adding the following line to your `config.exs`:
   ```
-  config :membrane_rtc_engine_sip, port_range: {from, to}
+  config :membrane_rtc_engine_sip, port_range: {from, to}     # (both ends inclusive)
   ```
-  (both ends inclusive).
 
-  The Endpoints will open UDP sockets on ports from this range.
-  Each SIP Endpoint uses 2 ports: one for SIP signaling messages, the other for the RTP media stream.
+  Each SIP Endpoint will open a UDP socket on a port from this range and use it for its RTP media stream.
+  All Endpoints share port 5060 for SIP signaling messages.
   """
 
   use Membrane.Bin
