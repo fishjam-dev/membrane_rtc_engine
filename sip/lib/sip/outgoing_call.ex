@@ -137,7 +137,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
   @impl GenServer
   def handle_cast(:cancel, state) do
-    state = build_and_send_request(:cancel, state)
+    state = send_cancel(state)
     notify_endpoint(state.endpoint, {:end, :cancelled})
     Process.send_after(self(), :die, @death_timeout_ms)
 
@@ -185,7 +185,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       headers: %{
         to: to,
         via: [{_, _, _, %{"branch" => branch}}],
-        cseq: {cseq, _method}
+        cseq: {cseq, :invite}
       }
     } = response
 
@@ -263,6 +263,20 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
     SippetCore.send_message(message)
     %{state | to: to}
+  end
+
+  defp send_cancel(state) do
+    {cseq, :invite} = state.last_message.headers.cseq
+
+    headers =
+      Call.build_headers(:cancel, state)
+      |> Map.replace(:cseq, {cseq, :cancel})
+
+    message =
+      Sippet.Message.build_request(:cancel, to_string(state.callee))
+      |> Map.put(:headers, headers)
+
+    Call.make_request(message, state)
   end
 
   defp hangup_cause(request) do

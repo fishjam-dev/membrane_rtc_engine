@@ -98,13 +98,19 @@ defmodule Membrane.RTC.OutgoingCallTest do
     {:noreply, state} = OutgoingCall.handle_cast(:cancel, state)
     assert_receive {:call_info, {:end, :cancelled}}
 
-    # We can expect a 200 response to CANCEL, and a 487 Request Terminated to INVITE
-    {:noreply, state} =
+    # CANCEL should have the same CSeq as the INVITE it's cancelling
+    {cseq, :invite} = invite_request.headers.cseq
+    {^cseq, :cancel} = state.last_message.headers.cseq
+
+    # We can expect a 200 response to CANCEL
+    {:noreply, state} = handle_response(200, state)
+
+    # and a 487 Request Terminated to INVITE
+    {:noreply, _state} =
       invite_request
       |> Sippet.Message.to_response(487)
       |> then(&OutgoingCall.handle_cast({:response, &1}, state))
 
-    {:noreply, _state} = handle_response(200, state)
     # Make sure this info is sent only once
     refute_receive {:call_info, {:end, :cancelled}}
   end
