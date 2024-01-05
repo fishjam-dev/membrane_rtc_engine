@@ -6,10 +6,10 @@
 * Fix bug in Recording Handler [#341](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/341)
 * Manual subscription for endpoints [#343](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/343)
 * Fix bug in hls manual subscription [#344](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/344)
-
-## 0.3.0
 * Add recording layout [#335](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/335)
 * Add manual track subscription [#328](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/328)
+
+## 0.3.0
 * Add cleanup feature [#324](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/324)
 * Move tests to `integration_tests` [#323](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/323)
 
