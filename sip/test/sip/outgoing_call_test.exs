@@ -3,6 +3,16 @@ defmodule Membrane.RTC.OutgoingCallTest do
 
   alias Membrane.RTC.Engine.Endpoint.SIP.{Call, OutgoingCall, RegistrarCredentials}
 
+  @sdp_answer ExSDP.new(session_name: "MySuperDuperSession")
+              |> Map.put(:connection_data, %ExSDP.ConnectionData{
+                address: {1, 2, 3, 4},
+                network_type: "IN"
+              })
+              |> ExSDP.add_media(ExSDP.Media.new(:audio, 7878, "RTP/AVP", 8))
+              |> to_string()
+
+  @other_callee Sippet.URI.parse!("sip:23456789@localhost:9999")
+
   setup do
     state =
       Call.init_state("my-call-id", %Call.Settings{
@@ -36,21 +46,12 @@ defmodule Membrane.RTC.OutgoingCallTest do
     # Session Progress
     {:noreply, state} = handle_response(183, state)
 
-    sdp_answer =
-      ExSDP.new(session_name: "MySuperDuperSession")
-      |> Map.put(:connection_data, %ExSDP.ConnectionData{
-        address: {1, 2, 3, 4},
-        network_type: "IN"
-      })
-      |> ExSDP.add_media(ExSDP.Media.new(:audio, 7878, "RTP/AVP", 8))
-      |> to_string()
-
-    {:noreply, _state} =
+    {:noreply, state} =
       Sippet.Message.to_response(state.last_message, 200)
-      |> Map.put(:body, sdp_answer)
+      |> Map.put(:body, @sdp_answer)
       |> then(&OutgoingCall.handle_cast({:response, &1}, state))
 
-    {:ok, connection_info} = Call.SDP.parse(sdp_answer)
+    {:ok, connection_info} = Call.SDP.parse(@sdp_answer)
     assert_receive {:call_info, {:call_ready, ^connection_info}}
 
     # User ends the call using OutgoingCall.bye/1
@@ -110,21 +111,125 @@ defmodule Membrane.RTC.OutgoingCallTest do
 
   test "transfer", %{state: state} do
     state = OutgoingCall.after_init(state)
-
     first_request = state.last_message
-    new_callee = Sippet.URI.parse!("sip:23456789@localhost:9999")
-    assert new_callee != state.callee
+
+    assert state.callee != @other_callee
 
     {:noreply, state} =
       Sippet.Message.to_response(state.last_message, 301)
-      |> put_in([:headers, :contact], [{"Transfer", new_callee, %{}}])
+      |> put_in([:headers, :contact], [{"Transfer", @other_callee, %{}}])
       |> then(&OutgoingCall.handle_cast({:response, &1}, state))
 
-    assert new_callee == state.callee
+    assert state.callee == @other_callee
 
     # Check that a new INVITE request was made to the new callee
     assert first_request != state.last_message
     refute Enum.empty?(state.pending_requests)
+  end
+
+  describe "routing:" do
+    test "no Contact header", %{state: state} do
+      state = OutgoingCall.after_init(state)
+      original_callee = state.callee
+
+      {:noreply, state} =
+        Sippet.Message.to_response(state.last_message, 200)
+        |> Map.put(:body, @sdp_answer)
+        |> then(&OutgoingCall.handle_cast({:response, &1}, state))
+
+      assert state.callee == original_callee
+      assert state.target == nil
+
+      updated_headers = Call.build_headers(:bye, state)
+      {_dial_info, _uri, params} = updated_headers.to
+      assert Map.has_key?(params, "tag")
+      refute Map.has_key?(updated_headers, :route)
+    end
+
+    test "Contact header only", %{state: state} do
+      state = OutgoingCall.after_init(state)
+      assert state.callee != @other_callee
+
+      {:noreply, state} =
+        Sippet.Message.to_response(state.last_message, 200)
+        |> Map.put(:body, @sdp_answer)
+        |> put_in([:headers, :contact], [{"John Smith", @other_callee, %{}}])
+        |> then(&OutgoingCall.handle_cast({:response, &1}, state))
+
+      assert state.callee == @other_callee
+      assert state.target == nil
+
+      updated_headers = Call.build_headers(:bye, state)
+      {_dial_info, _uri, params} = updated_headers.to
+      assert Map.has_key?(params, "tag")
+      refute Map.has_key?(updated_headers, :route)
+    end
+
+    test "strict", %{state: state} do
+      state = OutgoingCall.after_init(state)
+      assert state.callee != @other_callee
+
+      hop1 = Sippet.URI.parse!("sip:localhost:9998")
+      hop2 = Sippet.URI.parse!("sip:localhost:9997")
+      hop3 = Sippet.URI.parse!("sip:localhost:9996")
+
+      record_route = [
+        {"", hop3, %{}},
+        {"", hop2, %{}},
+        {"", hop1, %{}}
+      ]
+
+      {:noreply, state} =
+        Sippet.Message.to_response(state.last_message, 200)
+        |> Map.put(:body, @sdp_answer)
+        |> put_in([:headers, :contact], [{"John Smith", @other_callee, %{}}])
+        |> put_in([:headers, :record_route], record_route)
+        |> then(&OutgoingCall.handle_cast({:response, &1}, state))
+
+      assert state.callee == hop1
+      assert state.target == nil
+
+      updated_headers = Call.build_headers(:bye, state)
+      {_dial_info, _uri, params} = updated_headers.to
+      assert Map.has_key?(params, "tag")
+
+      [
+        {_, ^hop2, _},
+        {_, ^hop3, _},
+        {_, @other_callee, _}
+      ] = updated_headers.route
+    end
+
+    test "loose", %{state: state} do
+      state = OutgoingCall.after_init(state)
+      assert state.callee != @other_callee
+
+      hop1 = Sippet.URI.parse!("sip:localhost:9998;lr")
+      hop2 = Sippet.URI.parse!("sip:localhost:9997")
+      hop3 = Sippet.URI.parse!("sip:localhost:9996")
+
+      record_route = [
+        {"", hop3, %{}},
+        {"", hop2, %{}},
+        {"", hop1, %{}}
+      ]
+
+      {:noreply, state} =
+        Sippet.Message.to_response(state.last_message, 200)
+        |> Map.put(:body, @sdp_answer)
+        |> put_in([:headers, :contact], [{"John Smith", @other_callee, %{}}])
+        |> put_in([:headers, :record_route], record_route)
+        |> then(&OutgoingCall.handle_cast({:response, &1}, state))
+
+      assert state.callee == @other_callee
+      assert state.target == {:udp, hop1.host, hop1.port}
+
+      updated_headers = Call.build_headers(:bye, state)
+      {_dial_info, _uri, params} = updated_headers.to
+      assert Map.has_key?(params, "tag")
+
+      assert updated_headers.route == Enum.reverse(record_route)
+    end
   end
 
   defp handle_response(response_code, state) do

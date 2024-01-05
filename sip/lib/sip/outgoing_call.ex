@@ -192,10 +192,11 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
     route = Enum.reverse(response.headers.record_route)
 
     loose_routing? =
-      route
-      |> hd()
-      |> elem(1)
-      |> Map.get(:parameters)
+      (route
+       |> hd()
+       |> elem(1)
+       |> Map.get(:parameters) ||
+         "")
       |> String.split(";")
       |> Enum.member?("lr")
 
@@ -230,7 +231,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       end
 
     SippetCore.send_message(message)
-    %{state | to: to, target: message.target, route: route}
+    %{state | to: to, target: message[:target], route: route}
   end
 
   defp send_ack(response, state) do
