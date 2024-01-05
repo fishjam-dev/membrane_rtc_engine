@@ -54,7 +54,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
   @impl Call
   def handle_response(:invite, 200, response, state) do
-    send_ack(response, state)
+    state = send_ack(response, state)
 
     case SDP.parse(response.body) do
       {:ok, connection_info} ->
@@ -183,7 +183,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   defp send_ack(response, state) when is_map_key(response.headers, :record_route) do
     %Sippet.Message{
       headers: %{
-        to: {_user_agent, _uri, tag} = to,
+        to: to,
         via: [{_, _, _, %{"branch" => branch}}],
         cseq: {cseq, _method}
       }
@@ -230,12 +230,13 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       end
 
     SippetCore.send_message(message)
+    %{state | to: to, target: message.target, route: route}
   end
 
   defp send_ack(response, state) do
     %Sippet.Message{
       headers: %{
-        to: {_user_agent, _uri, tag} = to,
+        to: to,
         via: [{_, _, _, %{"branch" => branch}}],
         cseq: {cseq, _method}
       }
@@ -253,6 +254,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       |> Map.put(:headers, headers)
 
     SippetCore.send_message(message)
+    %{state | to: to}
   end
 
   defp hangup_cause(request) do

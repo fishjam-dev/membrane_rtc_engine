@@ -24,6 +24,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
             phone_number: String.t() | nil,
             call_id: SIP.Call.id(),
             callee: Sippet.URI.t() | nil,
+            to: Sippet.URI.t() | nil,
+            target: {:udp, String.t(), non_neg_integer()} | nil,
+            route: [{String.t(), Sippet.URI.t(), map()}] | nil,
             headers_base: Headers.t(),
             cseq: non_neg_integer(),
             last_message: Sippet.Message.t() | nil,
@@ -43,6 +46,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       :phone_number,
       :call_id,
       :callee,
+      :to,
+      :target,
+      :route,
       :headers_base,
       :cseq,
       :last_message,
@@ -210,6 +216,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
     |> Map.merge(%{
       call_id: call_id,
       callee: callee,
+      to: nil,
+      target: nil,
+      route: nil,
       headers_base: Headers.create_headers_base(from_address),
       cseq: 0,
       last_message: nil,
@@ -224,18 +233,32 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
     # (right now, we do the exchange `request, 401, request with digest` every time)
     # (this might be a stupid idea, so sorry)
 
-    state.headers_base
-    |> Map.merge(%{
-      to: {"", state.callee, %{}},
-      call_id: state.call_id,
-      cseq: {state.cseq + 1, method},
-      content_length: 0
-    })
-    |> update_in([:via], fn via -> [Tuple.append(via, %{"branch" => branch})] end)
+    headers =
+      state.headers_base
+      |> Map.merge(%{
+        to: state.to || {"", state.callee, %{}},
+        call_id: state.call_id,
+        cseq: {state.cseq + 1, method},
+        content_length: 0
+      })
+      |> update_in([:via], fn via -> [Tuple.append(via, %{"branch" => branch})] end)
+
+    if is_nil(state.route) do
+      headers
+    else
+      Map.put(headers, :route, state.route)
+    end
   end
 
   @spec make_request(Sippet.Message.request(), state()) :: state() | no_return()
   def make_request(message, state) do
+    message =
+      if is_nil(state.target) do
+        message
+      else
+        Map.put(message, :target, state.target)
+      end
+
     with :ok <- SippetCore.send_message(message) do
       {cseq, _method} = message.headers.cseq
 
