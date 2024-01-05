@@ -1,8 +1,8 @@
 defmodule Membrane.RTC.Engine.Endpoint.SIP.PortAllocator do
   @moduledoc false
 
-  require Logger
   use GenServer
+  require Logger
 
   @default_port_range {21_000, 21_100}
 

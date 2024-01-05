@@ -242,7 +242,14 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       }
     } = response
 
-    state = %{state | callee: response.headers.contact |> hd() |> elem(1)}
+    callee =
+      if is_map_key(response.headers, :contact) do
+        response.headers.contact |> hd() |> elem(1)
+      else
+        state.callee
+      end
+
+    state = %{state | callee: callee}
 
     headers =
       Call.build_headers(:ack, state, branch)
