@@ -1,7 +1,6 @@
 # Changelog
 
-## 0.2.0-dev
-
+## 0.2.0
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
 * Added track config [#329](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/329)
 * Add demuxing for Ogg encapsulated OPUS [#333](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/333)
