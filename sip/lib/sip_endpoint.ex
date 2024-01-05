@@ -39,6 +39,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTP.SessionBin
 
+  @sip_port 5060
+
   defmodule RegistrarCredentials do
     @moduledoc """
     Module describing credentials needed to connect with SIP registrar server
@@ -214,14 +216,13 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
       fn -> PortAllocator.free_ports(self_pid) end
     )
 
-    with {:ok, rtp_port} <- PortAllocator.get_port(),
-         {:ok, sip_port} <- PortAllocator.get_port() do
+    with {:ok, rtp_port} <- PortAllocator.get_port() do
       state =
         opts
         |> Map.merge(%{
           endpoint_state: :unregistered,
           rtp_port: rtp_port,
-          sip_port: sip_port,
+          sip_port: @sip_port,
           outgoing_track: track,
           incoming_tracks: %{},
           outgoing_ssrc: SessionBin.generate_receiver_ssrc([], []),

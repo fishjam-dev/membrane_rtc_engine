@@ -180,14 +180,68 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
     send(endpoint, {:call_info, message})
   end
 
-  defp send_ack(response, state) do
+  defp send_ack(response, state) when is_map_key(response.headers, :record_route) do
     %Sippet.Message{
       headers: %{
-        to: to,
+        to: {_user_agent, _uri, tag} = to,
         via: [{_, _, _, %{"branch" => branch}}],
         cseq: {cseq, _method}
       }
     } = response
+
+    route = Enum.reverse(response.headers.record_route)
+
+    loose_routing? =
+      route
+      |> hd()
+      |> elem(1)
+      |> Map.get(:parameters)
+      |> String.split(";")
+      |> Enum.member?("lr")
+
+    {state, route} =
+      if loose_routing? do
+        Logger.debug("Use loose routing")
+        {%{state | callee: response.headers.contact |> hd() |> elem(1)}, route}
+      else
+        Logger.debug("Use strict routing")
+        callee = route |> hd() |> elem(1) |> Map.put(:parameters, nil)
+
+        {%{state | callee: callee}, Enum.drop(route, 1) ++ response.headers.contact}
+      end
+
+    headers =
+      Call.build_headers(:ack, state, branch)
+      |> Map.replace(:to, to)
+      |> Map.replace(:cseq, {cseq, :ack})
+      |> Map.put(:route, route)
+
+    message =
+      Sippet.Message.build_request(:ack, to_string(state.callee))
+      |> Map.put(:headers, headers)
+
+    message =
+      if loose_routing? do
+        target = route |> hd() |> elem(1)
+
+        Map.put(message, :target, {:udp, target.host, target.port})
+      else
+        message
+      end
+
+    SippetCore.send_message(message)
+  end
+
+  defp send_ack(response, state) do
+    %Sippet.Message{
+      headers: %{
+        to: {_user_agent, _uri, tag} = to,
+        via: [{_, _, _, %{"branch" => branch}}],
+        cseq: {cseq, _method}
+      }
+    } = response
+
+    state = %{state | callee: response.headers.contact |> hd() |> elem(1)}
 
     headers =
       Call.build_headers(:ack, state, branch)
