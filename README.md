@@ -6,7 +6,7 @@ Customizable Real-time Communication Engine/SFU library focused on WebRTC.
 
 For usage examples, please refer to:
 
-- [the `examples/` directory of this repository](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/examples/),
+- [the `examples/` directory](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/examples/) of this repository,
 - our [membrane\_videoroom](https://github.com/membraneframework/membrane_videoroom) repository,
 - our [jellyfish](https://github.com/jellyfish-dev/jellyfish) repository.
 
