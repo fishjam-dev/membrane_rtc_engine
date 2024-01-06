@@ -32,9 +32,11 @@ defmodule Membrane.RTC.CallTest do
       {state, cseq} = issue_request(:bye, state)
       assert Map.has_key?(state.pending_requests, cseq)
 
+      {sn, :bye} = cseq
+
       {:noreply, state} =
         Sippet.Message.build_response(200)
-        |> Map.put(:headers, %{cseq: {cseq + 9001, :bye}})
+        |> Map.put(:headers, %{cseq: {sn + 9001, :bye}})
         |> then(&OutgoingCall.handle_cast({:response, &1}, state))
 
       assert Map.has_key?(state.pending_requests, cseq)
@@ -99,14 +101,13 @@ defmodule Membrane.RTC.CallTest do
 
   defp issue_request(method, state) do
     headers = Call.build_headers(method, state)
-    {cseq, ^method} = headers.cseq
 
     state =
       Sippet.Message.build_request(method, to_string(state.callee))
       |> Map.put(:headers, headers)
       |> Call.make_request(state)
 
-    {state, cseq}
+    {state, headers.cseq}
   end
 
   defp handle_response(response_code, state) do

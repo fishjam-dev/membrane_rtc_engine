@@ -31,9 +31,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
             cseq: non_neg_integer(),
             last_message: Sippet.Message.t() | nil,
             # Pending requests:
-            #   %{cseq => time when request was made
+            #   %{{cseq, method} => time when request was made
             #             or when last provisional response to the request was received}
-            pending_requests: %{non_neg_integer() => integer()}
+            pending_requests: %{{non_neg_integer(), atom()} => integer()}
           }
 
     @enforce_keys [
@@ -123,17 +123,17 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       defguardp is_request_pending(state, cseq) when is_map_key(state.pending_requests, cseq)
 
       @impl GenServer
-      def handle_cast({:response, %{headers: %{cseq: {cseq, _method}}}}, state)
+      def handle_cast({:response, %{headers: %{cseq: cseq}}}, state)
           when not is_request_pending(state, cseq) do
         Logger.warning(
-          "SIP Client: Received response with CSeq #{cseq}, for which there is no pending request. Ignoring."
+          "SIP Client: Received response with CSeq #{inspect(cseq)}, for which there is no pending request. Ignoring."
         )
 
         {:noreply, state}
       end
 
       @impl GenServer
-      def handle_cast({:response, %{headers: %{cseq: {cseq, method}}} = response}, state) do
+      def handle_cast({:response, %{headers: %{cseq: {_cseq, method}}} = response}, state) do
         Logger.debug("Received response in call: #{inspect(response)}")
         status_code = response.start_line.status_code
 
@@ -151,7 +151,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       @impl GenServer
       def handle_info({:timeout, cseq}, state) when is_request_pending(state, cseq) do
         if SIP.Call.timeout?(cseq, state) do
-          raise "SIP Client: Timeout. Received no response for request with CSeq #{cseq}"
+          raise "SIP Client: Timeout. Received no response for request with CSeq #{inspect(cseq)}"
         end
 
         {:noreply, state}
@@ -259,14 +259,14 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       end
 
     with :ok <- SippetCore.send_message(message) do
-      {cseq, _method} = message.headers.cseq
+      cseq = message.headers.cseq
 
       Process.send_after(self(), {:timeout, cseq}, @timeout_ms)
 
       pending_requests =
         Map.put(state.pending_requests, cseq, System.monotonic_time(:millisecond))
 
-      %{state | cseq: cseq, last_message: message, pending_requests: pending_requests}
+      %{state | cseq: elem(cseq, 0), last_message: message, pending_requests: pending_requests}
     else
       error ->
         Logger.debug("Send failed with message: #{inspect(message)}")
@@ -276,7 +276,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
 
   @spec update_pending_requests(Sippet.Message.response(), state()) :: state()
   def update_pending_requests(response, state) do
-    {cseq, _method} = response.headers.cseq
+    cseq = response.headers.cseq
 
     pending_requests =
       if response.start_line.status_code in 100..199 do
