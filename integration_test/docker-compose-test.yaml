@@ -7,13 +7,8 @@ services:
     volumes:
       - ..:/app
       - /app/integration_test/deps
-      - /app/integration_test/_build
-      - /app/engine/_build
-      - /app/webrtc/_build
-      - /app/file/_build
-      - /app/hls/_build
-      - /app/sip/_build
-      - /app/rtsp/_build
+      - /app/*/_build
+      - /app/*/deps
     environment:
       - EXTERNAL_IP=$EXTERNAL_IP
       - SIP_DOMAIN=asterisk:5061
