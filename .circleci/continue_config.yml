@@ -45,7 +45,7 @@ executors:
 
 
 jobs:
-  test_sip:
+  test_integration:
     parameters:
       workdir:
         type: string
@@ -59,8 +59,8 @@ jobs:
       - run: sudo apt-get install -y net-tools
       - run: ifconfig
       - run: ifconfig ens5 | grep "inet " | awk '{print $2}'
-      - run: echo "EXTERNAL_IP=$(ifconfig ens5 | grep "inet " | awk '{print $2}')" > ./sip/.env
-      - run: cd sip && docker compose -f docker-compose-test.yaml --env-file .env up --remove-orphans test --exit-code-from test
+      - run: echo "EXTERNAL_IP=$(ifconfig ens5 | grep "inet " | awk '{print $2}')" > ./integration_test/.env
+      - run: cd integration_test && docker compose -f docker-compose-test.yaml --env-file .env up --remove-orphans test --exit-code-from test
       - codecov/upload
 
 
@@ -234,7 +234,7 @@ workflows:
         - << pipeline.parameters.webrtc-changed >>
         - << pipeline.parameters.sip-changed >>
     jobs:
-      - test_sip:
+      - test_package:
           name: test_sip
           workdir: ~/app/sip
           codecov_flag: sip
@@ -250,12 +250,10 @@ workflows:
         - << pipeline.parameters.file-changed >>
         - << pipeline.parameters.integration-changed >>
     jobs:
-      - test_package:
+      - test_integration:
           name: test_integration
           workdir: ~/app/integration_test
           codecov_flag: integration
-          # TODO: remove once the compositor issues are resolved
-          mix_test_args: "--exclude gpu"
 
   lint-engine:
     when: << pipeline.parameters.engine-changed >>

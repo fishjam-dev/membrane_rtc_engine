@@ -53,9 +53,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
       # Engine deps
       {:membrane_rtc_engine, path: "../engine"},
       {:membrane_rtc_engine_webrtc, path: "../webrtc"},
-      # TODO get rid of these two
-      {:membrane_rtc_engine_file, path: "../file", only: :test},
-      {:membrane_rtc_engine_hls, path: "../hls", only: :test},
       {:membrane_tee_plugin, "~> 0.12.0"},
       {:membrane_file_plugin, "~> 0.16.0"},
 
@@ -73,7 +70,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
       {:membrane_opus_plugin, "~> 0.19.0"},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.19.1"},
       {:membrane_audio_mix_plugin, "~> 0.16.0"},
-      {:membrane_aac_fdk_plugin, "~> 0.18.0"},
       # {:sippet, "1.0.8"},
       {:sippet, github: "balena/elixir-sippet"},
       {:ex_sdp, "~> 0.11"},

@@ -3,15 +3,17 @@ version: '3.1'
 services:
   test:
     image: membraneframeworklabs/docker_membrane
-    command: sh -c "cd /app/sip && mix deps.get && mix coveralls.json --warnings-as-errors"
+    command: sh -c "cd /app/integration_test && mix deps.get && mix coveralls.json --warnings-as-errors --exclude gpu "
     volumes:
       - ..:/app
-      - /app/sip/_build
-      - /app/sip/deps
+      - /app/integration_test/deps
+      - /app/integration_test/_build
       - /app/engine/_build
       - /app/webrtc/_build
       - /app/file/_build
       - /app/hls/_build
+      - /app/sip/_build
+      - /app/rtsp/_build
     environment:
       - EXTERNAL_IP=$EXTERNAL_IP
       - SIP_DOMAIN=asterisk:5061

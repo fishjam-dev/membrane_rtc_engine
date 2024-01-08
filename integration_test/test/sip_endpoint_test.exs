@@ -12,6 +12,8 @@ defmodule Membrane.RTC.SIPEndpointTest do
   alias Membrane.RTC.Engine.Endpoint.SIP.{RegistrarCredentials}
   alias Membrane.RTC.Engine.Message
 
+  @moduletag :sip
+
   @fixtures_dir "./test/fixtures/"
   @tracks_added_delay 2_500
   @call_sound0_extn0 "1230"
@@ -443,7 +445,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
       rtc_engine: rtc_engine,
       registrar_credentials:
         RegistrarCredentials.new(
-          address: System.fetch_env!("SIP_DOMAIN"),
+          address: System.get_env("SIP_DOMAIN", "127.0.0.1:5061"),
           username: username,
           password: "yourpassword"
         ),
@@ -461,7 +463,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
       opts: [id: audio_track_id]
     }
 
-    audio_file = if is_nil(audio_file), do: "audio#{:rand.uniform(7) - 1}.aac", else: audio_file
+    audio_file = if is_nil(audio_file), do: "audio0.aac", else: audio_file
 
     %FileEndpoint{
       rtc_engine: rtc_engine,
