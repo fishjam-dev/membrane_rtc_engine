@@ -627,10 +627,16 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     end
 
     actions = [
-      notify_parent: :ready,
       notify_parent: {:forward_to_parent, msg},
       notify_parent: :finished
     ]
+
+    actions =
+      if state.endpoint_state == :in_call do
+        [notify_parent: :ready] ++ actions
+      else
+        actions
+      end
 
     {actions, %{state | endpoint_state: :terminating}}
   end

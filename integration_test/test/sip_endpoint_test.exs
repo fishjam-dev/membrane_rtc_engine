@@ -16,6 +16,9 @@ defmodule Membrane.RTC.SIPEndpointTest do
 
   @fixtures_dir "./test/fixtures/"
   @tracks_added_delay 2_500
+  @rtp_stream_delay 20_000
+  @playlist_playable_delay 35_000
+  @endpoint_removed_delay 5_000
   @call_sound0_extn0 "1230"
   @call_sound0_extn1 "1231"
   @call_sound0_extn2 "1232"
@@ -133,29 +136,32 @@ defmodule Membrane.RTC.SIPEndpointTest do
       SIP.dial(room2.engine, room2.sip_id, @call_sound1_extn0)
 
       for room <- rooms do
-        FileEndpoint.start_sending(room.engine, room.file_id)
-      end
-
-      for room <- rooms do
         sip_endpoint_id = room.sip_id
+
+        :ok = Engine.message_endpoint(room.engine, room.hls_id, {:subscribe, [@sip_id]})
+
+        FileEndpoint.start_sending(room.engine, room.file_id)
 
         assert_receive %Message.TrackAdded{
                          endpoint_id: ^sip_endpoint_id,
-                         track_id: sip_track_id
+                         track_id: _sip_track_id
                        },
-                       15_000
+                       @tracks_added_delay
 
         assert_receive %Message.EndpointMessage{
                          endpoint_id: ^sip_endpoint_id,
                          message: :received_rtp_stream
                        },
-                       15_000
+                       @rtp_stream_delay
 
-        :ok = Engine.message_endpoint(room.engine, room.hls_id, {:subscribe, [sip_track_id]})
+        assert_receive %Message.EndpointMessage{
+          endpoint_id: ^sip_endpoint_id,
+          message: :call_ready
+        }
       end
 
-      assert_receive {:playlist_playable, _content, _output_path}, 50_000
-      assert_receive {:playlist_playable, _content, _output_path}, 50_000
+      assert_receive {:playlist_playable, _content, _output_path}, @playlist_playable_delay
+      assert_receive {:playlist_playable, _content, _output_path}, @playlist_playable_delay
 
       for room <- rooms do
         sip_endpoint_id = room.sip_id
@@ -173,7 +179,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
         assert_receive %Message.EndpointRemoved{
                          endpoint_id: ^hls_endpoint_id
                        },
-                       50_000
+                       @endpoint_removed_delay
       end
 
       for room <- rooms do
@@ -209,13 +215,13 @@ defmodule Membrane.RTC.SIPEndpointTest do
                        endpoint_id: ^sip_endpoint_id1,
                        message: :received_rtp_stream
                      },
-                     15_000
+                     @rtp_stream_delay
 
       assert_receive %Message.EndpointMessage{
                        endpoint_id: ^sip_endpoint_id2,
                        message: :received_rtp_stream
                      },
-                     15_000
+                     @rtp_stream_delay
 
       assert_receive %Message.EndpointRemoved{
                        endpoint_id: ^sip_endpoint_id1
@@ -246,7 +252,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
 
       SIP.dial(rtc_engine, sip_endpoint_id, @wait_hangup_extn)
 
-      assert_receive %Message.EndpointRemoved{endpoint_id: ^sip_endpoint_id}, 15_000
+      assert_receive %Message.EndpointRemoved{endpoint_id: ^sip_endpoint_id}, 30_000
     end
 
     @tag :tmp_dir
@@ -299,7 +305,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
       assert_receive %Message.EndpointRemoved{
                        endpoint_id: ^file_endpoint_id1
                      },
-                     1_000
+                     @endpoint_removed_delay
 
       assert_receive %Message.EndpointRemoved{
                        endpoint_id: ^sip_endpoint_id
@@ -339,7 +345,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
                        endpoint_id: @sip_id,
                        message: :received_rtp_stream
                      },
-                     15_000
+                     @rtp_stream_delay
 
       assert_receive %Message.EndpointRemoved{
                        endpoint_id: @file_id
@@ -388,7 +394,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
 
     assert_receive %Message.TrackAdded{
                      endpoint_id: @sip_id,
-                     track_id: sip_track_id
+                     track_id: _sip_track_id
                    },
                    15_000
 
@@ -396,13 +402,13 @@ defmodule Membrane.RTC.SIPEndpointTest do
                      endpoint_id: @sip_id,
                      message: :received_rtp_stream
                    },
-                   15_000
+                   @rtp_stream_delay
 
-    :ok = Engine.message_endpoint(rtc_engine, @hls_id, {:subscribe, [sip_track_id]})
+    :ok = Engine.message_endpoint(rtc_engine, @hls_id, {:subscribe, [@sip_id]})
 
     FileEndpoint.start_sending(rtc_engine, @file_id)
 
-    assert_receive {:playlist_playable, _content, _output_path}, 50_000
+    assert_receive {:playlist_playable, _content, _output_path}, @playlist_playable_delay
 
     assert_receive %Message.EndpointRemoved{
                      endpoint_id: @sip_id
@@ -414,7 +420,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
     assert_receive %Message.EndpointRemoved{
                      endpoint_id: @hls_id
                    },
-                   50_000
+                   @endpoint_removed_delay
 
     assert File.exists?(asterisk_output)
     check_alaw_file(asterisk_output)
@@ -434,7 +440,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
         mode: :vod,
         target_window_duration: :infinity,
         hls_mode: :separate_av,
-        segment_duration: Membrane.Time.seconds(3)
+        segment_duration: Membrane.Time.seconds(2)
       },
       subscribe_mode: :manual
     }
@@ -445,7 +451,8 @@ defmodule Membrane.RTC.SIPEndpointTest do
       rtc_engine: rtc_engine,
       registrar_credentials:
         RegistrarCredentials.new(
-          address: System.get_env("SIP_DOMAIN", "127.0.0.1:5061"),
+          address:
+            System.get_env("SIP_DOMAIN", "127.0.0.1:5061") |> IO.inspect(label: :SIP_DOMAIN),
           username: username,
           password: "yourpassword"
         ),

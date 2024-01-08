@@ -2,6 +2,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   @moduledoc false
 
   use Membrane.RTC.Engine.Endpoint.SIP.Call
+  require Membrane.Logger
 
   alias Membrane.RTC.Engine.Endpoint.SIP.{Call, SippetCore}
   alias Membrane.RTC.Engine.Endpoint.SIP.Call.SDP
