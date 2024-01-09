@@ -10,13 +10,17 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   Currently, only the G711 A-law codec is supported.
 
   ## Setup
-  The range of ports available to SIP Endpoints can be modified by adding the following line to your `config.exs`:
+  All Endpoints share a single UDP socket for SIP signaling messages.
+  By default, it is opened on `0.0.0.0:5060`; this can be changed by adding the following line to your `config.exs`:
+  ```
+  config :membrane_rtc_engine_sip, sip_address: "1.2.3.4", sip_port: 5061
+  ```
+
+  The range of UDP ports (available to all SIP Endpoints) used for RTP media stream exchange
+  can be modified by adding the following line to your `config.exs`:
   ```
   config :membrane_rtc_engine_sip, port_range: {from, to}     # (both ends inclusive)
   ```
-
-  Each SIP Endpoint will open a UDP socket on a port from this range and use it for its RTP media stream.
-  All Endpoints share port 5060 for SIP signaling messages.
   """
 
   use Membrane.Bin
@@ -38,7 +42,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTP.SessionBin
 
-  @sip_port 5060
+  @default_sip_port 5060
 
   defmodule RegistrarCredentials do
     @moduledoc """
@@ -221,7 +225,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         |> Map.merge(%{
           endpoint_state: :unregistered,
           rtp_port: rtp_port,
-          sip_port: @sip_port,
+          sip_port: Application.get_env(:membrane_rtc_engine_sip, :sip_port, @default_sip_port),
           outgoing_track: track,
           incoming_tracks: %{},
           outgoing_ssrc: SessionBin.generate_receiver_ssrc([], []),

@@ -29,15 +29,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.RegisterCall do
       | userinfo: state.registrar_credentials.username
     }
 
-    to = {"", registrar, %{}}
-
     headers =
       Call.build_headers(:register, state)
-      |> Map.replace(:to, to)
-
-    # |> Map.replace(:to, put_elem(state.headers_base.from, 2, %{}))
-
-    # TODO: determine whether we really need userinfo here: Verify with Asterisk if needed
+      |> Map.replace(:to, {"", registrar, %{}})
 
     message =
       Sippet.Message.build_request(:register, to_string(registrar))
