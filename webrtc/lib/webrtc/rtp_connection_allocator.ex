@@ -344,12 +344,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
       state.prober_status in [:allowed_overuse, :disallowed_overuse] ->
         state
 
-      not is_deficient?(state) and state.prober_status != :maintain_allocation ->
+      not deficient?(state) and state.prober_status != :maintain_allocation ->
         Logger.debug("Switching prober state to maintain estimation")
 
         Map.put(state, :prober_status, :maintain_allocation)
 
-      is_deficient?(state) and state.prober_status != :increase_estimation ->
+      deficient?(state) and state.prober_status != :increase_estimation ->
         Logger.debug("Switching prober state to increase estimation")
 
         Map.put(state, :prober_status, :increase_estimation)
@@ -378,7 +378,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
 
       state.prober_status in [:allowed_overuse, :disallowed_overuse] and
           state.estimated_sender_rate <= state.available_bandwidth ->
-        new_status = if is_deficient?(state), do: :increase_estimation, else: :maintain_allocation
+        new_status = if deficient?(state), do: :increase_estimation, else: :maintain_allocation
 
         Logger.debug(
           "Switching prober state to #{new_status} after being in the state of #{state.prober_status}"
@@ -400,7 +400,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
     |> maybe_change_probing_status()
   end
 
-  defp is_deficient?(state),
+  defp deficient?(state),
     do:
       state.track_receivers
       |> Map.values()
