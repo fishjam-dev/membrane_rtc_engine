@@ -34,7 +34,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
   defp deps do
     [
       # Engine deps
-      {:membrane_rtc_engine, path: "../engine"},
+      {:membrane_rtc_engine, path: "../engine", override: true},
       {:membrane_rtc_engine_hls, path: "../hls"},
       {:membrane_rtc_engine_rtsp, path: "../rtsp"},
       {:membrane_rtc_engine_file, path: "../file"},

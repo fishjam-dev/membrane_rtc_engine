@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0-dev
+## 0.5.0
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
 * Change some logs to debug [#327](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/327)
 * Update deps [#333](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/333)

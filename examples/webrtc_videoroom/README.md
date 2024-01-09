@@ -1,6 +1,6 @@
 # Membrane WebRTC video room demo
 
-This project demonstrates an example usage of Membrane SFU API defined in [membrane_sfu](https://github.com/membraneframework/membrane_sfu).
+This project demonstrates an example usage of the Membrane RTC Engine API.
 
 ## Run manually
 
