@@ -111,14 +111,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        [^rtc_engine, "hls-endpoint", ^track_id, _opts]}},
                      @tracks_added_delay
 
-      Engine.message_endpoint(rtc_engine, hls_endpoint_id, {:subscribe, [file_endpoint_id]})
+      HLS.subscribe(rtc_engine, hls_endpoint_id, [file_endpoint_id])
 
       # Checks if hls won't subscribe twice on the same track
       # Should ignore tracks that is already subscribed for
-      Engine.message_endpoint(rtc_engine, hls_endpoint_id, {:subscribe, [file_endpoint_id]})
+      HLS.subscribe(rtc_engine, hls_endpoint_id, [file_endpoint_id])
 
       # Checks if hls won't crash if not existing endpoint is passed
-      Engine.message_endpoint(rtc_engine, hls_endpoint_id, {:subscribe, ["wrong_id"]})
+      HLS.subscribe(rtc_engine, hls_endpoint_id, ["wrong_id"])
 
       assert_receive {:trace, _pid, :call,
                       {Membrane.RTC.Engine, :subscribe,
@@ -160,14 +160,14 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :erlang.trace(:all, true, [:call])
       :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
 
-      Engine.message_endpoint(rtc_engine, hls_endpoint_id, {:subscribe, [file_endpoint_id]})
+      HLS.subscribe(rtc_engine, hls_endpoint_id, [file_endpoint_id])
 
       # Checks if hls won't subscribe twice on the same track
       # Should ignore tracks that is already subscribed for
-      Engine.message_endpoint(rtc_engine, hls_endpoint_id, {:subscribe, [file_endpoint_id]})
+      HLS.subscribe(rtc_engine, hls_endpoint_id, [file_endpoint_id])
 
       # Checks if hls won't crash if not existing endpoint is passed
-      Engine.message_endpoint(rtc_engine, hls_endpoint_id, {:subscribe, ["wrong_id"]})
+      HLS.subscribe(rtc_engine, hls_endpoint_id, ["wrong_id"])
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 

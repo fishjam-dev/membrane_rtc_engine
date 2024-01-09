@@ -138,8 +138,6 @@ defmodule Membrane.RTC.SIPEndpointTest do
       for room <- rooms do
         sip_endpoint_id = room.sip_id
 
-        :ok = Engine.message_endpoint(room.engine, room.hls_id, {:subscribe, [@sip_id]})
-
         FileEndpoint.start_sending(room.engine, room.file_id)
 
         assert_receive %Message.TrackAdded{
@@ -158,6 +156,8 @@ defmodule Membrane.RTC.SIPEndpointTest do
           endpoint_id: ^sip_endpoint_id,
           message: :call_ready
         }
+
+        :ok = HLS.subscribe(room.engine, room.hls_id, [room.sip_id])
       end
 
       assert_receive {:playlist_playable, _content, _output_path}, @playlist_playable_delay
@@ -404,7 +404,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
                    },
                    @rtp_stream_delay
 
-    :ok = Engine.message_endpoint(rtc_engine, @hls_id, {:subscribe, [@sip_id]})
+    :ok = HLS.subscribe(rtc_engine, @hls_id, [@sip_id])
 
     FileEndpoint.start_sending(rtc_engine, @file_id)
 

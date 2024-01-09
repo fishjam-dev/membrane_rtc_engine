@@ -632,7 +632,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     ]
 
     actions =
-      if state.endpoint_state == :in_call do
+      if state.endpoint_state != :in_call do
         [notify_parent: :ready] ++ actions
       else
         actions

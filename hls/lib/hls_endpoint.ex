@@ -96,10 +96,15 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
                 default: :auto,
                 description: """
                 Whether tracks should be subscribed automatically when they're ready.
-                If set to `:manual` hls endpoint will subscribe only to tracks send using message:
-                `{:subscribe, tracks}`
+                If set to `:manual` hls endpoint will subscribe only to tracks from endpoints send using message:
+                `{:subscribe, endpoints}`
                 """
               ]
+
+  @spec subscribe(engine :: pid(), endpoint_id :: any(), endpoints :: [any()]) :: :ok
+  def subscribe(engine, endpoint_id, endpoints) do
+    Engine.message_endpoint(engine, endpoint_id, {:subscribe, endpoints})
+  end
 
   @impl true
   def handle_init(_context, options) when options.subscribe_mode not in [:auto, :manual] do
@@ -288,6 +293,19 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       |> Enum.filter(fn track ->
         track.origin in endpoints and track.id not in subscribed_tracks
       end)
+
+    origins = MapSet.new(tracks, fn track -> track.origin end)
+
+    not_found_endpoints =
+      Enum.filter(endpoints, fn endpoint ->
+        MapSet.member?(origins, endpoint)
+      end)
+
+    if not_found_endpoints != [] do
+      Membrane.Logger.warning(
+        "Couldn't subscribe on any track from endpoints: #{not_found_endpoints}"
+      )
+    end
 
     new_subscribed_tracks =
       tracks
