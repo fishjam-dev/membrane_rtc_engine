@@ -71,7 +71,8 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
         "cmd docker compose -f docker-compose-test.yaml up --remove-orphans test --exit-code-from test"
       ],
       "test.ci.clean": [
-        "cmd docker compose -f docker-compose-test.yaml down"
+        "cmd docker compose -f docker-compose-test.yaml down",
+        "rm -rfd _build"
       ]
     ]
   end

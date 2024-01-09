@@ -30,4 +30,4 @@ services:
     environment:
       - EXTERNAL_IP=$EXTERNAL_IP
       - LOCAL_NET=$EXTERNAL_IP/16
-    entrypoint: [ "/etc/asterisk/startup.sh" ] # replace "command" with "entrypoint"
+    entrypoint: [ "/etc/asterisk/startup.sh" ]

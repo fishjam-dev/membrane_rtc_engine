@@ -87,8 +87,6 @@ defmodule Membrane.RTC.Engine do
 
   require Membrane.Logger
 
-  require Logger
-
   alias Membrane.RTC.Engine.{
     DisplayManager,
     Endpoint,
@@ -570,7 +568,6 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
-    # TODO/FIXME: Debug why somethimes it is absent
     case handle_remove_endpoint(endpoint_id, ctx, state) do
       {{:present, endpoint}, actions, state} ->
         dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id, endpoint_type: endpoint.type})

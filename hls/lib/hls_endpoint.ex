@@ -125,7 +125,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         stream_beginning: nil,
         terminating?: false,
         start_mixing_sent?: false,
-        subscribed_endpoints: []
+        subscribed_endpoints: MapSet.new()
       })
 
     {[notify_parent: :ready], state}
@@ -271,7 +271,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     subscribed_tracks =
       tracks
       |> Enum.filter(fn track ->
-        track.origin in state.subscribed_endpoints and track.id not in subscribed_tracks
+        MapSet.member?(state.subscribed_endpoints, track.origin) and
+          track.id not in subscribed_tracks
       end)
       |> Enum.map(fn track -> track.id end)
       |> subscribe_for_tracks(ctx, state)
@@ -316,7 +317,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       tracks
       |> add_tracks(new_subscribed_tracks, state)
       |> Map.update!(:subscribed_endpoints, fn subscribed ->
-        subscribed |> Enum.concat(endpoints) |> Enum.uniq()
+        endpoints |> MapSet.new() |> MapSet.union(subscribed)
       end)
 
     {[], new_state}
