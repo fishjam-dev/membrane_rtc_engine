@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.MixProject do
   use Mix.Project
 
-  @version "0.19.0"
+  @version "0.20.0-dev"
   @github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @source_ref "engine-v#{@version}"
 
