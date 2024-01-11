@@ -99,9 +99,8 @@ defmodule Membrane.RTC.OutgoingCallTest do
     assert_receive {:call_info, {:end, :cancelled}}
 
     # CANCEL should have the same CSeq as the INVITE it's cancelling
-    # ...but this causes issues with some providers
-    # {cseq, :invite} = invite_request.headers.cseq
-    # {^cseq, :cancel} = state.last_message.headers.cseq
+    {cseq, :invite} = invite_request.headers.cseq
+    {^cseq, :cancel} = state.last_message.headers.cseq
 
     # We can expect a 200 response to CANCEL
     {:noreply, state} = handle_response(200, state)

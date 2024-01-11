@@ -135,9 +135,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
   @impl GenServer
   def handle_cast(:cancel, state) do
-    # According to the RFC, a CANCEL request should be issued with the same CSeq as the INVITE
-    # it is cancelling. However, such an implementation didn't work, so we were forced to roll it back.
-    state = build_and_send_request(:cancel, state)
+    state = send_cancel(state)
     notify_endpoint(state.endpoint, {:end, :cancelled})
     schedule_death()
 
@@ -255,6 +253,15 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
     SippetCore.send_message(message)
     %{state | to: to}
+  end
+
+  defp send_cancel(state) do
+    {cseq, :invite} = state.last_message.headers.cseq
+
+    :cancel
+    |> Call.build_headers(state, %{cseq: {cseq, :cancel}})
+    |> create_request(state)
+    |> Call.make_request(state)
   end
 
   defp loose_routing?(first_hop_uri) do
