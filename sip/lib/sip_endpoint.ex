@@ -485,8 +485,16 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         }
       })
       |> child(:converter_out, %Membrane.FFmpeg.SWResample.Converter{
-        input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: @opus_sample_rate},
-        output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: Membrane.G711.sample_rate()}
+        input_stream_format: %RawAudio{
+          channels: 1,
+          sample_format: :s16le,
+          sample_rate: @opus_sample_rate
+        },
+        output_stream_format: %RawAudio{
+          channels: 1,
+          sample_format: :s16le,
+          sample_rate: Membrane.G711.sample_rate()
+        }
       })
       |> child(:audio_codec_encoder, Membrane.G711.Encoder)
       |> child(:audio_codec_parser, %Membrane.G711.Parser{overwrite_pts?: true})
@@ -671,8 +679,16 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     )
     |> child({:audio_codec_decoder, ssrc}, Membrane.G711.Decoder)
     |> child({:converter, ssrc}, %Membrane.FFmpeg.SWResample.Converter{
-      input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: Membrane.G711.sample_rate()},
-      output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: @opus_sample_rate}
+      input_stream_format: %RawAudio{
+        channels: 1,
+        sample_format: :s16le,
+        sample_rate: Membrane.G711.sample_rate()
+      },
+      output_stream_format: %RawAudio{
+        channels: 1,
+        sample_format: :s16le,
+        sample_rate: @opus_sample_rate
+      }
     })
     |> child({:raw_audio_parser, ssrc}, %Membrane.RawAudioParser{
       stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: @opus_sample_rate},

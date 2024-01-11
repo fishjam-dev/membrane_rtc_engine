@@ -229,7 +229,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
   end
 
   @spec build_headers(atom(), state(), map(), String.t()) :: map()
-  def build_headers(method, state, override_headers \\ %{}, branch \\ Sippet.Message.create_branch()) do
+  def build_headers(
+        method,
+        state,
+        override_headers \\ %{},
+        branch \\ Sippet.Message.create_branch()
+      ) do
     # XXX: Consider optimising the digest auth process
     # (right now, we do the exchange `request, 401, request with digest` every time)
 

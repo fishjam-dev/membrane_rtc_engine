@@ -28,7 +28,10 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
     proposal = SDP.proposal(state.external_ip, state.rtp_port)
 
     :invite
-    |> Call.build_headers(state, %{content_length: byte_size(proposal), content_type: "application/sdp"})
+    |> Call.build_headers(state, %{
+      content_length: byte_size(proposal),
+      content_type: "application/sdp"
+    })
     |> create_request(state)
     |> Map.replace(:body, proposal)
     |> Call.make_request(state)
@@ -190,7 +193,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
     } = response
 
     route = Enum.reverse(record_route)
-    [{_name, first_hop_uri, _params} |  _] = route
+    [{_name, first_hop_uri, _params} | _] = route
 
     # According to RFC 3261 section 12.2.1.1
     # https://datatracker.ietf.org/doc/html/rfc3261#section-12.2.1.1
