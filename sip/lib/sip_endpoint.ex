@@ -104,6 +104,60 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     Engine.message_endpoint(rtc_engine, endpoint_id, :end_call)
   end
 
+  defmodule State do
+    @moduledoc false
+    use Bunch.Access
+
+    @typep endpoint_state ::
+             :unregistered
+             | :unregistered_call_pending
+             | :registered
+             | :calling
+             | :in_call
+             | :ending_call
+             | :terminating
+
+    @type t :: %__MODULE__{
+            rtc_engine: pid(),
+            registrar_credentials: RegistrarCredentials.t(),
+            external_ip: String.t(),
+            register_interval_ms: non_neg_integer(),
+            disconnect_if_alone: boolean(),
+            endpoint_state: endpoint_state(),
+            rtp_port: 1..65_535,
+            sip_port: 1..65_535,
+            outgoing_track: Track.t(),
+            incoming_tracks: %{Track.id() => Track.t()},
+            outgoing_ssrc: Membrane.RTP.ssrc_t(),
+            first_ssrc: Membrane.RTP.ssrc_t() | nil,
+            register_call_id: Call.id(),
+            call_id: Call.id() | nil,
+            phone_number: String.t() | nil,
+            payload_type: ExSDP.Attribute.RTPMapping.payload_type_t()
+          }
+
+    @enforce_keys [
+      :rtc_engine,
+      :registrar_credentials,
+      :external_ip,
+      :register_interval_ms,
+      :disconnect_if_alone,
+      :endpoint_state,
+      :rtp_port,
+      :sip_port,
+      :outgoing_track,
+      :incoming_tracks,
+      :outgoing_ssrc,
+      :first_ssrc,
+      :register_call_id,
+      :call_id,
+      :phone_number,
+      :payload_type
+    ]
+
+    defstruct @enforce_keys
+  end
+
   @impl true
   def handle_init(ctx, opts) do
     Logger.debug("SIP Endpoint: Init")
@@ -589,60 +643,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     Call.stop(state.register_call_id)
 
     {[terminate: :normal], %{state | endpoint_state: :terminating}}
-  end
-
-  defmodule State do
-    @moduledoc false
-    use Bunch.Access
-
-    @typep endpoint_state ::
-             :unregistered
-             | :unregistered_call_pending
-             | :registered
-             | :calling
-             | :in_call
-             | :ending_call
-             | :terminating
-
-    @type t :: %__MODULE__{
-            rtc_engine: pid(),
-            registrar_credentials: RegistrarCredentials.t(),
-            external_ip: String.t(),
-            register_interval_ms: non_neg_integer(),
-            disconnect_if_alone: boolean(),
-            endpoint_state: endpoint_state(),
-            rtp_port: 1..65_535,
-            sip_port: 1..65_535,
-            outgoing_track: Track.t(),
-            incoming_tracks: %{Track.id() => Track.t()},
-            outgoing_ssrc: Membrane.RTP.ssrc_t(),
-            first_ssrc: Membrane.RTP.ssrc_t() | nil,
-            register_call_id: Call.id(),
-            call_id: Call.id() | nil,
-            phone_number: String.t() | nil,
-            payload_type: ExSDP.Attribute.RTPMapping.payload_type_t()
-          }
-
-    @enforce_keys [
-      :rtc_engine,
-      :registrar_credentials,
-      :external_ip,
-      :register_interval_ms,
-      :disconnect_if_alone,
-      :endpoint_state,
-      :rtp_port,
-      :sip_port,
-      :outgoing_track,
-      :incoming_tracks,
-      :outgoing_ssrc,
-      :first_ssrc,
-      :register_call_id,
-      :call_id,
-      :phone_number,
-      :payload_type
-    ]
-
-    defstruct @enforce_keys
   end
 
   defp try_calling(state, playback_state, phone_number) do
