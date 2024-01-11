@@ -70,14 +70,10 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   end
 
   @impl Call
-  def handle_response(:invite, transfer, response, state) when transfer in [300, 301, 302] do
-    case Sippet.Message.get_header(response, :contact, []) do
-      [{"Transfer", uri, _params} | _] ->
-        after_init(%{state | callee: uri})
-
-      _other ->
-        raise "SIP Client: Received #{transfer} response, but were unable to parse transfer URI"
-    end
+  def handle_response(:invite, transfer, _response, state) when transfer in [300, 301, 302] do
+    # Callee was updated by `Call.process_response/2`.
+    # We need to clear the `to` header, otherwise we will receive 481 Call/Transaction Does Not Exist
+    after_init(%{state | to: nil})
   end
 
   @impl Call
@@ -186,7 +182,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       headers: %{
         to: to,
         via: [{_, _, _, %{"branch" => branch}}],
-        cseq: {cseq, :invite},
+        cseq: {cseq, :invite}
       }
     } = response
 
