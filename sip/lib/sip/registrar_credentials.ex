@@ -7,8 +7,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.RegistrarCredentials do
   Describes SIP registrar credentials structure.
 
   * `uri` - URI with address of the registrar server.
-  * `username` - your username in registrar service
-  * `password` - your password in registrar service
+  * `username` - your username in the registrar service
+  * `password` - your password in the registrar service
   """
   @type t :: %__MODULE__{
           uri: Sippet.URI.t(),
@@ -20,12 +20,14 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.RegistrarCredentials do
   defstruct @enforce_keys
 
   @doc """
-  Creates a RegistrarCredentials struct from strings. The address is parsed and can be:
-    - an FQDN, e.g. "my-sip-registrar.net",
-    - an IPv4 in string form, e.g. "1.2.3.4".
+  Creates a `RegistrarCredentials` struct from strings.
 
-  Both can have a specified port, e.g. "5.6.7.8:9999".
-  If not given, the default SIP port 5060 will be assumed.
+  The address is parsed and can be:
+    - an FQDN, e.g. `"my-sip-registrar.net"`,
+    - an IPv4 in string form, e.g. `"1.2.3.4"`.
+
+  Both can have a specified port, e.g. `"5.6.7.8:9999"`.
+  If not given, the default SIP port `5060` will be assumed.
   """
   @spec new(address: String.t(), username: String.t(), password: String.t()) ::
           t() | no_return()

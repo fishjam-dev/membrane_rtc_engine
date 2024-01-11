@@ -30,6 +30,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call.Settings do
     endpoint_state
     |> Map.from_struct()
     |> Map.put(:endpoint, self())
-    |> then(&struct(Call.Settings, &1))
+    |> then(&struct(__MODULE__, &1))
   end
 end

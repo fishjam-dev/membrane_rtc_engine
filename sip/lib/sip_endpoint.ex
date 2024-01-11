@@ -1,16 +1,17 @@
 defmodule Membrane.RTC.Engine.Endpoint.SIP do
   @moduledoc """
-  TODO: write me
-
-  An Endpoint responsible for
+  An Endpoint responsible for:
+  * registering at a SIP provider,
+  * dialing a phone number,
+  * receiving audio from the callee and forwarding it to other Endpoints,
+  * mixing audio tracks from other Endpoints and sending them to the callee.
 
   ## Limitations
-  Incoming calls are unsupported.
-
-  Currently, only the G711 A-law codec is supported.
+  * Incoming calls are unsupported,
+  * only the G.711 A-law audio codec is supported (SDP negotiation will fail if the SIP provider doesn't support it).
 
   ## Setup
-  All Endpoints share a single UDP socket for SIP signaling messages.
+  All SIP Endpoints share a single UDP socket for SIP signaling messages.
   By default, it is opened on `0.0.0.0:5060`; this can be changed by adding the following line to your `config.exs`:
   ```
   config :membrane_rtc_engine_sip, sip_address: "1.2.3.4", sip_port: 5061
@@ -63,7 +64,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
               ],
               registrar_credentials: [
                 spec: RegistrarCredentials.t(),
-                description: "Credentials needed to connect with SIP registrar server"
+                description: "Credentials needed to connect with the SIP registrar server"
               ],
               external_ip: [
                 spec: String.t(),
@@ -96,7 +97,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   end
 
   @doc """
-  Ends ongoing call or cancels call try
+  Ends ongoing call or cancels call attempt
   """
   @spec end_call(rtc_engine :: pid(), endpoint_id :: String.t()) :: :ok
   def end_call(rtc_engine, endpoint_id) do
