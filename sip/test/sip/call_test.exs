@@ -20,7 +20,7 @@ defmodule Membrane.RTC.CallTest do
             password: "some-password"
           ),
         external_ip: "1.2.3.4",
-        register_interval: 30_000,
+        register_interval_ms: 30_000,
         phone_number: "12345678"
       })
 
@@ -78,12 +78,10 @@ defmodule Membrane.RTC.CallTest do
       {state, cseq} = issue_request(:invite, state)
       assert Map.has_key?(state.pending_requests, cseq)
 
-      Process.sleep(10)
-
       time_before_receiving_response = System.monotonic_time(:millisecond)
-      assert Map.fetch!(state.pending_requests, cseq) < time_before_receiving_response
+      assert Map.fetch!(state.pending_requests, cseq) <= time_before_receiving_response
 
-      Process.sleep(10)
+      Process.sleep(2)
 
       {:noreply, state} = handle_response(100, state)
       assert Map.has_key?(state.pending_requests, cseq)

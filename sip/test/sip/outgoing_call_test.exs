@@ -26,7 +26,7 @@ defmodule Membrane.RTC.OutgoingCallTest do
             password: "some-password"
           ),
         external_ip: "1.2.3.4",
-        register_interval: 30_000,
+        register_interval_ms: 30_000,
         phone_number: "12345678"
       })
 

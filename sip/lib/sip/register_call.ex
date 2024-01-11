@@ -29,17 +29,16 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.RegisterCall do
       | userinfo: state.registrar_credentials.username
     }
 
-    headers =
-      Call.build_headers(:register, state)
-      |> Map.replace(:to, {"", registrar, %{}})
+    headers = Call.build_headers(:register, state, %{to: {"", registrar, %{}}})
 
     message =
-      Sippet.Message.build_request(:register, to_string(registrar))
+      :register
+      |> Sippet.Message.build_request(to_string(registrar))
       |> Map.put(:headers, headers)
 
     state = Call.make_request(message, state)
 
-    Process.send_after(self(), :register, state.register_interval)
+    Process.send_after(self(), :register, state.register_interval_ms)
     {:noreply, state}
   end
 end

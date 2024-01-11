@@ -27,17 +27,11 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   def after_init(state) do
     proposal = SDP.proposal(state.external_ip, state.rtp_port)
 
-    headers =
-      Call.build_headers(:invite, state)
-      |> Map.replace(:content_length, byte_size(proposal))
-
-    message =
-      Sippet.Message.build_request(:invite, to_string(state.callee))
-      |> Map.put(:headers, headers)
-      |> Sippet.Message.put_header(:content_type, "application/sdp")
-      |> Map.replace(:body, proposal)
-
-    Call.make_request(message, state)
+    :invite
+    |> Call.build_headers(state, %{content_length: byte_size(proposal), content_type: "application/sdp"})
+    |> create_request(state)
+    |> Map.replace(:body, proposal)
+    |> Call.make_request(state)
   end
 
   @impl Call
@@ -75,7 +69,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   @impl Call
   def handle_response(:invite, transfer, response, state) when transfer in [300, 301, 302] do
     case Sippet.Message.get_header(response, :contact, []) do
-      [{"Transfer", uri, _map} | _] ->
+      [{"Transfer", uri, _params} | _] ->
         after_init(%{state | callee: uri})
 
       _other ->
@@ -111,7 +105,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
   @impl Call
   def handle_response(method, 200, _response, state) when method in [:cancel, :bye] do
-    send(self(), :die)
+    schedule_death(:instant)
     state
   end
 
@@ -130,7 +124,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   def handle_request(:bye, request, state) do
     respond(request, 200)
     notify_endpoint(state.endpoint, {:end, hangup_cause(request)})
-    Process.send_after(self(), :die, @death_timeout_ms)
+    schedule_death()
     state
   end
 
@@ -140,7 +134,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   def handle_cast(:cancel, state) do
     state = send_cancel(state)
     notify_endpoint(state.endpoint, {:end, :cancelled})
-    Process.send_after(self(), :die, @death_timeout_ms)
+    schedule_death()
 
     {:noreply, state}
   end
@@ -149,7 +143,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   def handle_cast(:bye, state) do
     state = build_and_send_request(:bye, state)
     notify_endpoint(state.endpoint, {:end, :user_hangup})
-    Process.send_after(self(), :die, @death_timeout_ms)
+    schedule_death()
 
     {:noreply, state}
   end
@@ -162,13 +156,16 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   ## PRIVATE FUNCTIONS
 
   defp build_and_send_request(method, state) do
-    headers = Call.build_headers(method, state)
+    method
+    |> Call.build_headers(state)
+    |> create_request(state)
+    |> Call.make_request(state)
+  end
 
-    message =
-      Sippet.Message.build_request(method, to_string(state.callee))
-      |> Map.put(:headers, headers)
-
-    Call.make_request(message, state)
+  defp create_request(%{cseq: {_cseq, method}} = headers, state) do
+    method
+    |> Sippet.Message.build_request(to_string(state.callee))
+    |> Map.put(:headers, headers)
   end
 
   defp respond(request, code) do
@@ -186,53 +183,46 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       headers: %{
         to: to,
         via: [{_, _, _, %{"branch" => branch}}],
-        cseq: {cseq, :invite}
+        cseq: {cseq, :invite},
+        record_route: record_route,
+        contact: [{_name, contact_uri, _params} | _] = contact
       }
     } = response
 
-    route = Enum.reverse(response.headers.record_route)
+    route = Enum.reverse(record_route)
+    [{_name, first_hop_uri, _params} |  _] = route
 
-    loose_routing? =
-      (route
-       |> hd()
-       |> elem(1)
-       |> Map.get(:parameters) ||
-         "")
-      |> String.split(";")
-      |> Enum.member?("lr")
+    # According to RFC 3261 section 12.2.1.1
+    # https://datatracker.ietf.org/doc/html/rfc3261#section-12.2.1.1
+    loose_routing? = loose_routing?(first_hop_uri)
 
     {state, route} =
       if loose_routing? do
-        Logger.debug("Use loose routing")
-        {%{state | callee: response.headers.contact |> hd() |> elem(1)}, route}
+        Logger.debug("SIP Client: using loose routing")
+        {%{state | callee: contact_uri}, route}
       else
-        Logger.debug("Use strict routing")
-        callee = route |> hd() |> elem(1) |> Map.put(:parameters, nil)
+        Logger.debug("SIP Client: using strict routing")
+        callee = first_hop_uri |> Map.put(:parameters, nil)
 
-        {%{state | callee: callee}, Enum.drop(route, 1) ++ response.headers.contact}
+        {%{state | callee: callee}, Enum.drop(route, 1) ++ contact}
       end
 
-    headers =
-      Call.build_headers(:ack, state, branch)
-      |> Map.replace(:to, to)
-      |> Map.replace(:cseq, {cseq, :ack})
-      |> Map.put(:route, route)
+    state = %{state | route: route}
 
     message =
-      Sippet.Message.build_request(:ack, to_string(state.callee))
-      |> Map.put(:headers, headers)
+      :ack
+      |> Call.build_headers(state, %{to: to, cseq: {cseq, :ack}}, branch)
+      |> create_request(state)
 
     message =
       if loose_routing? do
-        target = route |> hd() |> elem(1)
-
-        Map.put(message, :target, {:udp, target.host, target.port})
+        Map.put(message, :target, {:udp, first_hop_uri.host, first_hop_uri.port})
       else
         message
       end
 
     SippetCore.send_message(message)
-    %{state | to: to, target: message[:target], route: route}
+    %{state | to: to, target: message[:target]}
   end
 
   defp send_ack(response, state) do
@@ -244,23 +234,19 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       }
     } = response
 
-    callee =
+    state =
       if is_map_key(response.headers, :contact) do
-        response.headers.contact |> hd() |> elem(1)
+        [{_name, contact_uri, _params} | _] = response.headers.contact
+
+        %{state | callee: contact_uri}
       else
-        state.callee
+        state
       end
 
-    state = %{state | callee: callee}
-
-    headers =
-      Call.build_headers(:ack, state, branch)
-      |> Map.replace(:to, to)
-      |> Map.replace(:cseq, {cseq, :ack})
-
     message =
-      Sippet.Message.build_request(:ack, to_string(state.callee))
-      |> Map.put(:headers, headers)
+      :ack
+      |> Call.build_headers(state, %{to: to, cseq: {cseq, :ack}}, branch)
+      |> create_request(state)
 
     SippetCore.send_message(message)
     %{state | to: to}
@@ -269,15 +255,18 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   defp send_cancel(state) do
     {cseq, :invite} = state.last_message.headers.cseq
 
-    headers =
-      Call.build_headers(:cancel, state)
-      |> Map.replace(:cseq, {cseq, :cancel})
+    :cancel
+    |> Call.build_headers(state, %{cseq: {cseq, :cancel}})
+    |> create_request(state)
+    |> Call.make_request(state)
+  end
 
-    message =
-      Sippet.Message.build_request(:cancel, to_string(state.callee))
-      |> Map.put(:headers, headers)
+  defp loose_routing?(first_hop_uri) do
+    params = Map.fetch!(first_hop_uri, :parameters) || ""
 
-    Call.make_request(message, state)
+    params
+    |> String.split(";")
+    |> Enum.member?("lr")
   end
 
   defp hangup_cause(request) do
@@ -287,4 +276,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       [other | _rest] -> other
     end
   end
+
+  defp schedule_death(), do: Process.send_after(self(), :die, @death_timeout_ms)
+  defp schedule_death(:instant), do: send(self(), :die)
 end

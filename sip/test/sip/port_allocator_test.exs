@@ -3,7 +3,7 @@ defmodule Membrane.RTC.PortAllocatorTest do
 
   alias Membrane.RTC.Engine.Endpoint.SIP.PortAllocator
 
-  test "handles port allocation, reuses freed ports" do
+  test "handles port allocation" do
     restart_port_allocator()
 
     task =
@@ -19,7 +19,6 @@ defmodule Membrane.RTC.PortAllocatorTest do
     :ok = PortAllocator.free_ports(someone_else)
     {:ok, my_port2} = PortAllocator.get_port()
     assert my_port1 != my_port2
-    assert my_port2 == their_port
   end
 
   test "handles port range config, returns error if no available ports" do

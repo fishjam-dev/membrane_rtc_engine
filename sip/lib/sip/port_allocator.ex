@@ -26,7 +26,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.PortAllocator do
     {from, to} = Application.get_env(:membrane_rtc_engine_sip, :port_range, @default_port_range)
 
     state = %{
-      available: Enum.to_list(from..to),
+      available: from..to |> Enum.to_list() |> :queue.from_list(),
       in_use: %{}
     }
 
@@ -34,27 +34,27 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.PortAllocator do
   end
 
   @impl true
-  def handle_call(:get_port, _from, %{available: []} = state) do
-    {:reply, {:error, :no_available_port}, state}
-  end
-
-  @impl true
   def handle_call(:get_port, {pid, _tag} = from, state) do
-    [port | available] = state.available
-    state = %{state | available: available}
+    case :queue.out(state.available) do
+      {{:value, port}, available} ->
+        state = %{state | available: available}
 
-    case :gen_udp.open(port) do
-      {:ok, socket} ->
-        :ok = :gen_udp.close(socket)
+        case :gen_udp.open(port) do
+          {:ok, socket} ->
+            :ok = :gen_udp.close(socket)
 
-        state = %{state | in_use: Map.update(state.in_use, pid, [port], &[port | &1])}
+            state = %{state | in_use: Map.update(state.in_use, pid, [port], &[port | &1])}
 
-        {:reply, {:ok, port}, state}
+            {:reply, {:ok, port}, state}
 
-      {:error, reason} ->
-        Logger.warning("Opening port #{port} failed with reason: #{reason}")
+          {:error, reason} ->
+            Logger.warning("Opening port #{port} failed with reason: #{reason}")
 
-        handle_call(:get_port, from, state)
+            handle_call(:get_port, from, state)
+        end
+
+      {:empty, _available} ->
+        {:reply, {:error, :no_available_port}, state}
     end
   end
 
@@ -62,7 +62,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.PortAllocator do
   def handle_cast({:free_ports, pid}, state) do
     {ports, in_use} = Map.pop(state.in_use, pid, [])
 
-    state = %{state | available: ports ++ state.available, in_use: in_use}
+    available =
+      Enum.reduce(ports, state.available, fn elem, acc ->
+        :queue.in(elem, acc)
+      end)
+
+    state = %{state | available: available, in_use: in_use}
 
     {:noreply, state}
   end

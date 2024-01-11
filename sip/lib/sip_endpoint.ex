@@ -25,6 +25,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   use Membrane.Bin
 
+  require Membrane.G711
   require Membrane.Logger
 
   alias Membrane.{Logger, RawAudio, Time}
@@ -34,7 +35,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     Call,
     OutgoingCall,
     PortAllocator,
-    RegisterCall
+    RegisterCall,
+    RegistrarCredentials
   }
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{TrackReceiver, TrackSender}
@@ -43,124 +45,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   alias Membrane.RTP.SessionBin
 
   @default_sip_port 5060
-
-  defmodule RegistrarCredentials do
-    @moduledoc """
-    Module describing credentials needed to connect with SIP registrar server
-    """
-
-    @typedoc """
-    Describes SIP registrar credentials structure.
-
-    * `uri` - URI with address of the registrar server.
-    * `username` - your username in registrar service
-    * `password` - your password in registrar service
-    """
-    @type t :: %__MODULE__{
-            uri: Sippet.URI.t(),
-            username: String.t(),
-            password: String.t()
-          }
-
-    @enforce_keys [:uri, :username, :password]
-    defstruct @enforce_keys
-
-    @doc """
-    Creates a RegistrarCredentials struct from strings. The address is parsed and can be:
-      - an FQDN, e.g. "my-sip-registrar.net",
-      - an IPv4 in string form, e.g. "1.2.3.4".
-
-    Both can have a specified port, e.g. "5.6.7.8:9999".
-    If not given, the default SIP port 5060 will be assumed.
-    """
-    @spec new(address: String.t(), username: String.t(), password: String.t()) ::
-            t() | no_return()
-    def new(opts) do
-      uri =
-        opts
-        |> Keyword.fetch!(:address)
-        |> then(&("sip:" <> &1))
-        |> Sippet.URI.parse!()
-
-      %__MODULE__{
-        uri: uri,
-        username: Keyword.fetch!(opts, :username),
-        password: Keyword.fetch!(opts, :password)
-      }
-    end
-  end
-
-  defmodule State do
-    @moduledoc false
-    use Bunch.Access
-
-    @typep endpoint_state ::
-             :unregistered
-             | :unregistered_call_pending
-             | :registered
-             | :calling
-             | :in_call
-             | :ending_call
-             | :terminating
-
-    @type t :: %__MODULE__{
-            rtc_engine: pid(),
-            registrar_credentials: RegistrarCredentials.t(),
-            external_ip: String.t(),
-            register_interval: non_neg_integer(),
-            endpoint_state: endpoint_state(),
-            rtp_port: 1..65_535,
-            sip_port: 1..65_535,
-            outgoing_track: Track.t(),
-            incoming_tracks: %{Track.id() => Track.t()},
-            outgoing_ssrc: Membrane.RTP.ssrc_t(),
-            first_ssrc: Membrane.RTP.ssrc_t() | nil,
-            register_call_id: Call.id(),
-            call_id: Call.id() | nil,
-            phone_number: String.t() | nil,
-            payload_type: ExSDP.Attribute.RTPMapping.payload_type_t()
-          }
-
-    @enforce_keys [
-      :rtc_engine,
-      :registrar_credentials,
-      :external_ip,
-      :register_interval,
-      :endpoint_state,
-      :rtp_port,
-      :sip_port,
-      :outgoing_track,
-      :incoming_tracks,
-      :outgoing_ssrc,
-      :first_ssrc,
-      :register_call_id,
-      :call_id,
-      :phone_number,
-      :payload_type
-    ]
-
-    defstruct @enforce_keys
-  end
-
-  @doc """
-  Starts calling a specified number
-  """
-  @spec dial(rtc_engine :: pid(), endpoint_id :: String.t(), phone_number :: String.t()) :: :ok
-  def dial(rtc_engine, endpoint_id, phone_number) do
-    Engine.message_endpoint(rtc_engine, endpoint_id, {:dial, phone_number})
-  end
-
-  @doc """
-  Ends ongoing call or cancels call try
-  """
-  @spec end_call(rtc_engine :: pid(), endpoint_id :: String.t()) :: :ok
-  def end_call(rtc_engine, endpoint_id) do
-    Engine.message_endpoint(rtc_engine, endpoint_id, :end_call)
-  end
-
-  @register_interval 45_000
-
+  @register_interval_ms 45_000
   @audio_mixer_delay Time.milliseconds(200)
+  @opus_sample_rate 48_000
 
   def_output_pad :output,
     accepted_format: Membrane.RTP,
@@ -183,14 +70,38 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
                 description:
                   "External IPv4 address of the machine running the Endpoint, required for SDP negotiation"
               ],
-              register_interval: [
+              register_interval_ms: [
                 spec: non_neg_integer(),
                 description: """
                 Interval (in ms) in which keep-alive (keep-registered) REGISTER messages
                 will be sent to the SIP registrar server
                 """,
-                default: @register_interval
+                default: @register_interval_ms
+              ],
+              disconnect_if_alone: [
+                spec: boolean(),
+                description: """
+                Whether the Endpoint should disconnect from the call when all incoming tracks are removed,
+                i.e. when all other Endpoints publishing audio are removed from the Engine
+                """,
+                default: true
               ]
+
+  @doc """
+  Starts calling a specified number
+  """
+  @spec dial(rtc_engine :: pid(), endpoint_id :: String.t(), phone_number :: String.t()) :: :ok
+  def dial(rtc_engine, endpoint_id, phone_number) do
+    Engine.message_endpoint(rtc_engine, endpoint_id, {:dial, phone_number})
+  end
+
+  @doc """
+  Ends ongoing call or cancels call try
+  """
+  @spec end_call(rtc_engine :: pid(), endpoint_id :: String.t()) :: :ok
+  def end_call(rtc_engine, endpoint_id) do
+    Engine.message_endpoint(rtc_engine, endpoint_id, :end_call)
+  end
 
   @impl true
   def handle_init(ctx, opts) do
@@ -204,11 +115,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         Track.stream_id(),
         endpoint_id,
         :OPUS,
-        48_000,
+        @opus_sample_rate,
         %ExSDP.Attribute.FMTP{pt: Membrane.RTP.PayloadFormat.get(:OPUS)}
       )
-
-    opts = Map.from_struct(opts)
 
     {register_call_id, _pid} = spawn_call(opts, RegisterCall)
 
@@ -222,6 +131,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     with {:ok, rtp_port} <- PortAllocator.get_port() do
       state =
         opts
+        |> Map.from_struct()
         |> Map.merge(%{
           endpoint_state: :unregistered,
           rtp_port: rtp_port,
@@ -291,7 +201,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         payloader: Membrane.RTP.Opus.Payloader,
         ssrc: state.first_ssrc,
         payload_type: Membrane.RTP.PayloadFormat.get(:OPUS),
-        clock_rate: 48_000
+        clock_rate: @opus_sample_rate
       })
       |> via_in(Pad.ref(:input, {track_id, :high}))
       |> child(
@@ -317,7 +227,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
     actions = [remove_children: children_to_remove]
 
-    if map_size(state.incoming_tracks) == 0 do
+    if state.disconnect_if_alone and map_size(state.incoming_tracks) == 0 do
       {actions ++ [notify_parent: :finished], state}
     else
       {actions, state}
@@ -326,6 +236,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
+    Logger.debug("")
     {[], state}
   end
 
@@ -452,7 +363,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         _ctx,
         state
       ) do
-    Logger.warning("Received another RTP stream with ssrc: #{ssrc}")
+    Logger.debug("Received another RTP stream with ssrc: #{ssrc}")
 
     if fmt != state.payload_type do
       raise """
@@ -462,7 +373,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     end
 
     spec =
-      get_rtp_stream_pipeline(ssrc)
+      ssrc
+      |> get_rtp_stream_pipeline()
       |> get_child(:funnel)
 
     {[spec: spec], state}
@@ -540,8 +452,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_info({:call_info, :ringing}, _ctx, state) do
-    Logger.info("SIP Endpoint: Ringing...")
-
+    Logger.debug("SIP Endpoint: Ringing...")
     {[notify_parent: {:forward_to_parent, :ringing}], state}
   end
 
@@ -569,13 +480,13 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         latency: nil,
         stream_format: %Membrane.RawAudio{
           channels: 1,
-          sample_rate: 48_000,
+          sample_rate: @opus_sample_rate,
           sample_format: :s16le
         }
       })
       |> child(:converter_out, %Membrane.FFmpeg.SWResample.Converter{
-        input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000},
-        output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 8_000}
+        input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: @opus_sample_rate},
+        output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: Membrane.G711.sample_rate()}
       })
       |> child(:audio_codec_encoder, Membrane.G711.Encoder)
       |> child(:audio_codec_parser, %Membrane.G711.Parser{overwrite_pts?: true})
@@ -671,6 +582,60 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     {[terminate: :normal], %{state | endpoint_state: :terminating}}
   end
 
+  defmodule State do
+    @moduledoc false
+    use Bunch.Access
+
+    @typep endpoint_state ::
+             :unregistered
+             | :unregistered_call_pending
+             | :registered
+             | :calling
+             | :in_call
+             | :ending_call
+             | :terminating
+
+    @type t :: %__MODULE__{
+            rtc_engine: pid(),
+            registrar_credentials: RegistrarCredentials.t(),
+            external_ip: String.t(),
+            register_interval_ms: non_neg_integer(),
+            disconnect_if_alone: boolean(),
+            endpoint_state: endpoint_state(),
+            rtp_port: 1..65_535,
+            sip_port: 1..65_535,
+            outgoing_track: Track.t(),
+            incoming_tracks: %{Track.id() => Track.t()},
+            outgoing_ssrc: Membrane.RTP.ssrc_t(),
+            first_ssrc: Membrane.RTP.ssrc_t() | nil,
+            register_call_id: Call.id(),
+            call_id: Call.id() | nil,
+            phone_number: String.t() | nil,
+            payload_type: ExSDP.Attribute.RTPMapping.payload_type_t()
+          }
+
+    @enforce_keys [
+      :rtc_engine,
+      :registrar_credentials,
+      :external_ip,
+      :register_interval_ms,
+      :disconnect_if_alone,
+      :endpoint_state,
+      :rtp_port,
+      :sip_port,
+      :outgoing_track,
+      :incoming_tracks,
+      :outgoing_ssrc,
+      :first_ssrc,
+      :register_call_id,
+      :call_id,
+      :phone_number,
+      :payload_type
+    ]
+
+    defstruct @enforce_keys
+  end
+
   defp try_calling(state, playback_state, phone_number) do
     case state.endpoint_state do
       _any when playback_state != :playing ->
@@ -695,13 +660,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   defp spawn_call(state, module \\ OutgoingCall) do
     state
-    |> case do
-      %State{} = struct -> Map.from_struct(struct)
-      %{} = map -> map
-      _other -> raise "State is not map nor struct"
-    end
-    |> Map.put(:endpoint, self())
-    |> then(&struct(Call.Settings, &1))
+    |> Call.Settings.new()
     |> module.start_link()
   end
 
@@ -712,17 +671,17 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
     )
     |> child({:audio_codec_decoder, ssrc}, Membrane.G711.Decoder)
     |> child({:converter, ssrc}, %Membrane.FFmpeg.SWResample.Converter{
-      input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 8_000},
-      output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000}
+      input_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: Membrane.G711.sample_rate()},
+      output_stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: @opus_sample_rate}
     })
     |> child({:raw_audio_parser, ssrc}, %Membrane.RawAudioParser{
-      stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: 48_000},
+      stream_format: %RawAudio{channels: 1, sample_format: :s16le, sample_rate: @opus_sample_rate},
       overwrite_pts?: true
     })
     |> child({:opus_encoder, ssrc}, %Membrane.Opus.Encoder{
       input_stream_format: %Membrane.RawAudio{
         channels: 1,
-        sample_rate: 48_000,
+        sample_rate: @opus_sample_rate,
         sample_format: :s16le
       }
     })

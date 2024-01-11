@@ -20,7 +20,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
             sip_port: 1..65_535,
             registrar_credentials: SIP.RegistrarCredentials.t(),
             external_ip: String.t(),
-            register_interval: non_neg_integer(),
+            register_interval_ms: non_neg_integer(),
             phone_number: String.t() | nil,
             call_id: SIP.Call.id(),
             callee: Sippet.URI.t() | nil,
@@ -42,7 +42,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       :sip_port,
       :registrar_credentials,
       :external_ip,
-      :register_interval,
+      :register_interval_ms,
       :phone_number,
       :call_id,
       :callee,
@@ -103,7 +103,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       end
 
       @impl SIP.Call
-      def handle_request(_method, _request, state) do
+      def handle_request(_method, request, state) do
+        Logger.warning("SIP Client: handle_request not implemented for #{inspect(request)}")
         state
       end
 
@@ -227,8 +228,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
     |> then(&struct!(State, &1))
   end
 
-  @spec build_headers(atom(), state(), String.t()) :: map()
-  def build_headers(method, state, branch \\ Sippet.Message.create_branch()) do
+  @spec build_headers(atom(), state(), map(), String.t()) :: map()
+  def build_headers(method, state, override_headers \\ %{}, branch \\ Sippet.Message.create_branch()) do
     # XXX: Consider optimising the digest auth process
     # (right now, we do the exchange `request, 401, request with digest` every time)
 
@@ -240,6 +241,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
         cseq: {state.cseq + 1, method},
         content_length: 0
       })
+      |> Map.merge(override_headers)
       |> update_in([:via], fn via -> [Tuple.append(via, %{"branch" => branch})] end)
 
     if is_nil(state.route) do

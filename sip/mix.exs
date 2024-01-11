@@ -53,11 +53,11 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
       # Engine deps
       {:membrane_rtc_engine, path: "../engine"},
       {:membrane_rtc_engine_webrtc, path: "../webrtc"},
-      {:membrane_tee_plugin, "~> 0.12.0"},
-      {:membrane_file_plugin, "~> 0.16.0"},
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
+      {:membrane_tee_plugin, "~> 0.12.0"},
+      {:membrane_file_plugin, "~> 0.16.0"},
       {:membrane_rtp_plugin, "~> 0.24.0"},
       {:membrane_funnel_plugin, "~> 0.9.0"},
       {:membrane_rtp_format, "~> 0.8.0"},
