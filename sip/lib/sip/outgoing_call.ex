@@ -205,9 +205,13 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
       |> Map.drop([:content_length, :content_type, :proxy_authorization, :authorization])
       |> Map.update!(:cseq, fn {cseq, :invite} -> {cseq, :cancel} end)
 
+    callee = %{state.registrar_credentials.uri | userinfo: state.phone_number}
+
     headers
-    |> create_request(state)
-    |> Call.make_request(state)
+    |> create_request(%{state | callee: callee})
+    |> SippetCore.send_message()
+
+    state
   end
 
   defp hangup_cause(request) do
