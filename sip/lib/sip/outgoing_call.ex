@@ -200,10 +200,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   end
 
   defp send_cancel(state) do
-    {cseq, :invite} = state.last_message.headers.cseq
+    headers =
+      state.last_message.headers
+      |> Map.drop([:content_length, :content_type])
+      |> Map.update!(:cseq, fn {cseq, :invite} -> {cseq, :cancel} end)
 
-    :cancel
-    |> Call.build_headers(state, %{cseq: {cseq, :cancel}})
+    headers
     |> create_request(state)
     |> Call.make_request(state)
   end
