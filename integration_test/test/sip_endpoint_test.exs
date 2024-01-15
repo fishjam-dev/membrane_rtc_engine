@@ -451,8 +451,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
       rtc_engine: rtc_engine,
       registrar_credentials:
         RegistrarCredentials.new(
-          address:
-            System.get_env("SIP_DOMAIN", "127.0.0.1:5061") |> IO.inspect(label: :SIP_DOMAIN),
+          address: System.get_env("SIP_DOMAIN", "127.0.0.1:5061"),
           username: username,
           password: "yourpassword"
         ),
