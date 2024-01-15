@@ -101,6 +101,11 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
                 """
               ]
 
+  @doc """
+  Subscribe hls endpoint to tracks from endpoints.
+
+  It is only valid to use when hls has `subscribe_mode` set to :manual.
+  """
   @spec subscribe(engine :: pid(), endpoint_id :: any(), endpoints :: [any()]) :: :ok
   def subscribe(engine, endpoint_id, endpoints) do
     Engine.message_endpoint(engine, endpoint_id, {:subscribe, endpoints})
@@ -303,7 +308,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       end)
 
     if not_found_endpoints != [] do
-      Membrane.Logger.warning(
+      Membrane.Logger.info(
         "Couldn't subscribe on any track from endpoints: #{not_found_endpoints}"
       )
     end

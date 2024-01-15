@@ -592,12 +592,19 @@ defmodule Membrane.RTC.Engine do
   #
 
   defp handle_endpoint_notification(:finished, endpoint_id, ctx, state) do
-    {{:present, endpoint}, actions, new_state} = handle_remove_endpoint(endpoint_id, ctx, state)
-    dispatch(%Message.EndpointRemoved{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
+    case handle_remove_endpoint(endpoint_id, ctx, state) do
+      {{:present, endpoint}, actions, new_state} ->
+        dispatch(%Message.EndpointRemoved{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
 
-    Membrane.Logger.info("Endpoint #{endpoint_id} removed after processing finished")
+        Membrane.Logger.info("Endpoint #{endpoint_id} removed after processing finished")
 
-    {actions, new_state}
+        {actions, new_state}
+
+      {:absent, actions, new_state} ->
+        Membrane.Logger.info("Endpoint #{endpoint_id} was already removed")
+
+        {actions, new_state}
+    end
   end
 
   defp handle_endpoint_notification(:ready, endpoint_id, ctx, state) do
@@ -1023,7 +1030,7 @@ defmodule Membrane.RTC.Engine do
     state.endpoints
     |> Stream.reject(&(elem(&1, 0) == from_endpoint_id))
     |> Stream.reject(&is_nil(elem(&1, 1)))
-    |> Enum.filter(fn {endpoint_id, _endpoint} ->
+    |> Stream.filter(fn {endpoint_id, _endpoint} ->
       Map.has_key?(ctx.children, {:endpoint, endpoint_id})
     end)
     |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
@@ -1109,13 +1116,6 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp fulfill_subscriptions(subscriptions, state) do
-    subscriptions =
-      Enum.reject(subscriptions, fn subscription ->
-        state
-        |> get_in([:subscriptions, subscription.endpoint_id])
-        |> is_nil()
-      end)
-
     links = build_subscription_links(subscriptions, state)
 
     Enum.reduce(subscriptions, {links, state}, fn subscription, {links, state} ->
