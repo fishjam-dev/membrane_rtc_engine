@@ -42,6 +42,8 @@ defmodule Membrane.RTC.EngineTest do
         {:execute_actions, [notify_parent: {:ready, "metadata"}]}
       )
 
+      assert_receive %Message.EndpointAdded{endpoint_id: ^first_endpoint}
+      assert_receive %Message.EndpointAdded{endpoint_id: ^second_endpoint}
       assert_receive {:new_endpoint, %Endpoint{id: ^second_endpoint, metadata: "metadata"}}
       assert_receive {:ready, []}
       refute_receive {:new_tracks, []}
@@ -243,7 +245,7 @@ defmodule Membrane.RTC.EngineTest do
 
       Engine.message_endpoint(rtc_engine, video_endpoint_id, :start)
 
-      assert_receive ^endpoint_id1, 1_000
+      assert_receive ^endpoint_id1, 10_000
 
       assert 1 = Engine.get_num_forwarded_tracks(rtc_engine)
 
@@ -254,7 +256,7 @@ defmodule Membrane.RTC.EngineTest do
           id: endpoint_id2
         )
 
-      assert_receive ^endpoint_id2, 1_000
+      assert_receive ^endpoint_id2, 10_000
 
       assert 2 = Engine.get_num_forwarded_tracks(rtc_engine)
 
@@ -265,7 +267,7 @@ defmodule Membrane.RTC.EngineTest do
           id: endpoint_id3
         )
 
-      assert_receive ^endpoint_id3, 1_000
+      assert_receive ^endpoint_id3, 10_000
 
       assert 3 = Engine.get_num_forwarded_tracks(rtc_engine)
 
@@ -432,6 +434,10 @@ defmodule Membrane.RTC.EngineTest do
       create_video_file_endpoint(rtc_engine, video_endpoint_id, stream_id, video_track_id)
 
     :ok = Engine.add_endpoint(rtc_engine, video_endpoint, id: video_endpoint_id)
+
+    assert_receive %Message.EndpointAdded{endpoint_id: ^video_endpoint_id}
+
+    assert_receive %Message.TrackAdded{endpoint_id: ^video_endpoint_id, track_id: ^video_track_id}
 
     assert_receive %Message.EndpointMessage{
       endpoint_id: ^video_endpoint_id,

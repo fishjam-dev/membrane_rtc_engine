@@ -378,7 +378,12 @@ defmodule Membrane.RTC.Engine do
         ) :: :ok | {:error, :timeout | :invalid_track_id}
   def subscribe(rtc_engine, endpoint_id, track_id, opts \\ []) do
     ref = make_ref()
-    send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, opts})
+
+    send(
+      rtc_engine,
+      {:subscribe, {self(), ref}, endpoint_id, track_id, opts,
+       System.monotonic_time(:millisecond)}
+    )
 
     receive do
       {^ref, :ok} -> :ok
@@ -467,7 +472,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_info(
-        {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, opts},
+        {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, opts, time},
         ctx,
         state
       ) do
@@ -476,6 +481,8 @@ defmodule Membrane.RTC.Engine do
       track_id: track_id,
       opts: opts
     }
+
+    IO.inspect(System.monotonic_time(:millisecond) - time, label: :BEFORE_CASE)
 
     case validate_subscription(subscription, state) do
       :ok ->
@@ -486,6 +493,7 @@ defmodule Membrane.RTC.Engine do
 
       {:error, _reason} = error ->
         send(endpoint_pid, {ref, error})
+        IO.inspect(System.monotonic_time(:millisecond) - time, label: :FAILURE)
         {[], state}
     end
   end
