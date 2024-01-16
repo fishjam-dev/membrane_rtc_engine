@@ -291,7 +291,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_pad_removed(Pad.ref(:output, {_track_id, _variant}), _ctx, state) do
-    Logger.debug("")
     {[], state}
   end
 

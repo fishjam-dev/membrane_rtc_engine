@@ -9,6 +9,20 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
   @death_timeout_ms 5000
 
+  @response_trying 100
+  @response_ringing 180
+  @response_session_progress 183
+  @response_ok 200
+  @response_no_content 204
+  @response_multiple_choices 300
+  @response_moved_permanently 301
+  @response_moved_temporarily 302
+  @response_forbidden 403
+  @response_busy_here 486
+  @response_request_terminated 487
+  @response_busy_everywhere 600
+  @response_decline 603
+
   ## CALL MANAGEMENT API
 
   @spec cancel(Call.id()) :: :ok
@@ -40,18 +54,24 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   @impl Call
   def handle_response(:invite, provisional, _response, state) when provisional in 100..199 do
     case provisional do
-      100 -> notify_endpoint(state.endpoint, :trying)
-      180 -> notify_endpoint(state.endpoint, :ringing)
-      # Session Progress
-      183 -> nil
-      _xx -> Logger.warning("SIP Client: Unknown provisional response #{provisional}. Ignoring")
+      @response_trying ->
+        notify_endpoint(state.endpoint, :trying)
+
+      @response_ringing ->
+        notify_endpoint(state.endpoint, :ringing)
+
+      @response_session_progress ->
+        nil
+
+      _other ->
+        Logger.warning("SIP Client: Unknown provisional response #{provisional}. Ignoring")
     end
 
     state
   end
 
   @impl Call
-  def handle_response(:invite, 200, response, state) do
+  def handle_response(:invite, @response_ok, response, state) do
     send_ack(response, state)
 
     case SDP.parse(response.body) do
@@ -70,40 +90,47 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   end
 
   @impl Call
-  def handle_response(:invite, transfer, _response, state) when transfer in [300, 301, 302] do
+  def handle_response(:invite, transfer, _response, state)
+      when transfer in [
+             @response_multiple_choices,
+             @response_moved_permanently,
+             @response_moved_temporarily
+           ] do
     # Callee was updated by `Call.process_response/2`.
     # We need to clear the `to` header, otherwise we will receive 481 Call/Transaction Does Not Exist
     after_init(%{state | to: nil})
   end
 
   @impl Call
-  def handle_response(:invite, declined, _response, state) when declined in [403, 603] do
+  def handle_response(:invite, declined, _response, state)
+      when declined in [@response_forbidden, @response_decline] do
     notify_endpoint(state.endpoint, {:end, :declined})
     state
   end
 
   @impl Call
-  def handle_response(:invite, busy, _response, state) when busy in [486, 600] do
+  def handle_response(:invite, busy, _response, state)
+      when busy in [@response_busy_here, @response_busy_everywhere] do
     notify_endpoint(state.endpoint, {:end, :busy})
     state
   end
 
   @impl Call
-  def handle_response(:invite, 487, _response, state) do
+  def handle_response(:invite, @response_request_terminated, _response, state) do
     # Request Terminated -- this is the case when the INVITE was cancelled
     # by a separate CANCEL request before receiving a final response
     state
   end
 
   @impl Call
-  def handle_response(:invite, 204, _response, _state) do
+  def handle_response(:invite, @response_no_content, _response, _state) do
     # 204 is a success response, but we need SDP from the response body to setup the session
     # This shouldn't ever happen, but if we don't handle it here it would get silently ignored
     raise "SIP Client: Received 204 No Content in response to INVITE"
   end
 
   @impl Call
-  def handle_response(method, 200, _response, state) when method in [:cancel, :bye] do
+  def handle_response(method, @response_ok, _response, state) when method in [:cancel, :bye] do
     schedule_death(:instant)
     state
   end
@@ -115,13 +142,13 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
   @impl Call
   def handle_request(:notify, request, state) do
-    respond(request, 200)
+    respond(request, @response_ok)
     state
   end
 
   @impl Call
   def handle_request(:bye, request, state) do
-    respond(request, 200)
+    respond(request, @response_ok)
     notify_endpoint(state.endpoint, {:end, hangup_cause(request)})
     schedule_death()
     state

@@ -9,15 +9,15 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.SippetCore do
   alias Membrane.RTC.Engine.Endpoint.SIP.Call
 
   @sippet_id __MODULE__
+  @default_sip_address "0.0.0.0"
+  @default_sip_port 5060
 
   @spec setup() :: :ok
   def setup() do
-    transport_opts =
-      [
-        address: Application.get_env(:membrane_rtc_engine_sip, :sip_address),
-        port: Application.get_env(:membrane_rtc_engine_sip, :sip_port)
-      ]
-      |> Keyword.reject(fn {_k, v} -> is_nil(v) end)
+    transport_opts = [
+      address: Application.get_env(:membrane_rtc_engine_sip, :sip_address, @default_sip_address),
+      port: Application.get_env(:membrane_rtc_engine_sip, :sip_port, @default_sip_port)
+    ]
 
     {:ok, _pid} = Sippet.start_link(name: @sippet_id)
     {:ok, _pid} = Sippet.Transports.UDP.start_link([name: @sippet_id] ++ transport_opts)
