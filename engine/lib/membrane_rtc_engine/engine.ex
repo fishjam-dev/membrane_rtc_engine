@@ -45,12 +45,15 @@ defmodule Membrane.RTC.Engine do
   sending the appropriate media track to other Endpoints. RTSP Endpoint is a Standalone Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.File` which is responsible for reading track from a file, payloading it into RTP, and
   sending it to other Endpoints. File Endpoint is a Standalone Endpoint.
+  * `#{inspect(__MODULE__)}.Endpoint.SIP` which is responsible for establishing a connection with some SIP
+  device (e.g. phone) and exchanging media with it. SIP Endpoint is a Standalone Endpoint.
 
   Each of these endpoints is available as a separate package. Refer to the appropriate package for usage examples:
   * [`membrane_rtc_engine_webrtc`](https://hexdocs.pm/membrane_rtc_engine_webrtc/readme.html)
   * [`membrane_rtc_engine_hls`](https://hexdocs.pm/membrane_rtc_engine_hls/readme.html)
   * [`membrane_rtc_engine_rtsp`](https://hexdocs.pm/membrane_rtc_engine_rtsp/readme.html)
   * [`membrane_rtc_engine_file`](https://hexdocs.pm/membrane_rtc_engine_file/readme.html)
+  * [`membrane_rtc_engine_sip`](https://hexdocs.pm/membrane_rtc_engine_sip/readme.html)
 
   User can also implement custom Endpoints, see Custom Endpoints guide.
 
