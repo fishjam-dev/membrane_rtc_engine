@@ -592,16 +592,20 @@ defmodule Membrane.RTC.Engine do
   #
 
   defp handle_endpoint_notification(:finished, endpoint_id, ctx, state) do
+    Membrane.Logger.debug("Endpoint: #{endpoint_id} marked itself for removal. Trying to remove.")
+
     case handle_remove_endpoint(endpoint_id, ctx, state) do
       {{:present, endpoint}, actions, new_state} ->
         dispatch(%Message.EndpointRemoved{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
 
-        Membrane.Logger.info("Endpoint #{endpoint_id} removed after processing finished")
+        Membrane.Logger.debug("Endpoint #{endpoint_id} successfully removed.")
 
         {actions, new_state}
 
       {:absent, actions, new_state} ->
-        Membrane.Logger.info("Endpoint #{endpoint_id} was already removed")
+        Membrane.Logger.warning(
+          "Endpoint #{endpoint_id} marked itself for removal but it has already been removed."
+        )
 
         {actions, new_state}
     end
