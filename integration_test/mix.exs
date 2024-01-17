@@ -51,7 +51,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:membrane_udp_plugin, "~> 0.13.0"},
       {:membrane_file_plugin, "~> 0.16.0"},
       {:membrane_aac_plugin, "~> 0.18.0"},
-      {:membrane_aac_fdk_plugin, "~> 0.18.1"},
+      {:membrane_aac_fdk_plugin, "0.18.2"},
       {:membrane_opus_plugin, "~> 0.19.0"},
       {:qex, "~> 0.5.1"},
       {:membrane_audio_mix_plugin, "~> 0.16.0"},
