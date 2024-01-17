@@ -151,7 +151,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       "guides/track_lifecycle.md",
       "guides/custom_endpoints.md",
       "guides/logs.md",
-      "guides/traces.md",
       "guides/vad.md",
 
       # internal docs
