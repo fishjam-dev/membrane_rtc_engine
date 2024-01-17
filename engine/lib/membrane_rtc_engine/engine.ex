@@ -577,6 +577,7 @@ defmodule Membrane.RTC.Engine do
         {actions, state}
 
       {:absent, actions, state} ->
+        Membrane.Logger.warning("Endpoint #{endpoint_id} crashed after removing from the state")
         {actions, state}
     end
   end
