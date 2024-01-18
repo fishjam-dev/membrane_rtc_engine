@@ -33,8 +33,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
             # Pending requests:
             #   %{{cseq, method} => time when request was made
             #             or when last provisional response to the request was received}
-      pending_requests: %{{non_neg_integer(), atom()} => integer()},
-      invite_dialog_complete?: boolean()
+            pending_requests: %{{non_neg_integer(), atom()} => integer()},
+            invite_dialog_complete?: boolean()
           }
 
     @enforce_keys [

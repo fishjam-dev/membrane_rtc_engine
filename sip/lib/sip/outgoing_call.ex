@@ -171,11 +171,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
   @impl GenServer
   def handle_cast(:cancel, state) do
-    state = if state.invite_dialog_complete? do
-      build_and_send_request(:bye, state)
-    else
-      send_cancel(state)
-    end
+    state =
+      if state.invite_dialog_complete? do
+        build_and_send_request(:bye, state)
+      else
+        send_cancel(state)
+      end
 
     notify_endpoint(state.endpoint, {:end, :cancelled})
     schedule_death()

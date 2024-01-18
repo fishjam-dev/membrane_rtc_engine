@@ -70,7 +70,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
       {:membrane_opus_plugin, "~> 0.19.0"},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.19.1"},
       {:membrane_audio_mix_plugin, "~> 0.16.0"},
-      {:sippet, "1.0.11"},
+      {:sippet, "~> 1.0.11"},
       {:ex_sdp, "~> 0.11"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
