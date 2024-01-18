@@ -74,10 +74,18 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   def handle_response(:invite, @response_ok, response, state) do
     send_ack(response, state)
 
+    {_sn, last_request_method} = state.last_message.headers.cseq
+
     case SDP.parse(response.body) do
+      # This is the case when we've already sent a CANCEL, but we received a response
+      # to the INVITE before the CANCEL was processed -- we still need to send the BYE
+      _any when last_request_method == :cancel ->
+        {:noreply, state} = handle_cast(:bye, state)
+        state
+
       {:ok, connection_info} ->
         notify_endpoint(state.endpoint, {:call_ready, connection_info})
-        state
+        %{state | invite_dialog_complete?: true}
 
       {:error, reason} ->
         _state = build_and_send_request(:bye, state)
@@ -136,6 +144,11 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
   end
 
   @impl Call
+  def handle_response(:cancel, _any, _response, state) do
+    state
+  end
+
+  @impl Call
   def handle_response(_method, status_code, response, state) do
     Call.handle_generic_response(status_code, response, state)
   end
@@ -158,7 +171,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
   @impl GenServer
   def handle_cast(:cancel, state) do
-    state = send_cancel(state)
+    state = if state.invite_dialog_complete? do
+      build_and_send_request(:bye, state)
+    else
+      send_cancel(state)
+    end
+
     notify_endpoint(state.endpoint, {:end, :cancelled})
     schedule_death()
 

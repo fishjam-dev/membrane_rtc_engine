@@ -33,7 +33,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
             # Pending requests:
             #   %{{cseq, method} => time when request was made
             #             or when last provisional response to the request was received}
-            pending_requests: %{{non_neg_integer(), atom()} => integer()}
+      pending_requests: %{{non_neg_integer(), atom()} => integer()},
+      invite_dialog_complete?: boolean()
           }
 
     @enforce_keys [
@@ -52,7 +53,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       :headers_base,
       :cseq,
       :last_message,
-      :pending_requests
+      :pending_requests,
+      :invite_dialog_complete?
     ]
     defstruct @enforce_keys
   end
@@ -225,7 +227,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
       headers_base: Headers.create_headers_base(from_address),
       cseq: 0,
       last_message: nil,
-      pending_requests: %{}
+      pending_requests: %{},
+      invite_dialog_complete?: false
     })
     |> then(&struct!(State, &1))
   end
