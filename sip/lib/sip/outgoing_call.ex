@@ -236,9 +236,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.OutgoingCall do
 
     headers
     |> create_request(%{state | callee: callee})
-    |> SippetCore.send_message()
-
-    state
+    |> Call.make_request(state, false)
   end
 
   defp hangup_cause(request) do

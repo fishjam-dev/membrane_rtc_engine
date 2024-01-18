@@ -258,12 +258,12 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.Call do
     end
   end
 
-  @spec make_request(Sippet.Message.request(), state()) :: state() | no_return()
-  def make_request(message, state) do
+  @spec make_request(Sippet.Message.request(), state(), boolean()) :: state() | no_return()
+  def make_request(message, state, use_target? \\ true) do
     message =
-      if is_nil(state.target),
-        do: message,
-        else: Map.put(message, :target, state.target)
+      if use_target? and state.target != nil,
+        do: Map.put(message, :target, state.target),
+        else: message
 
     with :ok <- SippetCore.send_message(message) do
       cseq = message.headers.cseq
