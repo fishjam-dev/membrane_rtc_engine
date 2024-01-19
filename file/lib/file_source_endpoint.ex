@@ -161,7 +161,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     spec = [
       get_child(:ogg_demuxer)
       |> via_out(Pad.ref(:output, track_id))
-      |> child(:parser, %Membrane.Opus.Parser{generate_best_effort_timestamps?: true})
+      |> child(:parser, Membrane.Opus.Parser)
       |> then(get_rest_of_pipeline(state, output_pad))
     ]
 
@@ -283,7 +283,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   defp get_parser(%Track{encoding: :OPUS}) do
     fn link_builder ->
-      child(link_builder, :parser, %Membrane.Opus.Parser{generate_best_effort_timestamps?: true})
+      child(link_builder, :parser, Membrane.Opus.Parser)
     end
   end
 

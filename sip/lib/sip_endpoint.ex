@@ -701,6 +701,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
         sample_format: :s16le
       }
     })
-    |> child({:opus_parser, ssrc}, %Membrane.Opus.Parser{generate_best_effort_timestamps?: true})
+    |> child({:opus_parser, ssrc}, Membrane.Opus.Parser)
   end
 end
