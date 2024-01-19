@@ -67,7 +67,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
       {:membrane_g711_format, "~> 0.1.0"},
       {:membrane_g711_plugin, "~> 0.1.0"},
       {:membrane_rtp_g711_plugin, "~> 0.2.0"},
-      {:membrane_opus_plugin, "~> 0.19.0"},
+      # TODO change when issues are resolved
+      {:membrane_opus_plugin, "0.19.1"},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.19.1"},
       {:membrane_audio_mix_plugin, "~> 0.16.0"},
       {:sippet, "~> 1.0.11"},
