@@ -9,6 +9,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      aliases: aliases(),
 
       # test coverage
       test_coverage: [tool: ExCoveralls],
@@ -38,6 +39,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:membrane_rtc_engine_hls, path: "../hls"},
       {:membrane_rtc_engine_rtsp, path: "../rtsp"},
       {:membrane_rtc_engine_file, path: "../file"},
+      {:membrane_rtc_engine_sip, path: "../sip"},
 
       # Regular deps (for modules in `test/support/`)
       {:membrane_core, "~> 1.0"},
@@ -46,11 +48,12 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:membrane_rtp_h264_plugin, "~> 0.19.0"},
       {:membrane_h264_format, "~> 0.6.1"},
       {:membrane_h264_plugin, "~> 0.9.0"},
-      {:membrane_udp_plugin, "~> 0.12.0"},
+      {:membrane_udp_plugin, "~> 0.13.0"},
       {:membrane_file_plugin, "~> 0.16.0"},
       {:membrane_aac_plugin, "~> 0.18.0"},
-      {:membrane_aac_fdk_plugin, "~> 0.18.1"},
-      {:membrane_opus_plugin, "~> 0.19.0"},
+      # TODO change when issues are resolved
+      {:membrane_aac_fdk_plugin, "0.18.2"},
+      {:membrane_opus_plugin, "0.19.1"},
       {:qex, "~> 0.5.1"},
       {:membrane_audio_mix_plugin, "~> 0.16.0"},
       {:membrane_video_compositor_plugin, "~> 0.7.0"},
@@ -60,6 +63,18 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
 
       # Test deps
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      "test.ci": [
+        "cmd docker compose -f docker-compose-test.yaml up --remove-orphans test --exit-code-from test"
+      ],
+      "test.ci.clean": [
+        "cmd docker compose -f docker-compose-test.yaml down",
+        "rm -rfd _build"
+      ]
     ]
   end
 end

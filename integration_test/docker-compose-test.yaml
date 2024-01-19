@@ -1,0 +1,33 @@
+version: '3.1'
+
+services:
+  test:
+    image: membraneframeworklabs/docker_membrane
+    command: sh -c "cd /app/integration_test && mix deps.get && mix coveralls.json --warnings-as-errors --exclude gpu "
+    volumes:
+      - ..:/app
+      - /app/integration_test/deps
+      - /app/*/_build
+      - /app/*/deps
+    environment:
+      - EXTERNAL_IP=$EXTERNAL_IP
+      - SIP_DOMAIN=asterisk:5061
+    ports:
+      - "5060:5060/udp"
+      - "21000-21100:21000-21100/udp"
+      - "500:500/udp"
+    depends_on:
+      - asterisk
+
+  asterisk:
+    extends:
+      file: docker-compose.yaml
+      service: asterisk
+    ports:
+      - 5061:5061/udp
+      - 5061:5061/tcp
+      - "10000-10100:10000-10100/udp"
+    environment:
+      - EXTERNAL_IP=$EXTERNAL_IP
+      - LOCAL_NET=$EXTERNAL_IP/16
+    entrypoint: [ "/etc/asterisk/startup.sh" ]

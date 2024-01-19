@@ -96,10 +96,20 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
                 default: :auto,
                 description: """
                 Whether tracks should be subscribed automatically when they're ready.
-                If set to `:manual` hls endpoint will subscribe only to tracks send using message:
-                `{:subscribe, tracks}`
+                If set to `:manual` hls endpoint will subscribe only to tracks from endpoints send using message:
+                `{:subscribe, endpoints}`
                 """
               ]
+
+  @doc """
+  Subscribe hls endpoint to tracks from endpoints.
+
+  It is only valid to use when hls has `subscribe_mode` set to :manual.
+  """
+  @spec subscribe(engine :: pid(), endpoint_id :: any(), endpoints :: [any()]) :: :ok
+  def subscribe(engine, endpoint_id, endpoints) do
+    Engine.message_endpoint(engine, endpoint_id, {:subscribe, endpoints})
+  end
 
   @impl true
   def handle_init(_context, options) when options.subscribe_mode not in [:auto, :manual] do
@@ -120,7 +130,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         stream_beginning: nil,
         terminating?: false,
         start_mixing_sent?: false,
-        subscribed_endpoints: []
+        subscribed_endpoints: MapSet.new()
       })
 
     {[notify_parent: :ready], state}
@@ -266,7 +276,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     subscribed_tracks =
       tracks
       |> Enum.filter(fn track ->
-        track.origin in state.subscribed_endpoints and track.id not in subscribed_tracks
+        MapSet.member?(state.subscribed_endpoints, track.origin) and
+          track.id not in subscribed_tracks
       end)
       |> Enum.map(fn track -> track.id end)
       |> subscribe_for_tracks(ctx, state)
@@ -289,6 +300,19 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         track.origin in endpoints and track.id not in subscribed_tracks
       end)
 
+    origins = MapSet.new(tracks, fn track -> track.origin end)
+
+    not_found_endpoints =
+      Enum.filter(endpoints, fn endpoint ->
+        MapSet.member?(origins, endpoint)
+      end)
+
+    if not_found_endpoints != [] do
+      Membrane.Logger.info(
+        "Couldn't subscribe on any track from endpoints: #{not_found_endpoints}"
+      )
+    end
+
     new_subscribed_tracks =
       tracks
       |> Enum.map(fn track -> track.id end)
@@ -298,7 +322,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       tracks
       |> add_tracks(new_subscribed_tracks, state)
       |> Map.update!(:subscribed_endpoints, fn subscribed ->
-        subscribed |> Enum.concat(endpoints) |> Enum.uniq()
+        endpoints |> MapSet.new() |> MapSet.union(subscribed)
       end)
 
     {[], new_state}

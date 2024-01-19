@@ -6,7 +6,6 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   It starts publishing data immediately after initialization, if `autoplay` is set to true (default),
   or if `autoplay` is disabled - after calling `start_sending` function with proper arguments.
   After publishing track it sends to engine parent notification `:tracks_added`.
-  After sending all data from file it sends to engine parent notification `:finished`.
   """
 
   use Membrane.Bin
@@ -52,6 +51,17 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 description: "Indicates, whether the endpoint should start sending
                 media immediately after initialization. If set to `false`,
                 the `start_sending` function has to be used."
+              ],
+              # Addded because current implementation of Membrane don't guarantee
+              # that other endpoints which subscribes on track from this endpoint
+              # will be able to process safely all data from this endpoints.
+              autoend: [
+                spec: boolean(),
+                default: true,
+                description: "Indicates, whether the endpoint should send `:finished`
+                notification to engine immediately after processing all data. If set to `false`,
+                the endpoint hast to be removed manually.
+                "
               ],
               after_source_transformation: [
                 spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
@@ -151,7 +161,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
     spec = [
       get_child(:ogg_demuxer)
       |> via_out(Pad.ref(:output, track_id))
-      |> child(:parser, %Membrane.Opus.Parser{})
+      |> child(:parser, Membrane.Opus.Parser)
       |> then(get_rest_of_pipeline(state, output_pad))
     ]
 
@@ -160,7 +170,8 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   @impl true
   def handle_element_end_of_stream(:track_sender, _pad, _ctx, state) do
-    {[notify_parent: {:forward_to_parent, :finished}], state}
+    actions = if state.autoend, do: [notify_parent: :finished], else: []
+    {actions, state}
   end
 
   @impl true
@@ -272,7 +283,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   defp get_parser(%Track{encoding: :OPUS}) do
     fn link_builder ->
-      child(link_builder, :parser, %Membrane.Opus.Parser{})
+      child(link_builder, :parser, Membrane.Opus.Parser)
     end
   end
 

@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.20.0-dev
+* Add finished notification and remove code related to OpenTelemetry [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
 
 ## 0.19.0
 * Discard messages from endpoints that are not marked as ready [#339](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/339)

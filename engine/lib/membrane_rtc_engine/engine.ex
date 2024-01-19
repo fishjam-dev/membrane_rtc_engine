@@ -45,12 +45,15 @@ defmodule Membrane.RTC.Engine do
   sending the appropriate media track to other Endpoints. RTSP Endpoint is a Standalone Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.File` which is responsible for reading track from a file, payloading it into RTP, and
   sending it to other Endpoints. File Endpoint is a Standalone Endpoint.
+  * `#{inspect(__MODULE__)}.Endpoint.SIP` which is responsible for establishing a connection with some SIP
+  device (e.g. phone) and exchanging media with it. SIP Endpoint is a Standalone Endpoint.
 
   Each of these endpoints is available as a separate package. Refer to the appropriate package for usage examples:
   * [`membrane_rtc_engine_webrtc`](https://hexdocs.pm/membrane_rtc_engine_webrtc/readme.html)
   * [`membrane_rtc_engine_hls`](https://hexdocs.pm/membrane_rtc_engine_hls/readme.html)
   * [`membrane_rtc_engine_rtsp`](https://hexdocs.pm/membrane_rtc_engine_rtsp/readme.html)
   * [`membrane_rtc_engine_file`](https://hexdocs.pm/membrane_rtc_engine_file/readme.html)
+  * [`membrane_rtc_engine_sip`](https://hexdocs.pm/membrane_rtc_engine_sip/readme.html)
 
   User can also implement custom Endpoints, see Custom Endpoints guide.
 
@@ -86,7 +89,6 @@ defmodule Membrane.RTC.Engine do
   import Membrane.RTC.Utils
 
   require Membrane.Logger
-  require Membrane.OpenTelemetry
 
   alias Membrane.RTC.Engine.{
     DisplayManager,
@@ -104,14 +106,10 @@ defmodule Membrane.RTC.Engine do
 
   @registry_name Membrane.RTC.Engine.Registry.Dispatcher
 
-  @life_span_id "rtc_engine.life_span"
-
   @typedoc """
   RTC Engine configuration options.
 
   * `id` is used by logger. If not provided it will be generated.
-  * `trace_ctx` is used by OpenTelemetry. All traces from this engine will be attached to this context.
-  Example function from which you can get Otel Context is `get_current/0` from `OpenTelemetry.Ctx`.
   * `display_manager?` - set to `true` if you want to limit number of tracks sent from `#{inspect(__MODULE__)}.Endpoint.WebRTC` to a browser.
   * `toilet_capacity` - sets capacity of buffer between engine and endpoints. Use it when you expect bursts of data for your tracks. If not provided it will be set to 200.
   """
@@ -179,7 +177,12 @@ defmodule Membrane.RTC.Engine do
 
   This action can only be used once, any further calls by an endpoint will be ignored.
   """
-  @type ready_action_t() :: {:notify, :ready | {:ready, metadata :: any()}}
+  @type ready_action_t() :: {:notify_parent, :ready | {:ready, metadata :: any()}}
+
+  @typedoc """
+  Membrane action that informs engine that endpoint finished processing and should be removed.
+  """
+  @type finished_action_t() :: {:notify_parent, :finished}
 
   @typedoc """
   A message that the Engine sends to the endpoint when it ackowledges its `t:ready_action_t/0`
@@ -389,17 +392,6 @@ defmodule Membrane.RTC.Engine do
   def handle_init(_ctx, options) do
     Logger.metadata(rtc_engine: options[:id])
 
-    if Keyword.has_key?(options, :trace_ctx),
-      do: Membrane.OpenTelemetry.attach(options[:trace_ctx])
-
-    start_span_opts =
-      case options[:parent_span] do
-        nil -> []
-        parent_span -> [parent_span: parent_span]
-      end
-
-    Membrane.OpenTelemetry.start_span(@life_span_id, start_span_opts)
-
     display_manager =
       if options[:display_manager?] do
         {:ok, pid} = DisplayManager.start_link(ets_name: options[:id], engine: self())
@@ -436,21 +428,6 @@ defmodule Membrane.RTC.Engine do
   def handle_info({:add_endpoint, endpoint, opts}, _ctx, state) do
     endpoint_id = opts[:id] || UUID.uuid4()
     opts = Keyword.put(opts, :id, endpoint_id)
-
-    endpoint =
-      case endpoint do
-        %_module{
-          parent_span: _span,
-          trace_context: _ctx
-        } ->
-          struct(endpoint,
-            parent_span: Membrane.OpenTelemetry.get_span(@life_span_id),
-            trace_context: state.trace_context
-          )
-
-        another_endpoint ->
-          another_endpoint
-      end
 
     if Map.has_key?(state.endpoints, endpoint_id) do
       Membrane.Logger.warning(
@@ -504,6 +481,7 @@ defmodule Membrane.RTC.Engine do
       :ok ->
         {spec, state} = fulfill_or_postpone_subscription(subscription, ctx, state)
         send(endpoint_pid, {ref, :ok})
+        Membrane.Logger.info("Subscription fullfiled by #{endpoint_id} on track: #{track_id}")
         {[spec: {spec, log_metadata: [rtc: state.id]}], state}
 
       {:error, _reason} = error ->
@@ -593,9 +571,15 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
-    {{:present, endpoint}, actions, state} = handle_remove_endpoint(endpoint_id, ctx, state)
-    dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
-    {actions, state}
+    case handle_remove_endpoint(endpoint_id, ctx, state) do
+      {{:present, endpoint}, actions, state} ->
+        dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
+        {actions, state}
+
+      {:absent, actions, state} ->
+        Membrane.Logger.warning("Endpoint #{endpoint_id} crashed after removing from the state")
+        {actions, state}
+    end
   end
 
   @impl true
@@ -610,6 +594,26 @@ defmodule Membrane.RTC.Engine do
   #   the WebRTC endpoint. Handles track_ready, publication of new tracks, and publication of
   #   removed tracks. Also forwards custom media events.
   #
+
+  defp handle_endpoint_notification(:finished, endpoint_id, ctx, state) do
+    Membrane.Logger.debug("Endpoint: #{endpoint_id} marked itself for removal. Trying to remove.")
+
+    case handle_remove_endpoint(endpoint_id, ctx, state) do
+      {{:present, endpoint}, actions, new_state} ->
+        dispatch(%Message.EndpointRemoved{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
+
+        Membrane.Logger.debug("Endpoint #{endpoint_id} successfully removed.")
+
+        {actions, new_state}
+
+      {:absent, actions, new_state} ->
+        Membrane.Logger.warning(
+          "Endpoint #{endpoint_id} marked itself for removal but it has already been removed."
+        )
+
+        {actions, new_state}
+    end
+  end
 
   defp handle_endpoint_notification(:ready, endpoint_id, ctx, state) do
     handle_endpoint_notification({:ready, nil}, endpoint_id, ctx, state)
@@ -846,7 +850,7 @@ defmodule Membrane.RTC.Engine do
         &Map.merge(&1, id_to_track)
       )
 
-    tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
+    tracks_msgs = build_track_removed_actions(tracks, endpoint_id, ctx, state)
     track_ids = Enum.map(tracks, & &1.id)
     track_tees = tracks |> Enum.map(&get_track_tee(&1.id, ctx)) |> Enum.reject(&is_nil(&1))
 
@@ -958,7 +962,7 @@ defmodule Membrane.RTC.Engine do
         state = update_in(state, [:pending_subscriptions], pending_subscriptions_fun)
 
         tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
-        tracks_msgs = build_track_removed_actions(tracks, endpoint_id, state)
+        tracks_msgs = build_track_removed_actions(tracks, endpoint_id, ctx, state)
         endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
 
         endpoint_removed_msgs =
@@ -1030,10 +1034,13 @@ defmodule Membrane.RTC.Engine do
     end)
   end
 
-  defp build_track_removed_actions(tracks, from_endpoint_id, state) do
+  defp build_track_removed_actions(tracks, from_endpoint_id, ctx, state) do
     state.endpoints
     |> Stream.reject(&(elem(&1, 0) == from_endpoint_id))
     |> Stream.reject(&is_nil(elem(&1, 1)))
+    |> Stream.filter(fn {endpoint_id, _endpoint} ->
+      Map.has_key?(ctx.children, {:endpoint, endpoint_id})
+    end)
     |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
       subscriptions = state.subscriptions[endpoint_id]
       tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
