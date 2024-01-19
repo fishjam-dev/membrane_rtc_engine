@@ -482,8 +482,6 @@ defmodule Membrane.RTC.Engine do
       opts: opts
     }
 
-    IO.inspect(System.monotonic_time(:millisecond) - time, label: :BEFORE_CASE)
-
     case validate_subscription(subscription, state) do
       :ok ->
         {spec, state} = fulfill_or_postpone_subscription(subscription, ctx, state)
@@ -493,7 +491,6 @@ defmodule Membrane.RTC.Engine do
 
       {:error, _reason} = error ->
         send(endpoint_pid, {ref, error})
-        IO.inspect(System.monotonic_time(:millisecond) - time, label: :FAILURE)
         {[], state}
     end
   end

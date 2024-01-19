@@ -28,15 +28,14 @@ defmodule Membrane.RTC.Engine.Support.FakeSourceEndpoint do
 
   @impl true
   def handle_init(_ctx, opts) do
-    {[notify_parent: {:ready, nil}], Map.from_struct(opts)}
+    {[], Map.from_struct(opts) |> Map.merge(%{stored_actions: []})}
   end
 
   @impl true
   def handle_playing(_ctx, state) do
     {[
-       notify_parent: {:publish, {:new_tracks, [state.track]}},
-       notify_parent: {:forward_to_parent, :tracks_added}
-     ], state}
+       notify_parent: {:ready, nil}
+     ] ++ state.stored_actions, state}
   end
 
   @impl true
@@ -85,8 +84,17 @@ defmodule Membrane.RTC.Engine.Support.FakeSourceEndpoint do
   end
 
   @impl true
-  def handle_parent_notification(:start, _ctx, state) do
-    track_ready = {:track_ready, state.track.id, :high, state.track.encoding}
-    {[notify_parent: track_ready], state}
+  def handle_parent_notification(:start, ctx, state) do
+    publish_track = {:publish, {:new_tracks, [state.track]}}
+
+    actions = [
+      notify_parent: publish_track
+    ]
+
+    if ctx.playback == :playing do
+      {actions, state}
+    else
+      {[], %{state | stored_actions: actions}}
+    end
   end
 end

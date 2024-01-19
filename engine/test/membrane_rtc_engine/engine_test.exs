@@ -238,11 +238,6 @@ defmodule Membrane.RTC.EngineTest do
           id: endpoint_id1
         )
 
-      assert_receive %Message.EndpointMessage{
-        endpoint_id: ^video_endpoint_id,
-        message: :tracks_added
-      }
-
       Engine.message_endpoint(rtc_engine, video_endpoint_id, :start)
 
       assert_receive ^endpoint_id1, 10_000
@@ -437,14 +432,13 @@ defmodule Membrane.RTC.EngineTest do
 
     assert_receive %Message.EndpointAdded{endpoint_id: ^video_endpoint_id}
 
-    assert_receive %Message.TrackAdded{endpoint_id: ^video_endpoint_id, track_id: ^video_track_id}
-
-    assert_receive %Message.EndpointMessage{
-      endpoint_id: ^video_endpoint_id,
-      message: :tracks_added
-    }
-
     Engine.message_endpoint(rtc_engine, video_endpoint_id, :start)
+
+    assert_receive %Message.TrackAdded{
+                     endpoint_id: ^video_endpoint_id,
+                     track_id: ^video_track_id
+                   },
+                   2_500
   end
 
   defp create_video_file_endpoint(
