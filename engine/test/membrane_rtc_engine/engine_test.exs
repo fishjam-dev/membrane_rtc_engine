@@ -240,7 +240,7 @@ defmodule Membrane.RTC.EngineTest do
 
       Engine.message_endpoint(rtc_engine, video_endpoint_id, :start)
 
-      assert_receive ^endpoint_id1, 10_000
+      assert_receive ^endpoint_id1, 1_000
 
       assert 1 = Engine.get_num_forwarded_tracks(rtc_engine)
 
@@ -251,7 +251,7 @@ defmodule Membrane.RTC.EngineTest do
           id: endpoint_id2
         )
 
-      assert_receive ^endpoint_id2, 10_000
+      assert_receive ^endpoint_id2, 1_000
 
       assert 2 = Engine.get_num_forwarded_tracks(rtc_engine)
 
@@ -262,7 +262,7 @@ defmodule Membrane.RTC.EngineTest do
           id: endpoint_id3
         )
 
-      assert_receive ^endpoint_id3, 10_000
+      assert_receive ^endpoint_id3, 1_000
 
       assert 3 = Engine.get_num_forwarded_tracks(rtc_engine)
 

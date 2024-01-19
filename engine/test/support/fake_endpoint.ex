@@ -27,11 +27,7 @@ defmodule Membrane.RTC.Engine.Support.SinkEndpoint do
 
   @impl true
   def handle_init(_ctx, opts) do
-    {[], Map.from_struct(opts)}
-  end
-
-  def handle_playing(_ctx, state) do
-    {[notify_parent: :ready], state}
+    {[notify_parent: :ready], Map.from_struct(opts)}
   end
 
   @impl true

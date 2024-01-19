@@ -381,8 +381,7 @@ defmodule Membrane.RTC.Engine do
 
     send(
       rtc_engine,
-      {:subscribe, {self(), ref}, endpoint_id, track_id, opts,
-       System.monotonic_time(:millisecond)}
+      {:subscribe, {self(), ref}, endpoint_id, track_id, opts}
     )
 
     receive do
@@ -472,7 +471,7 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_info(
-        {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, opts, time},
+        {:subscribe, {endpoint_pid, ref}, endpoint_id, track_id, opts},
         ctx,
         state
       ) do

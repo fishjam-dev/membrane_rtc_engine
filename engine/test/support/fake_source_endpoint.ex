@@ -28,14 +28,12 @@ defmodule Membrane.RTC.Engine.Support.FakeSourceEndpoint do
 
   @impl true
   def handle_init(_ctx, opts) do
-    {[], Map.from_struct(opts) |> Map.merge(%{stored_actions: []})}
+    {[notify_parent: {:ready, nil}], Map.from_struct(opts) |> Map.merge(%{stored_actions: []})}
   end
 
   @impl true
   def handle_playing(_ctx, state) do
-    {[
-       notify_parent: {:ready, nil}
-     ] ++ state.stored_actions, state}
+    {state.stored_actions, state}
   end
 
   @impl true
