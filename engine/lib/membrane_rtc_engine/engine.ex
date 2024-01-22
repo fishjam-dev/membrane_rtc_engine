@@ -715,39 +715,93 @@ defmodule Membrane.RTC.Engine do
          _ctx,
          state
        ) do
-    if Map.has_key?(state.endpoints, endpoint_id) do
-      endpoint = Map.get(state.endpoints, endpoint_id)
-      track = Endpoint.get_track_by_id(endpoint, track_id)
+    with {:ok, endpoint} <- Map.fetch(state.endpoints, endpoint_id),
+         track when track != nil <- Endpoint.get_track_by_id(endpoint, track_id),
+         true <- track.metadata != track_metadata do
+      endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
+      state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
-      if track != nil and track.metadata != track_metadata do
-        endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
-        state = put_in(state, [:endpoints, endpoint_id], endpoint)
+      actions =
+        state.subscriptions
+        |> Map.values()
+        |> Enum.flat_map(&Map.values/1)
+        |> then(&(&1 ++ state.pending_subscriptions))
+        |> Enum.filter(&(&1.track_id == track_id))
+        |> Enum.map(& &1.endpoint_id)
+        |> Enum.map(
+          &{:notify_child,
+           {{:endpoint, &1},
+            {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}}}
+        )
 
-        actions =
-          state.subscriptions
-          |> Map.values()
-          |> Enum.flat_map(&Map.values/1)
-          |> then(&(&1 ++ state.pending_subscriptions))
-          |> Enum.filter(&(&1.track_id == track_id))
-          |> Enum.map(& &1.endpoint_id)
-          |> Enum.map(
-            &{:notify_child,
-             {{:endpoint, &1},
-              {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}}}
-          )
+      dispatch(%Message.TrackMetadataUpdated{
+        endpoint_id: endpoint_id,
+        track_id: track_id,
+        track_metadata: track_metadata
+      })
 
-        dispatch(%Message.TrackMetadataUpdated{
-          endpoint_id: endpoint_id,
-          track_id: track_id,
-          track_metadata: track_metadata
-        })
-
-        {actions, state}
-      else
-        {[], state}
-      end
+      {actions, state}
     else
-      {[], state}
+      _other ->
+        {[], state}
+    end
+  end
+
+  defp handle_endpoint_notification(
+         {notification_atom, track_id, encoding},
+         endpoint_id,
+         _ctx,
+         state
+       )
+       when notification_atom in [:track_encoding_enabled, :track_encoding_disabled] do
+    {condition, update_disabled_variants} =
+      if notification_atom == :track_encoding_enabled do
+        condition = fn track -> encoding in track.disabled_variants end
+
+        updated_disabled_variants = fn track ->
+          Enum.reject(track.disabled_variants, &(&1 == encoding))
+        end
+
+        {condition, updated_disabled_variants}
+      else
+        condition = fn track -> encoding not in track.disabled_variants end
+
+        updated_disabled_variants = fn track ->
+          [encoding | track.disabled_variants]
+        end
+
+        {condition, updated_disabled_variants}
+      end
+
+    with {:ok, endpoint} <- Map.fetch(state.endpoints, endpoint_id),
+         track when track != nil <- Endpoint.get_track_by_id(endpoint, track_id),
+         true <- condition.(track) do
+      endpoint =
+        Endpoint.update_track_disabled_variants(
+          endpoint,
+          track_id,
+          update_disabled_variants.(track)
+        )
+
+      state = put_in(state, [:endpoints, endpoint_id], endpoint)
+
+      actions =
+        state.subscriptions
+        |> Map.values()
+        |> Enum.flat_map(&Map.values/1)
+        |> then(&(&1 ++ state.pending_subscriptions))
+        |> Enum.filter(&(&1.track_id == track_id))
+        |> Enum.map(& &1.endpoint_id)
+        |> Enum.map(
+          &{:notify_child,
+           {{:endpoint, &1},
+            {notification_atom, Endpoint.get_track_by_id(endpoint, track_id), encoding}}}
+        )
+
+      {actions, state}
+    else
+      _other ->
+        {[], state}
     end
   end
 

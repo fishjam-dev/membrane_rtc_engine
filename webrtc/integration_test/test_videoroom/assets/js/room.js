@@ -123,7 +123,7 @@ class Room {
         track,
         this.localStream,
         {},
-        { enabled: true, active_encodings: this.encodings },
+        { enabled: true, activeEncodings: this.encodings },
         new Map([
           ["h", 1500],
           ["m", 500],
