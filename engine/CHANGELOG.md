@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.20.0-dev
+## 0.20.0
 * Add finished notification and remove code related to OpenTelemetry [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
 
 ## 0.19.0
