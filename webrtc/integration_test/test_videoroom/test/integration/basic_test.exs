@@ -141,7 +141,7 @@ defmodule TestVideoroom.Integration.BasicTest do
     for {browser_id, button} <- buttons_with_id, into: [] do
       specific_mustang = %{mustang_options | start_button: button, id: browser_id}
 
-      Process.sleep(1000)
+      Process.sleep(1_000)
 
       Task.async(fn ->
         Stampede.start({TestMustang, specific_mustang}, @browser_options)

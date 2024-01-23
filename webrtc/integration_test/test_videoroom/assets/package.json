@@ -1,7 +1,7 @@
 {
     "license": "MIT",
     "dependencies": {
-        "@jellyfish-dev/membrane-webrtc-js": "github:jellyfish-dev/membrane-webrtc-js#master",
+        "@jellyfish-dev/membrane-webrtc-js": "github:jellyfish-dev/membrane-webrtc-js#notify-turn-off-simulcast-layer",
         "phoenix": "file:../deps/phoenix",
         "playwright": "1.18.1"
     }

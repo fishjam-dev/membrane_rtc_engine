@@ -79,9 +79,7 @@ class Room {
     });
 
     this.webrtc.on("trackAdded", (ctx) => {
-      console.log(this.selfId, " track added ", ctx.trackId)
       ctx.on("encodingChanged", (trackCtx) => {
-        console.log(this.selfId, "received info that ", trackCtx.endpoint.id, "changed encoding to ", trackCtx.encoding);
         this.peerEncoding = trackCtx.encoding;
       });
     });
@@ -178,7 +176,7 @@ class Room {
 
   selectPeerSimulcastEncoding = (encoding) => {
     const peer = this.peers[0]
-    const trackIds = Array.from(peer.trackIdToMetadata.keys())
+    const trackIds = Array.from(peer.tracks.keys())
     const videoTrackIds = trackIds.filter(trackId => this.remoteTracks.get(trackId).track.kind == "video")
     videoTrackIds.forEach(trackId => this.webrtc.setTargetTrackEncoding(trackId, encoding))
   }
