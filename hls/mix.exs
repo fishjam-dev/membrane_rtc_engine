@@ -64,9 +64,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       # Regular deps
       {:membrane_core, "~> 1.0"},
       {:membrane_aac_plugin, "~> 0.18.0"},
-      # TODO change when issues are resolved
-      {:membrane_opus_plugin, "0.19.1"},
-      {:membrane_aac_fdk_plugin, "0.18.2"},
+      {:membrane_opus_plugin, "~> 0.19.3"},
+      {:membrane_aac_fdk_plugin, "~> 0.18.5"},
       {:membrane_raw_audio_format, "~> 0.12.0"},
       {:membrane_raw_video_format, "~> 0.3.0"},
       {:membrane_h264_plugin, "~> 0.9.0"},
