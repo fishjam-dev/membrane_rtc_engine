@@ -7,7 +7,7 @@
 ## 0.20.0
 * Add finished notification and remove code related to OpenTelemetry [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
 * Notify on endpoint and track metadata updates [#354](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/354)
-* Add handling `:track_encoding_enabled` and `:track_encoding_disabled` notification from endpoints []()
+* Add handling `:track_encoding_enabled` and `:track_encoding_disabled` notification from endpoints [#352](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/352)
 
 ## 0.19.0
 * Discard messages from endpoints that are not marked as ready [#339](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/339)

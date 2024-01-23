@@ -137,6 +137,41 @@ defmodule Membrane.RTC.EngineTest do
     end
   end
 
+  describe ":track_encoding_enabled/disabled" do
+    setup :setup_for_metadata_tests
+
+    test "second endpoint receives proper notifications", %{
+      rtc_engine: rtc_engine,
+      track: %Track{id: track_id},
+      endpoint: %{id: endpoint_id}
+    } do
+      :ok = Engine.add_endpoint(rtc_engine, %SinkEndpoint{owner: self(), rtc_engine: rtc_engine})
+
+      assert_receive %Message.EndpointAdded{}
+
+      Engine.message_endpoint(
+        rtc_engine,
+        endpoint_id,
+        {:execute_actions, [notify_parent: {:track_encoding_disabled, track_id, :high}]}
+      )
+
+      assert_receive {:track_encoding_disabled, %Track{id: ^track_id}, :high}
+
+      [%Track{id: ^track_id, disabled_variants: disabled_variants} | _] =
+        Engine.get_tracks(rtc_engine)
+
+      assert [:high] = disabled_variants
+
+      Engine.message_endpoint(
+        rtc_engine,
+        endpoint_id,
+        {:execute_actions, [notify_parent: {:track_encoding_enabled, track_id, :high}]}
+      )
+
+      assert_receive {:track_encoding_enabled, %Track{id: ^track_id}, :high}
+    end
+  end
+
   describe ":update_track_metadata" do
     setup :setup_for_metadata_tests
 
