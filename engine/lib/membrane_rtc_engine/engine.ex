@@ -725,6 +725,12 @@ defmodule Membrane.RTC.Engine do
               {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}}}
           )
 
+        dispatch(%Message.TrackMetadataUpdated{
+          endpoint_id: endpoint_id,
+          track_id: track_id,
+          metadata: track_metadata
+        })
+
         {actions, state}
       else
         {[], state}

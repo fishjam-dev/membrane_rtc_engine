@@ -288,7 +288,7 @@ defmodule Membrane.RTC.EngineTest do
   end
 
   describe "engine sends messages" do
-    test "Endpoint{Added, Crashed, Removed}, Track{Added, Removed}", %{rtc_engine: rtc_engine} do
+    test "Endpoint{Added, Crashed, Removed}, Track{Added, Removed, MetadataUpdated}", %{rtc_engine: rtc_engine} do
       endpoint = %TestEndpoint{rtc_engine: rtc_engine}
       endpoint_id = :test_endpoint
 
@@ -315,6 +315,16 @@ defmodule Membrane.RTC.EngineTest do
         track_id: ^track_id,
         track_type: :video,
         track_encoding: ^track_encoding
+      }
+
+      metadata = "{\"name\": \"hello\"}"
+      msg = {:execute_actions, notify_parent: {:update_track_metadata, track_id, metadata}}
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.TrackMetadataUpdated{
+      endpoint_id: ^endpoint_id,
+      track_id: ^track_id,
+      metadata: ^metadata
       }
 
       msg = {:execute_actions, notify_parent: {:publish, {:removed_tracks, [track]}}}

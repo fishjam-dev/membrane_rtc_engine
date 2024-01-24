@@ -15,6 +15,7 @@ defmodule Membrane.RTC.Engine.Message do
           | __MODULE__.EndpointRemoved.t()
           | __MODULE__.TrackAdded.t()
           | __MODULE__.TrackRemoved.t()
+          | __MODULE__.TrackMetadataUpdated.t()
 
   defmodule EndpointAdded do
     @moduledoc """
@@ -147,6 +148,28 @@ defmodule Membrane.RTC.Engine.Message do
           }
 
     @enforce_keys [:endpoint_id, :endpoint_type, :track_id, :track_type, :track_encoding]
+    defstruct @enforce_keys
+  end
+
+  defmodule TrackMetadataUpdated do
+    @moduledoc """
+    Message emitted when a track's metadata is updated.
+    """
+
+    @typedoc """
+    Describes TrackMetadataUpdated message structure.
+
+    * `endpoint_id` - id of the endpoint that published the track
+    * `track_id` - id of the track that was added
+    * `metadata` - the updated metadata
+    """
+    @type t() :: %__MODULE__{
+            endpoint_id: Endpoint.id(),
+            track_id: Track.id(),
+            metadata: any()
+          }
+
+    @enforce_keys [:endpoint_id, :track_id, :metadata]
     defstruct @enforce_keys
   end
 end
