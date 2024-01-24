@@ -47,7 +47,7 @@ defmodule Membrane.RTC.Engine.Message do
     Describes EndpointMetadataUpdated message structure.
 
     * `endpoint_id` - id of the endpoint that was added
-    * `metadata` - updated metadata of the endpoint
+    * `endpoint_metadata` - updated metadata of the endpoint
     """
     @type t() :: %__MODULE__{
             endpoint_id: Endpoint.id(),
@@ -133,6 +133,7 @@ defmodule Membrane.RTC.Engine.Message do
     * `track_id` - id of the track that was added
     * `track_type` - type of the track that was added
     * `track_encoding` - encoding of the track that was added
+    * `track_metadata` - metadata of the added track
     """
     @type t() :: %__MODULE__{
             endpoint_id: Endpoint.id(),
@@ -190,7 +191,7 @@ defmodule Membrane.RTC.Engine.Message do
 
     * `endpoint_id` - id of the endpoint that published the track
     * `track_id` - id of the track that was added
-    * `metadata` - the updated metadata
+    * `track_metadata` - the updated metadata
     """
     @type t() :: %__MODULE__{
             endpoint_id: Endpoint.id(),
