@@ -175,7 +175,8 @@ Messages used by any WebRTC Endpoint plugin
         metadata: any
         simulcastConfig: {
           enabled: boolean,
-          activeEncodings: string[]
+          activeEncodings: string[],
+          disabledEncodings: string[]
         }
       }
     }

@@ -413,7 +413,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   defp get_simulcast_config(track) do
     %{
       enabled: track.variants != [:high],
-      activeEncodings: Enum.map(track.variants, &WebRTC.to_rid/1)
+      activeEncodings: Enum.map(track.variants, &WebRTC.to_rid/1),
+      disabledEncodings: Enum.map(track.disabled_variants, &WebRTC.to_rid/1)
     }
   end
 end
