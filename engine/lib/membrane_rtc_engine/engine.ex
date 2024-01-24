@@ -650,7 +650,10 @@ defmodule Membrane.RTC.Engine do
         |> put_in([:endpoints, endpoint_id], new_endpoint)
         |> put_in([:subscriptions, endpoint_id], %{})
 
-      dispatch(%Message.EndpointMetadataUpdated{endpoint_id: endpoint_id, endpoint_metadata: metadata})
+      dispatch(%Message.EndpointMetadataUpdated{
+        endpoint_id: endpoint_id,
+        endpoint_metadata: metadata
+      })
 
       {actions, state}
     else

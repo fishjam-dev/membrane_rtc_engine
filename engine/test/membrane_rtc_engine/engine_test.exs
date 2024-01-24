@@ -309,11 +309,12 @@ defmodule Membrane.RTC.EngineTest do
 
       assert_receive %Message.EndpointMetadataUpdated{
         endpoint_id: ^endpoint_id,
-        metadata: ^endpoint_metadata
+        endpoint_metadata: ^endpoint_metadata
       }
 
       track_id = "track1"
-      track = video_track(endpoint_id, track_id, "")
+      track_metadata = "video_track_meta"
+      track = video_track(endpoint_id, track_id, track_metadata)
       track_encoding = track.encoding
 
       msg = {:execute_actions, notify_parent: {:publish, {:new_tracks, [track]}}}
@@ -325,7 +326,8 @@ defmodule Membrane.RTC.EngineTest do
         endpoint_type: TestEndpoint,
         track_id: ^track_id,
         track_type: :video,
-        track_encoding: ^track_encoding
+        track_encoding: ^track_encoding,
+        track_metadata: ^track_metadata
       }
 
       endpoint_metadata_2 = "metadata 404"
@@ -336,7 +338,7 @@ defmodule Membrane.RTC.EngineTest do
 
       assert_receive %Message.EndpointMetadataUpdated{
         endpoint_id: ^endpoint_id,
-        metadata: ^endpoint_metadata_2
+        endpoint_metadata: ^endpoint_metadata_2
       }
 
       track_metadata = "{\"name\": \"hello\"}"
@@ -346,7 +348,7 @@ defmodule Membrane.RTC.EngineTest do
       assert_receive %Message.TrackMetadataUpdated{
         endpoint_id: ^endpoint_id,
         track_id: ^track_id,
-        metadata: ^track_metadata
+        track_metadata: ^track_metadata
       }
 
       msg = {:execute_actions, notify_parent: {:publish, {:removed_tracks, [track]}}}
