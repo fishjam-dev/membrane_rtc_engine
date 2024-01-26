@@ -51,8 +51,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
   defp deps do
     [
       # Engine deps
-      {:membrane_rtc_engine, path: "../engine"},
-      {:membrane_rtc_engine_webrtc, path: "../webrtc"},
+      {:membrane_rtc_engine, "~> 0.20.0"},
+      {:membrane_rtc_engine_webrtc, "~> 0.6.0"},
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
