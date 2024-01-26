@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
   use Mix.Project
 
-  @version "0.5.0-dev"
+  @version "0.5.0"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @github_url "#{@engine_github_url}/tree/master/hls"
   @source_ref "hls-v#{@version}"
@@ -58,15 +58,14 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
   defp deps do
     [
       # Engine deps
-      {:membrane_rtc_engine, path: "../engine"},
-      {:membrane_rtc_engine_webrtc, path: "../webrtc"},
+      {:membrane_rtc_engine, "~> 0.20.0"},
+      {:membrane_rtc_engine_webrtc, "~> 0.6.0"},
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
       {:membrane_aac_plugin, "~> 0.18.0"},
-      # TODO change when issues are resolved
-      {:membrane_opus_plugin, "0.19.1"},
-      {:membrane_aac_fdk_plugin, "0.18.2"},
+      {:membrane_opus_plugin, "~> 0.19.3"},
+      {:membrane_aac_fdk_plugin, "~> 0.18.5"},
       {:membrane_raw_audio_format, "~> 0.12.0"},
       {:membrane_raw_video_format, "~> 0.3.0"},
       {:membrane_h264_plugin, "~> 0.9.0"},

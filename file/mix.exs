@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
   use Mix.Project
 
-  @version "0.3.0-dev"
+  @version "0.3.0"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @github_url "#{@engine_github_url}/tree/master/file"
   @source_ref "file-v#{@version}"
@@ -49,15 +49,14 @@ defmodule Membrane.RTC.Engine.Endpoint.File.MixProject do
   defp deps do
     [
       # Engine deps
-      {:membrane_rtc_engine, path: "../engine"},
-      {:membrane_rtc_engine_webrtc, path: "../webrtc"},
+      {:membrane_rtc_engine, "~> 0.20.0"},
+      {:membrane_rtc_engine_webrtc, "~> 0.6.0"},
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
       {:membrane_realtimer_plugin, "~> 0.9.0"},
       {:membrane_file_plugin, "~> 0.16.0"},
-      # TODO change when issues are resolved
-      {:membrane_opus_plugin, "0.19.1"},
+      {:membrane_opus_plugin, "~> 0.19.3"},
       {:membrane_ogg_plugin, "~> 0.3.0"},
       {:membrane_h264_plugin, "~> 0.9.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},

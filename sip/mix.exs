@@ -51,8 +51,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
   defp deps do
     [
       # Engine deps
-      {:membrane_rtc_engine, path: "../engine"},
-      {:membrane_rtc_engine_webrtc, path: "../webrtc"},
+      {:membrane_rtc_engine, "~> 0.20.0"},
+      {:membrane_rtc_engine_webrtc, "~> 0.6.0"},
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
@@ -67,8 +67,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
       {:membrane_g711_format, "~> 0.1.0"},
       {:membrane_g711_plugin, "~> 0.1.0"},
       {:membrane_rtp_g711_plugin, "~> 0.2.0"},
-      # TODO change when issues are resolved
-      {:membrane_opus_plugin, "0.19.1"},
+      {:membrane_opus_plugin, "~> 0.19.3"},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.19.1"},
       {:membrane_audio_mix_plugin, "~> 0.16.0"},
       {:sippet, "~> 1.0.11"},
