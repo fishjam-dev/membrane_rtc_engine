@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.7.0-dev
+
 ## 0.6.0
 * Remove code related to OpenTelemetry [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
 

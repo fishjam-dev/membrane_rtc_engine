@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.6.0-dev
+
 ## 0.5.0
 * Add subscribe function [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
 
