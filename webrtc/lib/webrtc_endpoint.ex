@@ -501,18 +501,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:track_encoding_enabled, track, encoding}, _ctx, state) do
+  def handle_parent_notification({:track_variant_enabled, track, encoding}, _ctx, state) do
     event =
-      MediaEvent.track_encoding_enabled(track.origin, track.id, encoding)
+      MediaEvent.track_variant_enabled(track.origin, track.id, encoding)
       |> MediaEvent.encode()
 
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
   @impl true
-  def handle_parent_notification({:track_encoding_disabled, track, encoding}, _ctx, state) do
+  def handle_parent_notification({:track_variant_disabled, track, encoding}, _ctx, state) do
     event =
-      MediaEvent.track_encoding_disabled(track.origin, track.id, encoding)
+      MediaEvent.track_variant_disabled(track.origin, track.id, encoding)
       |> MediaEvent.encode()
 
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
@@ -746,19 +746,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(
-         %{type: :track_encoding_enabled, data: %{track_id: track_id, encoding: encoding}},
+         %{type: :enable_track_variant, data: %{track_id: track_id, encoding: encoding}},
          _ctx,
          state
        ) do
-    {[notify_parent: {:track_encoding_enabled, track_id, encoding}], state}
+    {[notify_parent: {:enable_track_variant, track_id, encoding}], state}
   end
 
   defp handle_media_event(
-         %{type: :track_encoding_disabled, data: %{track_id: track_id, encoding: encoding}},
+         %{type: :disable_track_variant, data: %{track_id: track_id, encoding: encoding}},
          _ctx,
          state
        ) do
-    {[notify_parent: {:track_encoding_disabled, track_id, encoding}], state}
+    {[notify_parent: {:disable_track_variant, track_id, encoding}], state}
   end
 
   defp handle_media_event(

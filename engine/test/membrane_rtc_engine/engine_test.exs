@@ -152,10 +152,10 @@ defmodule Membrane.RTC.EngineTest do
       Engine.message_endpoint(
         rtc_engine,
         endpoint_id,
-        {:execute_actions, [notify_parent: {:track_encoding_disabled, track_id, :high}]}
+        {:execute_actions, [notify_parent: {:disable_track_variant, track_id, :high}]}
       )
 
-      assert_receive {:track_encoding_disabled, %Track{id: ^track_id}, :high}
+      assert_receive {:track_variant_disabled, %Track{id: ^track_id}, :high}
 
       [%Track{id: ^track_id, disabled_variants: disabled_variants} | _] =
         Engine.get_tracks(rtc_engine)
@@ -165,10 +165,10 @@ defmodule Membrane.RTC.EngineTest do
       Engine.message_endpoint(
         rtc_engine,
         endpoint_id,
-        {:execute_actions, [notify_parent: {:track_encoding_enabled, track_id, :high}]}
+        {:execute_actions, [notify_parent: {:enable_track_variant, track_id, :high}]}
       )
 
-      assert_receive {:track_encoding_enabled, %Track{id: ^track_id}, :high}
+      assert_receive {:track_variant_enabled, %Track{id: ^track_id}, :high}
     end
   end
 

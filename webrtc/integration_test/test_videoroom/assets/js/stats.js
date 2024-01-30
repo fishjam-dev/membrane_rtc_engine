@@ -5,8 +5,8 @@ const checkInterval = 200;
 
 function detectBrowser() {
   if (window.chrome !== undefined) return "chrome";
-  if (typeof InstallTrigger !== undefined) return "firefox";
-
+  // Condition below is true also for chrome
+  // if (typeof InstallTrigger !== undefined) return "firefox";
 
   throw new Error("Unknown browser type");
 }
@@ -158,7 +158,6 @@ export async function remoteStreamsStats(room) {
 
 
   const stats = streams.map(async (stream) => {
-
     const [audioTrack = undefined] = stream.getAudioTracks();
     const [videoTrack = undefined] = stream.getVideoTracks();
 
@@ -185,8 +184,6 @@ export async function remoteStreamsStats(room) {
           videoTrack !== undefined && (await isVideoPlayingFirefox(peerConnection, videoTrack));
       }
     }
-
-
 
     return data;
   });

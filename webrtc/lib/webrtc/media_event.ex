@@ -68,16 +68,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     }
   end
 
-  @spec track_encoding_disabled(Endpoint.id(), String.t(), String.t()) :: t()
-  def track_encoding_disabled(endpoint_id, track_id, encoding) do
+  @spec track_variant_disabled(Endpoint.id(), String.t(), String.t()) :: t()
+  def track_variant_disabled(endpoint_id, track_id, encoding) do
     %{
       type: "trackEncodingDisabled",
       data: %{endpointId: endpoint_id, trackId: track_id, encoding: encoding}
     }
   end
 
-  @spec track_encoding_enabled(Endpoint.id(), String.t(), String.t()) :: t()
-  def track_encoding_enabled(endpoint_id, track_id, encoding) do
+  @spec track_variant_enabled(Endpoint.id(), String.t(), String.t()) :: t()
+  def track_variant_enabled(endpoint_id, track_id, encoding) do
     %{
       type: "trackEncodingEnabled",
       data: %{endpointId: endpoint_id, trackId: track_id, encoding: encoding}
@@ -215,18 +215,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
           %{type: :update_track_metadata, data: %{track_id: track_id, track_metadata: metadata}}}
 
   defp do_decode(%{
-         "type" => "trackEncodingDisabled",
+         "type" => "disableTrackEncoding",
          "data" => %{"trackId" => track_id, "encoding" => encoding}
        }),
-       do:
-         {:ok, %{type: :track_encoding_disabled, data: %{track_id: track_id, encoding: encoding}}}
+       do: {:ok, %{type: :disable_track_variant, data: %{track_id: track_id, encoding: encoding}}}
 
   defp do_decode(%{
-         "type" => "trackEncodingEnabled",
+         "type" => "enableTrackEncoding",
          "data" => %{"trackId" => track_id, "encoding" => encoding}
        }),
-       do:
-         {:ok, %{type: :track_encoding_enabled, data: %{track_id: track_id, encoding: encoding}}}
+       do: {:ok, %{type: :enable_track_variant, data: %{track_id: track_id, encoding: encoding}}}
 
   defp do_decode(_event), do: {:error, :invalid_media_event}
 
