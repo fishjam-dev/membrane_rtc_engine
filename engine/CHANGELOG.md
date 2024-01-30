@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.21.0-dev
+* Engine shouldn't raise when requesting incorrect simulcast variant [#351](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/351)
 
 ## 0.20.0
 * Add finished notification and remove code related to OpenTelemetry [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)

@@ -164,7 +164,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     :ok = Pipeline.terminate(pipeline)
   end
 
-  test "Tee raises on receiving invalid RequestTrackVariant event" do
+  test "Tee does not raise on receiving invalid RequestTrackVariant event" do
     track = build_h264_track()
     pipeline = build_pipeline(track, [])
 
@@ -173,7 +173,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     actions = [event: {:input, %RequestTrackVariant{variant: "invalid_track_variant"}}]
     Pipeline.execute_actions(pipeline, notify_child: {:sink, {:execute_actions, actions}})
 
-    assert_receive {:EXIT, ^pipeline, {:membrane_child_crash, :tee, _exception}}
+    refute_receive {:EXIT, ^pipeline, {:membrane_child_crash, :tee, _exception}}
   end
 
   test "Tee correcly forwards variants" do

@@ -15,7 +15,7 @@ defmodule Membrane.RTC.Engine.Tee do
     VoiceActivityChanged
   }
 
-  alias Membrane.RTC.Engine.Exception.{RequestTrackVariantError, TrackVariantStateError}
+  alias Membrane.RTC.Engine.Exception.TrackVariantStateError
 
   @supported_codecs [:H264, :VP8, :OPUS]
 
@@ -190,10 +190,12 @@ defmodule Membrane.RTC.Engine.Tee do
       ) do
     cond do
       requested_variant not in state.track.variants ->
-        raise RequestTrackVariantError,
-          requester: endpoint_id,
-          requested_variant: requested_variant,
-          track: state.track
+        Membrane.Logger.warning("""
+        Endpoint: #{inspect(endpoint_id)} requested non-existing track variant:
+        #{inspect(requested_variant)} for track: #{inspect(state.track)}. Ignoring.
+        """)
+
+        {[], state}
 
       requested_variant in state.inactive_variants ->
         Membrane.Logger.debug("""
