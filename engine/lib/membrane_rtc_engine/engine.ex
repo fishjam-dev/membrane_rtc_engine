@@ -529,7 +529,7 @@ defmodule Membrane.RTC.Engine do
         [notify_child: {endpoint, message}]
       else
         Membrane.Logger.warning(
-          "Message #{inspect(message)} sent to non exisiting endpoint #{endpoint}. Ignoring."
+          "Message #{inspect(message)} sent to non exisiting endpoint #{inspect(endpoint)}. Ignoring."
         )
 
         []
