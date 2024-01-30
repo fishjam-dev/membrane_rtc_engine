@@ -192,7 +192,7 @@ defmodule Membrane.RTC.Engine.Tee do
       requested_variant not in state.track.variants ->
         Membrane.Logger.warning("""
         Endpoint: #{inspect(endpoint_id)} requested non-existing track variant:
-        #{inspect(requested_variant)} for track: #{inspect(state.track)}. Ignoring this request.
+        #{inspect(requested_variant)} for track: #{inspect(state.track)}. Ignoring.
         """)
 
         {[], state}
