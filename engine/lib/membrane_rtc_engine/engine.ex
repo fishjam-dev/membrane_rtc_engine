@@ -379,10 +379,7 @@ defmodule Membrane.RTC.Engine do
   def subscribe(rtc_engine, endpoint_id, track_id, opts \\ []) do
     ref = make_ref()
 
-    send(
-      rtc_engine,
-      {:subscribe, {self(), ref}, endpoint_id, track_id, opts}
-    )
+    send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, opts})
 
     receive do
       {^ref, :ok} -> :ok
@@ -485,7 +482,7 @@ defmodule Membrane.RTC.Engine do
       :ok ->
         {spec, state} = fulfill_or_postpone_subscription(subscription, ctx, state)
         send(endpoint_pid, {ref, :ok})
-        Membrane.Logger.info("Subscription fullfiled by #{endpoint_id} on track: #{track_id}")
+        Membrane.Logger.debug("Subscription fullfiled by #{endpoint_id} on track: #{track_id}")
         {[spec: {spec, log_metadata: [rtc: state.id]}], state}
 
       {:error, _reason} = error ->
