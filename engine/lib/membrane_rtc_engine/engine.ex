@@ -525,9 +525,15 @@ defmodule Membrane.RTC.Engine do
   @impl true
   def handle_info({:message_endpoint, endpoint, message}, ctx, state) do
     actions =
-      if find_child(ctx, pattern: ^endpoint) != nil,
-        do: [notify_child: {endpoint, message}],
-        else: []
+      if find_child(ctx, pattern: ^endpoint) != nil do
+        [notify_child: {endpoint, message}]
+      else
+        Membrane.Logger.warning(
+          "Message #{inspect(message)} sent to non exisiting endpoint #{endpoint}. Ignoring."
+        )
+
+        []
+      end
 
     {actions, state}
   end
