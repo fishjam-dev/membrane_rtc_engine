@@ -133,9 +133,11 @@ jobs:
     steps:
       - checkout:
           path: ~/app
-      - run: |
-          [[ "$(git branch --show-current)" == "master" ]] ||
-          git diff-tree --no-commit-id --name-only -r HEAD master . | grep -q "CHANGELOG.md"
+      - run: 
+          name: Check "CHANGELOG.md" Update
+          command: |
+            git rebase master && [[ "$(git branch --show-current)" == "master" ]] ||
+            git diff-tree --no-commit-id --name-only -r HEAD master . | grep -q "CHANGELOG.md"
 
   test_webrtc_integration:
     resource_class: large
