@@ -118,7 +118,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
         started: false
       })
 
-    {[notify_parent: {:ready, nil}], state}
+    {[notify_parent: :ready], state}
   end
 
   @impl true
