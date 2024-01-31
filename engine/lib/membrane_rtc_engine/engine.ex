@@ -651,6 +651,11 @@ defmodule Membrane.RTC.Engine do
         |> put_in([:endpoints, endpoint_id], new_endpoint)
         |> put_in([:subscriptions, endpoint_id], %{})
 
+      dispatch(%Message.EndpointMetadataUpdated{
+        endpoint_id: endpoint_id,
+        endpoint_metadata: metadata
+      })
+
       {actions, state}
     else
       Membrane.Logger.warning(
@@ -693,6 +698,11 @@ defmodule Membrane.RTC.Engine do
           &{:notify_child, {{:endpoint, &1}, {:endpoint_metadata_updated, updated_endpoint}}}
         )
 
+      dispatch(%Message.EndpointMetadataUpdated{
+        endpoint_id: endpoint_id,
+        endpoint_metadata: metadata
+      })
+
       {actions, state}
     else
       {[], state}
@@ -725,6 +735,12 @@ defmodule Membrane.RTC.Engine do
              {{:endpoint, &1},
               {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}}}
           )
+
+        dispatch(%Message.TrackMetadataUpdated{
+          endpoint_id: endpoint_id,
+          track_id: track_id,
+          track_metadata: track_metadata
+        })
 
         {actions, state}
       else
@@ -828,7 +844,8 @@ defmodule Membrane.RTC.Engine do
         endpoint_type: state.endpoints[endpoint_id].type,
         track_id: &1.id,
         track_type: &1.type,
-        track_encoding: &1.encoding
+        track_encoding: &1.encoding,
+        track_metadata: &1.metadata
       })
     )
 

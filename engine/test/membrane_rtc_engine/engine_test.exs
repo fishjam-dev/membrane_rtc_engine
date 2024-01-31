@@ -285,7 +285,10 @@ defmodule Membrane.RTC.EngineTest do
   end
 
   describe "engine sends messages" do
-    test "Endpoint{Added, Crashed, Removed}, Track{Added, Removed}", %{rtc_engine: rtc_engine} do
+    test "Endpoint{Added, MetadataUpdated, Crashed, Removed}, Track{Added, Removed, MetadataUpdated}",
+         %{
+           rtc_engine: rtc_engine
+         } do
       endpoint = %TestEndpoint{rtc_engine: rtc_engine}
       endpoint_id = :test_endpoint
 
@@ -296,13 +299,22 @@ defmodule Membrane.RTC.EngineTest do
         endpoint_type: TestEndpoint
       }
 
+      endpoint_metadata = "metadata 101"
+      msg = {:execute_actions, notify_parent: {:ready, endpoint_metadata}}
+
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.EndpointMetadataUpdated{
+        endpoint_id: ^endpoint_id,
+        endpoint_metadata: ^endpoint_metadata
+      }
+
       track_id = "track1"
-      track = video_track(endpoint_id, track_id, "")
+      track_metadata = "video_track_meta"
+      track = video_track(endpoint_id, track_id, track_metadata)
       track_encoding = track.encoding
 
-      msg =
-        {:execute_actions,
-         notify_parent: {:ready, ""}, notify_parent: {:publish, {:new_tracks, [track]}}}
+      msg = {:execute_actions, notify_parent: {:publish, {:new_tracks, [track]}}}
 
       :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
 
@@ -311,7 +323,29 @@ defmodule Membrane.RTC.EngineTest do
         endpoint_type: TestEndpoint,
         track_id: ^track_id,
         track_type: :video,
-        track_encoding: ^track_encoding
+        track_encoding: ^track_encoding,
+        track_metadata: ^track_metadata
+      }
+
+      endpoint_metadata_2 = "metadata 404"
+
+      msg = {:execute_actions, notify_parent: {:update_endpoint_metadata, endpoint_metadata_2}}
+
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.EndpointMetadataUpdated{
+        endpoint_id: ^endpoint_id,
+        endpoint_metadata: ^endpoint_metadata_2
+      }
+
+      track_metadata = "{\"name\": \"hello\"}"
+      msg = {:execute_actions, notify_parent: {:update_track_metadata, track_id, track_metadata}}
+      :ok = Engine.message_endpoint(rtc_engine, endpoint_id, msg)
+
+      assert_receive %Message.TrackMetadataUpdated{
+        endpoint_id: ^endpoint_id,
+        track_id: ^track_id,
+        track_metadata: ^track_metadata
       }
 
       msg = {:execute_actions, notify_parent: {:publish, {:removed_tracks, [track]}}}

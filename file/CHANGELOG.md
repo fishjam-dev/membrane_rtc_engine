@@ -4,6 +4,7 @@
 
 ## 0.3.0
 * Add autoend option [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
+* Micro refactor File Endpoint [#354](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/354)
 
 ## 0.2.0
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
