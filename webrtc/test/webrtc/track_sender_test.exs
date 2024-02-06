@@ -38,7 +38,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
         {Track.new(:audio, @stream_id, @track_origin, :OPUS, 48_000, nil, id: @track_id), true}
       ]
       |> Enum.each(fn {track, expected_is_keyframe_value} ->
-        test_is_keyframe(track, expected_is_keyframe_value)
+        test_keyframe?(track, expected_is_keyframe_value)
       end)
     end
 
@@ -187,7 +187,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     Pipeline.terminate(pipeline)
   end
 
-  defp test_is_keyframe(%Track{type: :audio} = track, expected_is_keyframe_value) do
+  defp test_keyframe?(%Track{type: :audio} = track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
     pipeline = build_audio_pipeline(track, [test_payload])
@@ -200,7 +200,7 @@ defmodule Membrane.RTC.Engine.WebRTC.TrackSenderTest do
     Pipeline.terminate(pipeline)
   end
 
-  defp test_is_keyframe(track, expected_is_keyframe_value) do
+  defp test_keyframe?(track, expected_is_keyframe_value) do
     test_payload = <<1, 2, 3, 4, 5>>
 
     pipeline = build_video_pipeline(track, {nil, &Utils.generator/2})

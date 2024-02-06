@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.21.0-dev
+* Rename the function `is_simulcast` to `simulcast?` in order to be compliant with elixir style guide. [#349](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/349)
 * Engine shouldn't raise when requesting incorrect simulcast variant [#351](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/351)
 
 ## 0.20.0

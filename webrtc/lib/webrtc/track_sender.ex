@@ -49,7 +49,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
               ],
               is_keyframe_fun: [
                 spec: (Membrane.Buffer.t(), Track.encoding() -> boolean()),
-                default: &Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender.is_keyframe/2,
+                default: &Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender.keyframe?/2,
                 description:
                   "Function checking whether a given buffer contains a keyframe in its payload."
               ]
@@ -88,7 +88,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     Metrics.telemetry_register(telemetry_label)
 
     {actions, state} =
-      if playback == :playing and Track.is_simulcast?(state.track) do
+      if playback == :playing and Track.simulcast?(state.track) do
         # we need to reset timer and all existing variant
         # trackers to ensure that new tracker's state won't
         # be checked too fast
@@ -106,7 +106,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       end
 
     tracker =
-      if Track.is_simulcast?(state.track) do
+      if Track.simulcast?(state.track) do
         VariantTracker.new(variant)
       else
         # assume that non-simulcast tracks are always active
@@ -160,7 +160,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       |> Enum.flat_map(fn {pad, _pad_data} -> activate_pad_actions(pad, state) end)
 
     actions =
-      if Track.is_simulcast?(state.track) do
+      if Track.simulcast?(state.track) do
         actions ++ [@start_variant_check_timer, @start_bitrate_estimation_timer]
       else
         actions ++ [@start_bitrate_estimation_timer]
@@ -282,7 +282,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     )
 
     state =
-      if Track.is_simulcast?(track) do
+      if Track.simulcast?(track) do
         update_in(state, [:trackers, variant], &VariantTracker.increment_samples(&1))
       else
         state
@@ -385,8 +385,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   @doc """
   Default function checking whether a given buffer contains a keyframe in its payload.
   """
-  @spec is_keyframe(Membrane.Buffer.t(), Track.encoding()) :: boolean()
-  def is_keyframe(buffer, encoding) do
+  @spec keyframe?(Membrane.Buffer.t(), Track.encoding()) :: boolean()
+  def keyframe?(buffer, encoding) do
     case encoding do
       :OPUS -> true
       :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)

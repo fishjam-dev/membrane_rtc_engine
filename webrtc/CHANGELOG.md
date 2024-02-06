@@ -4,6 +4,7 @@
 
 ## 0.6.0
 * Remove code related to OpenTelemetry [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
+* Rename the function `is_keyframe` to `keyframe?` and `is_deficient?` to `deficient?` in order to be compliant with elixir style guide. [#349](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/349)
 
 ## 0.5.0
 * Update to Membrane Core 1.0 [#331](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/331)
