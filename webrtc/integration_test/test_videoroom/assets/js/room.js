@@ -108,13 +108,14 @@ class Room {
     });
 
     this.webrtc.on("trackUpdated", (ctx) => {
+      console.log("Track updated")
       this.trackMetadata = ctx.metadata;
     });
 
     this.webrtcChannel.on("mediaEvent", (event) => this.webrtc.receiveMediaEvent(event.data));
   }
 
-  addTrack = (track) => {
+  addTrack = async (track) => {
     let trackId = !this.simulcast || track.kind == "audio"
       ? this.webrtc.addTrack(track, this.localStream)
       : this.webrtc.addTrack(
@@ -128,6 +129,7 @@ class Room {
           ["l", 100],
         ]))
 
+    trackId = await trackId;
 
     if (track.kind == "audio") this.audioTrack = [trackId, track];
     else this.videoTrack = [trackId, track];
