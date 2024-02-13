@@ -13,41 +13,38 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   @track_children [:track_receiver, :serializer, :tee]
 
-  def_input_pad(:input,
+  def_input_pad :input,
     accepted_format: Membrane.RTP,
     availability: :on_request
-  )
 
-  def_options(
-    owner: [
-      spec: pid(),
-      description: """
-      Pid of parent all notifications will be send to.
-      These notifications are:
-      """
-    ],
-    rtc_engine: [
-      spec: pid(),
-      description: "Pid of parent Engine"
-    ],
-    stores: [
-      spec: [module()],
-      description: "A list of stores that the recorded streams will be uploaded to"
-    ],
-    output_dir: [
-      spec: Path.t(),
-      default: "output",
-      description: """
-      Directory that contains output files. For S3, this is the object's path prefix.
-      """
-    ],
-    recording_id: [
-      spec: String.t(),
-      description: """
-      Recording id that will be saved along with raport
-      """
-    ]
-  )
+  def_options owner: [
+                spec: pid(),
+                description: """
+                Pid of parent all notifications will be send to.
+                These notifications are:
+                """
+              ],
+              rtc_engine: [
+                spec: pid(),
+                description: "Pid of parent Engine"
+              ],
+              stores: [
+                spec: [module()],
+                description: "A list of stores that the recorded streams will be uploaded to"
+              ],
+              output_dir: [
+                spec: Path.t(),
+                default: "output",
+                description: """
+                Directory that contains output files. For S3, this is the object's path prefix.
+                """
+              ],
+              recording_id: [
+                spec: String.t(),
+                description: """
+                Recording id that will be saved along with raport
+                """
+              ]
 
   @impl true
   def handle_init(ctx, options) do
