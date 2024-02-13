@@ -174,7 +174,14 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
 
   @impl true
   def handle_element_end_of_stream(:track_sender, _pad, _ctx, state) do
-    actions = if state.autoend, do: [notify_parent: :finished], else: []
+    actions =
+      if state.autoend,
+        do: [
+          notify_parent: {:publish, {:removed_tracks, [state.track]}},
+          notify_parent: :finished
+        ],
+        else: []
+
     {actions, state}
   end
 

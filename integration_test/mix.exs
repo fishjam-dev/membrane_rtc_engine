@@ -40,6 +40,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:membrane_rtc_engine_rtsp, path: "../rtsp"},
       {:membrane_rtc_engine_file, path: "../file"},
       {:membrane_rtc_engine_sip, path: "../sip"},
+      {:membrane_rtc_engine_recording, path: "../recording"},
 
       # Regular deps (for modules in `test/support/`)
       {:membrane_core, "~> 1.0"},

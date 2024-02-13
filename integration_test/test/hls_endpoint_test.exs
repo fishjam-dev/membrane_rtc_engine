@@ -1,9 +1,8 @@
 defmodule Membrane.RTC.HLSEndpointTest do
   use ExUnit.Case
 
-  import Membrane.ChildrenSpec
+  import FileEndpointGenerator
 
-  alias ExSDP.Attribute.FMTP
   alias Membrane.HTTPAdaptiveStream.Storages.SendStorage
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.File, as: FileEndpoint
@@ -15,6 +14,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
   @playlist_playable_delay 20_000
   @segment_delay 25_000
   @tracks_added_delay 500
+
+  @audio_file_path Path.join(@fixtures_dir, "audio.aac")
 
   setup do
     options = [
@@ -212,7 +213,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple)
 
-      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, stream_id)
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, @audio_file_path, stream_id)
 
       video_file_endpoint =
         create_video_file_endpoint(
@@ -282,7 +283,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
         }
       }
 
-      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, stream_id, autoend: false)
+      audio_file_endpoint =
+        create_audio_file_endpoint(rtc_engine, @audio_file_path, stream_id, autoend: false)
 
       video_file_endpoint =
         create_video_file_endpoint(
@@ -349,7 +351,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_endpoint_id = "hls-endpoint"
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :muxed, %MixerConfig{})
 
-      audio_file_endpoint = create_audio_file_endpoint(rtc_engine)
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, @audio_file_path)
 
       video_file_endpoint =
         create_video_file_endpoint(
@@ -448,9 +450,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple, %MixerConfig{})
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint = create_audio_file_endpoint(rtc_engine)
+      file_endpoint = create_audio_file_endpoint(rtc_engine, @audio_file_path)
 
-      file_endpoint_2 = create_audio_file_endpoint(rtc_engine)
+      file_endpoint_2 = create_audio_file_endpoint(rtc_engine, @audio_file_path)
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
@@ -599,68 +601,5 @@ defmodule Membrane.RTC.HLSEndpointTest do
     |> Enum.map(&Path.join(output_dir, &1))
     |> Enum.map(&File.stat!/1)
     |> Enum.map(& &1.size)
-  end
-
-  defp create_video_file_endpoint(
-         rtc_engine,
-         video_file_path,
-         opts \\ []
-       ) do
-    video_track_config = %FileEndpoint.TrackConfig{
-      type: :video,
-      stream_id: Keyword.get(opts, :stream_id),
-      encoding: :H264,
-      clock_rate: 90_000,
-      fmtp: %FMTP{
-        pt: 96
-      },
-      opts: [
-        metadata: %{"mainPresenter" => true, "isScreenSharing" => false},
-        framerate: {60, 1}
-      ]
-    }
-
-    %FileEndpoint{
-      rtc_engine: rtc_engine,
-      file_path: video_file_path,
-      track_config: video_track_config,
-      payload_type: 96,
-      playback_mode: Keyword.get(opts, :playback_mode, :wait_for_first_subscriber),
-      autoend: Keyword.get(opts, :autoend, true)
-    }
-  end
-
-  defp create_audio_file_endpoint(rtc_engine, stream_id \\ nil, opts \\ []) do
-    audio_track_config = %FileEndpoint.TrackConfig{
-      type: :audio,
-      stream_id: stream_id,
-      encoding: :OPUS,
-      clock_rate: 48_000,
-      fmtp: %FMTP{
-        pt: 108
-      }
-    }
-
-    %FileEndpoint{
-      rtc_engine: rtc_engine,
-      file_path: Path.join(@fixtures_dir, "audio.aac"),
-      track_config: audio_track_config,
-      payload_type: 108,
-      after_source_transformation: &transform_aac_to_opus/1,
-      playback_mode: Keyword.get(opts, :playback_mode, :wait_for_first_subscriber),
-      autoend: Keyword.get(opts, :autoend, true)
-    }
-  end
-
-  defp transform_aac_to_opus(link_builder) do
-    link_builder
-    |> child(:decoder, Membrane.AAC.FDK.Decoder)
-    |> child(:encoder, %Membrane.Opus.Encoder{
-      input_stream_format: %Membrane.RawAudio{
-        channels: 1,
-        sample_rate: 48_000,
-        sample_format: :s16le
-      }
-    })
   end
 end
