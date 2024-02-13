@@ -63,7 +63,7 @@ defmodule TestMustang do
 
   defp get_stats(page, receiver, browser_id, tag, button) do
     :ok = Playwright.Page.click(page, "[id=#{button}]")
-    Process.sleep(500)
+    Process.sleep(1_000)
 
     page
     |> Playwright.Page.text_content("[id=data]")
