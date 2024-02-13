@@ -25,61 +25,61 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   @toilet_capacity 1_000
 
   def_options rtc_engine: [
-      spec: pid(),
-      description: "Pid of parent Engine"
-    ],
-    file_path: [
-      spec: Path.t(),
-      description: "Path to track file"
-    ],
-    track_config: [
-      spec: TrackConfig.t(),
-      description: "Configuration of the track being published"
-    ],
-    ssrc: [
-      spec: RTP.ssrc_t(),
-      description: "SSRC of RTP packets",
-      default: nil
-    ],
-    payload_type: [
-      spec: RTP.payload_type_t(),
-      description: "Payload type of RTP packets"
-    ],
-    autoplay: [
-      spec: boolean(),
-      default: true,
-      description: "Indicates, whether the endpoint should start sending
+                spec: pid(),
+                description: "Pid of parent Engine"
+              ],
+              file_path: [
+                spec: Path.t(),
+                description: "Path to track file"
+              ],
+              track_config: [
+                spec: TrackConfig.t(),
+                description: "Configuration of the track being published"
+              ],
+              ssrc: [
+                spec: RTP.ssrc_t(),
+                description: "SSRC of RTP packets",
+                default: nil
+              ],
+              payload_type: [
+                spec: RTP.payload_type_t(),
+                description: "Payload type of RTP packets"
+              ],
+              autoplay: [
+                spec: boolean(),
+                default: true,
+                description: "Indicates, whether the endpoint should start sending
                 media immediately after initialization. If set to `false`,
                 the `start_sending` function has to be used."
-    ],
-    # Addded because current implementation of Membrane don't guarantee
-    # that other endpoints which subscribes on track from this endpoint
-    # will be able to process safely all data from this endpoints.
-    autoend: [
-      spec: boolean(),
-      default: true,
-      description: "Indicates, whether the endpoint should send `:finished`
+              ],
+              # Addded because current implementation of Membrane don't guarantee
+              # that other endpoints which subscribes on track from this endpoint
+              # will be able to process safely all data from this endpoints.
+              autoend: [
+                spec: boolean(),
+                default: true,
+                description: "Indicates, whether the endpoint should send `:finished`
                 notification to engine immediately after processing all data. If set to `false`,
                 the endpoint hast to be removed manually.
                 "
-    ],
-    after_source_transformation: [
-      spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
-      default: &Function.identity/1,
-      description: """
-      Additional pipeline transformation after `file_source`.
-      The output stream must be encoded in OPUS or H264.
+              ],
+              after_source_transformation: [
+                spec: (ChildrenSpec.builder() -> ChildrenSpec.builder()),
+                default: &Function.identity/1,
+                description: """
+                Additional pipeline transformation after `file_source`.
+                The output stream must be encoded in OPUS or H264.
 
-      Use this option when the provided file uses encoding other than
-      Ogg encapsulated OPUS audio or H264 video.
+                Use this option when the provided file uses encoding other than
+                Ogg encapsulated OPUS audio or H264 video.
 
-      Example usage:
-      * Reading ACC file: `fn link_builder ->  link_builder
-      |> child(:decoder, Membrane.AAC.FDK.Decoder)
-      |> child(:encoder, %Membrane.Opus.Encoder{input_stream_format:
-      %Membrane.RawAudio{ channels: 1, sample_rate: 48_000, sample_format: :s16le }}) end`
-      """
-    ]
+                Example usage:
+                * Reading ACC file: `fn link_builder ->  link_builder
+                |> child(:decoder, Membrane.AAC.FDK.Decoder)
+                |> child(:encoder, %Membrane.Opus.Encoder{input_stream_format:
+                %Membrane.RawAudio{ channels: 1, sample_rate: 48_000, sample_format: :s16le }}) end`
+                """
+              ]
 
   def_output_pad :output,
     accepted_format: Membrane.RTP,

@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.4.0-dev
+* Add `Membrane.RTC.Engine.Message.TrackRemoved` notification to File Source Endpoint [#356](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/356)
 
 ## 0.3.0
 * Add autoend option [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
