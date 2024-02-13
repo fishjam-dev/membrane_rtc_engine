@@ -4,7 +4,6 @@
 const checkInterval = 200;
 
 function detectBrowser() {
-  // Condition below is true also for chrome
   if (typeof InstallTrigger !== undefined) return "firefox";
 
   if (window.chrome !== undefined) return "chrome";

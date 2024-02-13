@@ -234,8 +234,8 @@ defmodule Membrane.RTC.Engine do
           | {:new_endpoint, Endpoint.t()}
           | {:endpoint_removed, Endpoint.id()}
           | {:track_metadata_updated, Track.t()}
-          | {:track_variant_enabled, Track.t(), Track.encoding()}
-          | {:track_variant_disabled, Track.t(), Track.encoding()}
+          | {:track_variant_enabled, Track.t(), Track.variant()}
+          | {:track_variant_disabled, Track.t(), Track.variant()}
           | {:endpoint_metadata_updated, Endpoint.t()}
           | {:tracks_priority, tracks :: list()}
           | ready_ack_msg_t()
@@ -745,7 +745,8 @@ defmodule Membrane.RTC.Engine do
 
       actions =
         prepare_track_notifications(
-          state,
+          state.subscriptions,
+          state.pending_subscriptions,
           track_id,
           {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}
         )
@@ -764,28 +765,29 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_endpoint_notification(
-         {:enable_track_variant, track_id, encoding},
+         {:enable_track_variant, track_id, variant},
          endpoint_id,
          _ctx,
          state
        ) do
     with {:ok, endpoint} <- Map.fetch(state.endpoints, endpoint_id),
          track when track != nil <- Endpoint.get_track_by_id(endpoint, track_id),
-         true <- encoding in track.disabled_variants do
+         true <- variant in track.disabled_variants do
       endpoint =
         Endpoint.update_track_disabled_variants(
           endpoint,
           track_id,
-          Enum.reject(track.disabled_variants, &(&1 == encoding))
+          Enum.reject(track.disabled_variants, &(&1 == variant))
         )
 
       state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
       actions =
         prepare_track_notifications(
-          state,
+          state.subscriptions,
+          state.pending_subscriptions,
           track_id,
-          {:track_variant_enabled, Endpoint.get_track_by_id(endpoint, track_id), encoding}
+          {:track_variant_enabled, Endpoint.get_track_by_id(endpoint, track_id), variant}
         )
 
       {actions, state}
@@ -796,28 +798,29 @@ defmodule Membrane.RTC.Engine do
   end
 
   defp handle_endpoint_notification(
-         {:disable_track_variant, track_id, encoding},
+         {:disable_track_variant, track_id, variant},
          endpoint_id,
          _ctx,
          state
        ) do
     with {:ok, endpoint} <- Map.fetch(state.endpoints, endpoint_id),
          track when track != nil <- Endpoint.get_track_by_id(endpoint, track_id),
-         true <- encoding not in track.disabled_variants do
+         true <- variant not in track.disabled_variants do
       endpoint =
         Endpoint.update_track_disabled_variants(
           endpoint,
           track_id,
-          [encoding | track.disabled_variants]
+          [variant | track.disabled_variants]
         )
 
       state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
       actions =
         prepare_track_notifications(
-          state,
+          state.subscriptions,
+          state.pending_subscriptions,
           track_id,
-          {:track_variant_disabled, Endpoint.get_track_by_id(endpoint, track_id), encoding}
+          {:track_variant_disabled, Endpoint.get_track_by_id(endpoint, track_id), variant}
         )
 
       {actions, state}
@@ -1250,11 +1253,11 @@ defmodule Membrane.RTC.Engine do
     |> Map.get(track_id)
   end
 
-  defp prepare_track_notifications(state, track_id, notification) do
-    state.subscriptions
+  defp prepare_track_notifications(subscriptions, pending_subscriptions, track_id, notification) do
+    subscriptions
     |> Map.values()
     |> Enum.flat_map(&Map.values/1)
-    |> then(&(&1 ++ state.pending_subscriptions))
+    |> then(&(&1 ++ pending_subscriptions))
     |> Enum.filter(&(&1.track_id == track_id))
     |> Enum.map(& &1.endpoint_id)
     |> Enum.map(&{:notify_child, {{:endpoint, &1}, notification}})
