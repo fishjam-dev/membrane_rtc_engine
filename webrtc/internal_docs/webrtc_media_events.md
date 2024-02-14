@@ -27,24 +27,28 @@ Messages used by any WebRTC Endpoint plugin
 | [disconnect](#disconnect)                         | sent when client disconnects from associated endpoint           |
 | [updateEndpointMetadata](#updateendpointmetadata) | contains new metadata of client's endpoint                      |
 | [updateTrackMetadata](#updatetrackmetadata)       | contains new metadata of a track                                |
+| [disableTrackEncoding](#disabletrackencoding)     | sent when client disables one of the track variants             |
+| [enableTrackEncoding](#enabletrackencoding)       | sent when client enables one of the track variants              |
 | [custom](#custom)                                 | message forwarded to the endpoint associated with the client    |
 
 
 
 #### WebRTC Endpoint sends these types of messages to the client:
 
-| Name                                | Description                                                                               |
-| ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| [tracksPriority](#trackspriority)   | contains all tracks that will be forwarded to client until next `tracks_priority` message |
-| [endpointUpdated](#endpointupdated) | contains new metadata of an endpoint                                                      |
-| [trackUpdated](#trackupdated)       | contains new metadata of a track                                                          |
-| [tracksAdded](#tracksadded)         | sent when some tracks were added by an endpoint                                           |
-| [tracksRemoved](#tracksremoved)     | sent when some tracks were removed by an endpoint                                         |
-| [endpointAdded](#endpointadded)     | sent after after new endpoint was added                                                   |
-| [connected](#connected)             | sent as a response to [connect](#connect) when succesful                                  |
-| [endpointRemoved](#endpointremoved) | sent after some endpoint was removed                                                      |
-| [error](#error)                     | Notifies about an error that occurred                                                     |
-| [custom](#custom-1)                 | custom message forwarded from endpoint to client                                          |
+| Name                                            | Description                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| [tracksPriority](#trackspriority)               | contains all tracks that will be forwarded to client until next this message |
+| [endpointUpdated](#endpointupdated)             | contains new metadata of an endpoint                                         |
+| [trackUpdated](#trackupdated)                   | contains new metadata of a track                                             |
+| [tracksAdded](#tracksadded)                     | sent when some tracks were added by an endpoint                              |
+| [tracksRemoved](#tracksremoved)                 | sent when some tracks were removed by an endpoint                            |
+| [trackEncodingDisabled](#trackencodingdisabled) | sent when some track variant were disabled by an endpoint                    |
+| [trackEncodingEnabled](#trackencodingenabled)   | sent when some track variant were enabled by an endpoint                     |
+| [endpointAdded](#endpointadded)                 | sent after after new endpoint was added                                      |
+| [connected](#connected)                         | sent as a response to [connect](#connect) when succesful                     |
+| [endpointRemoved](#endpointremoved)             | sent after some endpoint was removed                                         |
+| [error](#error)                                 | Notifies about an error that occurred                                        |
+| [custom](#custom-1)                             | custom message forwarded from endpoint to client                             |
 
 ### WebRTC custom media events
 
@@ -98,6 +102,28 @@ Messages used by any WebRTC Endpoint plugin
   ```json
   {
     "metadata": any
+  }
+  ```
+
+### `disableTrackEncoding`
+
+* Sent when client disables one of the track variants
+
+  ```json
+  {
+    "trackId": track_id,
+    "encoding": encoding
+  }
+  ```
+
+### `enableTrackEncoding`
+
+* Sent when client enables one of the track variants
+
+  ```json
+  {
+    "trackId": track_id,
+    "encoding": encoding
   }
   ```
 
@@ -175,7 +201,8 @@ Messages used by any WebRTC Endpoint plugin
         metadata: any
         simulcastConfig: {
           enabled: boolean,
-          activeEncodings: string[]
+          activeEncodings: string[],
+          disabledEncodings: string[]
         }
       }
     }
@@ -190,6 +217,28 @@ Messages used by any WebRTC Endpoint plugin
   {
     endpointId: endpoint_id,
     trackIds: track_ids
+  }
+  ```
+
+### `trackEncodingDisabled`
+
+* Sent when some track variant were disabled by an endpoint
+
+  ```json
+  {
+    "trackId": track_id,
+    "encoding": encoding
+  }
+  ```
+
+### `trackEncodingEnabled`
+
+* Sent when some track variant were enabled by an endpoint
+
+  ```json
+  {
+    "trackId": track_id,
+    "encoding": encoding
   }
   ```
 

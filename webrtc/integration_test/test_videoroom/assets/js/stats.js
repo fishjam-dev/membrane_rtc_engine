@@ -5,6 +5,7 @@ const checkInterval = 200;
 
 function detectBrowser() {
   if (typeof InstallTrigger !== undefined) return "firefox";
+
   if (window.chrome !== undefined) return "chrome";
 
   throw new Error("Unknown browser type");
@@ -54,10 +55,10 @@ async function isAudioPlayingChrome(peerConnection, audioTrack) {
     const audioStats = await peerConnection.getStats(track);
     const inboundAudioStats = extractStatEntry(audioStats, "RTCInboundRTPAudioStream");
 
-    return inboundAudioStats ? inboundAudioStats.totalAudioEnergy : -1;
+    return inboundAudioStats ? inboundAudioStats.totalSamplesDuration : -1;
   };
 
-  const audioTotalEnergyStart = await videoFramedDecoded(videoTrack);
+  const audioTotalEnergyStart = await audioTotalEnergy(audioTrack);
   await sleep(checkInterval);
   const audioTotalEnergyEnd = await audioTotalEnergy(audioTrack);
 
@@ -161,6 +162,7 @@ export async function remoteStreamsStats(room) {
     const [videoTrack = undefined] = stream.getVideoTracks();
 
     let data = { streamId: stream.id, isAudioPlaying: false, isVideoPlaying: false };
+
 
     switch (detectBrowser()) {
       case "chrome": {

@@ -68,6 +68,22 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     }
   end
 
+  @spec track_variant_disabled(Endpoint.id(), String.t(), String.t()) :: t()
+  def track_variant_disabled(endpoint_id, track_id, encoding) do
+    %{
+      type: "trackEncodingDisabled",
+      data: %{endpointId: endpoint_id, trackId: track_id, encoding: encoding}
+    }
+  end
+
+  @spec track_variant_enabled(Endpoint.id(), String.t(), String.t()) :: t()
+  def track_variant_enabled(endpoint_id, track_id, encoding) do
+    %{
+      type: "trackEncodingEnabled",
+      data: %{endpointId: endpoint_id, trackId: track_id, encoding: encoding}
+    }
+  end
+
   @spec tracks_priority([String.t()]) :: t()
   def tracks_priority(tracks) do
     %{type: "tracksPriority", data: %{tracks: tracks}}
@@ -197,6 +213,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
        do:
          {:ok,
           %{type: :update_track_metadata, data: %{track_id: track_id, track_metadata: metadata}}}
+
+  defp do_decode(%{
+         "type" => "disableTrackEncoding",
+         "data" => %{"trackId" => track_id, "encoding" => encoding}
+       }),
+       do: {:ok, %{type: :disable_track_variant, data: %{track_id: track_id, encoding: encoding}}}
+
+  defp do_decode(%{
+         "type" => "enableTrackEncoding",
+         "data" => %{"trackId" => track_id, "encoding" => encoding}
+       }),
+       do: {:ok, %{type: :enable_track_variant, data: %{track_id: track_id, encoding: encoding}}}
 
   defp do_decode(_event), do: {:error, :invalid_media_event}
 
@@ -383,7 +411,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
   defp get_simulcast_config(track) do
     %{
       enabled: track.variants != [:high],
-      activeEncodings: Enum.map(track.variants, &WebRTC.to_rid/1)
+      activeEncodings: Enum.map(track.variants, &WebRTC.to_rid/1),
+      disabledEncodings: Enum.map(track.disabled_variants, &WebRTC.to_rid/1)
     }
   end
 end

@@ -72,4 +72,16 @@ defmodule Membrane.RTC.Engine.Endpoint do
   @spec update_track_encoding(endpoint :: t(), track_id :: Track.id(), encoding :: atom) :: t()
   def update_track_encoding(endpoint, track_id, value),
     do: update_in(endpoint.inbound_tracks[track_id], &%Track{&1 | encoding: value})
+
+  @spec update_track_disabled_variants(
+          endpoint :: t(),
+          track_id :: Track.id(),
+          disabled_variants :: [Track.variant()]
+        ) :: t()
+  def update_track_disabled_variants(endpoint, track_id, value),
+    do:
+      update_in(
+        endpoint.inbound_tracks[track_id],
+        &%Track{&1 | disabled_variants: value}
+      )
 end

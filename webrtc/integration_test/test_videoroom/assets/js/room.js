@@ -79,9 +79,7 @@ class Room {
     });
 
     this.webrtc.on("trackAdded", (ctx) => {
-      console.log(this.selfId, " track added ", ctx.trackId)
       ctx.on("encodingChanged", (trackCtx) => {
-        console.log(this.selfId, "received info that ", trackCtx.endpoint.id, "changed encoding to ", trackCtx.encoding);
         this.peerEncoding = trackCtx.encoding;
       });
     });
@@ -110,26 +108,28 @@ class Room {
     });
 
     this.webrtc.on("trackUpdated", (ctx) => {
+      console.log("Track updated")
       this.trackMetadata = ctx.metadata;
     });
 
     this.webrtcChannel.on("mediaEvent", (event) => this.webrtc.receiveMediaEvent(event.data));
   }
 
-  addTrack = (track) => {
+  addTrack = async (track) => {
     let trackId = !this.simulcast || track.kind == "audio"
       ? this.webrtc.addTrack(track, this.localStream)
       : this.webrtc.addTrack(
         track,
         this.localStream,
         {},
-        { enabled: true, active_encodings: this.encodings },
+        { enabled: true, activeEncodings: this.encodings },
         new Map([
           ["h", 1500],
           ["m", 500],
           ["l", 100],
         ]))
 
+    trackId = await trackId;
 
     if (track.kind == "audio") this.audioTrack = [trackId, track];
     else this.videoTrack = [trackId, track];
@@ -178,7 +178,7 @@ class Room {
 
   selectPeerSimulcastEncoding = (encoding) => {
     const peer = this.peers[0]
-    const trackIds = Array.from(peer.trackIdToMetadata.keys())
+    const trackIds = Array.from(peer.tracks.keys())
     const videoTrackIds = trackIds.filter(trackId => this.remoteTracks.get(trackId).track.kind == "video")
     videoTrackIds.forEach(trackId => this.webrtc.setTargetTrackEncoding(trackId, encoding))
   }

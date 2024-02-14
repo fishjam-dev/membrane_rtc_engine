@@ -201,12 +201,26 @@ defmodule Membrane.RTC.Engine do
           {:notify_parent, {:track_ready, Track.id(), Track.variant(), Track.encoding()}}
 
   @typedoc """
+  Membrane action that will inform RTC Engine about enabling track variant by the client.
+  """
+  @type enable_track_variant_action_t() ::
+          {:notify_parent, {:enable_track_variant, Track.id(), Track.variant()}}
+
+  @typedoc """
+  Membrane action that will inform RTC Engine about disabling track variant by the client.
+  """
+  @type disable_track_variant_action_t() ::
+          {:notify_parent, {:disable_track_variant, Track.id(), Track.variant()}}
+
+  @typedoc """
   Types of messages that can be published to other Endpoints.
   """
   @type publish_message_t() ::
           {:new_tracks, [Track.t()]}
           | {:removed_tracks, [Track.t()]}
           | {:track_metadata_updated, metadata :: any()}
+          | {:enable_track_variant, Track.id(), Track.variant()}
+          | {:disable_track_variant, Track.id(), Track.variant()}
           | {:endpoint_metadata_updated, metadata :: any()}
           | {:tracks_priority, tracks :: list()}
           | TrackNotification.t()
@@ -220,6 +234,8 @@ defmodule Membrane.RTC.Engine do
           | {:new_endpoint, Endpoint.t()}
           | {:endpoint_removed, Endpoint.id()}
           | {:track_metadata_updated, Track.t()}
+          | {:track_variant_enabled, Track.t(), Track.variant()}
+          | {:track_variant_disabled, Track.t(), Track.variant()}
           | {:endpoint_metadata_updated, Endpoint.t()}
           | {:tracks_priority, tracks :: list()}
           | ready_ack_msg_t()
@@ -509,9 +525,15 @@ defmodule Membrane.RTC.Engine do
   @impl true
   def handle_info({:message_endpoint, endpoint, message}, ctx, state) do
     actions =
-      if find_child(ctx, pattern: ^endpoint) != nil,
-        do: [notify_child: {endpoint, message}],
-        else: []
+      if find_child(ctx, pattern: ^endpoint) != nil do
+        [notify_child: {endpoint, message}]
+      else
+        Membrane.Logger.warning(
+          "Message #{inspect(message)} sent to non exisiting endpoint #{inspect(endpoint)}. Ignoring."
+        )
+
+        []
+      end
 
     {actions, state}
   end
@@ -715,39 +737,96 @@ defmodule Membrane.RTC.Engine do
          _ctx,
          state
        ) do
-    if Map.has_key?(state.endpoints, endpoint_id) do
-      endpoint = Map.get(state.endpoints, endpoint_id)
-      track = Endpoint.get_track_by_id(endpoint, track_id)
+    with {:ok, endpoint} <- Map.fetch(state.endpoints, endpoint_id),
+         track when track != nil <- Endpoint.get_track_by_id(endpoint, track_id),
+         true <- track.metadata != track_metadata do
+      endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
+      state = put_in(state, [:endpoints, endpoint_id], endpoint)
 
-      if track != nil and track.metadata != track_metadata do
-        endpoint = Endpoint.update_track_metadata(endpoint, track_id, track_metadata)
-        state = put_in(state, [:endpoints, endpoint_id], endpoint)
+      actions =
+        prepare_track_notifications(
+          state.subscriptions,
+          state.pending_subscriptions,
+          track_id,
+          {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}
+        )
 
-        actions =
-          state.subscriptions
-          |> Map.values()
-          |> Enum.flat_map(&Map.values/1)
-          |> then(&(&1 ++ state.pending_subscriptions))
-          |> Enum.filter(&(&1.track_id == track_id))
-          |> Enum.map(& &1.endpoint_id)
-          |> Enum.map(
-            &{:notify_child,
-             {{:endpoint, &1},
-              {:track_metadata_updated, Endpoint.get_track_by_id(endpoint, track_id)}}}
-          )
+      dispatch(%Message.TrackMetadataUpdated{
+        endpoint_id: endpoint_id,
+        track_id: track_id,
+        track_metadata: track_metadata
+      })
 
-        dispatch(%Message.TrackMetadataUpdated{
-          endpoint_id: endpoint_id,
-          track_id: track_id,
-          track_metadata: track_metadata
-        })
-
-        {actions, state}
-      else
-        {[], state}
-      end
+      {actions, state}
     else
-      {[], state}
+      _other ->
+        {[], state}
+    end
+  end
+
+  defp handle_endpoint_notification(
+         {:enable_track_variant, track_id, variant},
+         endpoint_id,
+         _ctx,
+         state
+       ) do
+    with {:ok, endpoint} <- Map.fetch(state.endpoints, endpoint_id),
+         track when track != nil <- Endpoint.get_track_by_id(endpoint, track_id),
+         true <- variant in track.disabled_variants do
+      endpoint =
+        Endpoint.update_track_disabled_variants(
+          endpoint,
+          track_id,
+          Enum.reject(track.disabled_variants, &(&1 == variant))
+        )
+
+      state = put_in(state, [:endpoints, endpoint_id], endpoint)
+
+      actions =
+        prepare_track_notifications(
+          state.subscriptions,
+          state.pending_subscriptions,
+          track_id,
+          {:track_variant_enabled, Endpoint.get_track_by_id(endpoint, track_id), variant}
+        )
+
+      {actions, state}
+    else
+      _other ->
+        {[], state}
+    end
+  end
+
+  defp handle_endpoint_notification(
+         {:disable_track_variant, track_id, variant},
+         endpoint_id,
+         _ctx,
+         state
+       ) do
+    with {:ok, endpoint} <- Map.fetch(state.endpoints, endpoint_id),
+         track when track != nil <- Endpoint.get_track_by_id(endpoint, track_id),
+         true <- variant not in track.disabled_variants do
+      endpoint =
+        Endpoint.update_track_disabled_variants(
+          endpoint,
+          track_id,
+          [variant | track.disabled_variants]
+        )
+
+      state = put_in(state, [:endpoints, endpoint_id], endpoint)
+
+      actions =
+        prepare_track_notifications(
+          state.subscriptions,
+          state.pending_subscriptions,
+          track_id,
+          {:track_variant_disabled, Endpoint.get_track_by_id(endpoint, track_id), variant}
+        )
+
+      {actions, state}
+    else
+      _other ->
+        {[], state}
     end
   end
 
@@ -1172,6 +1251,16 @@ defmodule Membrane.RTC.Engine do
     |> Enum.flat_map(&Endpoint.get_tracks/1)
     |> Map.new(&{&1.id, &1})
     |> Map.get(track_id)
+  end
+
+  defp prepare_track_notifications(subscriptions, pending_subscriptions, track_id, notification) do
+    subscriptions
+    |> Map.values()
+    |> Enum.flat_map(&Map.values/1)
+    |> then(&(&1 ++ pending_subscriptions))
+    |> Enum.filter(&(&1.track_id == track_id))
+    |> Enum.map(& &1.endpoint_id)
+    |> Enum.map(&{:notify_child, {{:endpoint, &1}, notification}})
   end
 
   #

@@ -18,6 +18,7 @@ defmodule Membrane.RTC.Engine.Track do
     :fmtp,
     :encoding,
     :variants,
+    :disabled_variants,
     :clock_rate,
     :active?,
     :metadata,
@@ -71,6 +72,7 @@ defmodule Membrane.RTC.Engine.Track do
           origin: String.t(),
           encoding: encoding,
           variants: [variant()],
+          disabled_variants: [variant()],
           clock_rate: Membrane.RTP.clock_rate_t(),
           fmtp: FMTP.t(),
           active?: boolean(),
@@ -130,6 +132,7 @@ defmodule Membrane.RTC.Engine.Track do
       id: id,
       active?: Keyword.get(opts, :active?, true),
       variants: Keyword.get(opts, :variants, [:high]),
+      disabled_variants: [],
       metadata: Keyword.get(opts, :metadata),
       ctx: Keyword.get(opts, :ctx, %{}),
       framerate: Keyword.get(opts, :framerate)
