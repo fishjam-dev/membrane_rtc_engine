@@ -249,7 +249,7 @@ workflows:
       or:
         - << pipeline.parameters.repo-root-changed >>
         - << pipeline.parameters.engine-changed >>
-        # TODO: remove once the File endpoint no longer depends on the WebRTC endpoint
+        # TODO: remove once the endpoint no longer depends on the WebRTC endpoint
         - << pipeline.parameters.webrtc-changed >>
         - << pipeline.parameters.recording-changed >>
     jobs:
