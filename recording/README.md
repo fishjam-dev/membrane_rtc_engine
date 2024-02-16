@@ -14,7 +14,7 @@ The package can be installed by adding `membrane_rtc_engine_recording` to your l
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine_recording, "~> 0.6.0"}
+    {:membrane_rtc_engine_recording, "~> 0.1.0"}
   ]
 end
 ```
