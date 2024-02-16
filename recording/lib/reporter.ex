@@ -59,9 +59,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   @impl true
   def handle_call(:get_report, _from, state) do
     tracks_report =
-      state.tracks
-      |> Enum.map(fn {filename, track} -> {filename, Map.take(track, @track_reports_keys)} end)
-      |> Map.new()
+      Map.new(state.tracks, fn {filename, track} ->
+        {filename, Map.take(track, @track_reports_keys)}
+      end)
 
     report = %{recording_id: state.recording_id, tracks: tracks_report}
 

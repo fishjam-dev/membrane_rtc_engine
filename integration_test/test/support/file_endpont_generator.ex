@@ -6,11 +6,7 @@ defmodule FileEndpointGenerator do
   alias ExSDP.Attribute.FMTP
   alias Membrane.RTC.Engine.Endpoint.File, as: FileEndpoint
 
-  def create_video_file_endpoint(
-        rtc_engine,
-        video_file_path,
-        opts \\ []
-      ) do
+  def create_video_file_endpoint(rtc_engine, video_file_path, opts \\ []) do
     video_track_config = %FileEndpoint.TrackConfig{
       type: :video,
       stream_id: Keyword.get(opts, :stream_id),
@@ -35,10 +31,10 @@ defmodule FileEndpointGenerator do
     }
   end
 
-  def create_audio_file_endpoint(rtc_engine, audio_file_path, stream_id \\ nil, opts \\ []) do
+  def create_audio_file_endpoint(rtc_engine, audio_file_path, opts \\ []) do
     audio_track_config = %FileEndpoint.TrackConfig{
       type: :audio,
-      stream_id: stream_id,
+      stream_id: Keyword.get(opts, :stream_id),
       encoding: :OPUS,
       clock_rate: 48_000,
       fmtp: %FMTP{

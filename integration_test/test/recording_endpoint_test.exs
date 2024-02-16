@@ -2,6 +2,8 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   use ExUnit.Case
 
   import FileEndpointGenerator
+  import Membrane.ChildrenSpec
+  import Membrane.Testing.Assertions
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.Recording, as: RecordingEndpoint
@@ -43,14 +45,17 @@ defmodule Membrane.RTC.RecordingEndpointTest do
 
     [filename] = File.ls!(output_dir)
 
-    Membrane.Pipeline.start_link(Recording.Deserializer, %{
-      source: Path.join(output_dir, filename),
-      output: deserialized_file_path,
-      owner: self(),
-      type: :video
-    })
+    video_deserializer =
+      create_video_deserializer(%{
+        source: Path.join(output_dir, filename),
+        output: deserialized_file_path,
+        owner: self(),
+        type: :video
+      })
 
-    assert_receive {:deserializer, :finished}, 2_000
+    pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: video_deserializer)
+
+    assert_end_of_stream(pipeline, :sink)
 
     assert File.read!(video_file_path) == File.read!(deserialized_file_path)
 
@@ -58,7 +63,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
 
     await_report(report_file_path)
-    assert report_file_path |> File.read!() |> byte_size() > 0
+    validate_report(report_file_path)
   end
 
   @tag :tmp_dir
@@ -94,22 +99,25 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     audio_file = Enum.find(filenames, fn filename -> String.starts_with?(filename, "audio") end)
     video_file = Enum.find(filenames, fn filename -> String.starts_with?(filename, "video") end)
 
-    Membrane.Pipeline.start_link(Recording.Deserializer, %{
-      source: Path.join(output_dir, audio_file),
-      output: deserialized_audio_path,
-      owner: self(),
-      type: :audio
-    })
+    audio_deserializer =
+      create_audio_deserializer(%{
+        source: Path.join(output_dir, audio_file),
+        output: deserialized_audio_path,
+        owner: self()
+      })
 
-    Membrane.Pipeline.start_link(Recording.Deserializer, %{
-      source: Path.join(output_dir, video_file),
-      output: deserialized_video_path,
-      owner: self(),
-      type: :video
-    })
+    video_deserializer =
+      create_video_deserializer(%{
+        source: Path.join(output_dir, video_file),
+        output: deserialized_video_path,
+        owner: self()
+      })
 
-    assert_receive {:deserializer, :finished}, 2_000
-    assert_receive {:deserializer, :finished}, 2_000
+    audio_pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: audio_deserializer)
+    video_pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: video_deserializer)
+
+    assert_end_of_stream(audio_pipeline, :sink)
+    assert_end_of_stream(video_pipeline, :sink)
 
     assert deserialized_audio_path |> File.read!() |> byte_size() > 0
     assert deserialized_video_path |> File.read!() |> byte_size() > 0
@@ -118,17 +126,43 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
 
     await_report(report_file_path)
-    assert report_file_path |> File.read!() |> byte_size() > 0
+    validate_report(report_file_path)
   end
 
   defp create_recording_endpoint(rtc_engine, output_dir) do
     %RecordingEndpoint{
-      owner: self(),
       rtc_engine: rtc_engine,
       recording_id: "id",
       output_dir: output_dir,
       stores: [Storage.File]
     }
+  end
+
+  defp create_video_deserializer(opts) do
+    [
+      child(:source, %Membrane.File.Source{location: opts.source})
+      |> child(:deserializer, Membrane.Stream.Deserializer)
+      |> child(:rtp, %Membrane.RTP.DepayloaderBin{
+        depayloader: Membrane.RTP.H264.Depayloader,
+        clock_rate: 90_000
+      })
+      |> child(:parser, %Membrane.H264.Parser{
+        generate_best_effort_timestamps: %{framerate: {60, 1}}
+      })
+      |> child(:sink, %Membrane.File.Sink{location: opts.output})
+    ]
+  end
+
+  defp create_audio_deserializer(opts) do
+    [
+      child(:source, %Membrane.File.Source{location: opts.source})
+      |> child(:deserializer, Membrane.Stream.Deserializer)
+      |> child(:rtp, %Membrane.RTP.DepayloaderBin{
+        depayloader: Membrane.RTP.Opus.Depayloader,
+        clock_rate: 48_000
+      })
+      |> child(:sink, %Membrane.File.Sink{location: opts.output})
+    ]
   end
 
   defp await_report(report_path) do
@@ -140,5 +174,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       Process.sleep(interval)
       File.exists?(report_path)
     end)
+  end
+
+  defp validate_report(report_path) do
+    assert report_path |> File.read!() |> byte_size() > 0
   end
 end

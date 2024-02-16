@@ -5,12 +5,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.Config do
 
   alias Membrane.RTC.Engine.Track
 
-  @enforce_keys [:track, :output_dir, :filename]
+  @enforce_keys [:track, :path_prefix, :filename]
   defstruct @enforce_keys
 
   @type t :: %__MODULE__{
           track: Track.t(),
-          output_dir: Path.t(),
+          path_prefix: Path.t(),
           filename: String.t()
         }
 end
