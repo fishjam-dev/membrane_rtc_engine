@@ -42,7 +42,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
               recording_id: [
                 spec: String.t(),
                 description: """
-                Recording id that will be saved along with raport
+                Recording id that will be saved along with report
                 """
               ]
 
