@@ -211,7 +211,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple)
 
-      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, @audio_file_path, stream_id)
+      audio_file_endpoint =
+        create_audio_file_endpoint(rtc_engine, @audio_file_path, stream_id: stream_id)
 
       video_file_endpoint =
         create_video_file_endpoint(
@@ -282,7 +283,10 @@ defmodule Membrane.RTC.HLSEndpointTest do
       }
 
       audio_file_endpoint =
-        create_audio_file_endpoint(rtc_engine, @audio_file_path, stream_id, autoend: false)
+        create_audio_file_endpoint(rtc_engine, @audio_file_path,
+          stream_id: stream_id,
+          autoend: false
+        )
 
       video_file_endpoint =
         create_video_file_endpoint(

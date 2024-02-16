@@ -7,18 +7,24 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.FileTest do
 
   @tag :tmp_dir
   test "create file sink", %{tmp_dir: output_dir} do
+    filename = "track_1"
+
     config = %Storage.Config{
       track: %{},
-      output_dir: output_dir,
-      filename: "track_1"
+      path_prefix: output_dir,
+      filename: filename
     }
 
-    assert %Membrane.File.Sink{} = Storage.File.get_sink(config)
+    location = Path.join(output_dir, filename)
+
+    assert %Membrane.File.Sink{location: ^location} =
+             Storage.File.get_sink(config)
+
     assert output_dir |> Path.join(config.filename) |> File.exists?()
   end
 
   @tag :tmp_dir
-  test "saves report", %{tmp_dir: output_dir} do
+  test "save report", %{tmp_dir: output_dir} do
     {:ok, reporter} = Reporter.start(UUID.uuid4())
 
     filename = "track_1.msr"

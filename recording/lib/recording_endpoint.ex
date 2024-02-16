@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.Recording.Reporter
+  alias Membrane.RTC.Engine.Endpoint.Recording.{Reporter, Storage}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
 
   @track_children [:track_receiver, :serializer, :tee]
@@ -17,20 +17,16 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     accepted_format: Membrane.RTP,
     availability: :on_request
 
-  def_options owner: [
-                spec: pid(),
-                description: """
-                Pid of parent all notifications will be send to.
-                These notifications are:
-                """
-              ],
-              rtc_engine: [
+  def_options rtc_engine: [
                 spec: pid(),
                 description: "Pid of parent Engine"
               ],
               stores: [
-                spec: [module()],
-                description: "A list of stores that the recorded streams will be uploaded to"
+                spec: [Storage.config_t()],
+                description: """
+                A list of stores that the recorded streams will be uploaded to.
+                Should implement `Storage` behaviour.
+                """
               ],
               output_dir: [
                 spec: Path.t(),
@@ -74,6 +70,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
         :ok ->
           :ok
+
+        {:error, :invalid_track_id} ->
+          Membrane.Logger.debug("""
+          Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
+          It was probably removed before we restarted ICE. Ignoring.
+          """)
 
         {:error, reason} ->
           reason = inspect(reason)
@@ -163,7 +165,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   defp attach_sinks(track, state) do
     sink_opts = %{
       track: track,
-      output_dir: state.output_dir,
+      path_prefix: state.output_dir,
       filename: filename(track)
     }
 
