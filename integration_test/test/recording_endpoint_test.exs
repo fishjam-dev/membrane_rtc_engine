@@ -74,7 +74,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
     report_file_path = Path.join(output_dir, @report_filename)
 
-    deserialized_audio_path = Path.join(output_dir, "deserialized_audio.h264")
+    deserialized_audio_path = Path.join(output_dir, "deserialized_audio.aac")
     deserialized_video_path = Path.join(output_dir, "deserialized_video.h264")
 
     recording_endpoint = create_recording_endpoint(rtc_engine, output_dir)
