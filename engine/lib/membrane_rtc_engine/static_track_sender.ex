@@ -43,16 +43,11 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
 
   @impl true
   def handle_init(_ctx, %__MODULE__{track: track, is_keyframe: is_keyframe}) do
-    {[], %{track: track, started?: false, is_keyframe: is_keyframe}}
+    {[], %{track: track, is_keyframe: is_keyframe}}
   end
 
   @impl true
-  def handle_demand(:output, _size, :buffers, _ctx, %{started?: false} = state) do
-    {[], state}
-  end
-
-  @impl true
-  def handle_demand(:output, size, :buffers, _ctx, %{started?: true} = state) do
+  def handle_demand(:output, size, :buffers, _ctx, state) do
     {[demand: {:input, size}], state}
   end
 
@@ -63,7 +58,7 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
 
   @impl true
   def handle_event(:output, %Membrane.KeyframeRequestEvent{}, _ctx, state) do
-    {[redemand: :output], %{state | started?: true}}
+    {[], state}
   end
 
   @impl true
