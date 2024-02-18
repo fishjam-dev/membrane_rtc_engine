@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.4.0-dev
+* Fix static track sender not sending end of stream until keyframe request [#357](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/357)
 
 ## 0.3.0
 * Add autoend option [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)

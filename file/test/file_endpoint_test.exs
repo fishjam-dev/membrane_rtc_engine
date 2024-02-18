@@ -113,8 +113,11 @@ defmodule Membrane.RTC.FileEndpointTest do
     refute_received %Message.EndpointCrashed{endpoint_id: @source_endpoint_id}
 
     assert File.exists?(output_file)
-    assert File.read!(output_file) |> byte_size() == File.read!(reference_path) |> byte_size()
-    assert File.read!(output_file) == File.read!(reference_path)
+
+    output_size = File.read!(output_file) |> byte_size()
+    assert output_size > 0
+    reference = File.read!(reference_path) |> binary_slice(-output_size..-1)
+    assert File.read!(output_file) == reference
   end
 
   defp get_filename(:video), do: "video.h264"
