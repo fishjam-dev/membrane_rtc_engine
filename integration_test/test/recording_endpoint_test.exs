@@ -129,6 +129,28 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     validate_report(report_file_path)
   end
 
+  test "aws", %{rtc_engine: rtc_engine} do
+    output_dir = "test"
+    recording_endpoint_id = "recording-endpoint"
+    video_file_endpoint_id = "video-file-endpoint"
+
+    video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
+
+    recording_endpoint = %{create_recording_endpoint(rtc_engine, output_dir) | stores: [Storage.S3]}
+    video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
+
+    :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+
+    assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id}, @tracks_added_delay
+    assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
+
+    Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+    assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+
+    Process.sleep(10_000)
+  end
+
   defp create_recording_endpoint(rtc_engine, output_dir) do
     %RecordingEndpoint{
       rtc_engine: rtc_engine,

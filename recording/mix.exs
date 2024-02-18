@@ -58,6 +58,12 @@ defmodule Recording.MixProject do
       {:membrane_tee_plugin, "~> 0.12.0"},
       {:membrane_file_plugin, "~> 0.16.0"},
 
+      # AWS deps
+      {:ex_aws, "~> 2.1"},
+      {:ex_aws_s3, "~> 2.0"},
+      {:hackney, "~> 1.9"},
+      {:sweet_xml, "~> 0.6"},
+
       # lint
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
