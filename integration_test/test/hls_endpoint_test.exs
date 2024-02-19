@@ -53,7 +53,12 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :single)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint = create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id)
+      file_endpoint =
+        create_video_file_endpoint(rtc_engine, file_path,
+          stream_id: stream_id,
+          autoplay: false,
+          autoend: false
+        )
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
@@ -62,6 +67,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        message: :tracks_added
                      },
                      @tracks_added_delay
+
+      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
@@ -91,7 +98,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
-        create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id, autoplay: false)
+        create_video_file_endpoint(rtc_engine, file_path,
+          stream_id: stream_id,
+          autoplay: false,
+          autoend: false
+        )
 
       :erlang.trace(:all, true, [:call])
       :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
@@ -155,7 +166,11 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
-        create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id, autoplay: false)
+        create_video_file_endpoint(rtc_engine, file_path,
+          stream_id: stream_id,
+          autoplay: false,
+          autoend: false
+        )
 
       :erlang.trace(:all, true, [:call])
       :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
@@ -210,13 +225,16 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple)
 
-      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, stream_id)
+      audio_file_endpoint =
+        create_audio_file_endpoint(rtc_engine, stream_id, autoplay: false, autoend: false)
 
       video_file_endpoint =
         create_video_file_endpoint(
           rtc_engine,
           video_file_path,
-          stream_id: stream_id
+          stream_id: stream_id,
+          autoplay: false,
+          autoend: false
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
@@ -235,6 +253,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        message: :tracks_added
                      },
                      @tracks_added_delay
+
+      FileEndpoint.start_sending(rtc_engine, audio_file_endpoint_id)
+      FileEndpoint.start_sending(rtc_engine, video_file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
@@ -280,13 +301,20 @@ defmodule Membrane.RTC.HLSEndpointTest do
         }
       }
 
-      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, stream_id, autoend: false)
+      audio_file_endpoint =
+        create_audio_file_endpoint(rtc_engine, stream_id,
+          autoend: false,
+          autoplay: false,
+          autoend: false
+        )
 
       video_file_endpoint =
         create_video_file_endpoint(
           rtc_engine,
           video_file_path,
           stream_id: stream_id,
+          autoend: false,
+          autoplay: false,
           autoend: false
         )
 
@@ -306,6 +334,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        message: :tracks_added
                      },
                      @tracks_added_delay
+
+      FileEndpoint.start_sending(rtc_engine, audio_file_endpoint_id)
+      FileEndpoint.start_sending(rtc_engine, video_file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
