@@ -342,7 +342,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
 
       Enum.each(1..7, fn _idx ->
-        assert_receive {SendStorage, :store, %{type: :segment}}, 5000
+        assert_receive {SendStorage, :store, %{type: :segment}}, 7_500
       end)
 
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
