@@ -286,6 +286,9 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       storage = fn _directory -> %SendStorage{destination: pid} end
 
+      :erlang.trace(:all, true, [:call])
+      :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
+
       hls_endpoint = %HLS{
         rtc_engine: rtc_engine,
         owner: self(),
@@ -304,8 +307,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       audio_file_endpoint =
         create_audio_file_endpoint(rtc_engine, stream_id,
           autoend: false,
-          autoplay: false,
-          autoend: false
+          autoplay: false
         )
 
       video_file_endpoint =
@@ -314,11 +316,15 @@ defmodule Membrane.RTC.HLSEndpointTest do
           video_file_path,
           stream_id: stream_id,
           autoend: false,
-          autoplay: false,
-          autoend: false
+          autoplay: false
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
+
+      assert_receive %Message.EndpointAdded{
+        endpoint_id: hls_endpoint_id
+      }
+
       :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
@@ -335,14 +341,24 @@ defmodule Membrane.RTC.HLSEndpointTest do
                      },
                      @tracks_added_delay
 
-      FileEndpoint.start_sending(rtc_engine, audio_file_endpoint_id)
+      assert_receive {:trace, _pid, :call,
+                      {Membrane.RTC.Engine, :subscribe,
+                       [^rtc_engine, "hls-endpoint", _track_id, _opts]}},
+                     @tracks_added_delay
+
+      assert_receive {:trace, _pid, :call,
+                      {Membrane.RTC.Engine, :subscribe,
+                       [^rtc_engine, "hls-endpoint", _track_id, _opts]}},
+                     @tracks_added_delay
+
       FileEndpoint.start_sending(rtc_engine, video_file_endpoint_id)
+      FileEndpoint.start_sending(rtc_engine, audio_file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
 
       Enum.each(1..7, fn _idx ->
-        assert_receive {SendStorage, :store, %{type: :segment}}, 7_500
+        assert_receive {SendStorage, :store, %{type: :segment}}, 5_000
       end)
 
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
