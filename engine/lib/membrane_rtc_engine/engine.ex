@@ -594,6 +594,8 @@ defmodule Membrane.RTC.Engine do
 
   @impl true
   def handle_crash_group_down(endpoint_id, ctx, state) do
+    Membrane.Logger.warning("Handle crashgroup down for endpoint_id: #{endpoint_id}")
+
     case handle_remove_endpoint(endpoint_id, ctx, state) do
       {{:present, endpoint}, actions, state} ->
         dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
