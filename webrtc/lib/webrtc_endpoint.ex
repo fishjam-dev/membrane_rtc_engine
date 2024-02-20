@@ -374,24 +374,33 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
     {:endpoint, endpoint_id} = ctx.name
 
-    Enum.each(new_outbound_tracks, fn track ->
-      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
-        :ok ->
-          :ok
+    {valid_tracks, invalid_tracks} =
+      Enum.split_with(new_outbound_tracks, fn track ->
+        case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
+          :ok ->
+            true
 
-        {:error, :invalid_track_id} ->
-          Membrane.Logger.debug("""
-          Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
-          It was probably removed before we restarted ICE. Ignoring.
-          """)
+          {:error, :invalid_track_id} ->
+            Membrane.Logger.debug("""
+            Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
+            It was probably removed before we restarted ICE.
+            Tracks from the offending origin (#{inspect(track.origin)}) will be renegotiated.
+            """)
 
-        {:error, reason} ->
-          raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
-      end
-    end)
+            false
 
-    send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, new_outbound_tracks})
-    {[], state}
+          {:error, reason} ->
+            raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
+        end
+      end)
+
+    actions =
+      if Enum.empty?(invalid_tracks),
+        do: [],
+        else: build_track_removed_actions(invalid_tracks, ctx)
+
+    send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, valid_tracks})
+    {actions, state}
   end
 
   @impl true
@@ -574,17 +583,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:remove_tracks, tracks} = msg, ctx, state) do
-    media_event_actions =
-      tracks
-      |> Enum.group_by(& &1.origin)
-      |> Enum.map(fn {origin, tracks} ->
-        ids = Enum.map(tracks, & &1.id)
-        event = origin |> MediaEvent.tracks_removed(ids) |> MediaEvent.encode()
-        {:notify_parent, {:forward_to_parent, {:media_event, event}}}
-      end)
-
-    {media_event_actions ++ forward(:endpoint_bin, msg, ctx), state}
+  def handle_parent_notification({:remove_tracks, tracks}, ctx, state) do
+    {build_track_removed_actions(tracks, ctx), state}
   end
 
   @impl true
@@ -724,6 +724,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def to_rid(:high), do: "h"
   def to_rid(:medium), do: "m"
   def to_rid(:low), do: "l"
+
+  defp build_track_removed_actions(tracks, ctx) do
+    media_event_actions =
+      tracks
+      |> Enum.group_by(& &1.origin)
+      |> Enum.map(fn {origin, tracks} ->
+        ids = Enum.map(tracks, & &1.id)
+        event = origin |> MediaEvent.tracks_removed(ids) |> MediaEvent.encode()
+        {:notify_parent, {:forward_to_parent, {:media_event, event}}}
+      end)
+
+    media_event_actions ++ forward(:endpoint_bin, {:remove_tracks, tracks}, ctx)
+  end
 
   defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
     {[notify_parent: {:ready, metadata}], state}
