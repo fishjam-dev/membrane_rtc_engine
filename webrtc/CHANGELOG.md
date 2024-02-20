@@ -3,7 +3,7 @@
 ## 0.7.0-dev
 * Rename the function `is_keyframe` to `keyframe?` and `is_deficient?` to `deficient?` in order to be compliant with elixir style guide. [#349](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/349)
 * Add support for trackEncodingEnabled and trackEncodingDisabled media events [#352](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/352)
-
+* Fix TrackRemoved not being sent when Engine subscription failed [#358](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/358)
 
 ## 0.6.0
 * Remove code related to OpenTelemetry [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)
