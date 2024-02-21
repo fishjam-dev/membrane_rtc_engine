@@ -48,7 +48,8 @@ defmodule Membrane.RTC.Engine.Support.FakeSourceEndpoint do
       })
       |> child(:track_sender, %StaticTrackSender{
         track: state.track,
-        is_keyframe: is_keyframe
+        is_keyframe: is_keyframe,
+        wait_for_keyframe_request?: true
       })
       |> bin_output(pad)
     ]

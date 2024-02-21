@@ -79,6 +79,14 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 |> child(:encoder, %Membrane.Opus.Encoder{input_stream_format:
                 %Membrane.RawAudio{ channels: 1, sample_rate: 48_000, sample_format: :s16le }}) end`
                 """
+              ],
+              wait_for_first_subscriber?: [
+                spec: boolean(),
+                description: """
+                Indicates, whether the endpoint should wait with sending media until
+                first other endpoint subscribes on its track.
+                """,
+                default: false
               ]
 
   def_output_pad :output,
@@ -275,7 +283,8 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
             :OPUS -> true
             :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
           end
-        end
+        end,
+        wait_for_keyframe_request?: state.wait_for_first_subscriber?
       })
       |> bin_output(pad)
     end

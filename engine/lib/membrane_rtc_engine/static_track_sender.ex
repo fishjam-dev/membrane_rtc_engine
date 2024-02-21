@@ -30,6 +30,12 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
               is_keyframe: [
                 spec: (Membrane.Buffer.t(), Track.t() -> boolean()),
                 description: "Function informing if buffer is a keyframe for this track"
+              ],
+              wait_for_keyframe_request?: [
+                spec: boolean(),
+                description:
+                  "Flag that determines if TrackSender should wait with publishing stream untill it receives `Membrane.KeyframeRequestEvent`",
+                default: false
               ]
 
   def_input_pad :input,
@@ -42,8 +48,22 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
     accepted_format: Membrane.RTP
 
   @impl true
-  def handle_init(_ctx, %__MODULE__{track: track, is_keyframe: is_keyframe}) do
-    {[], %{track: track, is_keyframe: is_keyframe}}
+  def handle_init(_ctx, %__MODULE__{
+        track: track,
+        is_keyframe: is_keyframe,
+        wait_for_keyframe_request?: wait_for_keyframe_request?
+      }) do
+    {[],
+     %{
+       track: track,
+       is_keyframe: is_keyframe,
+       started?: not wait_for_keyframe_request?
+     }}
+  end
+
+  @impl true
+  def handle_demand(:output, _size, :buffers, _ctx, %{started?: false} = state) do
+    {[], state}
   end
 
   @impl true
@@ -57,8 +77,13 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
   end
 
   @impl true
-  def handle_event(:output, %Membrane.KeyframeRequestEvent{}, _ctx, state) do
+  def handle_event(:output, %Membrane.KeyframeRequestEvent{}, _ctx, %{started?: true} = state) do
     {[], state}
+  end
+
+  @impl true
+  def handle_event(:output, %Membrane.KeyframeRequestEvent{}, _ctx, %{started?: false} = state) do
+    {[redemand: :output], %{state | started?: true}}
   end
 
   @impl true

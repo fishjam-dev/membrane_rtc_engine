@@ -358,7 +358,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       assert_receive({:playlist_playable, :audio, ^output_dir}, @playlist_playable_delay)
 
       Enum.each(1..7, fn _idx ->
-        assert_receive {SendStorage, :store, %{type: :segment}}, 5_000
+        assert_receive {SendStorage, :store, %{type: :segment}}, 5000
       end)
 
       Engine.remove_endpoint(rtc_engine, hls_endpoint_id)
@@ -671,7 +671,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       track_config: video_track_config,
       payload_type: 96,
       autoplay: Keyword.get(opts, :autoplay, true),
-      autoend: Keyword.get(opts, :autoend, true)
+      autoend: Keyword.get(opts, :autoend, true),
+      wait_for_first_subscriber?: true
     }
   end
 
@@ -693,7 +694,8 @@ defmodule Membrane.RTC.HLSEndpointTest do
       payload_type: 108,
       after_source_transformation: &transform_aac_to_opus/1,
       autoplay: Keyword.get(opts, :autoplay, true),
-      autoend: Keyword.get(opts, :autoend, true)
+      autoend: Keyword.get(opts, :autoend, true),
+      wait_for_first_subscriber?: true
     }
   end
 
