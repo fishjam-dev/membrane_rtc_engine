@@ -3,7 +3,7 @@ version: '3.1'
 services:
   test:
     image: membraneframeworklabs/docker_membrane
-    command: sh -c "cd /app/integration_test && mix deps.get && mix coveralls.json --warnings-as-errors --exclude gpu"
+    command: sh -c "cd /app/integration_test && mix deps.get && mix coveralls.json --warnings-as-errors --exclude gpu "
     volumes:
       - ..:/app
       - /app/integration_test/deps

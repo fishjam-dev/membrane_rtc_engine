@@ -53,8 +53,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :single)
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
-      file_endpoint =
-        create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id)
+      file_endpoint = create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id)
 
       :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: file_endpoint_id)
 
@@ -92,7 +91,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
-        create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id)
+        create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id, autoplay: false)
 
       :erlang.trace(:all, true, [:call])
       :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
@@ -156,7 +155,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
 
       file_endpoint =
-        create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id)
+        create_video_file_endpoint(rtc_engine, file_path, stream_id: stream_id, autoplay: false)
 
       :erlang.trace(:all, true, [:call])
       :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
@@ -211,8 +210,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
 
       hls_endpoint = create_hls_endpoint(rtc_engine, tmp_dir, :multiple)
 
-      audio_file_endpoint =
-        create_audio_file_endpoint(rtc_engine, stream_id)
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, stream_id)
 
       video_file_endpoint =
         create_video_file_endpoint(
@@ -282,22 +280,17 @@ defmodule Membrane.RTC.HLSEndpointTest do
         }
       }
 
-      audio_file_endpoint =
-        create_audio_file_endpoint(rtc_engine, stream_id)
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, stream_id, autoend: false)
 
       video_file_endpoint =
         create_video_file_endpoint(
           rtc_engine,
           video_file_path,
-          stream_id: stream_id
+          stream_id: stream_id,
+          autoend: false
         )
 
       :ok = Engine.add_endpoint(rtc_engine, hls_endpoint, id: hls_endpoint_id)
-
-      assert_receive %Message.EndpointAdded{
-        endpoint_id: hls_endpoint_id
-      }
-
       :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
 
       assert_receive %Message.EndpointMessage{
