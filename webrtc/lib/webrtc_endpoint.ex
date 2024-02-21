@@ -720,7 +720,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def to_rid(:medium), do: "m"
   def to_rid(:low), do: "l"
 
-  defp build_track_removed_actions([], ctx), do: []
+  defp build_track_removed_actions([], _ctx), do: []
 
   defp build_track_removed_actions(tracks, ctx) do
     media_event_actions =
