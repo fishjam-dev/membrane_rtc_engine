@@ -9,10 +9,11 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
   source.
 
   In case of publishing from a file we are not able to
-  generate keyframe on request. This element ignores
-  incoming demands and starts sending data after receiving
-  first keyframe request. Subsequent keyframe requests
-  are ignored.
+  generate keyframe on request. Depending on the value of the
+  option `wait_for_keyframe_request?` this element will ignore
+  incoming demands and start sending data after receiving
+  first keyframe request or start sending data without waiting
+  for keyframe request. In both cases subsequent keyframe requests are ignored.
   """
   use Membrane.Filter
 

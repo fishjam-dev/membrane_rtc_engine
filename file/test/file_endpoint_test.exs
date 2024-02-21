@@ -58,6 +58,20 @@ defmodule Membrane.RTC.FileEndpointTest do
     test "test video with autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
       test_endpoint(type: :video, rtc_engine: rtc_engine, tmp_dir: tmp_dir, autoplay: true)
     end
+
+    @tag :tmp_dir
+    test "test video without wait_for_first_subscriber?", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: tmp_dir
+    } do
+      test_endpoint(
+        type: :video,
+        rtc_engine: rtc_engine,
+        tmp_dir: tmp_dir,
+        autoplay: true,
+        wait_for_first_subscriber?: false
+      )
+    end
   end
 
   defp test_endpoint(opts) do
@@ -89,7 +103,8 @@ defmodule Membrane.RTC.FileEndpointTest do
         opts[:type],
         rtc_engine,
         file_path,
-        opts[:autoplay]
+        opts[:autoplay],
+        opts[:wait_for_first_subscriber?] || true
       )
 
     :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: @source_endpoint_id)
@@ -114,12 +129,18 @@ defmodule Membrane.RTC.FileEndpointTest do
 
     assert File.exists?(output_file)
 
-    output_size = File.read!(output_file) |> byte_size()
-    assert output_size > 0
-    reference = File.read!(reference_path) |> binary_slice(-output_size..-1)
+    output = File.read!(output_file)
+    reference = File.read!(reference_path)
 
-    unless opts[:autoplay] do
-      assert File.read!(output_file) == reference
+    output_size = output |> byte_size()
+    reference_size = reference |> byte_size()
+
+    if is_nil(opts[:wait_for_first_subscriber?]) do
+      assert output_size == reference_size
+      assert File.read!(output_file) == File.read!(reference_path)
+    else
+      assert output_size > 0
+      assert output == binary_slice(reference, reference_size - output_size, reference_size)
     end
   end
 
@@ -130,7 +151,8 @@ defmodule Membrane.RTC.FileEndpointTest do
          :video,
          rtc_engine,
          video_file_path,
-         autoplay
+         autoplay,
+         wait_for_first_subscriber?
        ) do
     video_track_config = %Endpoint.File.TrackConfig{
       type: :video,
@@ -147,7 +169,8 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: video_file_path,
       track_config: video_track_config,
       payload_type: 96,
-      autoplay: autoplay
+      autoplay: autoplay,
+      wait_for_first_subscriber?: wait_for_first_subscriber?
     }
   end
 
@@ -155,7 +178,8 @@ defmodule Membrane.RTC.FileEndpointTest do
          :audio,
          rtc_engine,
          audio_file_path,
-         autoplay
+         autoplay,
+         wait_for_first_subscriber?
        ) do
     ext = String.split(audio_file_path, ".") |> List.last()
 
@@ -179,7 +203,8 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: audio_file_path,
       track_config: audio_track_config,
       payload_type: 108,
-      autoplay: autoplay
+      autoplay: autoplay,
+      wait_for_first_subscriber?: wait_for_first_subscriber?
     }
   end
 end
