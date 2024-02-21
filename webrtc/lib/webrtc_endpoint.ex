@@ -394,13 +394,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         end
       end)
 
-    actions =
-      if Enum.empty?(invalid_tracks),
-        do: [],
-        else: build_track_removed_actions(invalid_tracks, ctx)
-
     send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, valid_tracks})
-    {actions, state}
+    {build_track_removed_actions(invalid_tracks, ctx), state}
   end
 
   @impl true
@@ -724,6 +719,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   def to_rid(:high), do: "h"
   def to_rid(:medium), do: "m"
   def to_rid(:low), do: "l"
+
+  defp build_track_removed_actions([], ctx), do: []
 
   defp build_track_removed_actions(tracks, ctx) do
     media_event_actions =
