@@ -3,9 +3,10 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   An Endpoint responsible for publishing data from a file.
   By default only supports OPUS encapsulated in Ogg container and raw H264 files.
   By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
-  It starts publishing data immediately after initialization, if `autoplay` is set to true (default),
-  or if `autoplay` is disabled - after calling `start_sending` function with proper arguments.
-  After publishing track it sends to engine parent notification `:tracks_added`.
+  It can start publishin data in three different moments:
+  * immediately after initialization, if `start_sending` is set to `:autoplay` (default),
+  * after calling `start_sending` function with proper arguments, if `start_sending` is set to `:manual`
+  * after other endpoint subscribes on this endpoint track, if `start_sending` is set to `:wait_for_first_subscriber`
   """
 
   use Membrane.Bin
@@ -45,12 +46,15 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 spec: RTP.payload_type_t(),
                 description: "Payload type of RTP packets"
               ],
-              autoplay: [
-                spec: boolean(),
-                default: true,
-                description: "Indicates, whether the endpoint should start sending
-                media immediately after initialization. If set to `false`,
-                the `start_sending` function has to be used."
+              start_sending: [
+                spec: :autoplay | :manual | :wait_for_first_subscriber,
+                default: :autoplay,
+                description: """
+                Indicates, whether the endpoint should start sending
+                media immediately after initialization or should start after 
+                using function `start_sending` or after first endpoint subscribes
+                on endpoint track. 
+                """
               ],
               # Addded because current implementation of Membrane don't guarantee
               # that other endpoints which subscribes on track from this endpoint
@@ -79,14 +83,6 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 |> child(:encoder, %Membrane.Opus.Encoder{input_stream_format:
                 %Membrane.RawAudio{ channels: 1, sample_rate: 48_000, sample_format: :s16le }}) end`
                 """
-              ],
-              wait_for_first_subscriber?: [
-                spec: boolean(),
-                description: """
-                Indicates, whether the endpoint should wait with sending media until
-                first other endpoint subscribes on its track.
-                """,
-                default: false
               ]
 
   def_output_pad :output,
@@ -130,12 +126,12 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   @impl true
-  def handle_playing(_ctx, %{autoplay: false} = state) do
+  def handle_playing(_ctx, %{start_sending: :manual} = state) do
     {get_new_tracks_actions(state), state}
   end
 
   @impl true
-  def handle_playing(_ctx, %{autoplay: true} = state) do
+  def handle_playing(_ctx, state) do
     actions = get_new_tracks_actions(state) ++ get_track_ready_notification(state)
 
     {actions, %{state | started: true}}
@@ -213,8 +209,12 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   @impl true
-  def handle_parent_notification(:start, _ctx, %{autoplay: true} = state) do
-    Membrane.Logger.warning("Trying to manually start sending media in autoplay mode")
+  def handle_parent_notification(:start, _ctx, %{start_sending: start_sending} = state)
+      when start_sending != :manual do
+    Membrane.Logger.warning(
+      "Trying to manually start sending media in `start_sending` mode different than :manual"
+    )
+
     {[], state}
   end
 
@@ -284,7 +284,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
             :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
           end
         end,
-        wait_for_keyframe_request?: state.wait_for_first_subscriber?
+        wait_for_keyframe_request?: state.start_sending == :wait_for_first_subscriber
       })
       |> bin_output(pad)
     end

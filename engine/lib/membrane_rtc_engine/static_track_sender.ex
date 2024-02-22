@@ -35,7 +35,7 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
               wait_for_keyframe_request?: [
                 spec: boolean(),
                 description:
-                  "Flag that determines if TrackSender should wait with publishing stream untill it receives `Membrane.KeyframeRequestEvent`",
+                  "Flag that determines if TrackSender should wait with publishing stream until it receives `Membrane.KeyframeRequestEvent`",
                 default: false
               ]
 
