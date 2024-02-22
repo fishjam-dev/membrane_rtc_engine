@@ -498,7 +498,7 @@ defmodule Membrane.RTC.Engine do
       :ok ->
         {spec, state} = fulfill_or_postpone_subscription(subscription, ctx, state)
         send(endpoint_pid, {ref, :ok})
-        Membrane.Logger.debug("Subscription fullfiled by #{endpoint_id} on track: #{track_id}")
+        Membrane.Logger.debug("Subscription fulfilled by #{endpoint_id} on track: #{track_id}")
         {[spec: {spec, log_metadata: [rtc: state.id]}], state}
 
       {:error, _reason} = error ->
@@ -938,28 +938,21 @@ defmodule Membrane.RTC.Engine do
          ctx,
          state
        ) do
-    id_to_track = Map.new(tracks, &{&1.id, &1})
+    track_ids = Enum.map(tracks, & &1.id)
 
     state =
       update_in(
         state,
         [:endpoints, endpoint_id, :inbound_tracks],
-        &Map.merge(&1, id_to_track)
+        &Map.drop(&1, track_ids)
       )
 
     tracks_msgs = build_track_removed_actions(tracks, endpoint_id, ctx, state)
-    track_ids = Enum.map(tracks, & &1.id)
+
     track_tees = tracks |> Enum.map(&get_track_tee(&1.id, ctx)) |> Enum.reject(&is_nil(&1))
+    tees_msgs = if Enum.empty?(track_tees), do: [], else: [remove_children: track_tees]
 
-    subscriptions =
-      Map.new(state.subscriptions, fn {endpoint_id, subscriptions} ->
-        subscriptions =
-          subscriptions
-          |> Enum.reject(fn {track_id, _data} -> Enum.member?(track_ids, track_id) end)
-          |> Map.new()
-
-        {endpoint_id, subscriptions}
-      end)
+    state = cleanup_subscriptions(track_ids, state)
 
     Enum.each(
       tracks,
@@ -972,7 +965,7 @@ defmodule Membrane.RTC.Engine do
       })
     )
 
-    {tracks_msgs ++ [remove_children: track_tees], %{state | subscriptions: subscriptions}}
+    {tracks_msgs ++ tees_msgs, state}
   end
 
   defp validate_track(track) do
@@ -1050,16 +1043,24 @@ defmodule Membrane.RTC.Engine do
   defp handle_remove_endpoint(endpoint_id, ctx, state) do
     cond do
       Map.has_key?(state.endpoints, endpoint_id) ->
-        pending_subscriptions_fun = fn subscriptions ->
-          Enum.filter(subscriptions, &(&1.endpoint_id != endpoint_id))
-        end
-
         {endpoint, state} = pop_in(state, [:endpoints, endpoint_id])
-        {_, state} = pop_in(state, [:subscriptions, endpoint_id])
-        state = update_in(state, [:pending_subscriptions], pending_subscriptions_fun)
+
+        # Clean up subscriptions of the endpoint being removed
+        state =
+          state
+          |> update_in([:subscriptions], &Map.delete(&1, endpoint_id))
+          |> update_in([:pending_subscriptions], fn subscriptions ->
+            Enum.reject(subscriptions, &(&1.endpoint_id == endpoint_id))
+          end)
 
         tracks = Enum.map(Endpoint.get_tracks(endpoint), &%Track{&1 | active?: true})
+        track_ids = Enum.map(tracks, & &1.id)
         tracks_msgs = build_track_removed_actions(tracks, endpoint_id, ctx, state)
+
+        # After building TrackRemoved actions, clean up subscriptions of other endpoints
+        # which have subscribed to tracks published by the endpoint being removed
+        state = cleanup_subscriptions(track_ids, state)
+
         endpoint_bin = ctx.children[{:endpoint, endpoint_id}]
 
         endpoint_removed_msgs =
@@ -1139,9 +1140,11 @@ defmodule Membrane.RTC.Engine do
       Map.has_key?(ctx.children, {:endpoint, endpoint_id})
     end)
     |> Enum.flat_map(fn {endpoint_id, _endpoint} ->
-      subscriptions = state.subscriptions[endpoint_id]
-      tracks = Enum.filter(tracks, &Map.has_key?(subscriptions, &1.id))
-      [notify_child: {{:endpoint, endpoint_id}, {:remove_tracks, tracks}}]
+      tracks = Enum.filter(tracks, &subscribed?(endpoint_id, &1.id, state))
+
+      if Enum.empty?(tracks),
+        do: [],
+        else: [notify_child: {{:endpoint, endpoint_id}, {:remove_tracks, tracks}}]
     end)
   end
 
@@ -1197,6 +1200,12 @@ defmodule Membrane.RTC.Engine do
   # - build_subscription_links/1, build_subscription_link/1: Called by fulfill_subscriptions/2,
   #   these functions build the actual links between the tee and the endpoint subscribing for the given track.
   #
+  # - cleanup_subscriptions/2: Called after building TrackRemoved actions (when removing a track or
+  #   an endpoint), performs the cleanup of :subscriptions and :pending_subscriptions in state.
+  #
+  # - subscribed?/3: Convenience function. Checks whether a given endpoint is subscribed, or has a
+  #   pending subscription, on the given track.
+  #
   # - get_track/2: Convenience function. Searches for a Track with the given Track ID which is
   #   owned by one of the Endpoints in the list.
   #
@@ -1243,6 +1252,31 @@ defmodule Membrane.RTC.Engine do
       toilet_capacity: state.toilet_capacity
     )
     |> get_child({:endpoint, subscription.endpoint_id})
+  end
+
+  defp cleanup_subscriptions(removed_track_ids, state) do
+    subscriptions =
+      Map.new(state.subscriptions, fn {subscriber_id, subscriptions} ->
+        {subscriber_id, Map.drop(subscriptions, removed_track_ids)}
+      end)
+
+    pending_subscriptions =
+      Enum.reject(state.pending_subscriptions, fn subscription ->
+        Enum.member?(removed_track_ids, subscription.track_id)
+      end)
+
+    %{state | subscriptions: subscriptions, pending_subscriptions: pending_subscriptions}
+  end
+
+  defp subscribed?(endpoint_id, track_id, state) do
+    subscriptions = state.subscriptions[endpoint_id]
+
+    has_pending_sub? =
+      state.pending_subscriptions
+      |> Stream.filter(&(&1.endpoint_id == endpoint_id))
+      |> Enum.any?(&(&1.track_id == track_id))
+
+    Map.has_key?(subscriptions, track_id) or has_pending_sub?
   end
 
   defp get_track(track_id, endpoints) do
