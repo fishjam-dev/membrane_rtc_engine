@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0-dev
+## 0.4.0
 
 ## 0.3.0
 * Add autoend option [#340](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/340)

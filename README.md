@@ -35,8 +35,8 @@ the Engine), e.g.
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine, "~> 0.20.0"},
-    {:membrane_rtc_engine_webrtc, "~> 0.6.0"}
+    {:membrane_rtc_engine, "~> 0.21.0"},
+    {:membrane_rtc_engine_webrtc, "~> 0.7.0"}
   ]
 end
 ```

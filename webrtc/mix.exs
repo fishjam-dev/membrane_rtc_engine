@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
   use Mix.Project
 
-  @version "0.7.0-dev"
+  @version "0.7.0"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @github_url "#{@engine_github_url}/tree/master/webrtc"
   @source_ref "webrtc-v#{@version}"
@@ -49,7 +49,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
   defp deps do
     [
       # Engine deps
-      {:membrane_rtc_engine, path: "../engine"},
+      {:membrane_rtc_engine, "~> 0.21.0"},
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
