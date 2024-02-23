@@ -21,7 +21,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.S3.Sink do
                 """
               ],
               path: [
-                spec: File.path(),
+                spec: Path.t(),
                 description: """
 
                 """
