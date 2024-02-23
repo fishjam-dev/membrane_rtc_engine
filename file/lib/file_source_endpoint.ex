@@ -3,9 +3,10 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   An Endpoint responsible for publishing data from a file.
   By default only supports OPUS encapsulated in Ogg container and raw H264 files.
   By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
-  It starts publishing data immediately after initialization, if `autoplay` is set to true (default),
-  or if `autoplay` is disabled - after calling `start_sending` function with proper arguments.
-  After publishing track it sends to engine parent notification `:tracks_added`.
+  It can start publishing data in three different moments:
+  * immediately after initialization, if `playback_mode` is set to `:autoplay` (default),
+  * after calling `playback_mode` function with proper arguments, if `playback_mode` is set to `:manual`
+  * after other endpoint subscribes on this endpoint track, if `playback_mode` is set to `:wait_for_first_subscriber`
   """
 
   use Membrane.Bin
@@ -45,12 +46,15 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 spec: RTP.payload_type_t(),
                 description: "Payload type of RTP packets"
               ],
-              autoplay: [
-                spec: boolean(),
-                default: true,
-                description: "Indicates, whether the endpoint should start sending
-                media immediately after initialization. If set to `false`,
-                the `start_sending` function has to be used."
+              playback_mode: [
+                spec: :autoplay | :manual | :wait_for_first_subscriber,
+                default: :autoplay,
+                description: """
+                Indicates, when the endpoint should start sending data:
+                * autoplay - start immediately after initialization
+                * manual - start on calling `start_sending/2` function
+                * wait_for_first_subscriber - start when the first endpoint subscribes on the track
+                """
               ],
               # Addded because current implementation of Membrane don't guarantee
               # that other endpoints which subscribes on track from this endpoint
@@ -122,12 +126,12 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   @impl true
-  def handle_playing(_ctx, %{autoplay: false} = state) do
+  def handle_playing(_ctx, %{playback_mode: :manual} = state) do
     {get_new_tracks_actions(state), state}
   end
 
   @impl true
-  def handle_playing(_ctx, %{autoplay: true} = state) do
+  def handle_playing(_ctx, state) do
     actions = get_new_tracks_actions(state) ++ get_track_ready_notification(state)
 
     {actions, %{state | started: true}}
@@ -205,8 +209,12 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   @impl true
-  def handle_parent_notification(:start, _ctx, %{autoplay: true} = state) do
-    Membrane.Logger.warning("Trying to manually start sending media in autoplay mode")
+  def handle_parent_notification(:start, _ctx, %{playback_mode: playback_mode} = state)
+      when playback_mode != :manual do
+    Membrane.Logger.warning(
+      "Trying to manually start sending media in `playback_mode` mode different than :manual"
+    )
+
     {[], state}
   end
 
@@ -275,7 +283,8 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
             :OPUS -> true
             :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
           end
-        end
+        end,
+        wait_for_keyframe_request?: state.playback_mode == :wait_for_first_subscriber
       })
       |> bin_output(pad)
     end

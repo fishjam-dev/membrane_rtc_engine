@@ -9,10 +9,11 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
   source.
 
   In case of publishing from a file we are not able to
-  generate keyframe on request. This element ignores
-  incoming demands and starts sending data after receiving
-  first keyframe request. Subsequent keyframe requests
-  are ignored.
+  generate keyframe on request. Depending on the value of the
+  option `wait_for_keyframe_request?` this element will ignore
+  incoming demands and start sending data after receiving
+  first keyframe request or start sending data without waiting
+  for keyframe request. In both cases subsequent keyframe requests are ignored.
   """
   use Membrane.Filter
 
@@ -30,6 +31,12 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
               is_keyframe: [
                 spec: (Membrane.Buffer.t(), Track.t() -> boolean()),
                 description: "Function informing if buffer is a keyframe for this track"
+              ],
+              wait_for_keyframe_request?: [
+                spec: boolean(),
+                description:
+                  "Flag that determines if TrackSender should wait with publishing stream until it receives `Membrane.KeyframeRequestEvent`",
+                default: false
               ]
 
   def_input_pad :input,
@@ -42,8 +49,17 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
     accepted_format: Membrane.RTP
 
   @impl true
-  def handle_init(_ctx, %__MODULE__{track: track, is_keyframe: is_keyframe}) do
-    {[], %{track: track, started?: false, is_keyframe: is_keyframe}}
+  def handle_init(_ctx, %__MODULE__{
+        track: track,
+        is_keyframe: is_keyframe,
+        wait_for_keyframe_request?: wait_for_keyframe_request?
+      }) do
+    {[],
+     %{
+       track: track,
+       is_keyframe: is_keyframe,
+       started?: not wait_for_keyframe_request?
+     }}
   end
 
   @impl true
@@ -52,7 +68,7 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
   end
 
   @impl true
-  def handle_demand(:output, size, :buffers, _ctx, %{started?: true} = state) do
+  def handle_demand(:output, size, :buffers, _ctx, state) do
     {[demand: {:input, size}], state}
   end
 
@@ -62,7 +78,12 @@ defmodule Membrane.RTC.Engine.Support.StaticTrackSender do
   end
 
   @impl true
-  def handle_event(:output, %Membrane.KeyframeRequestEvent{}, _ctx, state) do
+  def handle_event(:output, %Membrane.KeyframeRequestEvent{}, _ctx, %{started?: true} = state) do
+    {[], state}
+  end
+
+  @impl true
+  def handle_event(:output, %Membrane.KeyframeRequestEvent{}, _ctx, %{started?: false} = state) do
     {[redemand: :output], %{state | started?: true}}
   end
 

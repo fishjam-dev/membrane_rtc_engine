@@ -27,36 +27,27 @@ defmodule Membrane.RTC.FileEndpointTest do
   @out_opus_reference "out_audio.opus"
 
   describe "File Endpoint test" do
-    @tag :tmp_dir
-    test "test audio no autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
-      test_endpoint(
-        type: :audio,
-        rtc_engine: rtc_engine,
-        tmp_dir: tmp_dir,
-        autoplay: false,
-        reference_path: @out_opus_reference
-      )
-    end
+    for mode <- [:autoplay, :manual, :wait_for_first_subscriber] do
+      @tag :tmp_dir
+      test "test audio with #{mode}", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+        test_endpoint(
+          type: :audio,
+          rtc_engine: rtc_engine,
+          tmp_dir: tmp_dir,
+          playback_mode: unquote(mode),
+          reference_path: @out_opus_reference
+        )
+      end
 
-    @tag :tmp_dir
-    test "test audio with autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
-      test_endpoint(
-        type: :audio,
-        rtc_engine: rtc_engine,
-        tmp_dir: tmp_dir,
-        autoplay: true,
-        reference_path: @out_opus_reference
-      )
-    end
-
-    @tag :tmp_dir
-    test "test video no autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
-      test_endpoint(type: :video, rtc_engine: rtc_engine, tmp_dir: tmp_dir, autoplay: false)
-    end
-
-    @tag :tmp_dir
-    test "test video with autoplay", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
-      test_endpoint(type: :video, rtc_engine: rtc_engine, tmp_dir: tmp_dir, autoplay: true)
+      @tag :tmp_dir
+      test "test video with #{mode}", %{rtc_engine: rtc_engine, tmp_dir: tmp_dir} do
+        test_endpoint(
+          type: :video,
+          rtc_engine: rtc_engine,
+          tmp_dir: tmp_dir,
+          playback_mode: unquote(mode)
+        )
+      end
     end
   end
 
@@ -89,7 +80,7 @@ defmodule Membrane.RTC.FileEndpointTest do
         opts[:type],
         rtc_engine,
         file_path,
-        opts[:autoplay]
+        opts[:playback_mode]
       )
 
     :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: @source_endpoint_id)
@@ -103,7 +94,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       message: :tracks_subscribed
     }
 
-    unless opts[:autoplay] do
+    if opts[:playback_mode] == :manual do
       Endpoint.File.start_sending(rtc_engine, @source_endpoint_id)
     end
 
@@ -113,8 +104,20 @@ defmodule Membrane.RTC.FileEndpointTest do
     refute_received %Message.EndpointCrashed{endpoint_id: @source_endpoint_id}
 
     assert File.exists?(output_file)
-    assert File.read!(output_file) |> byte_size() == File.read!(reference_path) |> byte_size()
-    assert File.read!(output_file) == File.read!(reference_path)
+
+    output = File.read!(output_file)
+    reference = File.read!(reference_path)
+
+    output_size = output |> byte_size()
+    reference_size = reference |> byte_size()
+
+    if opts[:playback_mode] == :wait_for_first_subscriber do
+      assert output_size == reference_size
+      assert File.read!(output_file) == File.read!(reference_path)
+    else
+      assert output_size > 0
+      assert output == binary_slice(reference, reference_size - output_size, reference_size)
+    end
   end
 
   defp get_filename(:video), do: "video.h264"
@@ -124,7 +127,7 @@ defmodule Membrane.RTC.FileEndpointTest do
          :video,
          rtc_engine,
          video_file_path,
-         autoplay
+         playback_mode
        ) do
     video_track_config = %Endpoint.File.TrackConfig{
       type: :video,
@@ -141,7 +144,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: video_file_path,
       track_config: video_track_config,
       payload_type: 96,
-      autoplay: autoplay
+      playback_mode: playback_mode
     }
   end
 
@@ -149,7 +152,7 @@ defmodule Membrane.RTC.FileEndpointTest do
          :audio,
          rtc_engine,
          audio_file_path,
-         autoplay
+         playback_mode
        ) do
     ext = String.split(audio_file_path, ".") |> List.last()
 
@@ -173,7 +176,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: audio_file_path,
       track_config: audio_track_config,
       payload_type: 108,
-      autoplay: autoplay
+      playback_mode: playback_mode
     }
   end
 end
