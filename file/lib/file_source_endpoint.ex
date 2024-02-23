@@ -3,7 +3,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   An Endpoint responsible for publishing data from a file.
   By default only supports OPUS encapsulated in Ogg container and raw H264 files.
   By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
-  It can start publishin data in three different moments:
+  It can start publishing data in three different moments:
   * immediately after initialization, if `start_sending` is set to `:autoplay` (default),
   * after calling `start_sending` function with proper arguments, if `start_sending` is set to `:manual`
   * after other endpoint subscribes on this endpoint track, if `start_sending` is set to `:wait_for_first_subscriber`
