@@ -213,7 +213,7 @@ stage3() {
     echo "[RELEASE STAGE 3] 2. Tagging repos"
     tags=""
     for repo in $REPOS; do
-        tag="$repo-$(read_version $repo)"
+        tag="$repo-v$(read_version $repo)"
         echo "[RELEASE STAGE 3 $repo] Adding tag $tag"
         git tag $tag
         tags+=" $tag"
