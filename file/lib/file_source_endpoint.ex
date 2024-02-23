@@ -50,10 +50,10 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 spec: :autoplay | :manual | :wait_for_first_subscriber,
                 default: :autoplay,
                 description: """
-                Indicates, whether the endpoint should start sending
-                media immediately after initialization or should start after 
-                using function `start_sending` or after first endpoint subscribes
-                on endpoint track. 
+                Indicates, when the endpoint should start sending data:
+                * autoplay - start immediately after initialization
+                * manual - start on calling `start_sending/2` function
+                * wait_for_first_subscriber - start when the first endpoint subscribes on the track
                 """
               ],
               # Addded because current implementation of Membrane don't guarantee
