@@ -93,7 +93,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_endpoint =
         create_video_file_endpoint(rtc_engine, file_path,
           stream_id: stream_id,
-          playback_mode: :manual
+          playback_mode: :wait_for_first_subscriber
         )
 
       :erlang.trace(:all, true, [:call])
@@ -128,8 +128,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                        [^rtc_engine, "hls-endpoint", ^track_id, _opts]}},
                      @tracks_added_delay
 
-      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
-
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
       assert_receive({:manifest, %{video_segments: 2}})
@@ -160,7 +158,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_endpoint =
         create_video_file_endpoint(rtc_engine, file_path,
           stream_id: stream_id,
-          playback_mode: :manual
+          playback_mode: :wait_for_first_subscriber
         )
 
       :erlang.trace(:all, true, [:call])
@@ -189,8 +187,6 @@ defmodule Membrane.RTC.HLSEndpointTest do
                       {Membrane.RTC.Engine, :subscribe,
                        [^rtc_engine, "hls-endpoint", ^track_id, _opts]}},
                      @tracks_added_delay
-
-      FileEndpoint.start_sending(rtc_engine, file_endpoint_id)
 
       assert_receive({:playlist_playable, :video, ^output_dir}, @playlist_playable_delay)
       assert_receive({:segment, "video_segment_1" <> _}, @segment_delay)
