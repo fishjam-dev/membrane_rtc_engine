@@ -17,8 +17,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.FileTest do
 
     location = Path.join(output_dir, filename)
 
-    assert %Membrane.File.Sink{location: ^location} =
-             Storage.File.get_sink(config)
+    assert %Membrane.File.Sink{location: ^location} = Storage.File.get_sink(config)
 
     assert output_dir |> Path.join(config.filename) |> File.exists?()
   end
