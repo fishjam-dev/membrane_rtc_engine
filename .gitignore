@@ -43,3 +43,6 @@ tmp/
 
 # asdf
 .tool-versions
+
+# Release script persistence file
+RELEASE_STAGE
