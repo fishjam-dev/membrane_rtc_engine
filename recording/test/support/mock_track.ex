@@ -18,7 +18,8 @@ defmodule MockTrack do
       active?: true,
       metadata: %{},
       ctx: %{},
-      framerate: nil
+      framerate: nil,
+      disabled_variants: []
     }
   end
 end
