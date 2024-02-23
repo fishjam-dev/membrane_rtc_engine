@@ -39,7 +39,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:ex_aws_s3, "~> 2.0"},
       {:hackney, "~> 1.9"},
       {:sweet_xml, "~> 0.6"},
-      
+
       # Engine deps
       {:membrane_rtc_engine, path: "../engine", override: true},
       {:membrane_rtc_engine_hls, path: "../hls"},

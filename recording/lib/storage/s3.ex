@@ -7,6 +7,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
   # minimal chunk size based on aws specification (in bytes)
   @chunk_size 5_242_880
 
+  @type credentials_t :: %{
+          access_key_id: String.t(),
+          secret_access_key: String.t(),
+          region: String.t(),
+          bucket: String.t()
+        }
+
   @impl true
   def get_sink(opts) do
     path = Path.join(opts.path_prefix, opts.filename)
@@ -36,6 +43,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
     end
   end
 
+  @spec create_aws_config(credentials_t()) :: list()
   def create_aws_config(credentials) do
     credentials
     |> Enum.reject(fn {key, _value} -> key == :bucket end)
