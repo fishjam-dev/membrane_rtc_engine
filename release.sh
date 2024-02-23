@@ -123,7 +123,7 @@ stage1() {
     NEW_ENGINE_DEP=$(dep engine $NEW_ENGINE_VERSION)
     NEW_WEBRTC_DEP=$(dep webrtc $NEW_WEBRTC_VERSION)
 
-    BRANCH="TEST/release-script/release-v$NEW_ENGINE_VERSION"
+    BRANCH="release-v$NEW_ENGINE_VERSION"
     echo "[RELEASE STAGE 1] 2. Checking out a new branch '$BRANCH'"
     create_branch "$BRANCH"
 
@@ -224,7 +224,7 @@ stage3() {
     confirm_execute git push $(git remote) $tags
 
 
-    BRANCH="TEST/release-script/post-release"
+    BRANCH="post-release"
     echo "[RELEASE STAGE 3] 4. Checking out a new branch '$BRANCH'"
     create_branch "$BRANCH"
 
