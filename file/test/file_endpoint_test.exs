@@ -34,7 +34,7 @@ defmodule Membrane.RTC.FileEndpointTest do
           type: :audio,
           rtc_engine: rtc_engine,
           tmp_dir: tmp_dir,
-          start_sending: unquote(mode),
+          playback_mode: unquote(mode),
           reference_path: @out_opus_reference
         )
       end
@@ -45,7 +45,7 @@ defmodule Membrane.RTC.FileEndpointTest do
           type: :video,
           rtc_engine: rtc_engine,
           tmp_dir: tmp_dir,
-          start_sending: unquote(mode)
+          playback_mode: unquote(mode)
         )
       end
     end
@@ -80,7 +80,7 @@ defmodule Membrane.RTC.FileEndpointTest do
         opts[:type],
         rtc_engine,
         file_path,
-        opts[:start_sending]
+        opts[:playback_mode]
       )
 
     :ok = Engine.add_endpoint(rtc_engine, file_endpoint, id: @source_endpoint_id)
@@ -94,7 +94,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       message: :tracks_subscribed
     }
 
-    if opts[:start_sending] == :manual do
+    if opts[:playback_mode] == :manual do
       Endpoint.File.start_sending(rtc_engine, @source_endpoint_id)
     end
 
@@ -111,7 +111,7 @@ defmodule Membrane.RTC.FileEndpointTest do
     output_size = output |> byte_size()
     reference_size = reference |> byte_size()
 
-    if opts[:start_sending] == :wait_for_first_subscriber do
+    if opts[:playback_mode] == :wait_for_first_subscriber do
       assert output_size == reference_size
       assert File.read!(output_file) == File.read!(reference_path)
     else
@@ -127,7 +127,7 @@ defmodule Membrane.RTC.FileEndpointTest do
          :video,
          rtc_engine,
          video_file_path,
-         start_sending
+         playback_mode
        ) do
     video_track_config = %Endpoint.File.TrackConfig{
       type: :video,
@@ -144,7 +144,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: video_file_path,
       track_config: video_track_config,
       payload_type: 96,
-      start_sending: start_sending
+      playback_mode: playback_mode
     }
   end
 
@@ -152,7 +152,7 @@ defmodule Membrane.RTC.FileEndpointTest do
          :audio,
          rtc_engine,
          audio_file_path,
-         start_sending
+         playback_mode
        ) do
     ext = String.split(audio_file_path, ".") |> List.last()
 
@@ -176,7 +176,7 @@ defmodule Membrane.RTC.FileEndpointTest do
       file_path: audio_file_path,
       track_config: audio_track_config,
       payload_type: 108,
-      start_sending: start_sending
+      playback_mode: playback_mode
     }
   end
 end

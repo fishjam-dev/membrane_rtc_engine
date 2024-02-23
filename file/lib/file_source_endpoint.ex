@@ -4,9 +4,9 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   By default only supports OPUS encapsulated in Ogg container and raw H264 files.
   By providing proper value in option `after_source_transformation` you can read other formats, but the output from `after_source_transformation` have to be encoded in OPUS or H264.
   It can start publishing data in three different moments:
-  * immediately after initialization, if `start_sending` is set to `:autoplay` (default),
-  * after calling `start_sending` function with proper arguments, if `start_sending` is set to `:manual`
-  * after other endpoint subscribes on this endpoint track, if `start_sending` is set to `:wait_for_first_subscriber`
+  * immediately after initialization, if `playback_mode` is set to `:autoplay` (default),
+  * after calling `playback_mode` function with proper arguments, if `playback_mode` is set to `:manual`
+  * after other endpoint subscribes on this endpoint track, if `playback_mode` is set to `:wait_for_first_subscriber`
   """
 
   use Membrane.Bin
@@ -46,7 +46,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
                 spec: RTP.payload_type_t(),
                 description: "Payload type of RTP packets"
               ],
-              start_sending: [
+              playback_mode: [
                 spec: :autoplay | :manual | :wait_for_first_subscriber,
                 default: :autoplay,
                 description: """
@@ -126,7 +126,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   @impl true
-  def handle_playing(_ctx, %{start_sending: :manual} = state) do
+  def handle_playing(_ctx, %{playback_mode: :manual} = state) do
     {get_new_tracks_actions(state), state}
   end
 
@@ -209,10 +209,10 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
   end
 
   @impl true
-  def handle_parent_notification(:start, _ctx, %{start_sending: start_sending} = state)
-      when start_sending != :manual do
+  def handle_parent_notification(:start, _ctx, %{playback_mode: playback_mode} = state)
+      when playback_mode != :manual do
     Membrane.Logger.warning(
-      "Trying to manually start sending media in `start_sending` mode different than :manual"
+      "Trying to manually start sending media in `playback_mode` mode different than :manual"
     )
 
     {[], state}
@@ -284,7 +284,7 @@ defmodule Membrane.RTC.Engine.Endpoint.File do
             :H264 -> Membrane.RTP.H264.Utils.is_keyframe(buffer.payload)
           end
         end,
-        wait_for_keyframe_request?: state.start_sending == :wait_for_first_subscriber
+        wait_for_keyframe_request?: state.playback_mode == :wait_for_first_subscriber
       })
       |> bin_output(pad)
     end

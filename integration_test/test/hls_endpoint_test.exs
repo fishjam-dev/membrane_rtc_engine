@@ -93,7 +93,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_endpoint =
         create_video_file_endpoint(rtc_engine, file_path,
           stream_id: stream_id,
-          start_sending: :manual
+          playback_mode: :manual
         )
 
       :erlang.trace(:all, true, [:call])
@@ -160,7 +160,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_endpoint =
         create_video_file_endpoint(rtc_engine, file_path,
           stream_id: stream_id,
-          start_sending: :manual
+          playback_mode: :manual
         )
 
       :erlang.trace(:all, true, [:call])
@@ -629,7 +629,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       file_path: video_file_path,
       track_config: video_track_config,
       payload_type: 96,
-      start_sending: Keyword.get(opts, :start_sending, :wait_for_first_subscriber),
+      playback_mode: Keyword.get(opts, :playback_mode, :wait_for_first_subscriber),
       autoend: Keyword.get(opts, :autoend, true)
     }
   end
@@ -651,7 +651,7 @@ defmodule Membrane.RTC.HLSEndpointTest do
       track_config: audio_track_config,
       payload_type: 108,
       after_source_transformation: &transform_aac_to_opus/1,
-      start_sending: Keyword.get(opts, :start_sending, :wait_for_first_subscriber),
+      playback_mode: Keyword.get(opts, :playback_mode, :wait_for_first_subscriber),
       autoend: Keyword.get(opts, :autoend, true)
     }
   end

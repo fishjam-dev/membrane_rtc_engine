@@ -478,7 +478,7 @@ defmodule Membrane.RTC.SIPEndpointTest do
       ssrc: 2345,
       payload_type: 108,
       after_source_transformation: &transform_aac_to_opus/1,
-      start_sending: :manual
+      playback_mode: :manual
     }
   end
 
