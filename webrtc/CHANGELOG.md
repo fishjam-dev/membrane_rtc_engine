@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.8.0-dev
+
 ## 0.7.0
 * Rename the function `is_keyframe` to `keyframe?` and `is_deficient?` to `deficient?` in order to be compliant with elixir style guide. [#349](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/349)
 * Add support for trackEncodingEnabled and trackEncodingDisabled media events [#352](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/352)

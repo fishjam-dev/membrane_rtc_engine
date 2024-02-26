@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.7.0-dev
+
 ## 0.6.0
 * Update deps [#363](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/363)
 

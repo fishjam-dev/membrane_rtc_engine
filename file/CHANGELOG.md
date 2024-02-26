@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.5.0-dev
+
 ## 0.4.0
 * Change option `autoplay` to `playback_mode` in FileEndpoint [#357](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/357)
 
