@@ -14,7 +14,7 @@ The package can be installed by adding `membrane_rtc_engine_sip` to your list of
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine_sip, "~> 0.1.0"}
+    {:membrane_rtc_engine_sip, "~> 0.2.0"}
   ]
 end
 ```
