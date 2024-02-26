@@ -21,7 +21,7 @@ The package can be installed by adding `membrane_rtc_engine_webrtc` to your list
 ```elixir
 def deps do
   [
-    {:membrane_rtc_engine_webrtc, "~> 0.6.0"}
+    {:membrane_rtc_engine_webrtc, "~> 0.7.0"}
   ]
 end
 ```
