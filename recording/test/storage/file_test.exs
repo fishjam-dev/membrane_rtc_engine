@@ -9,7 +9,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.FileTest do
   test "create file sink", %{tmp_dir: output_dir} do
     filename = "track_1"
 
-    config = %Storage.Config{
+    config = %{
       track: %{},
       path_prefix: output_dir,
       filename: filename
@@ -37,7 +37,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.FileTest do
       |> Reporter.get_report()
       |> Jason.encode!()
 
-    :ok = Storage.File.save_object(report_json, output_dir, "report.json")
+    config = %{
+      object: report_json,
+      path_prefix: output_dir,
+      filename: "report.json"
+    }
+
+    :ok = Storage.File.save_object(config)
 
     assert output_dir |> Path.join("report.json") |> File.exists?()
 

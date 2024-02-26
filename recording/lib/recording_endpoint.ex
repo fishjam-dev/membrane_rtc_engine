@@ -150,7 +150,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Jason.encode!()
 
     Enum.each(stores, fn module ->
-      unless module.save_object(report_json, output_dir, "report.json") == :ok do
+      config = %{
+        object: report_json,
+        path_prefix: output_dir,
+        filename: "report.json"
+      }
+
+      unless module.save_object(config) == :ok do
         Membrane.Logger.error(%{
           message: "Failed to save report",
           object: "report.json",
@@ -163,14 +169,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   end
 
   defp attach_sinks(track, state) do
-    sink_opts = %{
+    sink_config = %{
       track: track,
       path_prefix: state.output_dir,
       filename: filename(track)
     }
 
     Enum.map(state.stores, fn module ->
-      get_child({:tee, track.id}) |> child({:sink, track.id, module}, module.get_sink(sink_opts))
+      get_child({:tee, track.id})
+      |> child({:sink, track.id, module}, module.get_sink(sink_config))
     end)
   end
 

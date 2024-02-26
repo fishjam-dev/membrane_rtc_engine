@@ -5,18 +5,18 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.File do
   @behaviour Membrane.RTC.Engine.Endpoint.Recording.Storage
 
   @impl true
-  def get_sink(opts) do
-    location = Path.join(opts.path_prefix, opts.filename)
+  def get_sink(config) do
+    location = Path.join(config.path_prefix, config.filename)
     File.touch!(location)
     %Membrane.File.Sink{location: location}
   end
 
   @impl true
-  def save_object(object, path_prefix, filename) do
-    location = Path.join(path_prefix, filename)
+  def save_object(config) do
+    location = Path.join(config.path_prefix, config.filename)
 
     with :ok <- File.touch(location) do
-      File.write(location, object)
+      File.write(location, config.object)
     end
   end
 end
