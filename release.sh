@@ -14,7 +14,11 @@ EOF
 
 ## Global variables
 # The order of these repos is important: Engine must be released first, then WebRTC, then the rest
-REPOS="engine webrtc hls rtsp file sip"
+REPOS="engine webrtc"
+for elixir_repo in */mix.exs; do
+    repo="${elixir_repo%/mix.exs}"
+    [[ "$repo" =~ engine|webrtc|integration_test ]] || REPOS+=" $repo"
+done
 
 # How many stages the release consists of (how many times does this script have to be run)
 MAX_STAGE="3"
@@ -270,6 +274,11 @@ case "$1" in
     -h|--help)
         usage && exit 0 ;;
 esac
+
+if [[ -n "$(git status --porcelain)" ]]; then
+    echo "[RELEASE] Uncommitted changes detected! Aborting"
+    exit 1
+fi
 
 STAGE=$(( $(get_stage) + 1 ))
 echo "[RELEASE] Executing stage $STAGE"
