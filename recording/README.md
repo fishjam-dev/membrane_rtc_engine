@@ -5,7 +5,7 @@
 [![codecov](https://codecov.io/gh/jellyfish-dev/membrane_rtc_engine/branch/master/graph/badge.svg?token=9F1XHHUY2B)](https://codecov.io/gh/jellyfish-dev/membrane_rtc_engine)
 [![CircleCI](https://circleci.com/gh/jellyfish-dev/membrane_rtc_engine.svg?style=svg)](https://circleci.com/gh/jellyfish-dev/membrane_rtc_engine)
 
-HLS Endpoint for the [Membrane RTC Engine](https://github.com/jellyfish-dev/membrane_rtc_engine)
+Recording Endpoint for the [Membrane RTC Engine](https://github.com/jellyfish-dev/membrane_rtc_engine)
 
 ## Installation
 

@@ -79,6 +79,8 @@ defmodule Membrane.RTC.Engine.MixProject do
         "test.hls",
         "test.rtsp",
         "test.file",
+        "test.sip",
+        "test.recording",
         "test.integration"
       ],
       "test.engine": ["test"],
@@ -87,6 +89,8 @@ defmodule Membrane.RTC.Engine.MixProject do
       "test.hls": fn _args -> test_package("hls") end,
       "test.rtsp": fn _args -> test_package("rtsp") end,
       "test.file": fn _args -> test_package("file") end,
+      "test.sip": fn _args -> test_package("sip") end,
+      "test.recording": fn _args -> test_package("recording") end,
       "test.integration": fn _args -> test_package("integration_test") end
     ]
   end

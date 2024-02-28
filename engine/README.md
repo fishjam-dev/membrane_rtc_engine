@@ -40,9 +40,9 @@ To make development a little easier, we have added several tasks:
 - `mix test.all`, which runs unit tests from the engine, unit tests from each endpoint, and
   endpoint integration tests,
 - `mix test.webrtc.integration`, which runs WebRTC Endpoint integration tests
-  (present [here](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/webrtc/integration_test/test_videoroom)).
-- To test a given Endpoint, you can use the following aliases: `mix test.webrtc`,
-  `mix test.hls`, `mix test.rtsp`, `mix test.file` and `mix test.integration`.
+  (present [here](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/webrtc/integration_test/test_videoroom)),
+- To test a given Endpoint, you can use the alias `mix test.ENDPOINT`, e.g. `mix test.webrtc`,
+- To run the endpoint integration test suite, execute `mix test.integration`.
 
 ## Copyright and License
 
