@@ -66,31 +66,33 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
-    Enum.each(tracks, fn track ->
-      case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
-        :ok ->
-          :ok
+    {valid_tracks, _invalid_tracks} =
+      Enum.split_with(tracks, fn track ->
+        case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
+          :ok ->
+            true
 
-        {:error, :invalid_track_id} ->
-          Membrane.Logger.debug("""
-          Couldn't subscribe to the track: #{inspect(track.id)}. No such track.
-          It was probably removed before we restarted ICE. Ignoring.
-          """)
+          {:error, :invalid_track_id} ->
+            Membrane.Logger.debug("""
+            Couldn't subscribe to the track: #{track.id} (no such track). Ignoring.
+            """)
 
-        {:error, reason} ->
-          reason = inspect(reason)
+            false
 
-          Membrane.Logger.error(%{
-            error: reason,
-            message: "Couldn't subscribe to track",
-            track: track
-          })
+          {:error, reason} ->
+            reason = inspect(reason)
 
-          raise "Subscription to track #{track.id} failed with reason: `#{reason}`"
-      end
-    end)
+            Membrane.Logger.error(%{
+              error: reason,
+              message: "Couldn't subscribe to track",
+              track: track
+            })
 
-    tracks = Map.new(tracks, &{&1.id, &1})
+            raise "Subscription to track #{track.id} failed with reason: `#{reason}`"
+        end
+      end)
+
+    tracks = Map.new(valid_tracks, &{&1.id, &1})
     state = Map.update!(state, :tracks, &Map.merge(&1, tracks))
 
     {[], state}
@@ -105,7 +107,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {offset, state} = calculate_offset(state)
 
     track = Map.get(state.tracks, track_id)
-    spec = get_track_spec(track, pad) ++ attach_sinks(track, state)
+    spec = spawn_track(track, state) ++ link_track(track, pad, state)
 
     Reporter.add_track(state.reporter, track, filename(track), offset)
 
@@ -129,16 +131,61 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {[remove_children: track_children], state}
   end
 
-  defp get_track_spec(track, pad) do
+  @impl true
+  def handle_crash_group_down({:track_group, track_id}, _ctx, state) do
+    Membrane.Logger.error("Track #{track_id} pipeline crashed")
+    # TODO implement
+    {[], state}
+  end
+
+  @impl true
+  def handle_crash_group_down({:sink_group, track_id, module}, _ctx, state) do
+    Membrane.Logger.error("Sink #{inspect(module)} of track #{track_id} crashed")
+    # TODO implement
+    {[], state}
+  end
+
+  defp spawn_track(track, state) do
+    [
+      {
+        [
+          child({:track_receiver, track.id}, %TrackReceiver{
+            track: track,
+            initial_target_variant: :high
+          })
+          |> child({:serializer, track.id}, Membrane.Stream.Serializer)
+          |> child({:tee, track.id}, Membrane.Tee.Parallel)
+        ] ++ spawn_sinks(track, state),
+        group: {:track_group, track.id}, crash_group_mode: :temporary
+      }
+    ]
+  end
+
+  defp link_track(track, pad, state) do
     [
       bin_input(pad)
-      |> child({:track_receiver, track.id}, %TrackReceiver{
-        track: track,
-        initial_target_variant: :high
-      })
-      |> child({:serializer, track.id}, Membrane.Stream.Serializer)
-      |> child({:tee, track.id}, Membrane.Tee.Parallel)
-    ]
+      |> get_child({:track_receiver, track.id})
+    ] ++ link_sinks(track, state)
+  end
+
+  defp spawn_sinks(track, state) do
+    sink_config = %{
+      track: track,
+      path_prefix: state.output_dir,
+      filename: filename(track)
+    }
+
+    Enum.map(state.stores, fn module ->
+      {child({:sink, track.id, module}, module.get_sink(sink_config)),
+       group: {:sink_group, track.id, module}, crash_group_mode: :temporary}
+    end)
+  end
+
+  defp link_sinks(track, state) do
+    Enum.map(state.stores, fn module ->
+      get_child({:tee, track.id})
+      |> get_child({:sink, track.id, module})
+    end)
   end
 
   defp save_reports(reporter, stores, output_dir) do
@@ -166,19 +213,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     end)
 
     Reporter.stop(reporter)
-  end
-
-  defp attach_sinks(track, state) do
-    sink_config = %{
-      track: track,
-      path_prefix: state.output_dir,
-      filename: filename(track)
-    }
-
-    Enum.map(state.stores, fn module ->
-      get_child({:tee, track.id})
-      |> child({:sink, track.id, module}, module.get_sink(sink_config))
-    end)
   end
 
   defp calculate_offset(%{start_timestamp: nil} = state),
