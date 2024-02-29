@@ -11,6 +11,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   alias Membrane.RTC.Engine.Endpoint.Recording.{Reporter, Storage}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
 
+  @type storage_opts :: any()
+
   @track_children [:track_receiver, :serializer, :tee]
 
   def_input_pad :input,
@@ -22,7 +24,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
                 description: "Pid of parent Engine"
               ],
               stores: [
-                spec: [Storage.config_t()],
+                spec: [{Storage.config_t(), storage_opts()}],
                 description: """
                 A list of stores that the recorded streams will be uploaded to.
                 Should implement `Storage` behaviour.
@@ -123,7 +125,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
     track_sinks =
       state.stores
-      |> Enum.map(&{:sink, track_id, &1})
+      |> Enum.map(fn {storage, _opts} -> {:sink, track_id, storage} end)
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
     track_children = track_elements ++ track_sinks
@@ -169,15 +171,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   end
 
   defp spawn_sinks(track, state) do
-    sink_config = %{
+    config = %{
       track: track,
       path_prefix: state.output_dir,
       filename: filename(track)
     }
 
-    Enum.map(state.stores, fn module ->
-      {child({:sink, track.id, module}, module.get_sink(sink_config)),
-       group: {:sink_group, track.id, module}, crash_group_mode: :temporary}
+    Enum.map(state.stores, fn {storage, opts} ->
+      get_child({:tee, track.id})
+      |> child({:sink, track.id, storage}, storage.get_sink(config, opts))
     end)
   end
 
@@ -196,18 +198,18 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Reporter.get_report()
       |> Jason.encode!()
 
-    Enum.each(stores, fn module ->
+    Enum.each(stores, fn {storage, opts} ->
       config = %{
         object: report_json,
         path_prefix: output_dir,
         filename: "report.json"
       }
 
-      unless module.save_object(config) == :ok do
+      unless storage.save_object(config, opts) == :ok do
         Membrane.Logger.error(%{
           message: "Failed to save report",
           object: "report.json",
-          storege: module
+          storage: storage
         })
       end
     end)

@@ -4,9 +4,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage do
   """
 
   alias Membrane.RTC.Engine.Track
-  @type config_t :: struct
+  @type config_t :: module()
 
-  @type sink_config :: %{
+  @type recording_config :: %{
           track: Track.t(),
           path_prefix: Path.t(),
           filename: String.t()
@@ -18,6 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage do
           filename: String.t()
         }
 
-  @callback get_sink(config :: sink_config()) :: struct()
-  @callback save_object(config :: object_config()) :: :ok | {:error, String.t()}
+  @callback get_sink(recording_config :: recording_config(), opts :: any()) :: struct()
+  @callback save_object(object_config :: object_config(), opts :: any()) ::
+              :ok | {:error, String.t()}
 end
