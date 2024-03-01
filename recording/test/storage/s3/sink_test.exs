@@ -35,20 +35,26 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
   end
 
   test "send small file" do
-    perform_test(3, "test/fixtures/small.txt")
+    file_path = "test/fixtures/small.txt"
+    perform_test(3, file_path)
 
     assert_receive :upload_initialized
-    assert_receive :chunk_uploaded
+    assert_receive {:chunk_uploaded, body}
     assert_receive :upload_completed
+
+    assert body == File.read!(file_path)
   end
 
   test "send file bigger than chunk size" do
-    perform_test(4, "test/fixtures/big.txt")
+    file_path = "test/fixtures/big.txt"
+    perform_test(4, file_path)
 
     assert_receive :upload_initialized
-    assert_receive :chunk_uploaded
-    assert_receive :chunk_uploaded
+    assert_receive {:chunk_uploaded, body_1}
+    assert_receive {:chunk_uploaded, body_2}
     assert_receive :upload_completed
+
+    assert body_1 <> body_2 == File.read!(file_path)
   end
 
   defp perform_test(request_no, file_path) do
@@ -72,8 +78,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
   defp setup_mock_http_request(call_no) do
     pid = self()
 
-    expect(ExAws.Request.HttpMock, :request, call_no, fn method, url, _body, _headers, _opts ->
-      case %{method: method, url: url} do
+    expect(ExAws.Request.HttpMock, :request, call_no, fn method, url, body, _headers, _opts ->
+      case %{method: method, url: url, body: body} do
         %{
           method: :post,
           url: @complete_url
@@ -113,9 +119,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
 
         %{
           method: :put,
-          url: @url_prefix <> _rest
+          url: @url_prefix <> _rest,
+          body: body
         } ->
-          send(pid, :chunk_uploaded)
+          send(pid, {:chunk_uploaded, body})
 
           {:ok,
            %{

@@ -61,7 +61,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
   @impl true
   def handle_buffer(:input, %Membrane.Buffer{payload: payload}, _ctx, state) do
-    accumulated_payload = payload <> state.acc_payload
+    accumulated_payload = state.acc_payload <> payload
 
     if byte_size(accumulated_payload) > state.chunk_size do
       {payload_to_send, remaining_payload} =

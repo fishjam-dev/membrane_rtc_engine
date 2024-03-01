@@ -62,7 +62,8 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       {:membrane_h264_ffmpeg_plugin, "~> 0.31.0"},
 
       # Test deps
-      {:excoveralls, "~> 0.16.0", only: :test, runtime: false}
+      {:excoveralls, "~> 0.16.0", only: :test, runtime: false},
+      {:mox, "~> 1.0", only: :test}
     ]
   end
 

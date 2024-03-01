@@ -1,6 +1,8 @@
 defmodule Membrane.RTC.RecordingEndpointTest do
   use ExUnit.Case
 
+  import Mox
+
   import FileEndpointGenerator
   import Membrane.ChildrenSpec
   import Membrane.Testing.Assertions
@@ -16,6 +18,19 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   @tracks_added_delay 500
   @tracks_removed_delay 15_000
   @report_delay 1_000
+
+  # AWS test cofniguration
+  @credentials %{
+    access_key_id: "123456789",
+    secret_access_key: "987654321",
+    region: "eu-central-1",
+    bucket: "bucket"
+  }
+
+  @etag 1
+  @path "path"
+  @upload_id "upload_id"
+  @url_prefix "https://s3.eu-central-1.amazonaws.com/#{@credentials.bucket}/#{@path}"
 
   setup do
     options = [id: "test_rtc"]
@@ -130,6 +145,34 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     validate_report(report_file_path)
   end
 
+  setup :verify_on_exit!
+  setup :set_mox_from_context
+
+  test "recording endpoint with aws storage", %{rtc_engine: rtc_engine} do
+    recording_endpoint_id = "recording-endpoint"
+    video_file_endpoint_id = "video-file-endpoint"
+
+    video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
+    setup_mock_http_request()
+
+    recording_endpoint = create_recording_endpoint(rtc_engine, @path, [{Storage.S3, %{credentials: @credentials}}])
+    video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
+
+    :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+
+    assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id}, @tracks_added_delay
+    assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
+
+    Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+    assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+
+    assert_receive :upload_initialized
+    assert_receive :chunk_uploaded
+    assert_receive :upload_completed
+    assert_receive :report_uploaded
+  end
+
   describe "crash groups" do
     @tag :tmp_dir
     test "ensure the endpoint keeps working when a sink crashes", %{
@@ -144,7 +187,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
 
       recording_endpoint =
-        create_recording_endpoint(rtc_engine, output_dir, [CrashingRecordingStorage])
+        create_recording_endpoint(rtc_engine, output_dir, [{CrashingRecordingStorage, nil}])
 
       audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
       video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
@@ -211,7 +254,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     end
   end
 
-  defp create_recording_endpoint(rtc_engine, output_dir, stores \\ [Storage.File]) do
+  defp create_recording_endpoint(rtc_engine, output_dir, stores \\ [{Storage.File, nil}]) do
     %RecordingEndpoint{
       rtc_engine: rtc_engine,
       recording_id: "id",
@@ -260,5 +303,70 @@ defmodule Membrane.RTC.RecordingEndpointTest do
 
   defp validate_report(report_path) do
     assert report_path |> File.read!() |> byte_size() > 0
+  end
+
+  defp setup_mock_http_request() do
+    pid = self()
+
+    expect(ExAws.Request.HttpMock, :request, 4, fn method, url, body, _headers, _opts ->
+      case %{method: method, url: url, body: body} do
+        %{
+          method: :post,
+          url: @url_prefix <> _rest,
+          body: <<>>
+        } ->
+          send(pid, :upload_initialized)
+
+          {:ok,
+           %{
+             status_code: 200,
+             body: """
+             <InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+               <Bucket>#{@credentials.bucket}</Bucket>
+               <Key>#{@path}</Key>
+               <UploadId>#{@upload_id}</UploadId>
+             </InitiateMultipartUploadResult>
+             """
+           }}
+
+        %{
+          method: :post,
+          url: @url_prefix <> _rest
+        } ->
+          send(pid, :upload_completed)
+
+          {:ok,
+           %{
+             status_code: 200,
+             body: """
+             <CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+               <Location>https://s3-eu-west-1.amazonaws.com/#{@credentials.bucket}/#{@path}</Location>
+               <Bucket>#{@credentials.bucket}</Bucket>
+               <Key>#{@path}</Key>
+               <ETag>&quot;17fbc0a106abbb6f381aac6e331f2a19-1&quot;</ETag>
+             </CompleteMultipartUploadResult>
+             """
+           }}
+
+        %{
+          method: :put,
+          url: @url_prefix <> "/report.json"
+        } ->
+          send(pid, :report_uploaded)
+          {:ok, %{status_code: 200}}
+
+        %{
+          method: :put,
+          url: @url_prefix <> _rest
+        } ->
+          send(pid, :chunk_uploaded)
+
+          {:ok,
+           %{
+             status_code: 200,
+             headers: %{"ETag" => @etag}
+           }}
+      end
+    end)
   end
 end

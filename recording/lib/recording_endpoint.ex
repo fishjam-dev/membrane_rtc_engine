@@ -178,15 +178,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     }
 
     Enum.map(state.stores, fn {storage, opts} ->
-      get_child({:tee, track.id})
-      |> child({:sink, track.id, storage}, storage.get_sink(config, opts))
+      {child({:sink, track.id, storage}, storage.get_sink(config, opts)),
+       group: {:sink_group, track.id, storage}, crash_group_mode: :temporary}
     end)
   end
 
   defp link_sinks(track, state) do
-    Enum.map(state.stores, fn module ->
+    Enum.map(state.stores, fn {storage, _opts} ->
       get_child({:tee, track.id})
-      |> get_child({:sink, track.id, module})
+      |> get_child({:sink, track.id, storage})
     end)
   end
 
