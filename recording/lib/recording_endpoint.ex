@@ -13,34 +13,37 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   @track_children [:track_receiver, :serializer, :tee]
 
-  def_input_pad :input,
+  def_input_pad(:input,
     accepted_format: Membrane.RTP,
     availability: :on_request
+  )
 
-  def_options rtc_engine: [
-                spec: pid(),
-                description: "Pid of parent Engine"
-              ],
-              stores: [
-                spec: [Storage.config_t()],
-                description: """
-                A list of stores that the recorded streams will be uploaded to.
-                Should implement `Storage` behaviour.
-                """
-              ],
-              output_dir: [
-                spec: Path.t(),
-                default: "output",
-                description: """
-                Directory that contains output files. For S3, this is the object's path prefix.
-                """
-              ],
-              recording_id: [
-                spec: String.t(),
-                description: """
-                Recording id that will be saved along with report
-                """
-              ]
+  def_options(
+    rtc_engine: [
+      spec: pid(),
+      description: "Pid of parent Engine"
+    ],
+    stores: [
+      spec: [Storage.config_t()],
+      description: """
+      A list of stores that the recorded streams will be uploaded to.
+      Should implement `Storage` behaviour.
+      """
+    ],
+    output_dir: [
+      spec: Path.t(),
+      default: "output",
+      description: """
+      Directory that contains output files. For S3, this is the object's path prefix.
+      """
+    ],
+    recording_id: [
+      spec: String.t(),
+      description: """
+      Recording id that will be saved along with report
+      """
+    ]
+  )
 
   @impl true
   def handle_init(ctx, options) do
@@ -186,5 +189,5 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   defp calculate_offset(state), do: {System.monotonic_time() - state.start_timestamp, state}
 
-  defp filename(track), do: "#{track.type}_#{track.id}.msr"
+  defp filename(track), do: "#{track.type}_#{String.replace(track.id, ":", "_")}.msr"
 end
