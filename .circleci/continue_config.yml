@@ -41,7 +41,7 @@ parameters:
 executors:
  machine_executor_amd64:
    machine:
-     image: ubuntu-2204:2022.04.2
+     image: ubuntu-2204:2024.01.1
    environment:
      architecture: "amd64"
      platform: "linux/amd64"
@@ -129,7 +129,7 @@ jobs:
         type: string
 
     machine:
-      image: ubuntu-2204:2022.04.2
+      image: ubuntu-2204:2024.01.1
 
     working_directory: << parameters.workdir >>
 
