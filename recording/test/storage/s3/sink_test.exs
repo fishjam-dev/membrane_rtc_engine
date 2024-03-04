@@ -29,18 +29,18 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
     perform_test(3, "test/fixtures/empty.txt")
 
     # in case of empty file ex_aws_s3 library will send empty chunk
-    # bacause it's internal implementaion of ex_aws_s3 library we don't test it
-    assert_receive :upload_initialized
-    assert_receive :upload_completed
+    # because it's an internal implementation of the ex_aws_s3 library, we don't test it
+    assert_received :upload_initialized
+    assert_received :upload_completed
   end
 
   test "send small file" do
     file_path = "test/fixtures/small.txt"
     perform_test(3, file_path)
 
-    assert_receive :upload_initialized
-    assert_receive {:chunk_uploaded, body}
-    assert_receive :upload_completed
+    assert_received :upload_initialized
+    assert_received {:chunk_uploaded, body}
+    assert_received :upload_completed
 
     assert body == File.read!(file_path)
   end
@@ -49,10 +49,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
     file_path = "test/fixtures/big.txt"
     perform_test(4, file_path)
 
-    assert_receive :upload_initialized
-    assert_receive {:chunk_uploaded, body_1}
-    assert_receive {:chunk_uploaded, body_2}
-    assert_receive :upload_completed
+    assert_received :upload_initialized
+    assert_received {:chunk_uploaded, body_1}
+    assert_received {:chunk_uploaded, body_2}
+    assert_received :upload_completed
 
     assert body_1 <> body_2 == File.read!(file_path)
   end

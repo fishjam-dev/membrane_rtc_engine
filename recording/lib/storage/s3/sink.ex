@@ -1,6 +1,6 @@
 defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
   @moduledoc """
-  Element that saves given stream to S3 bucketin real time.
+  Element that saves given stream to S3 bucket in real time.
   """
 
   use Membrane.Sink
@@ -54,9 +54,14 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
   def handle_setup(_ctx, state) do
     s3_upload = ExAws.S3.upload([], state.credentials.bucket, state.path)
     aws_config = Storage.S3.create_aws_config(state.credentials)
-    {:ok, operation} = ExAws.S3.Upload.initialize(s3_upload, aws_config)
 
-    {[], %{state | aws_op: operation, aws_config: aws_config}}
+    case ExAws.S3.Upload.initialize(s3_upload, aws_config) do
+      {:ok, operation} ->
+        {[], %{state | aws_op: operation, aws_config: aws_config}}
+
+      {:error, reason} ->
+        raise "S3 upload initialization returned error with reason: #{inspect(reason)}"
+    end
   end
 
   @impl true
@@ -69,7 +74,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
       new_state = handle_upload(state, payload_to_send)
 
-      {[], new_state |> update_payload(remaining_payload) |> increment_index()}
+      {[], update_payload(new_state, remaining_payload)}
     else
       {[], update_payload(state, accumulated_payload)}
     end
@@ -107,7 +112,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
       )
 
     part = handle_upload_result(result)
-    add_part(state, part)
+    state |> add_part(part) |> increment_index()
   end
 
   defp handle_upload_result({:error, reason}),

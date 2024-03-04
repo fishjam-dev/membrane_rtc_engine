@@ -8,10 +8,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.Recording.{Reporter, Storage}
+  alias Membrane.RTC.Engine.Endpoint.Recording.Reporter
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
 
   @type storage_opts :: any()
+
+  @doc """
+  Implementation of `Membrane.RTC.Engine.Endpoint.Recording.Storage` behaviour
+  """
+  @type storage :: module()
 
   @track_children [:track_receiver, :serializer, :tee]
 
@@ -24,10 +29,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
                 description: "Pid of parent Engine"
               ],
               stores: [
-                spec: [{Storage.config_t(), storage_opts()}],
+                spec: [{storage(), storage_opts()}],
                 description: """
                 A list of stores that the recorded streams will be uploaded to.
-                Should implement `Storage` behaviour.
+                Should implement `Membrane.RTC.Engine.Endpoint.Recording.Storage` behaviour.
                 """
               ],
               output_dir: [

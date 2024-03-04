@@ -4,7 +4,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage do
   """
 
   alias Membrane.RTC.Engine.Track
-  @type config_t :: module()
 
   @type recording_config :: %{
           track: Track.t(),

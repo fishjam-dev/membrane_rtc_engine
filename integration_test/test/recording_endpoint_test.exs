@@ -19,7 +19,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   @tracks_removed_delay 15_000
   @report_delay 1_000
 
-  # AWS test cofniguration
+  # AWS test configuration
   @credentials %{
     access_key_id: "123456789",
     secret_access_key: "987654321",
