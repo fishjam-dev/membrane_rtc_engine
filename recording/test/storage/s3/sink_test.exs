@@ -22,6 +22,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
   @initialize_url @url_prefix <> "uploads=1"
   @complete_url @url_prefix <> "uploadId=#{@upload_id}"
 
+  @pipeline_timeout 5_000
+
   setup :verify_on_exit!
   setup :set_mox_from_context
 
@@ -47,14 +49,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
 
   test "send file bigger than chunk size" do
     file_path = "test/fixtures/big.txt"
-    perform_test(4, file_path)
+    perform_test(5, file_path)
 
     assert_received :upload_initialized
     assert_received {:chunk_uploaded, body_1}
     assert_received {:chunk_uploaded, body_2}
+    assert_received {:chunk_uploaded, body_3}
     assert_received :upload_completed
 
-    assert body_1 <> body_2 == File.read!(file_path)
+    assert body_1 <> body_2 <> body_3 == File.read!(file_path)
   end
 
   defp perform_test(request_no, file_path) do
@@ -72,7 +75,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
     ]
 
     pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: spec)
-    assert_end_of_stream(pipeline, :sink)
+    assert_end_of_stream(pipeline, :sink, :input, @pipeline_timeout)
   end
 
   defp setup_mock_http_request(call_no) do

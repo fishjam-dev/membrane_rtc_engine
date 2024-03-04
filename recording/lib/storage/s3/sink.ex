@@ -42,7 +42,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
       |> Map.merge(%{
         aws_op: nil,
         aws_config: nil,
-        acc_payload: <<>>,
+        acc_payload: [],
+        payload_size: 0,
         curr_index: 1,
         parts: []
       })
@@ -66,24 +67,20 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
   @impl true
   def handle_buffer(:input, %Membrane.Buffer{payload: payload}, _ctx, state) do
-    accumulated_payload = state.acc_payload <> payload
+    accumulated_payload = [payload | state.acc_payload]
+    size = state.payload_size + byte_size(payload)
 
-    if byte_size(accumulated_payload) > state.chunk_size do
-      {payload_to_send, remaining_payload} =
-        split_payload_over_chunk_size(accumulated_payload, state.chunk_size)
-
-      new_state = handle_upload(state, payload_to_send)
-
-      {[], update_payload(new_state, remaining_payload)}
+    if state.payload_size >= state.chunk_size do
+      {[], handle_upload(state, accumulated_payload)}
     else
-      {[], update_payload(state, accumulated_payload)}
+      {[], %{state | acc_payload: accumulated_payload, payload_size: size}}
     end
   end
 
   @impl true
   def handle_end_of_stream(:input, _ctx, state) do
     state =
-      if byte_size(state.acc_payload) > 0,
+      if state.payload_size > 0,
         do: handle_upload(state, state.acc_payload),
         else: state
 
@@ -98,12 +95,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
     end
   end
 
-  defp split_payload_over_chunk_size(accumulated_payload, chunk_size) do
-    <<payload_to_send::binary-size(chunk_size), remaining_payload::binary>> = accumulated_payload
-    {payload_to_send, remaining_payload}
-  end
+  defp handle_upload(state, payload) do
+    payload_to_send = serialize_payload(payload)
 
-  defp handle_upload(state, payload_to_send) do
     result =
       ExAws.S3.Upload.upload_chunk(
         {payload_to_send, state.curr_index},
@@ -112,7 +106,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
       )
 
     part = handle_upload_result(result)
-    state |> add_part(part) |> increment_index()
+    state |> add_part(part) |> increment_index() |> empty_payload()
   end
 
   defp handle_upload_result({:error, reason}),
@@ -120,7 +114,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
   defp handle_upload_result(part), do: part
 
-  defp increment_index(state), do: %{state | curr_index: state.curr_index + 1}
-  defp update_payload(state, payload), do: %{state | acc_payload: payload}
   defp add_part(state, part), do: %{state | parts: [part | state.parts]}
+  defp empty_payload(state), do: %{state | acc_payload: [], payload_size: 0}
+  defp increment_index(state), do: %{state | curr_index: state.curr_index + 1}
+
+  defp serialize_payload(acc_payload),
+    do: acc_payload |> Enum.reverse() |> IO.iodata_to_binary()
 end
