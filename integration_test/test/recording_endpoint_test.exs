@@ -155,7 +155,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
     setup_mock_http_request()
 
-    recording_endpoint = create_recording_endpoint(rtc_engine, @path, [{Storage.S3, %{credentials: @credentials}}])
+    recording_endpoint =
+      create_recording_endpoint(rtc_engine, @path, [{Storage.S3, %{credentials: @credentials}}])
+
     video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
 
     :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
