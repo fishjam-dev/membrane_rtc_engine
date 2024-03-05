@@ -8,7 +8,8 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.Recording, as: RecordingEndpoint
   alias Membrane.RTC.Engine.Endpoint.Recording.Storage
-  alias Membrane.RTC.Engine.Message.{EndpointRemoved, TrackAdded, TrackRemoved}
+  alias Membrane.RTC.Engine.Message.{EndpointCrashed, EndpointRemoved, TrackAdded, TrackRemoved}
+  alias Membrane.RTC.Engine.Support.CrashingRecordingStorage
 
   @fixtures_dir "./test/fixtures/"
   @report_filename "report.json"
@@ -129,12 +130,93 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     validate_report(report_file_path)
   end
 
-  defp create_recording_endpoint(rtc_engine, output_dir) do
+  describe "crash groups" do
+    @tag :tmp_dir
+    test "ensure the endpoint keeps working when a sink crashes", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: output_dir
+    } do
+      recording_endpoint_id = "recording-endpoint"
+      audio_file_endpoint_id = "audio-file-endpoint"
+      video_file_endpoint_id = "video-file-endpoint"
+
+      audio_file_path = Path.join(@fixtures_dir, "audio.aac")
+      video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
+
+      recording_endpoint =
+        create_recording_endpoint(rtc_engine, output_dir, [CrashingRecordingStorage])
+
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
+      video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
+
+      :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
+
+      assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id}, @tracks_added_delay
+      assert_receive %TrackAdded{endpoint_id: ^audio_file_endpoint_id}, @tracks_added_delay
+      assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
+      assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}
+
+      refute_received %EndpointCrashed{endpoint_id: ^recording_endpoint_id}
+
+      Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+      assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+    end
+
+    @tag :tmp_dir
+    test "ensure the endpoint keeps working when one track pipeline crashes", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: output_dir
+    } do
+      recording_endpoint_id = "recording-endpoint"
+      audio_file_endpoint_id = "audio-file-endpoint"
+      video_file_endpoint_id = "video-file-endpoint"
+
+      audio_file_path = Path.join(@fixtures_dir, "audio.aac")
+      video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
+
+      recording_endpoint = create_recording_endpoint(rtc_engine, output_dir)
+
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
+      video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
+
+      :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
+
+      assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id, track_id: track_id},
+                     @tracks_added_delay
+
+      assert_receive %TrackAdded{endpoint_id: ^audio_file_endpoint_id}, @tracks_added_delay
+
+      # After a while, simulate the crashing of some element in a track pipeline
+      Process.sleep(2000)
+
+      pid =
+        Membrane.Testing.Pipeline.get_child_pid!(rtc_engine, [
+          {:endpoint, recording_endpoint_id},
+          {:serializer, track_id}
+        ])
+
+      Process.exit(pid, :brutal_kill)
+
+      assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
+      assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}
+
+      refute_received %EndpointCrashed{endpoint_id: ^recording_endpoint_id}
+
+      Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+      assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+    end
+  end
+
+  defp create_recording_endpoint(rtc_engine, output_dir, stores \\ [Storage.File]) do
     %RecordingEndpoint{
       rtc_engine: rtc_engine,
       recording_id: "id",
       output_dir: output_dir,
-      stores: [Storage.File]
+      stores: stores
     }
   end
 

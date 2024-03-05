@@ -47,6 +47,8 @@ defmodule Membrane.RTC.Engine do
   sending it to other Endpoints. File Endpoint is a Standalone Endpoint.
   * `#{inspect(__MODULE__)}.Endpoint.SIP` which is responsible for establishing a connection with some SIP
   device (e.g. phone) and exchanging media with it. SIP Endpoint is a Standalone Endpoint.
+  * `#{inspect(__MODULE__)}.Endpoint.Recording` which is responsible for saving incoming tracks to pointed storages.
+  Recording Endpoint is a Standalone Endpoint.
 
   Each of these endpoints is available as a separate package. Refer to the appropriate package for usage examples:
   * [`membrane_rtc_engine_webrtc`](https://hexdocs.pm/membrane_rtc_engine_webrtc/readme.html)
@@ -54,6 +56,7 @@ defmodule Membrane.RTC.Engine do
   * [`membrane_rtc_engine_rtsp`](https://hexdocs.pm/membrane_rtc_engine_rtsp/readme.html)
   * [`membrane_rtc_engine_file`](https://hexdocs.pm/membrane_rtc_engine_file/readme.html)
   * [`membrane_rtc_engine_sip`](https://hexdocs.pm/membrane_rtc_engine_sip/readme.html)
+  * [`membrane_rtc_engine_recording`](https://hexdocs.pm/membrane_rtc_engine_recording/readme.html)
 
   User can also implement custom Endpoints, see Custom Endpoints guide.
 

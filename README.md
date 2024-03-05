@@ -25,7 +25,9 @@ This repository currently holds the following packages:
 - [`file`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/file) -
   File Endpoint, responsible for reading track from a file, payloading it into RTP, and sending it to other Endpoints,
 - [`sip`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/sip) -
-  SIP Endpoint, responsible for establishing a connection with some SIP device (e.g. phone) and exchanging media with it.
+  SIP Endpoint, responsible for establishing a connection with some SIP device (e.g. phone) and exchanging media with it,
+- [`recording`](https://github.com/jellyfish-dev/membrane_rtc_engine/tree/master/recording) -
+  Recording Endpoint, responsible for saving incoming tracks to pointed storages.
 
 For more info about a given Endpoint, refer to its documentation.
 
