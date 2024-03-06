@@ -423,8 +423,11 @@ defmodule Membrane.RTC.EngineTest do
 
       assert_receive %Message.EndpointCrashed{
         endpoint_id: ^endpoint_id,
-        endpoint_type: TestEndpoint
+        endpoint_type: TestEndpoint,
+        reason: {%Membrane.ActionError{message: message}, _stack}
       }
+
+      assert String.contains?(message, "Error while handling action :some_invalid_action")
 
       refute_receive _any
     end
