@@ -599,7 +599,12 @@ defmodule Membrane.RTC.Engine do
   def handle_crash_group_down(endpoint_id, ctx, state) do
     case handle_remove_endpoint(endpoint_id, ctx, state) do
       {{:present, endpoint}, actions, state} ->
-        dispatch(%Message.EndpointCrashed{endpoint_id: endpoint_id, endpoint_type: endpoint.type})
+        dispatch(%Message.EndpointCrashed{
+          endpoint_id: endpoint_id,
+          endpoint_type: endpoint.type,
+          reason: Map.get(ctx, :crash_reason)
+        })
+
         {actions, state}
 
       {:absent, actions, state} ->

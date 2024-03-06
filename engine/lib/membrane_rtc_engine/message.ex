@@ -68,13 +68,15 @@ defmodule Membrane.RTC.Engine.Message do
 
     * `endpoint_id` - id of the endpoint that crashed
     * `endpoint_type` - type of the endpoint that crashed
+    * `reason` - reason for the crash
     """
     @type t() :: %__MODULE__{
             endpoint_id: Endpoint.id(),
-            endpoint_type: Endpoint.type()
+            endpoint_type: Endpoint.type(),
+            reason: :normal | :shutdown | {:shutdown, term()} | term()
           }
 
-    @enforce_keys [:endpoint_id, :endpoint_type]
+    @enforce_keys [:endpoint_id, :endpoint_type, :reason]
     defstruct @enforce_keys
   end
 
