@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.22.0-dev
+* Update deps [#374](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/374)
 * Fix READMEs [#365](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/365)
 * Send reason when endpoint crashes. [#368](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/368)
 
