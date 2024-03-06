@@ -35,13 +35,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
                 Should implement `Membrane.RTC.Engine.Endpoint.Recording.Storage` behaviour.
                 """
               ],
-              output_dir: [
-                spec: Path.t(),
-                default: "output",
-                description: """
-                Directory that contains output files. For S3, this is the object's path prefix.
-                """
-              ],
               recording_id: [
                 spec: String.t(),
                 description: """
@@ -54,7 +47,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {:ok, reporter} = Reporter.start(options.recording_id)
 
     Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
-      save_reports(reporter, options.stores, options.output_dir)
+      save_reports(reporter, options.stores, options.recording_id)
     end)
 
     state =
@@ -112,11 +105,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
     {offset, state} = calculate_offset(state)
+    filename = generate_filename()
 
     track = Map.get(state.tracks, track_id)
-    spec = spawn_track(track, state) ++ link_track(track, pad, state)
+    spec = spawn_track(track, filename, state) ++ link_track(track, pad, state)
 
-    Reporter.add_track(state.reporter, track, filename(track), offset)
+    Reporter.add_track(state.reporter, track, filename, offset)
 
     {[spec: spec], state}
   end
@@ -152,7 +146,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {[], state}
   end
 
-  defp spawn_track(track, state) do
+  defp spawn_track(track, filename, state) do
     [
       {
         [
@@ -162,7 +156,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           })
           |> child({:serializer, track.id}, Membrane.Stream.Serializer)
           |> child({:tee, track.id}, Membrane.Tee.Parallel)
-        ] ++ spawn_sinks(track, state),
+        ] ++ spawn_sinks(track, filename, state),
         group: {:track_group, track.id}, crash_group_mode: :temporary
       }
     ]
@@ -175,11 +169,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     ] ++ link_sinks(track, state)
   end
 
-  defp spawn_sinks(track, state) do
+  defp spawn_sinks(track, filename, state) do
     config = %{
       track: track,
-      path_prefix: state.output_dir,
-      filename: filename(track)
+      recording_id: state.recording_id,
+      filename: filename
     }
 
     Enum.map(state.stores, fn {storage, opts} ->
@@ -195,7 +189,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     end)
   end
 
-  defp save_reports(reporter, stores, output_dir) do
+  defp save_reports(reporter, stores, recording_id) do
     Reporter.get_report(reporter)
 
     report_json =
@@ -206,7 +200,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     Enum.each(stores, fn {storage, opts} ->
       config = %{
         object: report_json,
-        path_prefix: output_dir,
+        recording_id: recording_id,
         filename: "report.json"
       }
 
@@ -227,5 +221,5 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   defp calculate_offset(state), do: {System.monotonic_time() - state.start_timestamp, state}
 
-  defp filename(track), do: "#{track.type}_#{track.id}.msr"
+  defp generate_filename(), do: "#{UUID.uuid4()}.msr"
 end

@@ -11,13 +11,14 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.FileTest do
 
     config = %{
       track: %{},
-      path_prefix: output_dir,
+      recording_id: "recording_1",
       filename: filename
     }
 
     location = Path.join(output_dir, filename)
 
-    assert %Membrane.File.Sink{location: ^location} = Storage.File.get_sink(config, nil)
+    assert %Membrane.File.Sink{location: ^location} =
+             Storage.File.get_sink(config, %{output_dir: output_dir})
 
     assert output_dir |> Path.join(config.filename) |> File.exists?()
   end
@@ -39,11 +40,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.FileTest do
 
     config = %{
       object: report_json,
-      path_prefix: output_dir,
+      recording_id: "recording_1",
       filename: "report.json"
     }
 
-    :ok = Storage.File.save_object(config, nil)
+    :ok = Storage.File.save_object(config, %{output_dir: output_dir})
 
     assert output_dir |> Path.join("report.json") |> File.exists?()
 
