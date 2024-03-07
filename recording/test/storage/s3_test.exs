@@ -33,8 +33,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
              credentials: @credentials,
              path: ^path_with_prefix,
              chunk_size: _chunk_size
-           } =
-             Storage.S3.get_sink(config, @storage_config)
+           } = Storage.S3.get_sink(config, @storage_config)
 
     assert %Storage.S3.Sink{credentials: @credentials, path: ^path, chunk_size: _chunk_size} =
              Storage.S3.get_sink(config, %{credentials: @credentials})
