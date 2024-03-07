@@ -162,7 +162,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     setup_mock_http_request()
 
     recording_endpoint =
-      create_recording_endpoint(rtc_engine, [{Storage.S3, %{credentials: @credentials}}])
+      create_recording_endpoint(rtc_engine, [
+        {Storage.S3, %{credentials: @credentials, path_prefix: ""}}
+      ])
 
     video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
 

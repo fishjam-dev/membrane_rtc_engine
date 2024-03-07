@@ -16,24 +16,24 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
           bucket: String.t()
         }
 
-  @type storage_opts :: %{credentials: credentials_t()}
+  @type storage_opts :: %{credentials: credentials_t(), path_prefix: Path.t()}
 
   @impl true
   @spec get_sink(Storage.recording_config(), storage_opts()) :: struct()
-  def get_sink(config, storage_opts) do
-    path = Path.join(config.recording_id, config.filename)
+  def get_sink(config, %{credentials: credentials, path_prefix: path_prefix}) do
+    path = Path.join([path_prefix, config.recording_id, config.filename])
 
     %__MODULE__.Sink{
       path: path,
-      credentials: storage_opts.credentials,
+      credentials: credentials,
       chunk_size: @chunk_size
     }
   end
 
   @impl true
-  def save_object(config, storage_opts) do
-    path = Path.join(config.recording_id, config.filename)
-    credentials = storage_opts.credentials
+  def save_object(config, %{credentials: credentials, path_prefix: path_prefix}) do
+    path = Path.join([path_prefix, config.recording_id, config.filename])
+    credentials = credentials
     aws_config = create_aws_config(credentials)
 
     result =

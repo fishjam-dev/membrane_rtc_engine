@@ -13,7 +13,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
     bucket: "bucket"
   }
 
-  @storage_config %{credentials: @credentials}
+  @storage_config %{credentials: @credentials, path_prefix: ""}
 
   test "create s3 sink" do
     filename = "track_1"
