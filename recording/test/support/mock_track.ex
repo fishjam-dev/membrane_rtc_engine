@@ -9,7 +9,7 @@ defmodule MockTrack do
     %Track{
       type: type,
       stream_id: "stream_id",
-      id: "id",
+      id: "id_#{type}",
       origin: "origin",
       fmtp: %FMTP{pt: nil},
       encoding: :h264,

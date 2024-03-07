@@ -13,15 +13,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
     {:ok, %{reporter: pid, id: id}}
   end
 
-  test "Add one track", %{reporter: reporter, id: id} do
+  test "Add one track and then end track", %{reporter: reporter, id: id} do
     filename = "track_1.msr"
 
     track =
       %{encoding: encoding, clock_rate: clock_rate, metadata: metadata} = create_track(:video)
 
-    offset = 0
+    start_timestamp = Reporter.get_timestamp()
 
-    :ok = Reporter.add_track(reporter, track, filename, offset)
+    :ok = Reporter.add_track(reporter, track, filename, start_timestamp)
 
     assert %{
              recording_id: ^id,
@@ -29,7 +29,29 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                ^filename => %{
                  type: :video,
                  encoding: ^encoding,
-                 offset: ^offset,
+                 start_timestamp: 0,
+                 end_timestamp: end_timestamp,
+                 clock_rate: ^clock_rate,
+                 metadata: ^metadata
+               }
+             }
+           } = Reporter.get_report(reporter)
+
+    assert end_timestamp >= 0
+
+    end_timestamp = Reporter.get_timestamp()
+    :ok = Reporter.end_track(reporter, track, end_timestamp)
+
+    end_timestamp = end_timestamp - start_timestamp
+
+    assert %{
+             recording_id: ^id,
+             tracks: %{
+               ^filename => %{
+                 type: :video,
+                 encoding: ^encoding,
+                 start_timestamp: 0,
+                 end_timestamp: ^end_timestamp,
                  clock_rate: ^clock_rate,
                  metadata: ^metadata
                }
@@ -49,11 +71,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
       %{encoding: encoding_2, clock_rate: clock_rate_2, metadata: metadata_2} =
       create_track(:audio)
 
-    offset_1 = 0
-    offset_2 = 10
+    start_timestamp_1 = Reporter.get_timestamp()
+    start_timestamp_2 = 10
 
-    :ok = Reporter.add_track(reporter, track_1, filename_1, offset_1)
-    :ok = Reporter.add_track(reporter, track_2, filename_2, offset_2)
+    :ok = Reporter.add_track(reporter, track_1, filename_1, start_timestamp_1)
+    :ok = Reporter.add_track(reporter, track_2, filename_2, start_timestamp_1 + start_timestamp_2)
 
     assert %{
              recording_id: ^id,
@@ -61,14 +83,72 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                ^filename_1 => %{
                  type: :video,
                  encoding: ^encoding_1,
-                 offset: ^offset_1,
+                 start_timestamp: 0,
+                 end_timestamp: end_timestamp_1,
                  clock_rate: ^clock_rate_1,
                  metadata: ^metadata_1
                },
                ^filename_2 => %{
                  type: :audio,
                  encoding: ^encoding_2,
-                 offset: ^offset_2,
+                 start_timestamp: ^start_timestamp_2,
+                 end_timestamp: end_timestamp_2,
+                 clock_rate: ^clock_rate_2,
+                 metadata: ^metadata_2
+               }
+             }
+           } = Reporter.get_report(reporter)
+
+    assert end_timestamp_1 >= 0
+    assert end_timestamp_2 >= 0
+
+    end_timestamp_1 = Reporter.get_timestamp()
+    Reporter.end_track(reporter, track_1, end_timestamp_1)
+    end_timestamp_1 = end_timestamp_1 - start_timestamp_1
+
+    assert %{
+             recording_id: ^id,
+             tracks: %{
+               ^filename_1 => %{
+                 type: :video,
+                 encoding: ^encoding_1,
+                 start_timestamp: 0,
+                 end_timestamp: ^end_timestamp_1,
+                 clock_rate: ^clock_rate_1,
+                 metadata: ^metadata_1
+               },
+               ^filename_2 => %{
+                 type: :audio,
+                 encoding: ^encoding_2,
+                 start_timestamp: ^start_timestamp_2,
+                 end_timestamp: end_timestamp_2,
+                 clock_rate: ^clock_rate_2,
+                 metadata: ^metadata_2
+               }
+             }
+           } = Reporter.get_report(reporter)
+
+    assert end_timestamp_2 >= 0
+    end_timestamp_2 = Reporter.get_timestamp()
+    Reporter.end_track(reporter, track_2, end_timestamp_2)
+    end_timestamp_2 = end_timestamp_2 - start_timestamp_1
+
+    assert %{
+             recording_id: ^id,
+             tracks: %{
+               ^filename_1 => %{
+                 type: :video,
+                 encoding: ^encoding_1,
+                 start_timestamp: 0,
+                 end_timestamp: ^end_timestamp_1,
+                 clock_rate: ^clock_rate_1,
+                 metadata: ^metadata_1
+               },
+               ^filename_2 => %{
+                 type: :audio,
+                 encoding: ^encoding_2,
+                 start_timestamp: ^start_timestamp_2,
+                 end_timestamp: ^end_timestamp_2,
                  clock_rate: ^clock_rate_2,
                  metadata: ^metadata_2
                }

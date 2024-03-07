@@ -7,13 +7,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
 
   alias Membrane.RTC.Engine.Track
 
-  @track_reports_keys [:type, :encoding, :offset, :clock_rate, :metadata]
+  @track_reports_keys [:type, :encoding, :start_timestamp, :end_timestamp, :clock_rate, :metadata]
 
   @type filename :: String.t()
   @type track_report :: %{
           type: Track.t(),
           encoding: Track.encoding(),
-          offset: pos_integer(),
+          timestamp: pos_integer(),
           clock_rate: Membrane.RTP.clock_rate_t(),
           metadata: any()
         }
@@ -30,14 +30,24 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   end
 
   @spec add_track(pid(), Track.t(), filename(), pos_integer()) :: :ok
-  def add_track(reporter, track, filename, offset) do
-    track = Map.put(track, :offset, offset)
+  def add_track(reporter, track, filename, timestamp) do
+    track = Map.put(track, :start_timestamp, timestamp)
     GenServer.cast(reporter, {:add_track, track, filename})
+  end
+
+  @spec end_track(pid(), Track.t(), pos_integer()) :: :ok
+  def end_track(reporter, track, end_timestamp) do
+    GenServer.cast(reporter, {:end_track, track, end_timestamp})
   end
 
   @spec get_report(pid()) :: report()
   def get_report(reporter) do
     GenServer.call(reporter, :get_report)
+  end
+
+  @spec get_timestamp() :: number()
+  def get_timestamp() do
+    System.monotonic_time()
   end
 
   @spec stop(pid()) :: :ok
@@ -47,19 +57,47 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
 
   @impl true
   def init(recording_id) do
-    {:ok, %{recording_id: recording_id, tracks: []}}
+    {:ok, %{recording_id: recording_id, tracks: %{}}}
   end
 
   @impl true
   def handle_cast({:add_track, track, filename}, state) do
-    state = Map.update!(state, :tracks, fn tracks -> [{filename, track} | tracks] end)
+    state = put_in(state[:tracks][track.id], {filename, track})
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:end_track, track, end_timestamp}, state) do
+    state =
+      update_in(state[:tracks][track.id], fn {filename, track} ->
+        {filename, Map.put(track, :end_timestamp, end_timestamp)}
+      end)
+
     {:noreply, state}
   end
 
   @impl true
   def handle_call(:get_report, _from, state) do
+    {_filename, %{start_timestamp: start_timestamp}} =
+      state.tracks
+      |> Map.values()
+      |> Enum.min_by(
+        fn {_filename, track} -> track.start_timestamp end,
+        &<=/2,
+        fn -> {nil, 0} end
+      )
+
+    end_timestamp = get_timestamp() - start_timestamp
+
     tracks_report =
-      Map.new(state.tracks, fn {filename, track} ->
+      state.tracks
+      |> Map.values()
+      |> Map.new(fn {filename, track} ->
+        track =
+          track
+          |> Map.update!(:start_timestamp, &(&1 - start_timestamp))
+          |> Map.update(:end_timestamp, end_timestamp, &(&1 - start_timestamp))
+
         {filename, Map.take(track, @track_reports_keys)}
       end)
 

@@ -104,19 +104,21 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-    {offset, state} = calculate_offset(state)
     filename = generate_filename()
+    start_timestamp = Reporter.get_timestamp()
 
     track = Map.get(state.tracks, track_id)
     spec = spawn_track(track, filename, state) ++ link_track(track, pad, state)
 
-    Reporter.add_track(state.reporter, track, filename, offset)
+    Reporter.add_track(state.reporter, track, filename, start_timestamp)
 
     {[spec: spec], state}
   end
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
+    end_timestamp = Reporter.get_timestamp()
+
     track_elements =
       @track_children
       |> Enum.map(&{&1, track_id})
@@ -128,7 +130,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
     track_children = track_elements ++ track_sinks
-    {_track, state} = pop_in(state, [:tracks, track_id])
+    {track, state} = pop_in(state, [:tracks, track_id])
+
+    Reporter.end_track(state.reporter, track, end_timestamp)
+
     {[remove_children: track_children], state}
   end
 
@@ -215,11 +220,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
     Reporter.stop(reporter)
   end
-
-  defp calculate_offset(%{start_timestamp: nil} = state),
-    do: {0, %{state | start_timestamp: System.monotonic_time()}}
-
-  defp calculate_offset(state), do: {System.monotonic_time() - state.start_timestamp, state}
 
   defp generate_filename(), do: "#{UUID.uuid4()}.msr"
 end
