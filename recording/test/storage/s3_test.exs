@@ -13,7 +13,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
     bucket: "bucket"
   }
 
-  @storage_config %{credentials: @credentials, path_prefix: ""}
+  @path_prefix "path_prefix"
+  @storage_config %{credentials: @credentials, path_prefix: @path_prefix}
 
   test "create s3 sink" do
     filename = "track_1"
@@ -26,9 +27,17 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
     }
 
     path = Path.join(recording_id, filename)
+    path_with_prefix = Path.join([@path_prefix, recording_id, filename])
+
+    assert %Storage.S3.Sink{
+             credentials: @credentials,
+             path: ^path_with_prefix,
+             chunk_size: _chunk_size
+           } =
+             Storage.S3.get_sink(config, @storage_config)
 
     assert %Storage.S3.Sink{credentials: @credentials, path: ^path, chunk_size: _chunk_size} =
-             Storage.S3.get_sink(config, @storage_config)
+             Storage.S3.get_sink(config, %{credentials: @credentials})
   end
 
   setup :verify_on_exit!
