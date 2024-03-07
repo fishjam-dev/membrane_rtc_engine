@@ -7,13 +7,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage do
 
   @type recording_config :: %{
           track: Track.t(),
-          path_prefix: Path.t(),
+          recording_id: String.t(),
           filename: String.t()
         }
 
   @type object_config :: %{
           object: binary(),
-          path_prefix: Path.t(),
+          recording_id: String.t(),
           filename: String.t()
         }
 

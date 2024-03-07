@@ -48,6 +48,8 @@ defmodule Recording.MixProject do
 
   defp deps do
     [
+      {:elixir_uuid, "~> 1.2"},
+
       # Engine deps
       {:membrane_rtc_engine, path: "../engine"},
       {:membrane_rtc_engine_webrtc, path: "../webrtc"},

@@ -13,32 +13,40 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
     bucket: "bucket"
   }
 
-  @storage_config %{credentials: @credentials}
+  @path_prefix "path_prefix"
+  @storage_config %{credentials: @credentials, path_prefix: @path_prefix}
 
-  @tag :tmp_dir
-  test "create s3 sink", %{tmp_dir: output_dir} do
+  test "create s3 sink" do
     filename = "track_1"
+    recording_id = "recording_id"
 
     config = %{
       track: %{},
-      path_prefix: output_dir,
+      recording_id: recording_id,
       filename: filename
     }
 
-    path = Path.join(output_dir, filename)
+    path = Path.join(recording_id, filename)
+    path_with_prefix = Path.join([@path_prefix, recording_id, filename])
+
+    assert %Storage.S3.Sink{
+             credentials: @credentials,
+             path: ^path_with_prefix,
+             chunk_size: _chunk_size
+           } = Storage.S3.get_sink(config, @storage_config)
 
     assert %Storage.S3.Sink{credentials: @credentials, path: ^path, chunk_size: _chunk_size} =
-             Storage.S3.get_sink(config, @storage_config)
+             Storage.S3.get_sink(config, %{credentials: @credentials})
   end
 
   setup :verify_on_exit!
   setup :set_mox_from_context
 
-  @tag :tmp_dir
-  test "save report", %{tmp_dir: output_dir} do
+  test "save report" do
     {:ok, reporter} = Reporter.start(UUID.uuid4())
 
     filename = "track_1.msr"
+    recording_id = "recording_id"
     track = create_track(:video)
     offset = 0
 
@@ -51,7 +59,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
 
     config = %{
       object: report_json,
-      path_prefix: output_dir,
+      recording_id: recording_id,
       filename: "report.json"
     }
 

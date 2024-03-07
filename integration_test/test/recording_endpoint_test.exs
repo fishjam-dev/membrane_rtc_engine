@@ -28,9 +28,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   }
 
   @etag 1
-  @path "path"
+  @recording_id "recording_id"
   @upload_id "upload_id"
-  @url_prefix "https://s3.eu-central-1.amazonaws.com/#{@credentials.bucket}/#{@path}"
+  @url_prefix "https://s3.eu-central-1.amazonaws.com/#{@credentials.bucket}/#{@recording_id}"
 
   setup do
     options = [id: "test_rtc"]
@@ -50,7 +50,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     deserialized_file_path = Path.join(output_dir, "deserialized.h264")
     report_file_path = Path.join(output_dir, @report_filename)
 
-    recording_endpoint = create_recording_endpoint(rtc_engine, output_dir)
+    recording_endpoint =
+      create_recording_endpoint(rtc_engine, [{Storage.File, %{output_dir: output_dir}}])
+
     video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
 
     :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
@@ -98,7 +100,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     deserialized_audio_path = Path.join(output_dir, "deserialized_audio.aac")
     deserialized_video_path = Path.join(output_dir, "deserialized_video.h264")
 
-    recording_endpoint = create_recording_endpoint(rtc_engine, output_dir)
+    recording_endpoint =
+      create_recording_endpoint(rtc_engine, [{Storage.File, %{output_dir: output_dir}}])
+
     audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
     video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
 
@@ -111,9 +115,17 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
     assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}
 
-    filenames = File.ls!(output_dir)
-    audio_file = Enum.find(filenames, fn filename -> String.starts_with?(filename, "audio") end)
-    video_file = Enum.find(filenames, fn filename -> String.starts_with?(filename, "video") end)
+    Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+    assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+
+    await_report(report_file_path)
+    assert %{"tracks" => tracks} = report_file_path |> File.read!() |> Jason.decode!()
+
+    {audio_file, _metadata} =
+      Enum.find(tracks, fn {_filename, track} -> track["type"] == "audio" end)
+
+    {video_file, _metadata} =
+      Enum.find(tracks, fn {_filename, track} -> track["type"] == "video" end)
 
     audio_deserializer =
       create_audio_deserializer(%{
@@ -137,12 +149,6 @@ defmodule Membrane.RTC.RecordingEndpointTest do
 
     assert deserialized_audio_path |> File.read!() |> byte_size() > 0
     assert deserialized_video_path |> File.read!() |> byte_size() > 0
-
-    Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
-    assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
-
-    await_report(report_file_path)
-    validate_report(report_file_path)
   end
 
   setup :verify_on_exit!
@@ -156,7 +162,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     setup_mock_http_request()
 
     recording_endpoint =
-      create_recording_endpoint(rtc_engine, @path, [{Storage.S3, %{credentials: @credentials}}])
+      create_recording_endpoint(rtc_engine, [{Storage.S3, %{credentials: @credentials}}])
 
     video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
 
@@ -176,11 +182,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   end
 
   describe "crash groups" do
-    @tag :tmp_dir
-    test "ensure the endpoint keeps working when a sink crashes", %{
-      rtc_engine: rtc_engine,
-      tmp_dir: output_dir
-    } do
+    test "ensure the endpoint keeps working when a sink crashes", %{rtc_engine: rtc_engine} do
       recording_endpoint_id = "recording-endpoint"
       audio_file_endpoint_id = "audio-file-endpoint"
       video_file_endpoint_id = "video-file-endpoint"
@@ -189,7 +191,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
 
       recording_endpoint =
-        create_recording_endpoint(rtc_engine, output_dir, [{CrashingRecordingStorage, nil}])
+        create_recording_endpoint(rtc_engine, [{CrashingRecordingStorage, nil}])
 
       audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
       video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
@@ -221,7 +223,8 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       audio_file_path = Path.join(@fixtures_dir, "audio.aac")
       video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
 
-      recording_endpoint = create_recording_endpoint(rtc_engine, output_dir)
+      recording_endpoint =
+        create_recording_endpoint(rtc_engine, [{Storage.File, %{output_dir: output_dir}}])
 
       audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
       video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
@@ -256,11 +259,10 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     end
   end
 
-  defp create_recording_endpoint(rtc_engine, output_dir, stores \\ [{Storage.File, nil}]) do
+  defp create_recording_endpoint(rtc_engine, stores) do
     %RecordingEndpoint{
       rtc_engine: rtc_engine,
-      recording_id: "id",
-      output_dir: output_dir,
+      recording_id: @recording_id,
       stores: stores
     }
   end
@@ -325,7 +327,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
              body: """
              <InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                <Bucket>#{@credentials.bucket}</Bucket>
-               <Key>#{@path}</Key>
+               <Key>#{@recording_id}</Key>
                <UploadId>#{@upload_id}</UploadId>
              </InitiateMultipartUploadResult>
              """
@@ -342,9 +344,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
              status_code: 200,
              body: """
              <CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-               <Location>https://s3-eu-west-1.amazonaws.com/#{@credentials.bucket}/#{@path}</Location>
+               <Location>https://s3-eu-west-1.amazonaws.com/#{@credentials.bucket}/#{@recording_id}</Location>
                <Bucket>#{@credentials.bucket}</Bucket>
-               <Key>#{@path}</Key>
+               <Key>#{@recording_id}</Key>
                <ETag>&quot;17fbc0a106abbb6f381aac6e331f2a19-1&quot;</ETag>
              </CompleteMultipartUploadResult>
              """
