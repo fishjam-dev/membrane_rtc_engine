@@ -115,10 +115,22 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {[spec: spec], state}
   end
 
-  @impl true
-  def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
+  def handle_element_end_of_stream({:track_receiver, track_id}, _pad, _ctx, state) do
     end_timestamp = Reporter.get_timestamp()
 
+    track = get_in(state, [:tracks, track_id])
+
+    Reporter.end_track(state.reporter, track, end_timestamp)
+
+    {[], state}
+  end
+
+  def handle_element_end_of_stream(_child, _pad, _ctx, state) do
+    {[], state}
+  end
+
+  @impl true
+  def handle_pad_removed(Pad.ref(:input, track_id), ctx, state) do
     track_elements =
       @track_children
       |> Enum.map(&{&1, track_id})
@@ -130,9 +142,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
     track_children = track_elements ++ track_sinks
-    {track, state} = pop_in(state, [:tracks, track_id])
-
-    Reporter.end_track(state.reporter, track, end_timestamp)
+    {_track, state} = pop_in(state, [:tracks, track_id])
 
     {[remove_children: track_children], state}
   end
