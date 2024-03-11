@@ -70,7 +70,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS.MixProject do
       {:membrane_raw_video_format, "~> 0.3.0"},
       {:membrane_h26x_plugin, "~> 0.10.0"},
       {:membrane_h264_ffmpeg_plugin, "~> 0.31.0"},
-      {:membrane_http_adaptive_stream_plugin, "~> 0.18.0"},
+      {:membrane_http_adaptive_stream_plugin, "~> 0.18.2"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
