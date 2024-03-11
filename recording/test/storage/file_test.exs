@@ -25,7 +25,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.FileTest do
 
   @tag :tmp_dir
   test "save report", %{tmp_dir: output_dir} do
-    {:ok, reporter} = Reporter.start(UUID.uuid4())
+    recording_id = UUID.uuid4()
+    {:ok, reporter} = Reporter.start(recording_id)
 
     filename = "track_1.msr"
     track = create_track(:video)

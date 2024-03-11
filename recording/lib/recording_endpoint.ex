@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.Recording.Reporter
+  alias Membrane.RTC.Engine.Endpoint.Recording.{LastBufferTimestamp, Reporter}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
 
   @type storage_opts :: any()
@@ -55,8 +55,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Map.from_struct()
       |> Map.merge(%{
         tracks: %{},
-        reporter: reporter,
-        start_timestamp: nil
+        start_timestamp: nil,
+        reporter: reporter
       })
 
     {[notify_parent: :ready], state}
@@ -104,29 +104,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
+    {offset, state} = calculate_offset(state)
     filename = generate_filename()
-    start_timestamp = Reporter.get_timestamp()
 
     track = Map.get(state.tracks, track_id)
     spec = spawn_track(track, filename, state) ++ link_track(track, pad, state)
 
-    Reporter.add_track(state.reporter, track, filename, start_timestamp)
+    Reporter.add_track(state.reporter, track, filename, offset)
 
     {[spec: spec], state}
-  end
-
-  def handle_element_end_of_stream({:track_receiver, track_id}, _pad, _ctx, state) do
-    end_timestamp = Reporter.get_timestamp()
-
-    track = get_in(state, [:tracks, track_id])
-
-    Reporter.end_track(state.reporter, track, end_timestamp)
-
-    {[], state}
-  end
-
-  def handle_element_end_of_stream(_child, _pad, _ctx, state) do
-    {[], state}
   end
 
   @impl true
@@ -168,6 +154,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           child({:track_receiver, track.id}, %TrackReceiver{
             track: track,
             initial_target_variant: :high
+          })
+          |> child({:last_buffer_timestamp, track.id}, %LastBufferTimestamp{
+            reporter: state.reporter
           })
           |> child({:serializer, track.id}, Membrane.Stream.Serializer)
           |> child({:tee, track.id}, Membrane.Tee.Parallel)
@@ -231,5 +220,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     Reporter.stop(reporter)
   end
 
+  defp calculate_offset(%{start_timestamp: nil} = state),
+    do: {0, %{state | start_timestamp: System.monotonic_time()}}
+
+  defp calculate_offset(state), do: {System.monotonic_time() - state.start_timestamp, state}
   defp generate_filename(), do: "#{UUID.uuid4()}.msr"
 end
