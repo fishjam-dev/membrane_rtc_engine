@@ -61,7 +61,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP.MixProject do
       {:connection, "~> 1.1"},
       {:membrane_rtsp, "~> 0.5.1"},
       {:membrane_udp_plugin, "~> 0.13.0"},
-      {:membrane_h264_plugin, "~> 0.9.0"},
+      {:membrane_h26x_plugin, "~> 0.10.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},

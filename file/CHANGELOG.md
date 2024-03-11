@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.5.0-dev
+* Move to membrane_h26x_plugin. Update deps [#374](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/374)
 
 ## 0.4.0
 * Change option `autoplay` to `playback_mode` in FileEndpoint [#357](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/357)
