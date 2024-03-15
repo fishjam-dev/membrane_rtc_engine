@@ -201,11 +201,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     validate_report(report_file_path)
     assert %{"tracks" => tracks} = report_file_path |> File.read!() |> Jason.decode!()
 
-    audio_tracks =
-      Enum.filter(tracks, fn {_filename, track} -> track["type"] == "audio" end)
+    audio_tracks = Enum.filter(tracks, fn {_filename, track} -> track["type"] == "audio" end)
 
-    video_tracks =
-      Enum.filter(tracks, fn {_filename, track} -> track["type"] == "video" end)
+    video_tracks = Enum.filter(tracks, fn {_filename, track} -> track["type"] == "video" end)
 
     audio_pipelines =
       audio_tracks
