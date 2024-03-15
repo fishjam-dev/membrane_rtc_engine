@@ -169,7 +169,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     deserialized_audio_path = Path.join(output_dir, "deserialized_audio.aac")
     deserialized_video_path = Path.join(output_dir, "deserialized_video.h264")
 
-    recording_endpoint = create_recording_endpoint(rtc_engine, output_dir)
+    recording_endpoint =
+      create_recording_endpoint(rtc_engine, [{Storage.File, %{output_dir: output_dir}}])
+
     audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
     video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
 
@@ -192,38 +194,59 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id2}, @tracks_removed_delay
     assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id2}, @tracks_removed_delay
 
-    filenames = File.ls!(output_dir)
-    audio_file = Enum.find(filenames, fn filename -> String.starts_with?(filename, "audio") end)
-    video_file = Enum.find(filenames, fn filename -> String.starts_with?(filename, "video") end)
-
-    audio_deserializer =
-      create_audio_deserializer(%{
-        source: Path.join(output_dir, audio_file),
-        output: deserialized_audio_path,
-        owner: self()
-      })
-
-    video_deserializer =
-      create_video_deserializer(%{
-        source: Path.join(output_dir, video_file),
-        output: deserialized_video_path,
-        owner: self()
-      })
-
-    audio_pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: audio_deserializer)
-    video_pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: video_deserializer)
-
-    assert_end_of_stream(audio_pipeline, :sink)
-    assert_end_of_stream(video_pipeline, :sink)
-
-    assert deserialized_audio_path |> File.read!() |> byte_size() > 0
-    assert deserialized_video_path |> File.read!() |> byte_size() > 0
-
     Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
     assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
 
     await_report(report_file_path)
     validate_report(report_file_path)
+    assert %{"tracks" => tracks} = report_file_path |> File.read!() |> Jason.decode!()
+
+    audio_tracks =
+      Enum.filter(tracks, fn {_filename, track} -> track["type"] == "audio" end)
+
+    video_tracks =
+      Enum.filter(tracks, fn {_filename, track} -> track["type"] == "video" end)
+
+    audio_pipelines =
+      audio_tracks
+      |> Enum.with_index()
+      |> Enum.map(fn {{filename, _track}, idx} ->
+        output_filename = "#{deserialized_audio_path}_#{idx}"
+
+        audio_deserializer =
+          create_audio_deserializer(%{
+            source: Path.join(output_dir, filename),
+            output: output_filename,
+            owner: self()
+          })
+
+        pid = Membrane.Testing.Pipeline.start_link_supervised!(spec: audio_deserializer)
+
+        {pid, output_filename}
+      end)
+
+    video_pipelines =
+      video_tracks
+      |> Enum.with_index()
+      |> Enum.map(fn {{filename, _track}, idx} ->
+        output_filename = "#{deserialized_video_path}_#{idx}"
+
+        video_deserializer =
+          create_video_deserializer(%{
+            source: Path.join(output_dir, filename),
+            output: output_filename,
+            owner: self()
+          })
+
+        pid = Membrane.Testing.Pipeline.start_link_supervised!(spec: video_deserializer)
+
+        {pid, output_filename}
+      end)
+
+    Enum.each(audio_pipelines ++ video_pipelines, fn {pid, filename} ->
+      assert_end_of_stream(pid, :sink)
+      assert filename |> File.read!() |> byte_size() > 0
+    end)
   end
 
   setup :verify_on_exit!
@@ -278,7 +301,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id}, @tracks_added_delay
       assert_receive %TrackAdded{endpoint_id: ^audio_file_endpoint_id}, @tracks_added_delay
       assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
-      assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}
+      assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}, @tracks_removed_delay
 
       refute_received %EndpointCrashed{endpoint_id: ^recording_endpoint_id}
 
@@ -374,10 +397,10 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     interval = 100
     iterations = div(@report_delay, interval)
 
-    Enum.any?(1..iterations, fn _ ->
-      Process.sleep(interval)
-      File.exists?(report_path)
-    end)
+    assert Enum.any?(1..iterations, fn _ ->
+             Process.sleep(interval)
+             File.exists?(report_path)
+           end)
   end
 
   defp validate_report(report_path) do
