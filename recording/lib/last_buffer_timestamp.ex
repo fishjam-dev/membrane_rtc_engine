@@ -17,6 +17,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.LastBufferTimestamp do
                 """
               ]
 
+  @packets_interval 200
+
   @impl true
   def handle_init(_ctx, options) do
     {[],
@@ -38,13 +40,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.LastBufferTimestamp do
 
   @impl true
   def handle_buffer(_pad, %Buffer{} = buffer, ctx, state) do
-    counter =
-      if state.counter + 1 == 200 do
+    counter = rem(state.counter + 1, @packets_interval)
+
+    if counter == 0,
+      do:
         Recording.Reporter.end_track(state.reporter, track_id(ctx), buffer.metadata.rtp.timestamp)
-        0
-      else
-        state.counter + 1
-      end
 
     {[buffer: {:output, buffer}],
      %{state | counter: counter, last_buffer_timestamp: buffer.metadata.rtp.timestamp}}

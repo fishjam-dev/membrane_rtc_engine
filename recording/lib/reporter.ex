@@ -21,7 +21,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   @type track_report :: %{
           type: Track.t(),
           encoding: Track.encoding(),
-          timestamp: pos_integer(),
+          offset: pos_integer(),
+          start_timestamp: pos_integer(),
+          end_timestamp: pos_integer(),
           clock_rate: Membrane.RTP.clock_rate_t(),
           metadata: any()
         }
@@ -44,14 +46,14 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
     GenServer.cast(reporter, {:add_track, track, filename})
   end
 
-  @spec start_track(pid(), Track.id(), pos_integer()) :: :ok
-  def start_track(reporter, track_id, timestamp) do
-    GenServer.cast(reporter, {:start_track, track_id, timestamp})
+  @spec start_timestamp(pid(), Track.id(), pos_integer()) :: :ok
+  def start_timestamp(reporter, track_id, start_timestamp) do
+    GenServer.cast(reporter, {:start_timestamp, track_id, start_timestamp})
   end
 
-  @spec end_track(pid, Track.id(), pos_integer()) :: :ok
-  def end_track(reporter, track_id, end_timestamp) do
-    GenServer.cast(reporter, {:end_track, track_id, end_timestamp})
+  @spec end_timestamp(pid, Track.id(), pos_integer()) :: :ok
+  def end_timestamp(reporter, track_id, end_timestamp) do
+    GenServer.cast(reporter, {:end_timestamp, track_id, end_timestamp})
   end
 
   @spec get_report(pid()) :: report()
@@ -76,7 +78,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   end
 
   @impl true
-  def handle_cast({:start_track, track_id, start_timestamp}, state) do
+  def handle_cast({:start_timestamp, track_id, start_timestamp}, state) do
     state =
       update_in(state[:tracks][track_id], fn {filename, track} ->
         track =
@@ -91,7 +93,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   end
 
   @impl true
-  def handle_cast({:end_track, track_id, end_timestamp}, state) do
+  def handle_cast({:end_timestamp, track_id, end_timestamp}, state) do
     state =
       update_in(state[:tracks][track_id], fn {filename, track} ->
         {filename, Map.put(track, :end_timestamp, end_timestamp)}
