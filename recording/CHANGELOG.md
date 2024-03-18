@@ -6,3 +6,4 @@
 * Add working AWS storage [#369](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/369)
 * Refactor storage API [#375](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/375)
 * Update deps [#374](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/374)
+* Extend report created by RecordingEndpoint [#376](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/376)

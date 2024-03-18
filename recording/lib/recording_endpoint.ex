@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.Recording.Reporter
+  alias Membrane.RTC.Engine.Endpoint.Recording.{EdgeTimestampSaver, Reporter}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
 
   @type storage_opts :: any()
@@ -55,8 +55,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Map.from_struct()
       |> Map.merge(%{
         tracks: %{},
-        reporter: reporter,
-        start_timestamp: nil
+        start_timestamp: nil,
+        reporter: reporter
       })
 
     {[notify_parent: :ready], state}
@@ -129,6 +129,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
     track_children = track_elements ++ track_sinks
     {_track, state} = pop_in(state, [:tracks, track_id])
+
     {[remove_children: track_children], state}
   end
 
@@ -153,6 +154,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           child({:track_receiver, track.id}, %TrackReceiver{
             track: track,
             initial_target_variant: :high
+          })
+          |> child({:last_buffer_timestamp, track.id}, %EdgeTimestampSaver{
+            reporter: state.reporter
           })
           |> child({:serializer, track.id}, Membrane.Stream.Serializer)
           |> child({:tee, track.id}, Membrane.Tee.Parallel)
@@ -220,6 +224,5 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     do: {0, %{state | start_timestamp: System.monotonic_time()}}
 
   defp calculate_offset(state), do: {System.monotonic_time() - state.start_timestamp, state}
-
   defp generate_filename(), do: "#{UUID.uuid4()}.msr"
 end
