@@ -22,7 +22,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
     start_timestamp = 0
 
     :ok = Reporter.add_track(reporter, track, filename, start_timestamp)
-    :ok = Reporter.start_track(reporter, track.id, start_timestamp)
+    :ok = Reporter.start_timestamp(reporter, track.id, start_timestamp)
 
     assert %{
              recording_id: ^id,
@@ -40,7 +40,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
            } = Reporter.get_report(reporter)
 
     end_timestamp = 10
-    :ok = Reporter.end_track(reporter, track.id, end_timestamp)
+    :ok = Reporter.end_timestamp(reporter, track.id, end_timestamp)
 
     assert %{
              recording_id: ^id,
@@ -74,10 +74,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
     start_timestamp_2 = 10
 
     :ok = Reporter.add_track(reporter, track_1, filename_1, start_timestamp_1)
-    :ok = Reporter.start_track(reporter, track_1.id, start_timestamp_1)
+    :ok = Reporter.start_timestamp(reporter, track_1.id, start_timestamp_1)
 
     :ok = Reporter.add_track(reporter, track_2, filename_2, start_timestamp_2)
-    :ok = Reporter.start_track(reporter, track_2.id, start_timestamp_2)
+    :ok = Reporter.start_timestamp(reporter, track_2.id, start_timestamp_2)
 
     assert %{
              recording_id: ^id,
@@ -104,7 +104,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
            } = Reporter.get_report(reporter)
 
     end_timestamp_1 = 30
-    Reporter.end_track(reporter, track_1.id, end_timestamp_1)
+    Reporter.end_timestamp(reporter, track_1.id, end_timestamp_1)
 
     assert %{
              recording_id: ^id,
@@ -131,7 +131,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
            } = Reporter.get_report(reporter)
 
     end_timestamp_2 = 40
-    Reporter.end_track(reporter, track_2.id, end_timestamp_2)
+    Reporter.end_timestamp(reporter, track_2.id, end_timestamp_2)
 
     assert %{
              recording_id: ^id,

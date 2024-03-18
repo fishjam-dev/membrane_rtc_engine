@@ -51,7 +51,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
     offset = 0
 
     :ok = Reporter.add_track(reporter, track, filename, offset)
-    :ok = Reporter.start_track(reporter, track.id, offset)
+    :ok = Reporter.start_timestamp(reporter, track.id, offset)
 
     report_json =
       reporter

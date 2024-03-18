@@ -32,7 +32,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.LastBufferTimestamp do
 
   @impl true
   def handle_buffer(_pad, %Buffer{} = buffer, ctx, %{first_buffer_timestamp: nil} = state) do
-    Recording.Reporter.start_track(state.reporter, track_id(ctx), buffer.metadata.rtp.timestamp)
+    Recording.Reporter.start_timestamp(
+      state.reporter,
+      track_id(ctx),
+      buffer.metadata.rtp.timestamp
+    )
 
     {[buffer: {:output, buffer}],
      %{state | first_buffer_timestamp: buffer.metadata.rtp.timestamp}}
@@ -44,7 +48,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.LastBufferTimestamp do
 
     if counter == 0,
       do:
-        Recording.Reporter.end_track(state.reporter, track_id(ctx), buffer.metadata.rtp.timestamp)
+        Recording.Reporter.end_timestamp(
+          state.reporter,
+          track_id(ctx),
+          buffer.metadata.rtp.timestamp
+        )
 
     {[buffer: {:output, buffer}],
      %{state | counter: counter, last_buffer_timestamp: buffer.metadata.rtp.timestamp}}
@@ -52,7 +60,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.LastBufferTimestamp do
 
   @impl true
   def handle_end_of_stream(_pad, ctx, state) do
-    Recording.Reporter.end_track(state.reporter, track_id(ctx), state.last_buffer_timestamp)
+    Recording.Reporter.end_timestamp(state.reporter, track_id(ctx), state.last_buffer_timestamp)
     {[end_of_stream: :output], state}
   end
 
