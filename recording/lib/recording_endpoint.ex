@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.Recording.{LastBufferTimestamp, Reporter}
+  alias Membrane.RTC.Engine.Endpoint.Recording.{EdgeTimestampSaver, Reporter}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
 
   @type storage_opts :: any()
@@ -155,7 +155,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
             track: track,
             initial_target_variant: :high
           })
-          |> child({:last_buffer_timestamp, track.id}, %LastBufferTimestamp{
+          |> child({:last_buffer_timestamp, track.id}, %EdgeTimestampSaver{
             reporter: state.reporter
           })
           |> child({:serializer, track.id}, Membrane.Stream.Serializer)

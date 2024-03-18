@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.Recording.LastBufferTimestamp do
+defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
   @moduledoc false
 
   use Membrane.Filter
