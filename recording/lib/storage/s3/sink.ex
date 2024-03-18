@@ -5,7 +5,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
   use Membrane.Sink
 
-  alias Membrane.RTC.Engine.Endpoint.Recording.Storage
+  require Membrane.Logger
+
+  alias Membrane.RTC.Engine.Endpoint.Recording.{Metrics, Storage}
 
   @type credentials :: %{
           access_key_id: String.t(),
@@ -37,6 +39,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
   @impl true
   def handle_init(_ctx, options) do
+    Metrics.register_s3_upload_events([])
+
     state =
       options
       |> Map.merge(%{
@@ -52,13 +56,17 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
   end
 
   @impl true
-  def handle_setup(_ctx, state) do
+  def handle_setup(ctx, state) do
     s3_upload = ExAws.S3.upload([], state.credentials.bucket, state.path)
-    aws_config = Storage.S3.create_aws_config(state.credentials)
+    config = Storage.S3.create_aws_config(state.credentials)
 
-    case ExAws.S3.Upload.initialize(s3_upload, aws_config) do
-      {:ok, operation} ->
-        {[], %{state | aws_op: operation, aws_config: aws_config}}
+    case ExAws.S3.Upload.initialize(s3_upload, config) do
+      {:ok, op} ->
+        Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
+          clean_multipart_upload(op, config)
+        end)
+
+        {[], %{state | aws_op: op, aws_config: config}}
 
       {:error, reason} ->
         raise "S3 upload initialization returned error with reason: #{inspect(reason)}"
@@ -88,10 +96,35 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
     case result do
       {:ok, %{status_code: 200}} ->
+        Metrics.emit_upload_completed_event([])
         {[], state}
 
-      {:ok, response} ->
+      {:error, response} ->
         raise("S3 recording storage couldn't complete uploading, response: #{inspect(response)}")
+    end
+  end
+
+  defp clean_multipart_upload(op, config) do
+    result =
+      op.bucket
+      |> ExAws.S3.list_parts(op.path, op.upload_id)
+      |> ExAws.request(config)
+
+    case result do
+      {:ok, _response} ->
+        Metrics.emit_upload_aborted_event([])
+
+        Membrane.Logger.warning(
+          "Recording upload: #{op.path} was not complited. Aborting multipart upload"
+        )
+
+        op.bucket
+        |> ExAws.S3.abort_multipart_upload(op.path, op.upload_id)
+        |> ExAws.request(config)
+
+      # Error means that multipart was completed and we cannot get cached chunks
+      {:error, _reponse} ->
+        :ok
     end
   end
 

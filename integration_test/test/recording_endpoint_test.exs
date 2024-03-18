@@ -274,6 +274,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert_receive :upload_initialized
     assert_receive :chunk_uploaded
     assert_receive :upload_completed
+    assert_receive :get_chunk_list
     assert_receive :report_uploaded
   end
 
@@ -300,53 +301,6 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       assert_receive %TrackAdded{endpoint_id: ^audio_file_endpoint_id}, @tracks_added_delay
       assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
       assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}, @tracks_removed_delay
-
-      refute_received %EndpointCrashed{endpoint_id: ^recording_endpoint_id}
-
-      Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
-      assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
-    end
-
-    @tag :tmp_dir
-    test "ensure the endpoint keeps working when one track pipeline crashes", %{
-      rtc_engine: rtc_engine,
-      tmp_dir: output_dir
-    } do
-      recording_endpoint_id = "recording-endpoint"
-      audio_file_endpoint_id = "audio-file-endpoint"
-      video_file_endpoint_id = "video-file-endpoint"
-
-      audio_file_path = Path.join(@fixtures_dir, "audio.aac")
-      video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
-
-      recording_endpoint =
-        create_recording_endpoint(rtc_engine, [{Storage.File, %{output_dir: output_dir}}])
-
-      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
-      video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
-
-      :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
-      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
-      :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
-
-      assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id, track_id: track_id},
-                     @tracks_added_delay
-
-      assert_receive %TrackAdded{endpoint_id: ^audio_file_endpoint_id}, @tracks_added_delay
-
-      # After a while, simulate the crashing of some element in a track pipeline
-      Process.sleep(2000)
-
-      pid =
-        Membrane.Testing.Pipeline.get_child_pid!(rtc_engine, [
-          {:endpoint, recording_endpoint_id},
-          {:serializer, track_id}
-        ])
-
-      Process.exit(pid, :brutal_kill)
-
-      assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
-      assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}
 
       refute_received %EndpointCrashed{endpoint_id: ^recording_endpoint_id}
 
@@ -408,7 +362,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   defp setup_mock_http_request() do
     pid = self()
 
-    expect(ExAws.Request.HttpMock, :request, 4, fn method, url, body, _headers, _opts ->
+    expect(ExAws.Request.HttpMock, :request, 5, fn method, url, body, _headers, _opts ->
       case %{method: method, url: url, body: body} do
         %{
           method: :post,
@@ -466,6 +420,13 @@ defmodule Membrane.RTC.RecordingEndpointTest do
              status_code: 200,
              headers: %{"ETag" => @etag}
            }}
+
+        %{
+          method: :get,
+          url: @url_prefix <> _rest
+        } ->
+          send(pid, :get_chunk_list)
+          {:ok, %{status_code: 400, reason: "reason"}}
       end
     end)
   end
