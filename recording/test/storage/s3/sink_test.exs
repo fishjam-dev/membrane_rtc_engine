@@ -75,7 +75,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
       |> child(:sink, sink)
     ]
 
-    {:ok, _supervisor, pipeline} = Membrane.Testing.Pipeline.start_supervised(spec: spec)
+    {:ok, _supervisor, pipeline} = Membrane.Testing.Pipeline.start(spec: spec)
 
     # make sure resource guard is defined
     Process.sleep(2_000)

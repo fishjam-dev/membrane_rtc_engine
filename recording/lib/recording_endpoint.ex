@@ -147,9 +147,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           track: track,
           initial_target_variant: :high
         })
-          |> child({:last_buffer_timestamp, track.id}, %EdgeTimestampSaver{
-            reporter: state.reporter
-          })
+        |> child({:last_buffer_timestamp, track.id}, %EdgeTimestampSaver{
+          reporter: state.reporter
+        })
         |> child({:serializer, track.id}, Membrane.Stream.Serializer)
         |> child({:tee, track.id}, Membrane.Tee.Parallel)
       ] ++ spawn_sinks(track, filename, state)
