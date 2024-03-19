@@ -64,5 +64,5 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
     {[end_of_stream: :output], state}
   end
 
-  defp track_id(%{name: {:last_buffer_timestamp, track_id}}), do: track_id
+  defp track_id(%{name: {:edge_timestamp_saver, track_id}}), do: track_id
 end

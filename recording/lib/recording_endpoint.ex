@@ -18,7 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   """
   @type storage :: module()
 
-  @track_children [:track_receiver, :serializer, :tee]
+  @track_children [:track_receiver, :serializer, :tee, :edge_timestamp_saver]
 
   def_input_pad :input,
     accepted_format: Membrane.RTP,
@@ -147,7 +147,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           track: track,
           initial_target_variant: :high
         })
-        |> child({:last_buffer_timestamp, track.id}, %EdgeTimestampSaver{
+        |> child({:edge_timestamp_saver, track.id}, %EdgeTimestampSaver{
           reporter: state.reporter
         })
         |> child({:serializer, track.id}, Membrane.Stream.Serializer)
