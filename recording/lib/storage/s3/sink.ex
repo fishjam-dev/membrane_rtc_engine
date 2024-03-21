@@ -39,8 +39,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
   @impl true
   def handle_init(_ctx, options) do
-    Metrics.register_s3_upload_events([])
-
     state =
       options
       |> Map.merge(%{
@@ -96,7 +94,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
     case result do
       {:ok, %{status_code: 200}} ->
-        Metrics.emit_upload_completed_event([])
         {[], state}
 
       {:error, response} ->
@@ -112,7 +109,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
     case result do
       {:ok, _response} ->
-        Metrics.emit_upload_aborted_event([])
+        Metrics.emit_aborted_upload_event([])
 
         Membrane.Logger.warning(
           "Recording upload: #{op.path} was not complited. Aborting multipart upload"
@@ -124,6 +121,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
 
       # Error means that multipart was completed and we cannot get cached chunks
       {:error, _reponse} ->
+        Metrics.emit_completed_upload_event([])
         :ok
     end
   end

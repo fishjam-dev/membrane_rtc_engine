@@ -17,27 +17,23 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Metrics do
   def metrics() do
     [
       Telemetry.Metrics.counter(
-        "recording.s3-upload",
-        event_name: @upload_event,
-        tags: [:status]
+        "recording.s3.upload.completed",
+        event_name: @upload_event ++ [:completed]
+      ),
+      Telemetry.Metrics.counter(
+        "recording.s3.upload.aborted",
+        event_name: @upload_event ++ [:aborted]
       )
     ]
   end
 
   @doc false
-  @spec register_s3_upload_events(Membrane.TelemetryMetrics.label()) :: :ok
-  def register_s3_upload_events(telemetry_label) do
-    Membrane.TelemetryMetrics.register(@upload_event, telemetry_label)
-    :ok
-  end
-
-  @doc false
-  @spec emit_upload_completed_event(Membrane.TelemetryMetrics.label()) :: :ok
-  def emit_upload_completed_event(telemetry_label) do
+  @spec emit_completed_upload_event(Membrane.TelemetryMetrics.label()) :: :ok
+  def emit_completed_upload_event(telemetry_label) do
     Membrane.TelemetryMetrics.execute(
-      @upload_event,
+      @upload_event ++ [:completed],
       %{},
-      %{status: :completed},
+      %{},
       telemetry_label
     )
 
@@ -45,12 +41,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Metrics do
   end
 
   @doc false
-  @spec emit_upload_aborted_event(Membrane.TelemetryMetrics.label()) :: :ok
-  def emit_upload_aborted_event(telemetry_label) do
+  @spec emit_aborted_upload_event(Membrane.TelemetryMetrics.label()) :: :ok
+  def emit_aborted_upload_event(telemetry_label) do
     Membrane.TelemetryMetrics.execute(
-      @upload_event,
+      @upload_event ++ [:aborted],
       %{},
-      %{status: :aborted},
+      %{},
       telemetry_label
     )
 
