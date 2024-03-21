@@ -102,12 +102,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.Sink do
   end
 
   defp clean_multipart_upload(op, config) do
-    result =
+    cached_chunks =
       op.bucket
       |> ExAws.S3.list_parts(op.path, op.upload_id)
       |> ExAws.request(config)
 
-    case result do
+    case cached_chunks do
       {:ok, _response} ->
         Metrics.emit_aborted_upload_event([])
 

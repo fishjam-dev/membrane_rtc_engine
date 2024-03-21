@@ -3,7 +3,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Metrics do
   Defines list of metrics, that Reporter instance can aggregate by listening on events emitted in RTC Engine.
   Suggested Reporter implementation is `Membrane.TelemetryMetrics.Reporter` from
   [`membrane_telemetry_metrics`](https://github.com/membraneframework/membrane_telemetry_metrics).
-  You can see usage example in [`membrane_videoroom`](https://github.com/membraneframework/membrane_videoroom).
+  You can see usage example in [`jellyfish`](https://github.com/jellyfish-dev/jellyfish).
 
   See also `Metrics` guide for more details and example report that you can obtain with
   `Membrane.TelemetryMetrics.Reporter`.
