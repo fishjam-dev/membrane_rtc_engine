@@ -28,7 +28,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
   setup :set_mox_from_context
 
   test "send empty file" do
-    perform_test(3, "test/fixtures/empty.txt")
+    perform_test(4, "test/fixtures/empty.txt")
 
     # in case of empty file ex_aws_s3 library will send empty chunk
     # because it's an internal implementation of the ex_aws_s3 library, we don't test it
@@ -38,7 +38,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
 
   test "send small file" do
     file_path = "test/fixtures/small.txt"
-    perform_test(3, file_path)
+    perform_test(4, file_path)
 
     assert_received :upload_initialized
     assert_received {:chunk_uploaded, body}
@@ -49,7 +49,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
 
   test "send file bigger than chunk size" do
     file_path = "test/fixtures/big.txt"
-    perform_test(5, file_path)
+    perform_test(6, file_path)
 
     assert_received :upload_initialized
     assert_received {:chunk_uploaded, body_1}
@@ -58,6 +58,37 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
     assert_received :upload_completed
 
     assert body_1 <> body_2 <> body_3 == File.read!(file_path)
+  end
+
+  test "cleanup resources on crash" do
+    file_path = "test/fixtures/big.txt"
+    setup_mock_http_request(3, true)
+
+    sink = %Sink{
+      path: @path,
+      credentials: @credentials,
+      chunk_size: @chunk_size
+    }
+
+    spec = [
+      child(:source, %Membrane.File.Source{location: file_path, seekable?: true})
+      |> child(:sink, sink)
+    ]
+
+    {:ok, _supervisor, pipeline} = Membrane.Testing.Pipeline.start(spec: spec)
+
+    # make sure resource guard is defined
+    Process.sleep(2_000)
+
+    pid = Membrane.Testing.Pipeline.get_child_pid!(pipeline, :sink)
+    Process.exit(pid, :brutal_kill)
+
+    refute_receive {:chunk_uploaded, _body}
+    refute_receive :upload_completed
+
+    # resource guard
+    assert_receive :get_chunk_list, 2_000
+    assert_receive :delete_chunks, 2_000
   end
 
   defp perform_test(request_no, file_path) do
@@ -76,9 +107,14 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
 
     pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: spec)
     assert_end_of_stream(pipeline, :sink, :input, @pipeline_timeout)
+    Membrane.Testing.Pipeline.terminate(pipeline)
+
+    # resource guard
+    assert_receive :get_chunk_list, 2_000
+    refute_receive :delete_chunks, 2_000
   end
 
-  defp setup_mock_http_request(call_no) do
+  defp setup_mock_http_request(call_no, get_request \\ false) do
     pid = self()
 
     expect(ExAws.Request.HttpMock, :request, call_no, fn method, url, body, _headers, _opts ->
@@ -126,12 +162,24 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3.SinkTest do
           body: body
         } ->
           send(pid, {:chunk_uploaded, body})
+          {:ok, %{status_code: 200, headers: %{"ETag" => "1"}}}
 
-          {:ok,
-           %{
-             status_code: 200,
-             headers: %{"ETag" => "1"}
-           }}
+        %{
+          method: :get,
+          url: @url_prefix <> _rest
+        } ->
+          send(pid, :get_chunk_list)
+
+          if get_request,
+            do: {:ok, %{status_code: 200}},
+            else: {:ok, %{status_code: 400, reason: "reason"}}
+
+        %{
+          method: :delete,
+          url: @url_prefix <> _rest
+        } ->
+          send(pid, :delete_chunks)
+          {:ok, %{status_code: 200}}
       end
     end)
   end

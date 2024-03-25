@@ -18,7 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   """
   @type storage :: module()
 
-  @track_children [:track_receiver, :serializer, :tee]
+  @track_children [:track_receiver, :serializer, :tee, :edge_timestamp_saver]
 
   def_input_pad :input,
     accepted_format: Membrane.RTP,
@@ -134,13 +134,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   end
 
   @impl true
-  def handle_crash_group_down({:track_group, track_id}, _ctx, state) do
-    Membrane.Logger.error("Track #{track_id} pipeline crashed")
-    # TODO implement
-    {[], state}
-  end
-
-  @impl true
   def handle_crash_group_down({:sink_group, track_id, module}, _ctx, state) do
     Membrane.Logger.error("Sink #{inspect(module)} of track #{track_id} crashed")
     # TODO implement
@@ -149,20 +142,17 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   defp spawn_track(track, filename, state) do
     [
-      {
-        [
-          child({:track_receiver, track.id}, %TrackReceiver{
-            track: track,
-            initial_target_variant: :high
-          })
-          |> child({:last_buffer_timestamp, track.id}, %EdgeTimestampSaver{
-            reporter: state.reporter
-          })
-          |> child({:serializer, track.id}, Membrane.Stream.Serializer)
-          |> child({:tee, track.id}, Membrane.Tee.Parallel)
-        ] ++ spawn_sinks(track, filename, state),
-        group: {:track_group, track.id}, crash_group_mode: :temporary
-      }
+      [
+        child({:track_receiver, track.id}, %TrackReceiver{
+          track: track,
+          initial_target_variant: :high
+        })
+        |> child({:edge_timestamp_saver, track.id}, %EdgeTimestampSaver{
+          reporter: state.reporter
+        })
+        |> child({:serializer, track.id}, Membrane.Stream.Serializer)
+        |> child({:tee, track.id}, Membrane.Tee.Parallel)
+      ] ++ spawn_sinks(track, filename, state)
     ]
   end
 
