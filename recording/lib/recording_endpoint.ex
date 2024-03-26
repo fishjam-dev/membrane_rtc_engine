@@ -184,28 +184,29 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   end
 
   defp save_reports(reporter, stores, recording_id) do
-    Reporter.get_report(reporter)
+    case Reporter.get_report(reporter) do
+      %{tracks: %{}, recording_id: _recoridng_id} ->
+        Membrane.Logger.warning("No tracks in report, doesn't save it in storage")
 
-    report_json =
-      reporter
-      |> Reporter.get_report()
-      |> Jason.encode!()
+      report ->
+        report_json = Jason.encode!(report)
 
-    Enum.each(stores, fn {storage, opts} ->
-      config = %{
-        object: report_json,
-        recording_id: recording_id,
-        filename: "report.json"
-      }
+        Enum.each(stores, fn {storage, opts} ->
+          config = %{
+            object: report_json,
+            recording_id: recording_id,
+            filename: "report.json"
+          }
 
-      unless storage.save_object(config, opts) == :ok do
-        Membrane.Logger.error(%{
-          message: "Failed to save report",
-          object: "report.json",
-          storage: storage
-        })
-      end
-    end)
+          unless storage.save_object(config, opts) == :ok do
+            Membrane.Logger.error(%{
+              message: "Failed to save report",
+              object: "report.json",
+              storage: storage
+            })
+          end
+        end)
+    end
 
     Reporter.stop(reporter)
   end

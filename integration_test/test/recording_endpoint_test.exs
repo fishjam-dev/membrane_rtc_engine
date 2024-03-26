@@ -10,7 +10,15 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.Recording, as: RecordingEndpoint
   alias Membrane.RTC.Engine.Endpoint.Recording.Storage
-  alias Membrane.RTC.Engine.Message.{EndpointCrashed, EndpointRemoved, TrackAdded, TrackRemoved}
+
+  alias Membrane.RTC.Engine.Message.{
+    EndpointAdded,
+    EndpointCrashed,
+    EndpointRemoved,
+    TrackAdded,
+    TrackRemoved
+  }
+
   alias Membrane.RTC.Engine.Support.CrashingRecordingStorage
 
   @fixtures_dir "./test/fixtures/"
@@ -276,6 +284,27 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert_receive :upload_completed
     assert_receive :get_chunk_list
     assert_receive :report_uploaded
+  end
+
+  test "empty report is not saved", %{rtc_engine: rtc_engine} do
+    recording_endpoint_id = "recording-endpoint"
+
+    recording_endpoint =
+      create_recording_endpoint(rtc_engine, [{Storage.S3, %{credentials: @credentials}}])
+
+    :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+
+    assert_receive %EndpointAdded{endpoint_id: ^recording_endpoint_id}
+
+    refute_receive %TrackAdded{endpoint_id: ^recording_endpoint_id}, @tracks_added_delay
+
+    Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+    assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+
+    refute_receive :upload_initialized
+    refute_receive :chunk_uploaded
+    refute_receive :upload_completed
+    refute_receive :report_uploaded
   end
 
   describe "crash groups" do
