@@ -186,7 +186,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   defp save_reports(reporter, stores, recording_id) do
     case Reporter.get_report(reporter) do
       %{tracks: tracks, recording_id: _recoridng_id} when tracks == %{} ->
-        Membrane.Logger.warning("No tracks in report, doesn't save it in storage")
+        Membrane.Logger.warning("No tracks in report; not saving it to storage.")
 
       report ->
         report_json = Jason.encode!(report)
