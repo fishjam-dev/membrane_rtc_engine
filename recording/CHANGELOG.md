@@ -10,3 +10,4 @@
 * Add cleanup function and metrics to s3 sink [#378](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/378)
 * Save report only when it contains any track [#379](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/379)
 * Add recovery mechanism to s3 sink [#380](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/380)
+* Endpoint sends `:finished` after all input tracks unlink [#381](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/381)
