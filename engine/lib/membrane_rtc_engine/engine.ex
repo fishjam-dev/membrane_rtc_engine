@@ -387,14 +387,18 @@ defmodule Membrane.RTC.Engine do
   Subscribes an endpoint for a track.
 
   The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
-  `endpoint_id` is the id of the endpoint, which wants to subscribe to the track.
+  `endpoint_id` is the id of the endpoint, which wants to subscribe to the track. Possible return values are:
+  * `:ok` - when endpoint subscribed on track successfully
+  * `:ignored` - when subscribing was impossible because the state of the engine changed e.g:
+  the track was already removed, or subscribing endpoint was removed
+  * `{:error, :timeout}` - when subscribing on track took longer than 5 seconds
   """
   @spec subscribe(
           rtc_engine :: pid(),
           endpoint_id :: String.t(),
           track_id :: Track.id(),
           opts :: subscription_opts_t
-        ) :: :ok | {:error, :timeout | :endpoint_not_exist} | :ignored
+        ) :: :ok | {:error, :timeout | atom()} | :ignored
   def subscribe(rtc_engine, endpoint_id, track_id, opts \\ []) do
     ref = make_ref()
 
