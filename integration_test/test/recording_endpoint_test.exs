@@ -548,11 +548,156 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     end
   end
 
-  defp create_recording_endpoint(rtc_engine, stores) do
+  describe "manual subscribe_mode tests" do
+    @describetag :tmp_dir
+
+    test "creates correct recording stream with manual endpoint addition", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: output_dir
+    } do
+      recording_endpoint_id = "recording-endpoint"
+      video_file_endpoint_id = "video-file-endpoint"
+
+      video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
+      deserialized_file_path = Path.join(output_dir, "deserialized.h264")
+      report_file_path = Path.join(output_dir, @report_filename)
+
+      recording_endpoint =
+        create_recording_endpoint(
+          rtc_engine,
+          [{Storage.File, %{output_dir: output_dir}}],
+          :manual
+        )
+
+      video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
+
+      :erlang.trace(:all, true, [:call])
+      :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
+
+      :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+
+      assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id, track_id: track_id},
+                     @tracks_added_delay
+
+      refute_receive {:trace, _pid, :call,
+                      {Membrane.RTC.Engine, :subscribe,
+                       [^rtc_engine, ^recording_endpoint_id, ^track_id, _opts]}},
+                     @tracks_added_delay
+
+      RecordingEndpoint.subscribe(rtc_engine, recording_endpoint_id, [video_file_endpoint_id])
+      # Checks if recording endpoint won't subscribe twice on the same track
+      # Should ignore tracks that is already subscribed for
+      RecordingEndpoint.subscribe(rtc_engine, recording_endpoint_id, [video_file_endpoint_id])
+
+      # Checks if recording endpoint won't crash if not existing endpoint is passed
+      RecordingEndpoint.subscribe(rtc_engine, recording_endpoint_id, ["wrong_id"])
+
+      assert_receive {:trace, _pid, :call,
+                      {Membrane.RTC.Engine, :subscribe,
+                       [^rtc_engine, ^recording_endpoint_id, ^track_id, _opts]}},
+                     @tracks_added_delay
+
+      assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
+
+      [filename] = File.ls!(output_dir)
+
+      video_deserializer =
+        create_video_deserializer(%{
+          source: Path.join(output_dir, filename),
+          output: deserialized_file_path,
+          owner: self(),
+          type: :video
+        })
+
+      pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: video_deserializer)
+
+      assert_end_of_stream(pipeline, :sink)
+
+      assert File.read!(video_file_path) == File.read!(deserialized_file_path)
+
+      Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+      assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+
+      await_report(report_file_path)
+      validate_report(report_file_path)
+    end
+
+    test "creates correct recording stream with manual endpoint addition, before is created", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: output_dir
+    } do
+      recording_endpoint_id = "recording-endpoint"
+      video_file_endpoint_id = "video-file-endpoint"
+
+      video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
+      deserialized_file_path = Path.join(output_dir, "deserialized.h264")
+      report_file_path = Path.join(output_dir, @report_filename)
+
+      recording_endpoint =
+        create_recording_endpoint(
+          rtc_engine,
+          [{Storage.File, %{output_dir: output_dir}}],
+          :manual
+        )
+
+      video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
+
+      :erlang.trace(:all, true, [:call])
+      :erlang.trace_pattern({Engine, :subscribe, 4}, true, [:local])
+
+      :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+
+      RecordingEndpoint.subscribe(rtc_engine, recording_endpoint_id, [video_file_endpoint_id])
+      # Checks if recording endpoint won't subscribe twice on the same track
+      # Should ignore tracks that is already subscribed for
+      RecordingEndpoint.subscribe(rtc_engine, recording_endpoint_id, [video_file_endpoint_id])
+
+      # Checks if recording endpoint won't crash if not existing endpoint is passed
+      RecordingEndpoint.subscribe(rtc_engine, recording_endpoint_id, ["wrong_id"])
+
+      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+
+      assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id, track_id: track_id},
+                     @tracks_added_delay
+
+      assert_receive {:trace, _pid, :call,
+                      {Membrane.RTC.Engine, :subscribe,
+                       [^rtc_engine, ^recording_endpoint_id, ^track_id, _opts]}},
+                     @tracks_added_delay
+
+      assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
+
+      [filename] = File.ls!(output_dir)
+
+      video_deserializer =
+        create_video_deserializer(%{
+          source: Path.join(output_dir, filename),
+          output: deserialized_file_path,
+          owner: self(),
+          type: :video
+        })
+
+      pipeline = Membrane.Testing.Pipeline.start_link_supervised!(spec: video_deserializer)
+
+      assert_end_of_stream(pipeline, :sink)
+
+      assert File.read!(video_file_path) == File.read!(deserialized_file_path)
+
+      Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+      assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+
+      await_report(report_file_path)
+      validate_report(report_file_path)
+    end
+  end
+
+  defp create_recording_endpoint(rtc_engine, stores, subscribe_mode \\ :auto) do
     %RecordingEndpoint{
       rtc_engine: rtc_engine,
       recording_id: @recording_id,
-      stores: stores
+      stores: stores,
+      subscribe_mode: subscribe_mode
     }
   end
 
