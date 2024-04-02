@@ -84,7 +84,7 @@ defmodule Membrane.RTC.Engine.Subscriptions.State do
     Map.update!(state, :tracks, &Map.merge(&1, tracks))
   end
 
-  @spec get_tracks(state :: t()) :: [Track.t()]
+  @spec get_tracks(state :: t()) :: tracks_t()
   def get_tracks(state) do
     state.tracks
   end
