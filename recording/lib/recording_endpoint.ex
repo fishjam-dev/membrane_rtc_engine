@@ -92,7 +92,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       options
       |> Map.from_struct()
       |> Map.merge(%{
-        tracks: %{},
         start_timestamp: nil,
         reporter: reporter,
         subscriptions_state: subscriptions_state
@@ -127,7 +126,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {offset, state} = calculate_offset(state)
     filename = generate_filename()
 
-    track = Map.get(state.subscriptions_state.tracks, track_id)
+    track = Subscriptions.State.get_track(state.subscriptions_state, track_id)
     spec = spawn_track(track, filename, state) ++ link_track(track, pad, state)
 
     Reporter.add_track(state.reporter, track, filename, offset)
@@ -148,7 +147,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
     track_children = track_elements ++ track_sinks
-    {_track, state} = pop_in(state, [:subscriptions_state, :tracks, track_id])
+
+    new_subscriptions_state =
+      Subscriptions.State.remove_track(state.subscriptions_state, track_id)
+
+    state = %{state | subscriptions_state: new_subscriptions_state}
 
     if state.tracks == %{} do
       Membrane.Logger.info("All tracks were removed. Stop recording.")

@@ -289,7 +289,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
     actions = [remove_children: children_to_remove]
 
-    if state.disconnect_if_alone and map_size(state.subscriptions_state.tracks) == 0 do
+    tracks = Subscriptions.State.get_tracks(state.subscriptions_state)
+
+    if state.disconnect_if_alone and map_size(tracks) == 0 do
       {actions ++ [notify_parent: :finished], state}
     else
       {actions, state}

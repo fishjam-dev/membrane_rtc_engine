@@ -170,7 +170,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     state = %{state | subscriptions_state: subscriptions_state}
 
     sink_bin_used? =
-      Enum.any?(state.subscriptions_state.tracks, fn {_id, track} ->
+      state.subscription_state
+      |> Subscriptions.State.get_tracks()
+      |> Enum.any?(fn {_id, track} ->
         track.stream_id == removed_track.stream_id
       end)
 
@@ -199,7 +201,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       ) do
     {offset, state} = get_track_offset(state)
 
-    track = Map.get(state.subscriptions_state.tracks, track_id)
+    track = Subscriptions.State.get_track(state.subscriptions_state, track_id)
     track_spec = get_track_spec(offset, bin_input(pad), track, state)
 
     {spec, state} =
@@ -311,7 +313,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       end
 
     children_to_remove =
-      state.subscriptions_state.tracks
+      state.subscriptions_state
+      |> Subscriptions.State.get_tracks()
       |> Enum.flat_map(fn {id, _track} -> Enum.map(@track_children, &{&1, id}) end)
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 

@@ -84,6 +84,23 @@ defmodule Membrane.RTC.Engine.Subscriptions.State do
     Map.update!(state, :tracks, &Map.merge(&1, tracks))
   end
 
+  @spec get_tracks(state :: t()) :: [Track.t()]
+  def get_tracks(state) do
+    state.tracks
+  end
+
+  @spec get_track(state :: t(), track_id :: Track.id()) :: Track.t() | nil
+  def get_track(state, track_id) do
+    Map.get(state.tracks, track_id)
+  end
+
+  @spec remove_track(state :: t(), track_id :: Track.id()) :: t()
+  def remove_track(state, track_id) do
+    {_track, state} = pop_in(state, [:tracks, track_id])
+
+    state
+  end
+
   @spec update_endpoints(t(), [Endpoint.id()]) :: t()
   def update_endpoints(state, endpoints) do
     endpoints = MapSet.new(endpoints)
