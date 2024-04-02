@@ -406,7 +406,7 @@ defmodule Membrane.RTC.Engine do
 
       {^ref, {:error, :invalid_track_id}} ->
         Membrane.Logger.debug("""
-        Couldn't subscribe to the track: #{track_id} (no such track). Ignoring.
+        Couldn't subscribe endpoint #{endpoint_id} to the track: #{track_id} (no such track). Ignoring.
         """)
 
         :ignored
