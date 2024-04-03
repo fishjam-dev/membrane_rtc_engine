@@ -352,9 +352,6 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
           :ignored ->
             state
-
-          {:error, reason} ->
-            raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
         end
       end)
 

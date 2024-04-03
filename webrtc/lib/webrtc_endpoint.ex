@@ -382,9 +382,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
 
           :ignored ->
             false
-
-          {:error, reason} ->
-            raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
         end
       end)
 

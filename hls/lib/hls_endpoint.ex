@@ -392,9 +392,6 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
         :ignored ->
           false
-
-        {:error, reason} ->
-          raise "Couldn't subscribe to the track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
       end
     end)
   end

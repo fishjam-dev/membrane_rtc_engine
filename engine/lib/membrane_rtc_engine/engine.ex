@@ -423,9 +423,21 @@ defmodule Membrane.RTC.Engine do
         :ignored
 
       {^ref, {:error, :endpoint_not_exist}} ->
+        Membrane.Logger.error(%{
+          error: :endpoint_not_exist,
+          message: "Couldn't subscribe to track",
+          track_id: track_id
+        })
+
         raise "Couldn't subscribe to the track: #{inspect(track_id)}, because endpoint #{endpoint_id} doesn't exist."
     after
       5_000 ->
+        Membrane.Logger.error(%{
+          error: :timeout,
+          message: "Couldn't subscribe to track",
+          track_id: track_id
+        })
+
         raise "Couldn't subscribe to the track: #{inspect(track_id)}, because of timeout."
     end
   end

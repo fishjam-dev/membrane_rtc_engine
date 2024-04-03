@@ -75,17 +75,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
           :ignored ->
             false
-
-          {:error, reason} ->
-            reason = inspect(reason)
-
-            Membrane.Logger.error(%{
-              error: reason,
-              message: "Couldn't subscribe to track",
-              track: track
-            })
-
-            raise "Subscription to track #{track.id} failed with reason: `#{reason}`"
         end
       end)
 
