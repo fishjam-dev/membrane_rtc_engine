@@ -398,7 +398,7 @@ defmodule Membrane.RTC.Engine do
           endpoint_id :: String.t(),
           track_id :: Track.id(),
           opts :: subscription_opts_t
-        ) :: :ok | {:error, :timeout | atom()} | :ignored
+        ) :: :ok | :ignored
   def subscribe(rtc_engine, endpoint_id, track_id, opts \\ []) do
     ref = make_ref()
 
@@ -415,17 +415,18 @@ defmodule Membrane.RTC.Engine do
 
         :ignored
 
-      {^ref, {:error, :endpoint_removed}} ->
+      {^ref, {:error, :endpoint_terminating}} ->
         Membrane.Logger.debug("""
         Couldn't subscribe to the track: #{track_id} because endpoint #{endpoint_id} is already removed. Ignoring.
         """)
 
         :ignored
 
-      {^ref, {:error, reason}} ->
-        {:error, reason}
+      {^ref, {:error, :endpoint_not_exist}} ->
+        raise "Couldn't subscribe to the track: #{inspect(track_id)}, because endpoint #{endpoint_id} doesn't exist."
     after
-      5_000 -> {:error, :timeout}
+      5_000 ->
+        raise "Couldn't subscribe to the track: #{inspect(track_id)}, because of timeout."
     end
   end
 
@@ -1251,7 +1252,7 @@ defmodule Membrane.RTC.Engine do
     cond do
       is_nil(track) -> {:error, :invalid_track_id}
       not endpoint_in_state? and is_nil(endpoint) -> {:error, :endpoint_not_exist}
-      not endpoint_in_state? -> {:error, :endpoint_removed}
+      not endpoint_in_state? -> {:error, :endpoint_terminating}
       true -> :ok
     end
   end
