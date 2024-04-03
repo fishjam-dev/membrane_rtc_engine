@@ -8,9 +8,6 @@ defmodule Membrane.RTC.Engine.Subscriber do
   After adding an endpoint subscriber will also subscribe on all previous tracks from this added endpoint.
   """
 
-  # TODO: Use behaviour after upgrading elixir in docker_membrane
-  # @behaviour __MODULE__
-
   use Bunch.Access
 
   require Membrane.Logger
