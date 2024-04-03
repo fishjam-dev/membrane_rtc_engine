@@ -234,7 +234,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-    track = get_in(state, [:subscriber, :tracks, track_id])
+    track = Subscriber.get_track(state.subscriber, track_id)
 
     spec = [
       bin_input(pad)
@@ -282,7 +282,9 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
-    {_track, state} = pop_in(state, [:subscriber, :tracks, track_id])
+    {_track, subscriber} = Subscriber.remove_track(state.subscriber, track_id)
+
+    state = %{state | subscriber: subscriber}
 
     children_to_remove =
       [:track_receiver, :depayloader, :opus_decoder] |> Enum.map(&{&1, track_id})

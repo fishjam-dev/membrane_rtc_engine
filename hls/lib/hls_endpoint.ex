@@ -169,7 +169,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
     state = %{state | subscriber: subscriber}
 
     sink_bin_used? =
-      state.subscription_state
+      state.subscriber
       |> Subscriber.get_tracks()
       |> Enum.any?(fn {_id, track} ->
         track.stream_id == removed_track.stream_id
