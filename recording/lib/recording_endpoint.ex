@@ -148,8 +148,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
     track_children = track_elements ++ track_sinks
 
-    new_subscriber =
-      Subscriber.remove_track(state.subscriber, track_id)
+    new_subscriber = Subscriber.remove_track(state.subscriber, track_id)
 
     state = %{state | subscriber: new_subscriber}
 

@@ -164,8 +164,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       |> Enum.map(&{&1, track_id})
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
-    {removed_track, subscriber} =
-      Subscriber.pop_track!(state.subscriber, track_id)
+    {removed_track, subscriber} = Subscriber.pop_track!(state.subscriber, track_id)
 
     state = %{state | subscriber: subscriber}
 
