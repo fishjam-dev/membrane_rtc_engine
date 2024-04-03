@@ -140,7 +140,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
     unless has_file_storage?(state.stores), do: raise(error)
 
-    Membrane.Logger.error(error)
+    Membrane.Logger.warning(error)
 
     {[], state}
   end

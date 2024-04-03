@@ -83,7 +83,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
     fixed? =
       Enum.all?(files, fn {filename, {file_path, file_size}} ->
         s3_size_result = Map.fetch(objects, filename)
-        fix_object(s3_size_result, file_size, file_path, filename, recording_id, storage_opts)
+
+        correct_object?(s3_size_result, file_size) ||
+          fix_object(file_path, filename, recording_id, storage_opts)
       end)
 
     if fixed? do
@@ -142,25 +144,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
     end
   end
 
-  defp fix_object(
-         {:ok, s3_size},
-         file_size,
-         _file_path,
-         _filename,
-         _recording_id,
-         _storage_opts
-       )
-       when s3_size >= file_size,
-       do: true
+  defp correct_object?({:ok, s3_size}, file_size), do: s3_size >= file_size
+  defp correct_object?(:error, _file_size), do: false
 
-  defp fix_object(
-         _s3_size,
-         _file_size,
-         file_path,
-         filename,
-         recording_id,
-         storage_opts
-       ) do
+  defp fix_object(file_path, filename, recording_id, storage_opts) do
     config =
       file_path
       |> File.read!()
