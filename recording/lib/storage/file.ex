@@ -19,4 +19,20 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.File do
       File.write(location, config.object)
     end
   end
+
+  @impl true
+  def on_close(_file_config, _recording_id, _opts), do: :ok
+
+  @spec list_files(%{output_dir: Path.t()}) :: %{
+          String.t() => {path :: Path.t(), size :: pos_integer()}
+        }
+  def list_files(%{output_dir: output_dir}) do
+    output_dir
+    |> File.ls!()
+    |> Map.new(fn file ->
+      path = Path.join(output_dir, file)
+      %{size: size} = File.stat!(path)
+      {file, {path, size}}
+    end)
+  end
 end

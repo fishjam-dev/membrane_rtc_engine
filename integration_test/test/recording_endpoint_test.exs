@@ -19,8 +19,6 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     TrackRemoved
   }
 
-  alias Membrane.RTC.Engine.Support.CrashingRecordingStorage
-
   @fixtures_dir "./test/fixtures/"
   @report_filename "report.json"
   @tracks_added_delay 500
@@ -38,7 +36,8 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   @etag 1
   @recording_id "recording_id"
   @upload_id "upload_id"
-  @url_prefix "https://s3.eu-central-1.amazonaws.com/#{@credentials.bucket}/#{@recording_id}"
+  @bucket_prefix "https://s3.eu-central-1.amazonaws.com/#{@credentials.bucket}/"
+  @url_prefix @bucket_prefix <> "#{@recording_id}"
 
   setup do
     options = [id: "test_rtc"]
@@ -48,6 +47,8 @@ defmodule Membrane.RTC.RecordingEndpointTest do
 
     [rtc_engine: pid]
   end
+
+  setup :set_mox_from_context
 
   @tag :tmp_dir
   test "creates correct recording, one input", %{rtc_engine: rtc_engine, tmp_dir: output_dir} do
@@ -255,15 +256,12 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     end)
   end
 
-  setup :verify_on_exit!
-  setup :set_mox_from_context
-
   test "recording endpoint with aws storage", %{rtc_engine: rtc_engine} do
     recording_endpoint_id = "recording-endpoint"
     video_file_endpoint_id = "video-file-endpoint"
 
     video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
-    setup_mock_http_request()
+    setup_mock_http_request(5)
 
     recording_endpoint =
       create_recording_endpoint(rtc_engine, [{Storage.S3, %{credentials: @credentials}}])
@@ -284,6 +282,51 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert_receive :upload_completed
     assert_receive :get_chunk_list
     assert_receive :report_uploaded
+
+    verify!()
+  end
+
+  @tag :tmp_dir
+  test "recording endpoint with aws and file storage", %{
+    rtc_engine: rtc_engine,
+    tmp_dir: output_dir
+  } do
+    recording_endpoint_id = "recording-endpoint"
+    video_file_endpoint_id = "video-file-endpoint"
+
+    video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
+    setup_mock_http_request(7)
+
+    recording_endpoint =
+      create_recording_endpoint(rtc_engine, [
+        {Storage.S3, %{credentials: @credentials}},
+        {Storage.File, %{output_dir: output_dir}}
+      ])
+
+    video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
+
+    :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+    :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+
+    assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id}, @tracks_added_delay
+    assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
+
+    Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
+    assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+
+    assert_receive :upload_initialized
+    assert_receive :chunk_uploaded
+    assert_receive :upload_completed
+    assert_receive :get_chunk_list
+
+    # when file and s3 storage are used recording endpoint will try to fix uploaded files
+    # based on locally saved files by file storage
+    assert_receive :get_object_list
+    assert_receive :object_uploaded
+
+    assert_receive :report_uploaded
+
+    verify!()
   end
 
   test "empty report is not saved", %{rtc_engine: rtc_engine} do
@@ -308,16 +351,27 @@ defmodule Membrane.RTC.RecordingEndpointTest do
   end
 
   describe "crash groups" do
-    test "ensure the endpoint keeps working when a sink crashes", %{rtc_engine: rtc_engine} do
+    setup :set_mox_from_context
+
+    @tag :tmp_dir
+    test "ensure the endpoint keeps working when a s3 sink crashes - file sink is also added", %{
+      rtc_engine: rtc_engine,
+      tmp_dir: output_dir
+    } do
       recording_endpoint_id = "recording-endpoint"
       audio_file_endpoint_id = "audio-file-endpoint"
       video_file_endpoint_id = "video-file-endpoint"
+
+      setup_mock_http_request(10)
 
       audio_file_path = Path.join(@fixtures_dir, "audio.aac")
       video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
 
       recording_endpoint =
-        create_recording_endpoint(rtc_engine, [{CrashingRecordingStorage, nil}])
+        create_recording_endpoint(rtc_engine, [
+          {Storage.S3, %{credentials: @credentials}},
+          {Storage.File, %{output_dir: output_dir}}
+        ])
 
       audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
       video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
@@ -326,8 +380,22 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
       :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
 
-      assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id}, @tracks_added_delay
+      assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id, track_id: track_id},
+                     @tracks_added_delay
+
       assert_receive %TrackAdded{endpoint_id: ^audio_file_endpoint_id}, @tracks_added_delay
+
+      # After a while, simulate the crashing of some element in a track pipeline
+      Process.sleep(2000)
+
+      pid =
+        Membrane.Testing.Pipeline.get_child_pid!(rtc_engine, [
+          {:endpoint, recording_endpoint_id},
+          {:sink, track_id, Storage.S3}
+        ])
+
+      Process.exit(pid, :brutal_kill)
+
       assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
       assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}, @tracks_removed_delay
 
@@ -335,6 +403,50 @@ defmodule Membrane.RTC.RecordingEndpointTest do
 
       Engine.remove_endpoint(rtc_engine, recording_endpoint_id)
       assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+    end
+
+    test "ensure the endpoint crashes when a s3 sink crases - file sink is not added", %{
+      rtc_engine: rtc_engine
+    } do
+      recording_endpoint_id = "recording-endpoint"
+      audio_file_endpoint_id = "audio-file-endpoint"
+      video_file_endpoint_id = "video-file-endpoint"
+
+      setup_mock_http_request(10)
+
+      audio_file_path = Path.join(@fixtures_dir, "audio.aac")
+      video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
+
+      recording_endpoint =
+        create_recording_endpoint(rtc_engine, [{Storage.S3, %{credentials: @credentials}}])
+
+      audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
+      video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
+
+      :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, video_file_endpoint, id: video_file_endpoint_id)
+      :ok = Engine.add_endpoint(rtc_engine, audio_file_endpoint, id: audio_file_endpoint_id)
+
+      assert_receive %TrackAdded{endpoint_id: ^video_file_endpoint_id, track_id: track_id},
+                     @tracks_added_delay
+
+      assert_receive %TrackAdded{endpoint_id: ^audio_file_endpoint_id}, @tracks_added_delay
+
+      # After a while, simulate the crashing of some element in a track pipeline
+      Process.sleep(2000)
+
+      pid =
+        Membrane.Testing.Pipeline.get_child_pid!(rtc_engine, [
+          {:endpoint, recording_endpoint_id},
+          {:sink, track_id, Storage.S3}
+        ])
+
+      Process.exit(pid, :brutal_kill)
+
+      assert_receive %TrackRemoved{endpoint_id: ^video_file_endpoint_id}, @tracks_removed_delay
+      assert_receive %TrackRemoved{endpoint_id: ^audio_file_endpoint_id}, @tracks_removed_delay
+
+      assert_received %EndpointCrashed{endpoint_id: ^recording_endpoint_id}
     end
   end
 
@@ -388,10 +500,10 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert report_path |> File.read!() |> byte_size() > 0
   end
 
-  defp setup_mock_http_request() do
+  defp setup_mock_http_request(request_no) do
     pid = self()
 
-    expect(ExAws.Request.HttpMock, :request, 5, fn method, url, body, _headers, _opts ->
+    expect(ExAws.Request.HttpMock, :request, request_no, fn method, url, body, _headers, _opts ->
       case %{method: method, url: url, body: body} do
         %{
           method: :post,
@@ -440,9 +552,11 @@ defmodule Membrane.RTC.RecordingEndpointTest do
 
         %{
           method: :put,
-          url: @url_prefix <> _rest
+          url: @url_prefix <> url_suffix
         } ->
-          send(pid, :chunk_uploaded)
+          if String.contains?(url_suffix, "partNumber"),
+            do: send(pid, :chunk_uploaded),
+            else: send(pid, :object_uploaded)
 
           {:ok,
            %{
@@ -456,6 +570,31 @@ defmodule Membrane.RTC.RecordingEndpointTest do
         } ->
           send(pid, :get_chunk_list)
           {:ok, %{status_code: 400, reason: "reason"}}
+
+        %{
+          method: :get,
+          url: @bucket_prefix <> _rest
+        } ->
+          send(pid, :get_object_list)
+
+          {:ok,
+           %{
+             status_code: 200,
+             # returns an empty list
+             body: """
+             <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+              <Name>example-bucket</Name>
+              <Prefix></Prefix>
+              <Marker></Marker>
+              <MaxKeys>1000</MaxKeys>
+              <Delimiter>/</Delimiter>
+              <IsTruncated>false</IsTruncated>
+              <CommonPrefixes>
+                <Prefix>photos/</Prefix>
+              </CommonPrefixes>
+             </ListBucketResult>
+             """
+           }}
       end
     end)
   end

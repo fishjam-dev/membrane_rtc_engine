@@ -4,6 +4,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
   """
   @behaviour Membrane.RTC.Engine.Endpoint.Recording.Storage
 
+  require Membrane.Logger
+
   alias Membrane.RTC.Engine.Endpoint.Recording.Storage
 
   # minimal chunk size based on aws specification (in bytes)
@@ -44,8 +46,23 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
       |> ExAws.request(aws_config)
 
     case result do
-      {:ok, %{status_code: 200}} -> :ok
-      {:ok, response} -> {:error, response}
+      {:ok, %{status_code: 200}} ->
+        :ok
+
+      {:error, response} ->
+        Membrane.Logger.error(
+          "Couldn't save object on S3 bucket, recording id: #{config.recording_id}"
+        )
+
+        {:error, response}
+    end
+  end
+
+  @impl true
+  def on_close(files, recording_id, storage_opts) do
+    case list_objects(recording_id, storage_opts) do
+      {:ok, objects} -> fix_objects(files, recording_id, storage_opts, objects)
+      {:error, :list_objects} -> :error
     end
   end
 
@@ -55,5 +72,117 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
     |> Enum.reject(fn {key, _value} -> key == :bucket end)
     |> then(&ExAws.Config.new(:s3, &1))
     |> Map.to_list()
+  end
+
+  defp fix_objects(
+         files,
+         recording_id,
+         storage_opts,
+         objects
+       ) do
+    fixed? =
+      Enum.all?(files, fn {filename, {file_path, file_size}} ->
+        s3_size_result = Map.fetch(objects, filename)
+        fix_object(s3_size_result, file_size, file_path, filename, recording_id, storage_opts)
+      end)
+
+    if fixed? do
+      :ok
+    else
+      objects
+      |> Enum.map(fn {filename, _size} -> filename end)
+      |> clean_objects(recording_id, storage_opts)
+
+      :error
+    end
+  end
+
+  defp list_objects(recording_id, storage_opts) do
+    path_prefix =
+      storage_opts
+      |> Map.get(:path_prefix, "")
+      |> Path.join(recording_id)
+
+    credentials = storage_opts.credentials
+    config = create_aws_config(credentials)
+
+    response =
+      credentials.bucket
+      |> ExAws.S3.list_objects(prefix: path_prefix)
+      |> ExAws.request(config)
+
+    case response do
+      {:ok, %{body: %{contents: contents}}} ->
+        {:ok, Map.new(contents, &parse_stats/1)}
+
+      _else ->
+        Membrane.Logger.error("Couldn't list objects on S3 bucket, recording id: #{recording_id}")
+        {:error, :list_objects}
+    end
+  end
+
+  defp clean_objects(objects, recording_id, %{credentials: credentials}) do
+    config = create_aws_config(credentials)
+
+    result =
+      credentials.bucket
+      |> ExAws.S3.delete_all_objects(objects)
+      |> ExAws.request(config)
+
+    case result do
+      {:ok, _term} ->
+        :ok
+
+      {:error, _reason} ->
+        Membrane.Logger.error(
+          "Couldn't clean objects on S3 bucket, recording id: #{recording_id}"
+        )
+
+        :error
+    end
+  end
+
+  defp fix_object(
+         {:ok, s3_size},
+         file_size,
+         _file_path,
+         _filename,
+         _recording_id,
+         _storage_opts
+       )
+       when s3_size >= file_size,
+       do: true
+
+  defp fix_object(
+         _s3_size,
+         _file_size,
+         file_path,
+         filename,
+         recording_id,
+         storage_opts
+       ) do
+    config =
+      file_path
+      |> File.read!()
+      |> save_object_config(recording_id, filename)
+
+    case save_object(config, storage_opts) do
+      :ok -> true
+      {:error, _response} -> false
+    end
+  end
+
+  defp save_object_config(object, recording_id, filename) do
+    %{
+      object: object,
+      recording_id: recording_id,
+      filename: filename
+    }
+  end
+
+  defp parse_stats(stats) do
+    filename = stats.key |> String.split("/") |> List.last()
+    size = String.to_integer(stats.size)
+    {filename, size}
   end
 end
