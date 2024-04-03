@@ -1,6 +1,11 @@
 defmodule Membrane.RTC.Engine.Subscriber do
   @moduledoc """
-
+  Module representing a state needed for subscribing on tracks in RTC Engine.
+  Besides a struct this module provide a helper functions that simplify whole process of subscribing on tracks
+  and provides two different strategies for subscribing on tracks:
+  * `:auto` - in this strategy subscriber subscribe on any provided track
+  * `:manual` - in this strategy subscriber subscribe only on tracks from previously added endpoints.
+  After adding an endpoint subscriber will also subscribe on all previous tracks from this added endpoint.
   """
 
   # TODO: Use behaviour after upgrading elixir in docker_membrane
@@ -19,6 +24,7 @@ defmodule Membrane.RTC.Engine.Subscriber do
   @type subscribe_result :: {[Track.t()], t()}
 
   @typedoc """
+  This struct contains:
   * `endpoint_id` - id of endpoint
   * `rtc_engine` - pid of engine pipeline
   * `subscribe_mode` - mode of subscription. In `:auto` mode endpoint will
@@ -52,6 +58,11 @@ defmodule Membrane.RTC.Engine.Subscriber do
   """
   @callback add_endpoints(endpoints :: [Endpoint.id()], subscriptions_state :: t()) :: t()
 
+  @doc """
+  Try to subscribe on tracks.
+
+  It returns a list of valid tracks that were successfully subscribed
+  """
   @spec subscribe_for_tracks([Track.t()], Endpoint.id(), pid()) :: [Track.t()]
   def subscribe_for_tracks(tracks, endpoint_id, rtc_engine) do
     {valid_tracks, invalid_tracks} =
@@ -73,7 +84,7 @@ defmodule Membrane.RTC.Engine.Subscriber do
       end)
 
     unless Enum.empty?(invalid_tracks) do
-      msg = invalid_tracks |> Enum.map_join(" ", & &1.id)
+      msg = Enum.map_join(invalid_tracks, " ", & &1.id)
       Membrane.Logger.debug("Invalid tracks are: #{msg}")
     end
 
@@ -116,6 +127,21 @@ defmodule Membrane.RTC.Engine.Subscriber do
     {removed_track, %{state | tracks: tracks}}
   end
 
+  @doc """
+  Provide new tracks for subscriber, that will try to subscribe on them if they satisfy
+  conditions required by `:subscriber_mode`.
+
+  The easiest usage would be to call this function during handling `:new_tracks` message from engine
+  like in example below.
+
+  ##Examples
+      @impl true
+      def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
+        subscriber = Subscriber.handle_new_tracks(tracks, state.subscriber)
+
+        {[], %{state | subscriber: subscriber}}
+      end
+  """
   @spec handle_new_tracks(tracks :: [Track.t()], subscriptions_state :: t()) :: t()
   def handle_new_tracks(tracks, %{subscribe_mode: :auto} = subscriptions_state) do
     Automatic.handle_new_tracks(tracks, subscriptions_state)
@@ -125,6 +151,10 @@ defmodule Membrane.RTC.Engine.Subscriber do
     Manual.handle_new_tracks(tracks, subscriptions_state)
   end
 
+  @doc """
+  Provide new endpoint for subscriber, that will try to subscribe on their tracks.
+  It makes sense only to use this method when subscriber is in mode `:manual`.
+  """
   @spec add_endpoints(endpoints :: [Endpoint.id()], subscriptions_state :: t()) :: t()
   def add_endpoints(endpoints, %{subscribe_mode: :auto} = subscriptions_state) do
     Automatic.add_endpoints(endpoints, subscriptions_state)
