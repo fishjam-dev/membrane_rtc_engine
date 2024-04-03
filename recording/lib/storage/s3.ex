@@ -60,9 +60,24 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
 
   @impl true
   def on_close(files, recording_id, storage_opts) do
-    case list_objects(recording_id, storage_opts) do
-      {:ok, objects} -> fix_objects(files, recording_id, storage_opts, objects)
-      {:error, :list_objects} -> :error
+    list_objects_result = list_objects(recording_id, storage_opts)
+
+    with {:ok, objects} <- list_objects_result,
+         objects_to_fix = objects_to_fix(objects, files),
+         :ok <- fix_objects(files, recording_id, storage_opts, objects_to_fix) do
+      :ok
+    else
+      {:error, :list_objects} ->
+        :error
+
+      {:error, :not_fixed} ->
+        {:ok, objects} = list_objects_result
+
+        objects
+        |> Enum.map(fn {filename, _size} -> filename end)
+        |> clean_objects(recording_id, storage_opts)
+
+        :error
     end
   end
 
@@ -74,29 +89,21 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
     |> Map.to_list()
   end
 
-  defp fix_objects(
-         files,
-         recording_id,
-         storage_opts,
-         objects
-       ) do
-    fixed? =
-      Enum.all?(files, fn {filename, {file_path, file_size}} ->
-        s3_size_result = Map.fetch(objects, filename)
+  defp objects_to_fix(objects, files) do
+    Enum.reject(files, fn {filename, {_file_path, file_size}} ->
+      s3_size_result = Map.fetch(objects, filename)
+      correct_object?(s3_size_result, file_size)
+    end)
+  end
 
-        correct_object?(s3_size_result, file_size) ||
-          fix_object(file_path, filename, recording_id, storage_opts)
+  defp fix_objects(files, recording_id, storage_opts, objects) do
+    all_fixed? =
+      Enum.all?(objects, fn {filename, _size} ->
+        {file_path, _size} = Map.fetch!(files, filename)
+        fix_object(file_path, filename, recording_id, storage_opts)
       end)
 
-    if fixed? do
-      :ok
-    else
-      objects
-      |> Enum.map(fn {filename, _size} -> filename end)
-      |> clean_objects(recording_id, storage_opts)
-
-      :error
-    end
+    if all_fixed?, do: :ok, else: {:error, :not_fixed}
   end
 
   defp list_objects(recording_id, storage_opts) do
