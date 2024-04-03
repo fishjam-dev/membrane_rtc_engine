@@ -1,5 +1,7 @@
-defmodule Membrane.RTC.Engine.Subscriptions.State do
-  @moduledoc false
+defmodule Membrane.RTC.Engine.Subscriber do
+  @moduledoc """
+
+  """
 
   # TODO: Use behaviour after upgrading elixir in docker_membrane
   # @behaviour __MODULE__
@@ -10,7 +12,7 @@ defmodule Membrane.RTC.Engine.Subscriptions.State do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.{Endpoint, Track}
-  alias Membrane.RTC.Engine.Subscriptions.{Automatic, Manual}
+  alias Membrane.RTC.Engine.Subscriber.{Automatic, Manual}
 
   @type tracks_t :: %{Track.id() => Track.t()}
 

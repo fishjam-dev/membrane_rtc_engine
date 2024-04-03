@@ -18,7 +18,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.HLS.{HLSConfig, MixerConfig}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
-  alias Membrane.RTC.Engine.Subscriptions
+  alias Membrane.RTC.Engine.Subscriber
   alias Membrane.RTC.Engine.Track
   alias Membrane.Time
 
@@ -125,7 +125,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
   def handle_init(ctx, options) do
     {:endpoint, endpoint_id} = ctx.name
 
-    subscriptions_state = %Subscriptions.State{
+    subscriber = %Subscriber{
       subscribe_mode: options.subscribe_mode,
       endpoint_id: endpoint_id,
       rtc_engine: options.rtc_engine
@@ -138,7 +138,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         stream_beginning: nil,
         terminating?: false,
         start_mixing_sent?: false,
-        subscriptions_state: subscriptions_state
+        subscriber: subscriber
       })
 
     {[notify_parent: :ready], state}
@@ -164,14 +164,14 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       |> Enum.map(&{&1, track_id})
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
-    {removed_track, subscriptions_state} =
-      Subscriptions.State.pop_track!(state.subscriptions_state, track_id)
+    {removed_track, subscriber} =
+      Subscriber.pop_track!(state.subscriber, track_id)
 
-    state = %{state | subscriptions_state: subscriptions_state}
+    state = %{state | subscriber: subscriber}
 
     sink_bin_used? =
       state.subscription_state
-      |> Subscriptions.State.get_tracks()
+      |> Subscriber.get_tracks()
       |> Enum.any?(fn {_id, track} ->
         track.stream_id == removed_track.stream_id
       end)
@@ -201,7 +201,7 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       ) do
     {offset, state} = get_track_offset(state)
 
-    track = Subscriptions.State.get_track(state.subscriptions_state, track_id)
+    track = Subscriber.get_track(state.subscriber, track_id)
     track_spec = get_track_spec(offset, bin_input(pad), track, state)
 
     {spec, state} =
@@ -273,9 +273,9 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
 
   @impl true
   def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
-    subscriptions_state = Subscriptions.State.handle_new_tracks(tracks, state.subscriptions_state)
+    subscriber = Subscriber.handle_new_tracks(tracks, state.subscriber)
 
-    {[], %{state | subscriptions_state: subscriptions_state}}
+    {[], %{state | subscriber: subscriber}}
   end
 
   @impl true
@@ -284,8 +284,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         _ctx,
         state
       ) do
-    subscriptions_state = Subscriptions.State.add_endpoints(endpoints, state.subscriptions_state)
-    {[], %{state | subscriptions_state: subscriptions_state}}
+    subscriber = Subscriber.add_endpoints(endpoints, state.subscriber)
+    {[], %{state | subscriber: subscriber}}
   end
 
   @impl true
@@ -313,8 +313,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
       end
 
     children_to_remove =
-      state.subscriptions_state
-      |> Subscriptions.State.get_tracks()
+      state.subscriber
+      |> Subscriber.get_tracks()
       |> Enum.flat_map(fn {id, _track} -> Enum.map(@track_children, &{&1, id}) end)
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 

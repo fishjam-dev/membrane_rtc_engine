@@ -1,12 +1,12 @@
-defmodule Membrane.RTC.Engine.Subscriptions.Manual do
+defmodule Membrane.RTC.Engine.Subscriber.Manual do
   @moduledoc false
 
-  @behaviour Membrane.RTC.Engine.Subscriptions.State
+  @behaviour Membrane.RTC.Engine.Subscriber
 
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Subscriptions.State
+  alias Membrane.RTC.Engine.Subscriber
 
   @impl true
   def handle_new_tracks(tracks, subscriptions_state) do
@@ -18,17 +18,17 @@ defmodule Membrane.RTC.Engine.Subscriptions.Manual do
         MapSet.member?(subscriptions_state.endpoints, track.origin) and
           track.id not in subscribed_tracks
       end)
-      |> State.subscribe_for_tracks(
+      |> Subscriber.subscribe_for_tracks(
         subscriptions_state.endpoint_id,
         subscriptions_state.rtc_engine
       )
 
-    State.update_tracks(subscriptions_state, new_subscribed_tracks)
+    Subscriber.update_tracks(subscriptions_state, new_subscribed_tracks)
   end
 
   @impl true
   def add_endpoints(endpoints, subscriptions_state) do
-    subscriptions_state = State.update_endpoints(subscriptions_state, endpoints)
+    subscriptions_state = Subscriber.update_endpoints(subscriptions_state, endpoints)
 
     valid_tracks =
       subscriptions_state.rtc_engine
@@ -52,12 +52,12 @@ defmodule Membrane.RTC.Engine.Subscriptions.Manual do
     end
 
     new_subscribed_tracks =
-      State.subscribe_for_tracks(
+      Subscriber.subscribe_for_tracks(
         valid_tracks,
         subscriptions_state.endpoint_id,
         subscriptions_state.rtc_engine
       )
 
-    State.update_tracks(subscriptions_state, new_subscribed_tracks)
+    Subscriber.update_tracks(subscriptions_state, new_subscribed_tracks)
   end
 end

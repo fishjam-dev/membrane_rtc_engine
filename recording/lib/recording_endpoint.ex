@@ -10,7 +10,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.Recording.{EdgeTimestampSaver, Guard, Reporter, Storage}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
-  alias Membrane.RTC.Engine.Subscriptions
+  alias Membrane.RTC.Engine.Subscriber
 
   @type storage_opts :: any()
 
@@ -75,7 +75,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   def handle_init(ctx, options) do
     {:endpoint, endpoint_id} = ctx.name
 
-    subscriptions_state = %Subscriptions.State{
+    subscriber = %Subscriber{
       subscribe_mode: options.subscribe_mode,
       endpoint_id: endpoint_id,
       rtc_engine: options.rtc_engine
@@ -94,7 +94,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Map.merge(%{
         start_timestamp: nil,
         reporter: reporter,
-        subscriptions_state: subscriptions_state
+        subscriber: subscriber
       })
 
     {[notify_parent: :ready], state}
@@ -102,9 +102,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   @impl true
   def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
-    subscriptions_state = Subscriptions.State.handle_new_tracks(tracks, state.subscriptions_state)
+    subscriber = Subscriber.handle_new_tracks(tracks, state.subscriber)
 
-    {[], %{state | subscriptions_state: subscriptions_state}}
+    {[], %{state | subscriber: subscriber}}
   end
 
   @impl true
@@ -113,8 +113,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
         _ctx,
         state
       ) do
-    subscriptions_state = Subscriptions.State.add_endpoints(endpoints, state.subscriptions_state)
-    {[], %{state | subscriptions_state: subscriptions_state}}
+    subscriber = Subscriber.add_endpoints(endpoints, state.subscriber)
+    {[], %{state | subscriber: subscriber}}
   end
 
   def handle_parent_notification(_notification, _ctx, state) do
@@ -126,7 +126,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {offset, state} = calculate_offset(state)
     filename = generate_filename()
 
-    track = Subscriptions.State.get_track(state.subscriptions_state, track_id)
+    track = Subscriber.get_track(state.subscriber, track_id)
     spec = spawn_track(track, filename, state) ++ link_track(track, pad, state)
 
     Reporter.add_track(state.reporter, track, filename, offset)
@@ -148,10 +148,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
     track_children = track_elements ++ track_sinks
 
-    new_subscriptions_state =
-      Subscriptions.State.remove_track(state.subscriptions_state, track_id)
+    new_subscriber =
+      Subscriber.remove_track(state.subscriber, track_id)
 
-    state = %{state | subscriptions_state: new_subscriptions_state}
+    state = %{state | subscriber: new_subscriber}
 
     if state.tracks == %{} do
       Membrane.Logger.info("All tracks were removed. Stop recording.")

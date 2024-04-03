@@ -1,7 +1,7 @@
-defmodule Membrane.RTC.SubscriptionsTest do
+defmodule Membrane.RTC.SubscriberTest do
   use ExUnit.Case
 
-  alias Membrane.RTC.Engine.Subscriptions.State
+  alias Membrane.RTC.Engine.Subscriber
   alias Membrane.RTC.Engine.Track
 
   defmodule MockEngine do
@@ -43,12 +43,16 @@ defmodule Membrane.RTC.SubscriptionsTest do
 
     assert {:ok, mock_engine} = MockEngine.start_link(inital_tracks)
 
-    state = %State{subscribe_mode: :manual, endpoint_id: "test-endpoint", rtc_engine: mock_engine}
+    state = %Subscriber{
+      subscribe_mode: :manual,
+      endpoint_id: "test-endpoint",
+      rtc_engine: mock_engine
+    }
 
-    assert %{tracks: %{}} = State.handle_new_tracks([track1], state)
+    assert %{tracks: %{}} = Subscriber.handle_new_tracks([track1], state)
 
     assert %{tracks: %{^track1_id => ^track1} = tracks, endpoints: endpoints} =
-             state = State.add_endpoints(["test1"], state)
+             state = Subscriber.add_endpoints(["test1"], state)
 
     endpoints_set = MapSet.new(["test1"])
 
@@ -57,14 +61,14 @@ defmodule Membrane.RTC.SubscriptionsTest do
     endpoints_set = MapSet.put(endpoints_set, "test3")
 
     assert %{endpoints: endpoints, tracks: ^tracks} =
-             state = State.add_endpoints(["test3"], state)
+             state = Subscriber.add_endpoints(["test3"], state)
 
     assert MapSet.equal?(endpoints, endpoints_set)
 
     send(mock_engine, {:add_track, track3})
 
     assert %{tracks: %{^track1_id => ^track1, ^track3_id => ^track3}} =
-             State.handle_new_tracks([track3], state)
+             Subscriber.handle_new_tracks([track3], state)
   end
 
   test "Automatic subscriptions state" do
@@ -75,11 +79,16 @@ defmodule Membrane.RTC.SubscriptionsTest do
 
     assert {:ok, mock_engine} = MockEngine.start_link(inital_tracks)
 
-    state = %State{subscribe_mode: :auto, endpoint_id: "test-endpoint", rtc_engine: mock_engine}
+    state = %Subscriber{
+      subscribe_mode: :auto,
+      endpoint_id: "test-endpoint",
+      rtc_engine: mock_engine
+    }
 
-    assert %{tracks: %{^track1_id => ^track1}} = state = State.handle_new_tracks([track1], state)
+    assert %{tracks: %{^track1_id => ^track1}} =
+             state = Subscriber.handle_new_tracks([track1], state)
 
-    assert ^state = State.add_endpoints(["test1"], state)
+    assert ^state = Subscriber.add_endpoints(["test1"], state)
   end
 
   defp create_track(endpoint_id) do

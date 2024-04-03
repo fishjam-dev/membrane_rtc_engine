@@ -1,22 +1,22 @@
-defmodule Membrane.RTC.Engine.Subscriptions.Automatic do
+defmodule Membrane.RTC.Engine.Subscriber.Automatic do
   @moduledoc false
 
-  @behaviour Membrane.RTC.Engine.Subscriptions.State
+  @behaviour Membrane.RTC.Engine.Subscriber
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Subscriptions.State
+  alias Membrane.RTC.Engine.Subscriber
 
   @impl true
   def handle_new_tracks(tracks, subscriptions_state) do
     new_subscribed_tracks =
       tracks
-      |> State.subscribe_for_tracks(
+      |> Subscriber.subscribe_for_tracks(
         subscriptions_state.endpoint_id,
         subscriptions_state.rtc_engine
       )
 
-    State.update_tracks(subscriptions_state, new_subscribed_tracks)
+    Subscriber.update_tracks(subscriptions_state, new_subscribed_tracks)
   end
 
   @impl true

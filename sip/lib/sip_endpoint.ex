@@ -42,7 +42,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.{TrackReceiver, TrackSender}
   alias Membrane.RTC.Engine.Notifications.TrackNotification
-  alias Membrane.RTC.Engine.Subscriptions
+  alias Membrane.RTC.Engine.Subscriber
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTP.SessionBin
 
@@ -128,7 +128,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
             rtp_port: 1..65_535,
             sip_port: 1..65_535,
             outgoing_track: Track.t(),
-            subscriptions_state: Subscriptions.State.t(),
+            subscriber: Subscriber.t(),
             outgoing_ssrc: Membrane.RTP.ssrc_t(),
             first_ssrc: Membrane.RTP.ssrc_t() | nil,
             register_call_id: Call.id(),
@@ -147,7 +147,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
       :rtp_port,
       :sip_port,
       :outgoing_track,
-      :subscriptions_state,
+      :subscriber,
       :outgoing_ssrc,
       :first_ssrc,
       :register_call_id,
@@ -165,7 +165,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
     {:endpoint, endpoint_id} = ctx.name
 
-    subscriptions_state = %Subscriptions.State{
+    subscriber = %Subscriber{
       subscribe_mode: :auto,
       endpoint_id: endpoint_id,
       rtc_engine: opts.rtc_engine
@@ -199,7 +199,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
           rtp_port: rtp_port,
           sip_port: Application.get_env(:membrane_rtc_engine_sip, :sip_port, @default_sip_port),
           outgoing_track: track,
-          subscriptions_state: subscriptions_state,
+          subscriber: subscriber,
           outgoing_ssrc: SessionBin.generate_receiver_ssrc([], []),
           first_ssrc: nil,
           register_call_id: register_call_id,
@@ -234,7 +234,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
-    track = get_in(state, [:subscriptions_state, :tracks, track_id])
+    track = get_in(state, [:subscriber, :tracks, track_id])
 
     spec = [
       bin_input(pad)
@@ -282,14 +282,14 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
-    {_track, state} = pop_in(state, [:subscriptions_state, :tracks, track_id])
+    {_track, state} = pop_in(state, [:subscriber, :tracks, track_id])
 
     children_to_remove =
       [:track_receiver, :depayloader, :opus_decoder] |> Enum.map(&{&1, track_id})
 
     actions = [remove_children: children_to_remove]
 
-    tracks = Subscriptions.State.get_tracks(state.subscriptions_state)
+    tracks = Subscriber.get_tracks(state.subscriber)
 
     if state.disconnect_if_alone and map_size(tracks) == 0 do
       {actions ++ [notify_parent: :finished], state}
@@ -351,8 +351,8 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
   def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
     tracks = Enum.filter(tracks, fn track -> track.type == :audio end)
 
-    subscriptions_state = Subscriptions.State.handle_new_tracks(tracks, state.subscriptions_state)
-    {[], %{state | subscriptions_state: subscriptions_state}}
+    subscriber = Subscriber.handle_new_tracks(tracks, state.subscriber)
+    {[], %{state | subscriber: subscriber}}
   end
 
   @impl true
