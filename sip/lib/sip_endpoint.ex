@@ -282,7 +282,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
-    {_track, subscriber} = Subscriber.remove_track(state.subscriber, track_id)
+    subscriber = Subscriber.remove_track(state.subscriber, track_id)
 
     state = %{state | subscriber: subscriber}
 
