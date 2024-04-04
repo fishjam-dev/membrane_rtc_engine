@@ -5,7 +5,7 @@ defmodule Membrane.RTC.Engine.Subscriber do
   and provides two different strategies for subscribing on tracks:
   * `:auto` - in this strategy subscriber subscribes on every provided track
   * `:manual` - in this strategy subscriber subscribe only on tracks from selected endpoints.
-  After adding an endpoint subscriber will also subscribe on all previous tracks from this added endpoint.
+  After adding an endpoint subscriber will also subscribe on all existing tracks from this added endpoint.
   """
 
   use Bunch.Access
