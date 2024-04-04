@@ -391,7 +391,6 @@ defmodule Membrane.RTC.Engine do
   * `:ok` - when endpoint subscribed on track successfully
   * `:ignored` - when subscribing was impossible because the state of the engine changed e.g:
   the track was already removed, or subscribing endpoint was removed
-  * `{:error, :timeout}` - when subscribing on track took longer than 5 seconds
   """
   @spec subscribe(
           rtc_engine :: pid(),
