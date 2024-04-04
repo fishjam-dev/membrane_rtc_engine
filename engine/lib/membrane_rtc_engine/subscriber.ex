@@ -131,7 +131,7 @@ defmodule Membrane.RTC.Engine.Subscriber do
   The easiest usage would be to call this function during handling `:new_tracks` message from engine
   like in example below.
 
-  ##Examples
+  ## Examples
       @impl true
       def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
         subscriber = Subscriber.handle_new_tracks(tracks, state.subscriber)
