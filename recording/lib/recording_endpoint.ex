@@ -73,23 +73,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           :ok ->
             true
 
-          {:error, :invalid_track_id} ->
-            Membrane.Logger.debug("""
-            Couldn't subscribe to the track: #{track.id} (no such track). Ignoring.
-            """)
-
+          :ignored ->
             false
-
-          {:error, reason} ->
-            reason = inspect(reason)
-
-            Membrane.Logger.error(%{
-              error: reason,
-              message: "Couldn't subscribe to track",
-              track: track
-            })
-
-            raise "Subscription to track #{track.id} failed with reason: `#{reason}`"
         end
       end)
 
@@ -131,7 +116,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     track_children = track_elements ++ track_sinks
     {_track, state} = pop_in(state, [:tracks, track_id])
 
-    {[remove_children: track_children], state}
+    if state.tracks == %{} do
+      Membrane.Logger.info("All tracks were removed. Stop recording.")
+      {[remove_children: track_children, notify_parent: :finished], state}
+    else
+      {[remove_children: track_children], state}
+    end
   end
 
   @impl true

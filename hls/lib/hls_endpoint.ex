@@ -390,15 +390,8 @@ defmodule Membrane.RTC.Engine.Endpoint.HLS do
         :ok ->
           true
 
-        {:error, :invalid_track_id} ->
-          Membrane.Logger.debug(
-            "Couldn't subscribe to the track: #{inspect(track_id)}. No such track."
-          )
-
+        :ignored ->
           false
-
-        {:error, reason} ->
-          raise "Couldn't subscribe to the track: #{inspect(track_id)}. Reason: #{inspect(reason)}"
       end
     end)
   end

@@ -387,24 +387,57 @@ defmodule Membrane.RTC.Engine do
   Subscribes an endpoint for a track.
 
   The endpoint will be notified about track readiness in `c:Membrane.Bin.handle_pad_added/3` callback.
-  `endpoint_id` is the id of the endpoint, which wants to subscribe to the track.
+  `endpoint_id` is the id of the endpoint, which wants to subscribe to the track. Possible return values are:
+  * `:ok` - when endpoint subscribed on track successfully
+  * `:ignored` - when subscribing was impossible because the state of the engine changed e.g:
+  the track was already removed, or subscribing endpoint was removed
   """
   @spec subscribe(
           rtc_engine :: pid(),
           endpoint_id :: String.t(),
           track_id :: Track.id(),
           opts :: subscription_opts_t
-        ) :: :ok | {:error, :timeout | :invalid_track_id}
+        ) :: :ok | :ignored
   def subscribe(rtc_engine, endpoint_id, track_id, opts \\ []) do
     ref = make_ref()
 
     send(rtc_engine, {:subscribe, {self(), ref}, endpoint_id, track_id, opts})
 
     receive do
-      {^ref, :ok} -> :ok
-      {^ref, {:error, reason}} -> {:error, reason}
+      {^ref, :ok} ->
+        :ok
+
+      {^ref, {:error, :invalid_track_id}} ->
+        Membrane.Logger.debug("""
+        Couldn't subscribe endpoint #{endpoint_id} to the track: #{track_id} (no such track). Ignoring.
+        """)
+
+        :ignored
+
+      {^ref, {:error, :endpoint_terminating}} ->
+        Membrane.Logger.debug("""
+        Couldn't subscribe to the track: #{track_id} because endpoint #{endpoint_id} is already removed. Ignoring.
+        """)
+
+        :ignored
+
+      {^ref, {:error, :endpoint_not_exist}} ->
+        Membrane.Logger.error(%{
+          error: :endpoint_not_exist,
+          message: "Couldn't subscribe to track",
+          track_id: track_id
+        })
+
+        raise "Couldn't subscribe to the track: #{inspect(track_id)}, because endpoint #{endpoint_id} doesn't exist."
     after
-      5_000 -> {:error, :timeout}
+      5_000 ->
+        Membrane.Logger.error(%{
+          error: :timeout,
+          message: "Couldn't subscribe to track",
+          track_id: track_id
+        })
+
+        raise "Couldn't subscribe to the track: #{inspect(track_id)}, because of timeout."
     end
   end
 
@@ -497,7 +530,7 @@ defmodule Membrane.RTC.Engine do
       opts: opts
     }
 
-    case validate_subscription(subscription, state) do
+    case validate_subscription(subscription, ctx, state) do
       :ok ->
         {spec, state} = fulfill_or_postpone_subscription(subscription, ctx, state)
         send(endpoint_pid, {ref, :ok})
@@ -1195,7 +1228,7 @@ defmodule Membrane.RTC.Engine do
   #
   # Track Subscriptions
   #
-  # - validate_subscription/2: Validates proposed subscription, called when a new subscription
+  # - validate_subscription/3: Validates proposed subscription, called when a new subscription
   #   is to be added, via handle_info.
   #
   # - fulfill_or_postpone_subscription/3: Called immediately upon validation of subscription,
@@ -1218,11 +1251,21 @@ defmodule Membrane.RTC.Engine do
   #   owned by one of the Endpoints in the list.
   #
 
-  defp validate_subscription(subscription, state) do
+  defp validate_subscription(subscription, ctx, state) do
     # checks whether subscription is correct
     track = get_track(subscription.track_id, state.endpoints)
 
-    if track, do: :ok, else: {:error, :invalid_track_id}
+    endpoint_id = {:endpoint, subscription.endpoint_id}
+
+    endpoint = find_child(ctx, pattern: ^endpoint_id)
+    endpoint_in_state? = Map.has_key?(state.endpoints, subscription.endpoint_id)
+
+    cond do
+      is_nil(track) -> {:error, :invalid_track_id}
+      not endpoint_in_state? and is_nil(endpoint) -> {:error, :endpoint_not_exist}
+      not endpoint_in_state? -> {:error, :endpoint_terminating}
+      true -> :ok
+    end
   end
 
   defp fulfill_or_postpone_subscription(subscription, ctx, state) do
