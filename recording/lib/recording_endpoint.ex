@@ -53,9 +53,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
               ]
 
   @doc """
-  Subscribe hls endpoint to tracks from endpoints.
+  Subscribe Recording endpoint to tracks from endpoints.
 
-  It is only valid to use when hls has `subscribe_mode` set to :manual.
+  It is only valid to use when Recording has `subscribe_mode` set to :manual.
   """
   @spec subscribe(engine :: pid(), endpoint_id :: any(), endpoints :: [any()]) :: :ok
   def subscribe(engine, endpoint_id, endpoints) do
