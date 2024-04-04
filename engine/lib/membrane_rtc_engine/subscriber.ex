@@ -4,7 +4,7 @@ defmodule Membrane.RTC.Engine.Subscriber do
   Besides a struct this module provide a helper functions that simplify whole process of subscribing on tracks
   and provides two different strategies for subscribing on tracks:
   * `:auto` - in this strategy subscriber subscribes on every provided track
-  * `:manual` - in this strategy subscriber subscribe only on tracks from previously added endpoints.
+  * `:manual` - in this strategy subscriber subscribe only on tracks from selected endpoints.
   After adding an endpoint subscriber will also subscribe on all previous tracks from this added endpoint.
   """
 
