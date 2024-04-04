@@ -25,7 +25,7 @@ defmodule Membrane.RTC.Engine.Subscriber do
   * `endpoint_id` - id of endpoint
   * `rtc_engine` - pid of engine pipeline
   * `subscribe_mode` - mode of subscription. In `:auto` mode endpoint will
-  try to subscribe on any available track. In `:manual` mode endpoint will
+  try to subscribe on all available tracks. In `:manual` mode endpoint will
   subscribe only on tracks from endpoints that were previously added to state.
   * `tracks` - map of tracks on which that endpoint subscribed
   * `endpoints` - set of endpoints, endpoint will try to subscribe on tracks of these endpoints.
