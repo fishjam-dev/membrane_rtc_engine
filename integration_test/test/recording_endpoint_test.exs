@@ -364,7 +364,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     setup_mock_http_request(5)
 
     recording_endpoint =
-      create_recording_endpoint(rtc_engine, [{Storage.S3, %{credentials: @credentials}}])
+      create_recording_endpoint(rtc_engine, [
+        {Storage.S3, %{credentials: @credentials, path_prefix: @recording_id}}
+      ])
 
     video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)
 
@@ -398,7 +400,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
 
     recording_endpoint =
       create_recording_endpoint(rtc_engine, [
-        {Storage.S3, %{credentials: @credentials}},
+        {Storage.S3, %{credentials: @credentials, path_prefix: @recording_id}},
         {Storage.File, %{output_dir: output_dir}}
       ])
 
@@ -432,7 +434,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     recording_endpoint_id = "recording-endpoint"
 
     recording_endpoint =
-      create_recording_endpoint(rtc_engine, [{Storage.S3, %{credentials: @credentials}}])
+      create_recording_endpoint(rtc_engine, [
+        {Storage.S3, %{credentials: @credentials, path_prefix: @recording_id}}
+      ])
 
     :ok = Engine.add_endpoint(rtc_engine, recording_endpoint, id: recording_endpoint_id)
 
@@ -468,7 +472,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
 
       recording_endpoint =
         create_recording_endpoint(rtc_engine, [
-          {Storage.S3, %{credentials: @credentials}},
+          {Storage.S3, %{credentials: @credentials, path_prefix: @recording_id}},
           {Storage.File, %{output_dir: output_dir}}
         ])
 
@@ -516,7 +520,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
 
       recording_endpoint =
-        create_recording_endpoint(rtc_engine, [{Storage.S3, %{credentials: @credentials}}])
+        create_recording_endpoint(rtc_engine, [
+          {Storage.S3, %{credentials: @credentials, path_prefix: @recording_id}}
+        ])
 
       audio_file_endpoint = create_audio_file_endpoint(rtc_engine, audio_file_path)
       video_file_endpoint = create_video_file_endpoint(rtc_engine, video_file_path)

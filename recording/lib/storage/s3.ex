@@ -24,7 +24,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
   @spec get_sink(Storage.recording_config(), storage_opts()) :: struct()
   def get_sink(config, storage_opts) do
     path_prefix = Map.get(storage_opts, :path_prefix, "")
-    path = Path.join([path_prefix, config.recording_id, config.filename])
+    path = Path.join([path_prefix, config.filename])
 
     %__MODULE__.Sink{
       path: path,
@@ -36,7 +36,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
   @impl true
   def save_object(config, storage_opts) do
     path_prefix = Map.get(storage_opts, :path_prefix, "")
-    path = Path.join([path_prefix, config.recording_id, config.filename])
+    path = Path.join([path_prefix, config.filename])
     credentials = storage_opts.credentials
     aws_config = create_aws_config(credentials)
 

@@ -152,7 +152,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
     state = %{state | subscriber: new_subscriber}
 
-    if state.tracks == %{} do
+    if Subscriber.get_tracks(state.subscriber) == %{} do
       Membrane.Logger.info("All tracks were removed. Stop recording.")
       {[remove_children: track_children, notify_parent: :finished], state}
     else
@@ -234,11 +234,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           }
 
           unless storage.save_object(config, opts) == :ok do
-            Membrane.Logger.error(%{
-              message: "Failed to save report",
-              object: "report.json",
-              storage: storage
-            })
+            # Membrane.Logger.error(%{
+            #   message: "Failed to save report",
+            #   object: "report.json",
+            #   storage: storage
+            # })
+            Membrane.Logger.error("Failed to save report")
           end
         end)
     end
