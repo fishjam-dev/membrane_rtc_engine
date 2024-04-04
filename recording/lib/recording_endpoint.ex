@@ -47,7 +47,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
                 default: :auto,
                 description: """
                 Whether tracks should be subscribed automatically when they're ready.
-                If set to `:manual` hls endpoint will subscribe only to tracks from endpoints send using message:
+                If set to `:manual`, Recording endpoint will subscribe only to tracks from endpoints sent using message:
                 `{:subscribe, endpoints}`
                 """
               ]
