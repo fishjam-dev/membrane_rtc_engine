@@ -41,7 +41,7 @@ defmodule Membrane.RTC.Engine.Subscriber.Manual do
     origins = MapSet.new(valid_tracks, fn track -> track.origin end)
 
     not_found_endpoints =
-      Enum.filter(endpoints, fn endpoint ->
+      Enum.reject(endpoints, fn endpoint ->
         MapSet.member?(origins, endpoint)
       end)
 
