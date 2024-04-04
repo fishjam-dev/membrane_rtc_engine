@@ -68,15 +68,8 @@ defmodule Membrane.RTC.Engine.Subscriber do
           :ok ->
             true
 
-          {:error, :invalid_track_id} ->
-            Membrane.Logger.debug(
-              "Couldn't subscribe to the track: #{inspect(track.id)}. No such track."
-            )
-
+          :ignored ->
             false
-
-          {:error, reason} ->
-            raise "Couldn't subscribe to the track: #{inspect(track.id)}. Reason: #{inspect(reason)}"
         end
       end)
 
