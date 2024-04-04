@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.Recording.{EdgeTimestampSaver, Reporter}
+  alias Membrane.RTC.Engine.Endpoint.Recording.{EdgeTimestampSaver, Guard, Reporter, Storage}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
 
   @type storage_opts :: any()
@@ -47,7 +47,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {:ok, reporter} = Reporter.start(options.recording_id)
 
     Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
-      save_reports(reporter, options.stores, options.recording_id)
+      stores = Guard.close_recording(options.stores, options.recording_id)
+      save_reports(reporter, stores, options.recording_id)
     end)
 
     state =
@@ -134,9 +135,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   end
 
   @impl true
-  def handle_crash_group_down({:sink_group, track_id, module}, _ctx, state) do
-    Membrane.Logger.error("Sink #{inspect(module)} of track #{track_id} crashed")
-    # TODO implement
+  def handle_crash_group_down({module, track_id}, _ctx, state) do
+    error = "Sink #{module} of track #{track_id} crashed"
+
+    unless has_file_storage?(state.stores), do: raise(error)
+
+    Membrane.Logger.warning(error)
+
     {[], state}
   end
 
@@ -171,8 +176,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     }
 
     Enum.map(state.stores, fn {storage, opts} ->
-      {child({:sink, track.id, storage}, storage.get_sink(config, opts)),
-       group: {:sink_group, track.id, storage}, crash_group_mode: :temporary}
+      child = child({:sink, track.id, storage}, storage.get_sink(config, opts))
+
+      case storage do
+        Storage.File -> child
+        module -> {child, group: {module, track.id}, crash_group_mode: :temporary}
+      end
     end)
   end
 
@@ -216,4 +225,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
 
   defp calculate_offset(state), do: {System.monotonic_time() - state.start_timestamp, state}
   defp generate_filename(), do: "#{UUID.uuid4()}.msr"
+
+  defp has_file_storage?(stores),
+    do: Enum.any?(stores, fn {storage, _opts} -> storage == Storage.File end)
 end
