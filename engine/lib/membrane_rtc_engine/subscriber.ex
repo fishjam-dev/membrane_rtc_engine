@@ -50,7 +50,7 @@ defmodule Membrane.RTC.Engine.Subscriber do
 
   @doc """
   Callback invoked when endpoint decided that it want to subscribe on specific endpoints.
-  It should return an updated struct and it will try to subscribe on any tracks from these endpoints.
+  It should return an updated struct and it will try to subscribe on all tracks from these endpoints.
   This function is useless in `:auto` subscribe_mode.
   """
   @callback add_endpoints(endpoints :: [Endpoint.id()], subscriptions_state :: t()) :: t()
