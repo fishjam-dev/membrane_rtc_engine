@@ -78,8 +78,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
       filename: filename
     }
 
-    path = Path.join(@recording_id, filename)
-    path_with_prefix = Path.join([@path_prefix, @recording_id, filename])
+    path = Path.join([filename])
+    path_with_prefix = Path.join([@path_prefix, filename])
 
     assert %Storage.S3.Sink{
              credentials: @credentials,

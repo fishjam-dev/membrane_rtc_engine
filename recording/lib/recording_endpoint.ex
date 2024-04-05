@@ -10,6 +10,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Endpoint.Recording.{EdgeTimestampSaver, Guard, Reporter, Storage}
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
+  alias Membrane.RTC.Engine.Subscriber
 
   @type storage_opts :: any()
 
@@ -40,10 +41,46 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
                 description: """
                 Recording id that will be saved along with report
                 """
+              ],
+              subscribe_mode: [
+                spec: :auto | :manual,
+                default: :auto,
+                description: """
+                Whether tracks should be subscribed automatically when they're ready.
+                If set to `:manual`, Recording endpoint will subscribe only to tracks from endpoints sent using message:
+                `{:subscribe, endpoints}`
+                """
               ]
+
+  @doc """
+  Subscribe Recording endpoint to tracks from endpoints.
+
+  It is only valid to use when Recording has `subscribe_mode` set to :manual.
+  """
+  @spec subscribe(engine :: pid(), endpoint_id :: any(), endpoints :: [any()]) :: :ok
+  def subscribe(engine, endpoint_id, endpoints) do
+    Engine.message_endpoint(engine, endpoint_id, {:subscribe, endpoints})
+  end
+
+  @impl true
+  def handle_init(_context, options) when options.subscribe_mode not in [:auto, :manual] do
+    raise("""
+    Cannot initialize Recording endpoint.
+    Invalid value for `:subscribe_mode`: #{options.subscribe_mode}.
+    Please set `:subscribe_mode` to either `:auto` or `:manual`.
+    """)
+  end
 
   @impl true
   def handle_init(ctx, options) do
+    {:endpoint, endpoint_id} = ctx.name
+
+    subscriber = %Subscriber{
+      subscribe_mode: options.subscribe_mode,
+      endpoint_id: endpoint_id,
+      rtc_engine: options.rtc_engine
+    }
+
     {:ok, reporter} = Reporter.start(options.recording_id)
 
     Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
@@ -55,33 +92,29 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       options
       |> Map.from_struct()
       |> Map.merge(%{
-        tracks: %{},
         start_timestamp: nil,
-        reporter: reporter
+        reporter: reporter,
+        subscriber: subscriber
       })
 
     {[notify_parent: :ready], state}
   end
 
   @impl true
-  def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
-    {:endpoint, endpoint_id} = ctx.name
+  def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
+    subscriber = Subscriber.handle_new_tracks(tracks, state.subscriber)
 
-    {valid_tracks, _invalid_tracks} =
-      Enum.split_with(tracks, fn track ->
-        case Engine.subscribe(state.rtc_engine, endpoint_id, track.id) do
-          :ok ->
-            true
+    {[], %{state | subscriber: subscriber}}
+  end
 
-          :ignored ->
-            false
-        end
-      end)
-
-    tracks = Map.new(valid_tracks, &{&1.id, &1})
-    state = Map.update!(state, :tracks, &Map.merge(&1, tracks))
-
-    {[], state}
+  @impl true
+  def handle_parent_notification(
+        {:subscribe, endpoints},
+        _ctx,
+        state
+      ) do
+    subscriber = Subscriber.add_endpoints(endpoints, state.subscriber)
+    {[], %{state | subscriber: subscriber}}
   end
 
   def handle_parent_notification(_notification, _ctx, state) do
@@ -93,7 +126,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {offset, state} = calculate_offset(state)
     filename = generate_filename()
 
-    track = Map.get(state.tracks, track_id)
+    track = Subscriber.get_track(state.subscriber, track_id)
     spec = spawn_track(track, filename, state) ++ link_track(track, pad, state)
 
     Reporter.add_track(state.reporter, track, filename, offset)
@@ -114,9 +147,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
       |> Enum.filter(&Map.has_key?(ctx.children, &1))
 
     track_children = track_elements ++ track_sinks
-    {_track, state} = pop_in(state, [:tracks, track_id])
 
-    if state.tracks == %{} do
+    new_subscriber = Subscriber.remove_track(state.subscriber, track_id)
+
+    state = %{state | subscriber: new_subscriber}
+
+    if Subscriber.get_tracks(state.subscriber) == %{} do
       Membrane.Logger.info("All tracks were removed. Stop recording.")
       {[remove_children: track_children, notify_parent: :finished], state}
     else
@@ -198,11 +234,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           }
 
           unless storage.save_object(config, opts) == :ok do
-            Membrane.Logger.error(%{
-              message: "Failed to save report",
-              object: "report.json",
-              storage: storage
-            })
+            # Membrane.Logger.error(%{
+            #   message: "Failed to save report",
+            #   object: "report.json",
+            #   storage: storage
+            # })
+            Membrane.Logger.error("Failed to save report")
           end
         end)
     end
