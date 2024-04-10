@@ -13,3 +13,4 @@
 * Endpoint sends `:finished` after all input tracks unlink and update the use of Engine.subscribe [#381](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/381)
 * Use engine manual and auto subscribe mode. [#383](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/383)
 * Fix membrane_core version used in mixfile [#385](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/385)
+* Change use of ResourceGuard [#386](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/386)
