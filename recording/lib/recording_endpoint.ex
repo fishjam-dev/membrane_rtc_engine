@@ -84,8 +84,15 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
     {:ok, reporter} = Reporter.start(options.recording_id)
 
     Membrane.ResourceGuard.register(ctx.resource_guard, fn ->
-      stores = Guard.close_recording(options.stores, options.recording_id)
-      save_reports(reporter, stores, options.recording_id)
+      Task.Supervisor.start_child(
+        __MODULE__.TaskSupervisor,
+        fn ->
+          stores = Guard.close_recording(options.stores, options.recording_id)
+          save_reports(reporter, stores, options.recording_id)
+        end,
+        restart: :transient,
+        shutdown: :infinity
+      )
     end)
 
     state =
@@ -234,12 +241,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording do
           }
 
           unless storage.save_object(config, opts) == :ok do
-            # Membrane.Logger.error(%{
-            #   message: "Failed to save report",
-            #   object: "report.json",
-            #   storage: storage
-            # })
-            Membrane.Logger.error("Failed to save report")
+            Membrane.Logger.error(%{
+              message: "Failed to save report",
+              object: "report.json",
+              storage: storage
+            })
           end
         end)
     end
