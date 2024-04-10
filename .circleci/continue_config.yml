@@ -145,7 +145,7 @@ jobs:
   test_webrtc_integration:
     resource_class: large
     docker:
-      - image: membraneframeworklabs/docker_membrane:v2.3.0
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
         environment:
           MIX_ENV: test
           NODE_ENV: development

@@ -98,7 +98,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       assets: "internal_docs/assets",
       source_ref: @source_ref,
       source_url_pattern: "#{@engine_github_url}/blob/#{@source_ref}/webrtc/%{path}#L%{line}",
-      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint],
+      nest_modules_by_prefix: [Membrane.WebRTC, Membrane.RTC.Engine.Endpoint],
       before_closing_body_tag: &before_closing_body_tag/1
     ]
   end
