@@ -53,6 +53,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
+      {:bundlex, "1.4.6"},
+      {:unifex, "1.1.1"},
       {:bunch, "~> 1.5"},
       {:membrane_funnel_plugin, "~> 0.9.0"},
       {:membrane_h26x_plugin, "~> 0.10.0"},
