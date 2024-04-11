@@ -39,6 +39,7 @@ defmodule Recording.MixProject do
 
   def application do
     [
+      mod: {Membrane.RTC.Engine.Endpoint.Recording.Application, []},
       extra_applications: [:logger]
     ]
   end
