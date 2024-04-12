@@ -135,7 +135,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
                 List of WebRTC extensions to use.
 
                 Each module has to implement `Membrane.WebRTC.Extension.t()`.
-                See `membrane_webrtc_plugin` documentation for a list of possible extensions.
                 """
               ],
               extensions: [

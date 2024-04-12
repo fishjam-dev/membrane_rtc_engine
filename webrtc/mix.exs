@@ -53,14 +53,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
-      {:membrane_webrtc_plugin, "~> 0.18.2"},
+      {:bundlex, "1.4.6"},
+      {:unifex, "1.1.1"},
+      {:bunch, "~> 1.5"},
+      {:membrane_funnel_plugin, "~> 0.9.0"},
+      {:membrane_h26x_plugin, "~> 0.10.0"},
       {:membrane_rtp_plugin, "~> 0.24.1"},
       {:membrane_ice_plugin, "~> 0.18.0"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.9.0"},
       {:membrane_rtp_h264_plugin, "~> 0.19.0"},
+      {:membrane_rtp_opus_plugin, ">= 0.9.0"},
       {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:ex_sdp, "~> 0.13.1"},
+      {:ex_libsrtp, ">= 0.0.0"},
       {:qex, "~> 0.5"},
       {:jason, "~> 1.2"},
       {:credo, "~> 1.6", only: :dev, runtime: false},
@@ -93,7 +98,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       assets: "internal_docs/assets",
       source_ref: @source_ref,
       source_url_pattern: "#{@engine_github_url}/blob/#{@source_ref}/webrtc/%{path}#L%{line}",
-      nest_modules_by_prefix: [Membrane.RTC.Engine.Endpoint],
+      nest_modules_by_prefix: [Membrane.WebRTC, Membrane.RTC.Engine.Endpoint],
       before_closing_body_tag: &before_closing_body_tag/1
     ]
   end
