@@ -15,3 +15,4 @@
 * Fix membrane_core version used in mixfile [#385](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/385)
 * Change use of ResourceGuard [#386](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/386)
 * Add origin to the report [#387](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/387)
+* Change s3 on close mechanism [#388](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/388)
