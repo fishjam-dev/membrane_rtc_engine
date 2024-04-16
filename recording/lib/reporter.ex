@@ -14,7 +14,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
     :start_timestamp,
     :end_timestamp,
     :clock_rate,
-    :metadata
+    :metadata,
+    :origin
   ]
 
   @type filename :: String.t()
@@ -25,7 +26,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
           start_timestamp: pos_integer(),
           end_timestamp: pos_integer(),
           clock_rate: Membrane.RTP.clock_rate_t(),
-          metadata: any()
+          metadata: any(),
+          origin: String.t()
         }
   @type report :: %{
           recording_id: String.t(),

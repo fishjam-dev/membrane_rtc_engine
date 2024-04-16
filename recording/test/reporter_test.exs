@@ -17,7 +17,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
     filename = "track_1.msr"
 
     track =
-      %{encoding: encoding, clock_rate: clock_rate, metadata: metadata} = create_track(:video)
+      %{encoding: encoding, clock_rate: clock_rate, metadata: metadata, origin: origin} =
+      create_track(:video)
 
     start_timestamp = 0
 
@@ -34,7 +35,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  start_timestamp: ^start_timestamp,
                  end_timestamp: ^start_timestamp,
                  clock_rate: ^clock_rate,
-                 metadata: ^metadata
+                 metadata: ^metadata,
+                 origin: ^origin
                }
              }
            } = Reporter.get_report(reporter)
@@ -52,7 +54,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  start_timestamp: ^start_timestamp,
                  end_timestamp: ^end_timestamp,
                  clock_rate: ^clock_rate,
-                 metadata: ^metadata
+                 metadata: ^metadata,
+                 origin: ^origin
                }
              }
            } = Reporter.get_report(reporter)
@@ -63,11 +66,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
     filename_2 = "track_2.msr"
 
     track_1 =
-      %{encoding: encoding_1, clock_rate: clock_rate_1, metadata: metadata_1} =
+      %{encoding: encoding_1, clock_rate: clock_rate_1, metadata: metadata_1, origin: origin_1} =
       create_track(:video)
 
     track_2 =
-      %{encoding: encoding_2, clock_rate: clock_rate_2, metadata: metadata_2} =
+      %{encoding: encoding_2, clock_rate: clock_rate_2, metadata: metadata_2, origin: origin_2} =
       create_track(:audio)
 
     start_timestamp_1 = 0
@@ -89,7 +92,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  start_timestamp: ^start_timestamp_1,
                  end_timestamp: ^start_timestamp_1,
                  clock_rate: ^clock_rate_1,
-                 metadata: ^metadata_1
+                 metadata: ^metadata_1,
+                 origin: ^origin_1
                },
                ^filename_2 => %{
                  type: :audio,
@@ -98,7 +102,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  start_timestamp: ^start_timestamp_2,
                  end_timestamp: ^start_timestamp_2,
                  clock_rate: ^clock_rate_2,
-                 metadata: ^metadata_2
+                 metadata: ^metadata_2,
+                 origin: ^origin_2
                }
              }
            } = Reporter.get_report(reporter)
@@ -116,7 +121,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  start_timestamp: ^start_timestamp_1,
                  end_timestamp: ^end_timestamp_1,
                  clock_rate: ^clock_rate_1,
-                 metadata: ^metadata_1
+                 metadata: ^metadata_1,
+                 origin: ^origin_1
                },
                ^filename_2 => %{
                  type: :audio,
@@ -125,7 +131,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  start_timestamp: ^start_timestamp_2,
                  end_timestamp: ^start_timestamp_2,
                  clock_rate: ^clock_rate_2,
-                 metadata: ^metadata_2
+                 metadata: ^metadata_2,
+                 origin: ^origin_2
                }
              }
            } = Reporter.get_report(reporter)
@@ -143,7 +150,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  start_timestamp: ^start_timestamp_1,
                  end_timestamp: ^end_timestamp_1,
                  clock_rate: ^clock_rate_1,
-                 metadata: ^metadata_1
+                 metadata: ^metadata_1,
+                 origin: origin_1
                },
                ^filename_2 => %{
                  type: :audio,
@@ -152,7 +160,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  start_timestamp: ^start_timestamp_2,
                  end_timestamp: ^end_timestamp_2,
                  clock_rate: ^clock_rate_2,
-                 metadata: ^metadata_2
+                 metadata: ^metadata_2,
+                 origin: origin_2
                }
              }
            } = Reporter.get_report(reporter)
