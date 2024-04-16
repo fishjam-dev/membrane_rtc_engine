@@ -151,7 +151,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  end_timestamp: ^end_timestamp_1,
                  clock_rate: ^clock_rate_1,
                  metadata: ^metadata_1,
-                 origin: origin_1
+                 origin: ^origin_1
                },
                ^filename_2 => %{
                  type: :audio,
@@ -161,7 +161,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  end_timestamp: ^end_timestamp_2,
                  clock_rate: ^clock_rate_2,
                  metadata: ^metadata_2,
-                 origin: origin_2
+                 origin: ^origin_2
                }
              }
            } = Reporter.get_report(reporter)

@@ -13,6 +13,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
     bucket: "bucket"
   }
 
+  @etag 1
+  @upload_id "upload_id"
   @recording_id "recording_id"
   @path_prefix "path_prefix"
   @file_config %{output_dir: "test/fixtures"}
@@ -126,16 +128,29 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
     setup :set_mox_from_context
 
     test "sends all files when bucket is empty" do
-      setup_aws_mock_request(4, @no_files)
+      setup_aws_mock_request(12, @no_files)
 
       files = Storage.File.list_files(@file_config)
       Storage.S3.on_close(files, @recording_id, @storage_config)
 
       assert_received :get_object_list
 
-      assert_received :object_uploaded
-      assert_received :object_uploaded
-      assert_received :object_uploaded
+      # empty file
+      assert_received :upload_initialized
+      assert_received :chunk_uploaded
+      assert_received :upload_completed
+
+      # small file
+      assert_received :upload_initialized
+      assert_received :chunk_uploaded
+      assert_received :upload_completed
+
+      # big file
+      assert_received :upload_initialized
+      assert_received :chunk_uploaded
+      assert_received :chunk_uploaded
+      assert_received :chunk_uploaded
+      assert_received :upload_completed
     end
 
     test "sends no files when bucket is correct" do
@@ -148,24 +163,31 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
       refute_received :object_uploaded
     end
 
-    test "sends one file when bucket has no file smaller" do
-      setup_aws_mock_request(2, @one_smaller_file)
+    test "sends one file when bucket has one file smaller" do
+      setup_aws_mock_request(4, @one_smaller_file)
 
       files = Storage.File.list_files(@file_config)
       Storage.S3.on_close(files, @recording_id, @storage_config)
 
       assert_received :get_object_list
-      assert_received :object_uploaded
+
+      # small file
+      assert_received :upload_initialized
+      assert_received :chunk_uploaded
+      assert_received :upload_completed
     end
 
     test "cleanup bucket when error occured while sending a file to s3 bucket" do
-      setup_aws_mock_request(3, @one_smaller_file, true)
+      setup_aws_mock_request(4, @one_smaller_file, true)
 
       files = Storage.File.list_files(@file_config)
       Storage.S3.on_close(files, @recording_id, @storage_config)
 
       assert_received :get_object_list
-      assert_received :object_rejected
+
+      assert_received :upload_initialized
+      assert_received :chunk_rejected
+
       assert_receive :objects_deleted
     end
   end
@@ -182,34 +204,81 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3Test do
   defp setup_aws_mock_request(request_no, contents, should_fail \\ false) do
     pid = self()
 
-    expect(ExAws.Request.HttpMock, :request, request_no, fn method, url, _body, _headers, _opts ->
-      case %{method: method, url: url, should_fail: should_fail} do
+    expect(ExAws.Request.HttpMock, :request, request_no, fn method, url, body, _headers, _opts ->
+      case %{method: method, url: url, should_fail: should_fail, body: body} do
         %{
           method: :post,
-          url: @url_prefix <> _rest
+          url: @url_prefix <> "?delete"
         } ->
           send(pid, :objects_deleted)
           {:ok, %{status_code: 200}}
 
         %{
-          method: :put,
+          method: :post,
           url: @url_prefix <> _rest,
-          should_fail: false
+          body: <<>>
         } ->
-          send(pid, :object_uploaded)
-          {:ok, %{status_code: 200}}
+          send(pid, :upload_initialized)
+
+          {:ok,
+           %{
+             status_code: 200,
+             body: """
+             <InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+               <Bucket>#{@credentials.bucket}</Bucket>
+               <Key>#{@recording_id}</Key>
+               <UploadId>#{@upload_id}</UploadId>
+             </InitiateMultipartUploadResult>
+             """
+           }}
+
+        %{
+          method: :post,
+          url: @url_prefix <> _rest
+        } ->
+          send(pid, :upload_completed)
+
+          {:ok,
+           %{
+             status_code: 200,
+             body: """
+             <CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+               <Location>https://s3-eu-west-1.amazonaws.com/#{@credentials.bucket}/#{@recording_id}</Location>
+               <Bucket>#{@credentials.bucket}</Bucket>
+               <Key>#{@recording_id}</Key>
+               <ETag>&quot;17fbc0a106abbb6f381aac6e331f2a19-1&quot;</ETag>
+             </CompleteMultipartUploadResult>
+             """
+           }}
 
         %{
           method: :put,
-          url: @url_prefix <> _rest,
+          url: @url_prefix <> url_suffix,
           should_fail: true
         } ->
-          send(pid, :object_rejected)
+          if String.contains?(url_suffix, "partNumber"),
+            do: send(pid, :chunk_rejected),
+            else: raise("expected chunk not the whole object")
 
           {:ok,
            %{
              status_code: 400,
              reason: "reason"
+           }}
+
+        %{
+          method: :put,
+          url: @url_prefix <> url_suffix,
+          should_fail: false
+        } ->
+          if String.contains?(url_suffix, "partNumber"),
+            do: send(pid, :chunk_uploaded),
+            else: raise("expected chunk not the whole object")
+
+          {:ok,
+           %{
+             status_code: 200,
+             headers: %{"ETag" => @etag}
            }}
 
         %{
