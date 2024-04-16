@@ -396,7 +396,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     video_file_endpoint_id = "video-file-endpoint"
 
     video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
-    setup_mock_http_request(7)
+    setup_mock_http_request(9)
 
     recording_endpoint =
       create_recording_endpoint(rtc_engine, [
@@ -423,7 +423,9 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     # when file and s3 storage are used recording endpoint will try to fix uploaded files
     # based on locally saved files by file storage
     assert_receive :get_object_list
-    assert_receive :object_uploaded
+    assert_receive :upload_initialized
+    assert_receive :chunk_uploaded
+    assert_receive :upload_completed
 
     assert_receive :report_uploaded
 

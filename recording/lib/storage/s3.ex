@@ -152,14 +152,36 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Storage.S3 do
   end
 
   defp fix_object(file_path, filename, recording_id, storage_opts) do
-    config =
-      file_path
-      |> File.read!()
-      |> save_object_config(recording_id, filename)
+    config = save_object_config(nil, recording_id, filename)
 
-    case save_object(config, storage_opts) do
+    case stream_object(file_path, config, storage_opts) do
       :ok -> true
       {:error, _response} -> false
+    end
+  end
+
+  defp stream_object(file_path, config, storage_opts) do
+    path_prefix = Map.get(storage_opts, :path_prefix, "")
+    path = Path.join([path_prefix, config.filename])
+    credentials = storage_opts.credentials
+    aws_config = create_aws_config(credentials)
+
+    result =
+      file_path
+      |> ExAws.S3.Upload.stream_file()
+      |> ExAws.S3.upload(credentials.bucket, path)
+      |> ExAws.request(aws_config)
+
+    case result do
+      {:ok, %{status_code: 200}} ->
+        :ok
+
+      {:error, response} ->
+        Membrane.Logger.error(
+          "Couldn't stream object on S3 bucket, recording id: #{config.recording_id}"
+        )
+
+        {:error, response}
     end
   end
 
