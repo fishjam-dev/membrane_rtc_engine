@@ -109,6 +109,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
     tracks_report =
       state.tracks
       |> Map.values()
+      |> Enum.reject(fn {_filename, track} ->
+        is_nil(track[:start_timestamp]) or is_nil(track[:end_timestamp])
+      end)
       |> Map.new(fn {filename, track} ->
         {filename, Map.take(track, @track_reports_keys)}
       end)
