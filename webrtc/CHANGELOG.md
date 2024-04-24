@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0-dev
+## 0.8.0
 * Update deps [#374](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/374)
 * Update the use of Engine.subscribe [#381](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/381)
 * Merge membrane_webrtc_plugin [#384](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/384)
