@@ -1,7 +1,7 @@
 defmodule Recording.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0-dev"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
   @github_url "#{@engine_github_url}/tree/master/recording"
   @source_ref "recording-v#{@version}"
@@ -52,8 +52,8 @@ defmodule Recording.MixProject do
       {:elixir_uuid, "~> 1.2"},
 
       # Engine deps
-      {:membrane_rtc_engine, "~> 0.22.0"},
-      {:membrane_rtc_engine_webrtc, "~> 0.8.0"},
+      {:membrane_rtc_engine, path: "../engine"},
+      {:membrane_rtc_engine_webrtc, path: "../webrtc"},
 
       # Membrane deps
       {:membrane_core, "~> 1.0"},
