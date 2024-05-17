@@ -54,7 +54,10 @@ defmodule Membrane.RTC.Engine.MixProject do
   defp deps do
     [
       {:membrane_core, "~> 1.0"},
-      {:membrane_rtp_plugin, "~> 0.24.1"},
+      {:membrane_rtp_plugin,
+       github: "membraneframework/membrane_rtp_plugin",
+       branch: "rtcp-sender-packet",
+       override: true},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:ex_sdp, "~> 0.15.0"},
       {:elixir_uuid, "~> 1.2"},
