@@ -10,6 +10,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTCP.SenderReportPacket
 
   @opaque t() :: %__MODULE__{
             codec: :H264 | :VP8 | :OPUS,
@@ -103,7 +104,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   @doc """
   Adjusts RTP packet header and payload.
   """
-  @spec align(t(), Buffer.t()) :: {t(), Buffer.t() | nil}
+  @spec align(t(), Buffer.t() | SenderReportPacket.t()) :: {t(), Buffer.t() | nil}
   def align(
         %__MODULE__{started?: false} = forwarder,
         %{metadata: %{is_keyframe: true}} = buffer

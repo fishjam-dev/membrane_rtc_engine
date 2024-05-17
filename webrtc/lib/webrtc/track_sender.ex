@@ -22,6 +22,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   }
 
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTCP.SenderReportPacket
+  alias Membrane.RTCPEvent
 
   @keyframe_request_interval_ms 500
   @variant_statuses_check_interval_s 1
@@ -261,6 +263,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     }
 
     {[event: {output_pad, event}], state}
+  end
+
+  @impl true
+  def handle_event(
+        Pad.ref(:input, {track_id, variant}),
+        %RTCPEvent{rtcp: %SenderReportPacket{}} = event,
+        _ctx,
+        state
+      ) do
+    {[event: {Pad.ref(:output, {track_id, variant}), event}], state}
   end
 
   @impl true

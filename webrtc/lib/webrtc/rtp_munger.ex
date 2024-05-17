@@ -15,6 +15,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
 
   alias __MODULE__.Cache
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTCP.SenderReportPacket
 
   @typedoc """
   * `highest_incoming_seq_num` - the highest incoming sequence number for current encoding.
@@ -130,7 +131,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
   @spec can_generate_padding_packet?(t()) :: boolean()
   def can_generate_padding_packet?(rtp_munger), do: rtp_munger.last_marker
 
-  @spec munge(t(), Membrane.Buffer.t()) :: {t(), Membrane.Buffer.t() | nil}
+  @spec munge(t(), Membrane.Buffer.t() | SenderReportPacket.t()) ::
+          {t(), Membrane.Buffer.t() | SenderReportPacket.t() | nil}
+  def munge(rtp_munger, %SenderReportPacket{sender_info: sender_info} = rtcp) do
+    sender_info = Map.update!(sender_info, :rtp_timestamp, &calculate_timestamp(&1, rtp_munger))
+    {rtp_munger, Map.put(rtcp, :sender_info, sender_info)}
+  end
+
   def munge(rtp_munger, buffer) do
     # TODO we should use Sender Reports instead
     packet_arrival = System.monotonic_time(:millisecond)
