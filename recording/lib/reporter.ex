@@ -6,6 +6,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   use GenServer
 
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTCP.SenderReportPacket
 
   @track_reports_keys [
     :type,
@@ -24,6 +25,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
           encoding: Track.encoding(),
           offset: pos_integer(),
           start_timestamp: pos_integer(),
+          start_timestamp_wallclock: pos_integer(),
           end_timestamp: pos_integer(),
           clock_rate: Membrane.RTP.clock_rate_t(),
           metadata: any(),
@@ -53,9 +55,14 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
     GenServer.cast(reporter, {:start_timestamp, track_id, start_timestamp})
   end
 
-  @spec end_timestamp(pid, Track.id(), pos_integer()) :: :ok
+  @spec end_timestamp(pid(), Track.id(), pos_integer()) :: :ok
   def end_timestamp(reporter, track_id, end_timestamp) do
     GenServer.cast(reporter, {:end_timestamp, track_id, end_timestamp})
+  end
+
+  @spec rtcp_packet(pid(), Track.id(), SenderReportPacket.t()) :: :ok
+  def rtcp_packet(reporter, track_id, rtcp) do
+    GenServer.cast(reporter, {:rtcp, track_id, rtcp})
   end
 
   @spec get_report(pid()) :: report()
@@ -105,6 +112,20 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   end
 
   @impl true
+  def handle_cast({:rtcp, track_id, rtcp}, state) do
+    {filename, track} = get_in(state, [:tracks, track_id])
+
+    track =
+      if Map.has_key?(track, :start_timestamp) do
+        add_wallclock_start_time(track, rtcp)
+      else
+        track
+      end
+
+    {:noreply, put_in(state, [:tracks, track_id], {filename, track})}
+  end
+
+  @impl true
   def handle_call(:get_report, _from, state) do
     tracks_report =
       state.tracks
@@ -112,6 +133,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
       |> Enum.reject(fn {_filename, track} ->
         is_nil(track[:start_timestamp]) or is_nil(track[:end_timestamp])
       end)
+      |> recalculate_offsets()
       |> Map.new(fn {filename, track} ->
         {filename, Map.take(track, @track_reports_keys)}
       end)
@@ -119,5 +141,35 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
     report = %{recording_id: state.recording_id, tracks: tracks_report}
 
     {:reply, report, state}
+  end
+
+  defp add_wallclock_start_time(track, rtcp) do
+    delta_t_ns =
+      (rtcp.sender_info.rtp_timestamp - track.start_timestamp) / track.clock_rate * 10 ** 9
+
+    start_timestamp_wallclock = rtcp.sender_info.wallclock_timestamp - delta_t_ns
+
+    Map.put(track, :start_timestamp_wallclock, start_timestamp_wallclock)
+  end
+
+  defp recalculate_offsets(tracks) do
+    {tracks, _acc} =
+      tracks
+      |> Enum.sort_by(fn {_filename, track} -> track.offset end)
+      |> Enum.map_reduce(nil, fn {filename, track}, acc ->
+        cond do
+          not Map.has_key?(track, :start_timestamp_wallclock) ->
+            {{filename, track}, acc}
+
+          is_nil(acc) ->
+            {{filename, track}, track}
+
+          true ->
+            offset = acc.offset + track.start_timestamp_wallclock - acc.start_timestamp_wallclock
+            {{filename, %{track | offset: offset}}, acc}
+        end
+      end)
+
+    tracks
   end
 end
