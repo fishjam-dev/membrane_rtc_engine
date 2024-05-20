@@ -8,6 +8,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTCP.SenderReportPacket
 
+  @sec_to_ns 10 ** 9
+
   @track_reports_keys [
     :type,
     :encoding,
@@ -145,13 +147,22 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
 
   defp add_wallclock_start_time(track, rtcp) do
     delta_t_ns =
-      (rtcp.sender_info.rtp_timestamp - track.start_timestamp) / track.clock_rate * 10 ** 9
+      (rtcp.sender_info.rtp_timestamp - track.start_timestamp) / track.clock_rate * @sec_to_ns
 
     start_timestamp_wallclock = rtcp.sender_info.wallclock_timestamp - delta_t_ns
 
     Map.put(track, :start_timestamp_wallclock, start_timestamp_wallclock)
   end
 
+  # All tracks have offsets calculated based on `handle_pad_added` time of call.
+  # Not every track will have a `start_timestamp_wallclock` value since this requires an RTCP sender packet.
+  # For this reason, the algorithm does not override track offsets lacking a `start_timestamp_wallclock`.
+  # However, for tracks that do come with a `start_timestamp_wallclock` value
+  # the algorithm recalculates the offset using the following formula:
+  # new_offset = ft.offset + (ct.start_timestamp_wallclock - ft.start_timstamp_wallclock)
+  # where:
+  #   * ft - first track that have `start_timestamp_wallclock` value set
+  #   * ct - current track for wchich we calculate new offset
   defp recalculate_offsets(tracks) do
     {tracks, _acc} =
       tracks
