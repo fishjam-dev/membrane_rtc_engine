@@ -19,6 +19,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
 
   @packets_interval 200
 
+  @breakpoint 2 ** 31
+
   @impl true
   def handle_init(_ctx, options) do
     {[],
@@ -54,8 +56,21 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
           buffer.metadata.rtp.timestamp
         )
 
-    {[buffer: {:output, buffer}],
-     %{state | counter: counter, last_buffer_timestamp: buffer.metadata.rtp.timestamp}}
+    # a packet is in order when it is from the next cycle, or from current cycle with delta > 0
+    delta =
+      buffer.metadata.rtp.timestamp -
+        (state.last_buffer_timestamp || state.first_buffer_timestamp)
+
+    in_order? = delta < -@breakpoint or (delta > 0 and delta < @breakpoint)
+
+    state =
+      if in_order? do
+        %{state | counter: counter, last_buffer_timestamp: buffer.metadata.rtp.timestamp}
+      else
+        %{state | counter: counter}
+      end
+
+    {[buffer: {:output, buffer}], state}
   end
 
   @impl true
