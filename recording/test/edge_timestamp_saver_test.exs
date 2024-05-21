@@ -5,8 +5,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaverTest do
   import Membrane.ChildrenSpec
 
   alias Membrane.Buffer
-  alias Membrane.Testing.{Pipeline, Sink, Source}
   alias Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver
+  alias Membrane.Testing.{Pipeline, Sink, Source}
 
   tests_data = [
     %{
