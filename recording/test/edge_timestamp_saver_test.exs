@@ -21,7 +21,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaverTest do
     },
     %{
       title: "Long sequence not in order",
-      timestamps: Enum.to_list(1..50) ++ Enum.to_list(100..50) ++ Enum.to_list(101..150),
+      timestamps: Enum.to_list(1..50) ++ Enum.to_list(100..10) ++ Enum.to_list(101..150),
       end_timestamps: [101, 150]
     },
     %{
