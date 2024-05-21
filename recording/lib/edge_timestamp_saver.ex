@@ -17,9 +17,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
                 """
               ]
 
-  @packets_interval 200
+  @packets_interval 100
 
   @breakpoint 2 ** 31
+
+  defguardp in_order?(delta) when delta < -@breakpoint or (delta > 0 and delta < @breakpoint)
 
   @impl true
   def handle_init(_ctx, options) do
@@ -34,18 +36,32 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
 
   @impl true
   def handle_buffer(_pad, %Buffer{} = buffer, ctx, %{first_buffer_timestamp: nil} = state) do
+    timestamp = buffer.metadata.rtp.timestamp
+
     Recording.Reporter.start_timestamp(
       state.reporter,
       track_id(ctx),
-      buffer.metadata.rtp.timestamp
+      timestamp
     )
 
     {[buffer: {:output, buffer}],
-     %{state | first_buffer_timestamp: buffer.metadata.rtp.timestamp}}
+     %{
+       state
+       | first_buffer_timestamp: timestamp,
+         last_buffer_timestamp: timestamp
+     }}
+  end
+
+  @impl true
+  def handle_buffer(_pad, %Buffer{} = buffer, _ctx, state)
+      when not in_order?(buffer.metadata.rtp.timestamp - state.last_buffer_timestamp) do
+    counter = min(state.counter + 1, @packets_interval - 1)
+    {[buffer: {:output, buffer}], %{state | counter: counter}}
   end
 
   @impl true
   def handle_buffer(_pad, %Buffer{} = buffer, ctx, state) do
+    timestamp = buffer.metadata.rtp.timestamp
     counter = rem(state.counter + 1, @packets_interval)
 
     if counter == 0,
@@ -53,22 +69,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
         Recording.Reporter.end_timestamp(
           state.reporter,
           track_id(ctx),
-          buffer.metadata.rtp.timestamp
+          timestamp
         )
 
-    # a packet is in order when it is from the next cycle, or from current cycle with delta > 0
-    delta =
-      buffer.metadata.rtp.timestamp -
-        (state.last_buffer_timestamp || state.first_buffer_timestamp)
-
-    in_order? = delta < -@breakpoint or (delta > 0 and delta < @breakpoint)
-
-    state =
-      if in_order? do
-        %{state | counter: counter, last_buffer_timestamp: buffer.metadata.rtp.timestamp}
-      else
-        %{state | counter: counter}
-      end
+    state = %{state | counter: counter, last_buffer_timestamp: timestamp}
 
     {[buffer: {:output, buffer}], state}
   end
