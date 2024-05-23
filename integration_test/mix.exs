@@ -45,8 +45,7 @@ defmodule Membrane.RTC.Engine.Integration.MixProject do
       # Regular deps (for modules in `test/support/`)
       {:membrane_core, "~> 1.0"},
       {:bundlex, "~> 1.3"},
-      {:membrane_rtp_plugin,
-       github: "membraneframework/membrane_rtp_plugin", branch: "rtcp-sender-packet"},
+      {:membrane_rtp_plugin, github: "membraneframework/membrane_rtp_plugin"},
       {:membrane_rtp_h264_plugin, "~> 0.19.0"},
       {:membrane_h264_format, "~> 0.6.1"},
       {:membrane_h26x_plugin, "~> 0.10.0"},
