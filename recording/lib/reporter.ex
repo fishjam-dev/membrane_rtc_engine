@@ -195,7 +195,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
       end)
 
     {_filename, %{offset: first_offset}} =
-      Enum.min_by(tracks, fn {_filename, track} -> track.offset end)
+      Enum.min_by(tracks, fn {_filename, track} -> track.offset end, fn -> {"", %{offset: 0}} end)
 
     if first_offset > 0,
       do:

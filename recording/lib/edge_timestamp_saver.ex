@@ -98,6 +98,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
   end
 
   @impl true
+  def handle_end_of_stream(_pad, _ctx, %{last_buffer_timestamp: nil} = state) do
+    {[end_of_stream: :output], state}
+  end
+
+  @impl true
   def handle_end_of_stream(_pad, ctx, state) do
     Recording.Reporter.end_timestamp(state.reporter, track_id(ctx), state.last_buffer_timestamp)
     {[end_of_stream: :output], state}

@@ -4,7 +4,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
   import MockTrack
 
   alias Membrane.RTC.Engine.Endpoint.Recording.Reporter
-  alias Membrane.RTCP.SenderReportPacket
 
   @sec_to_ns 10 ** 9
 
@@ -316,19 +315,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
       start_timestamp: start_timestamp,
       offset: offset,
       id: track.id
-    }
-  end
-
-  defp create_rtcp_report(rtp_timestamp, wallclock_timestamp, clock_rate) do
-    %SenderReportPacket{
-      ssrc: 1,
-      reports: [],
-      sender_info: %{
-        wallclock_timestamp: wallclock_timestamp,
-        rtp_timestamp: rtp_timestamp + clock_rate,
-        sender_packet_count: 0,
-        sender_octet_count: 0
-      }
     }
   end
 end

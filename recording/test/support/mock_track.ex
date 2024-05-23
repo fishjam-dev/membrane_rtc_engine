@@ -3,6 +3,7 @@ defmodule MockTrack do
 
   alias ExSDP.Attribute.FMTP
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTCP.SenderReportPacket
 
   @spec create_track(:audio | :video) :: Track.t()
   def create_track(type) do
@@ -28,6 +29,21 @@ defmodule MockTrack do
       ctx: %{},
       framerate: nil,
       disabled_variants: []
+    }
+  end
+
+  @spec create_rtcp_report(non_neg_integer(), non_neg_integer(), non_neg_integer()) ::
+          SenderReportPacket.t()
+  def create_rtcp_report(rtp_timestamp, wallclock_timestamp, clock_rate) do
+    %SenderReportPacket{
+      ssrc: 1,
+      reports: [],
+      sender_info: %{
+        wallclock_timestamp: wallclock_timestamp,
+        rtp_timestamp: rtp_timestamp + clock_rate,
+        sender_packet_count: 0,
+        sender_octet_count: 0
+      }
     }
   end
 end
