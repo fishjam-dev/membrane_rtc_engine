@@ -58,7 +58,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP.MixProject do
       {:membrane_core, "~> 1.0"},
       {:membrane_tee_plugin, "~> 0.12.0"},
       {:membrane_file_plugin, "~> 0.16.0"},
-      {:membrane_rtp_plugin, github: "membraneframework/membrane_rtp_plugin"},
+      {:membrane_rtp_plugin, "~> 0.28.0"},
       {:membrane_funnel_plugin, "~> 0.9.0"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_udp_plugin, "~> 0.13.0"},

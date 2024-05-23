@@ -73,11 +73,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaverTest do
 
       assert_pipeline_notified(pipeline, :sink, :playing)
 
-      for length(timestamps) != 0 and timestamp <- unquote(test_data.end_timestamps) do
+      for timestamp <- unquote(test_data.end_timestamps) do
         assert_receive {_genserver_atom, {:end_timestamp, :track_id, ^timestamp}}
       end
 
-      if events != 0 do
+      if events != 0 and length(timestamps) != 0 do
         assert_receive {_genserver_atom, {:rtcp, :track_id, ^rtcp}}
       end
 

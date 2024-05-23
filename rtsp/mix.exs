@@ -54,7 +54,7 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
-      {:membrane_rtp_plugin, github: "membraneframework/membrane_rtp_plugin"},
+      {:membrane_rtp_plugin, "~> 0.28.0"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_rtp_h264_plugin, "~> 0.19.0"},
       {:connection, "~> 1.1"},
