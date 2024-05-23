@@ -1,6 +1,19 @@
 defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   @moduledoc """
   Module responsible for creating report with information needed to decode recorded streams.
+
+  Each stream is represented as a track that includes the following fields:
+    * `type` - Specifies either `:video` or `:audio`.
+    * `encoding` - Necessary for decoding.
+    * `offset` - Represents the offset compared to the first track (the first track always has an offset of 0).
+      Initially, the offset is calculated based on the `handle_pad_added` call time.
+      However, if an RTCP report is added using the `rtcp_packet()`, then the offset is recalculated based on the RTCP report and `start_timestamp`.
+    * `start_timestamp` - Specifies the RTP timestamp of the first buffer.
+    * `start_timestamp_wallclock` - Denotes the wallclock timestamp of the first buffer.
+    * `end_timestamp` - Indicates the RTP timestamp of the last buffer.
+    * `clock_rate` - Necessary for decoding.
+    * `metadata` - Contains custom data attached by peer to the track.
+    * `origin` - Specifies the component that published the track.
   """
 
   use GenServer
@@ -177,10 +190,23 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
 
           true ->
             offset = acc.offset + track.start_timestamp_wallclock - acc.start_timestamp_wallclock
-            {{filename, %{track | offset: offset}}, acc}
+            {{filename, %{track | offset: trunc(offset)}}, acc}
         end
       end)
 
-    tracks
+    {_filename, %{offset: first_offset}} =
+      Enum.min_by(tracks, fn {_filename, track} -> track.offset end)
+
+    if first_offset > 0,
+      do:
+        raise("The lower track offset is #{first_offset}, this offset cannot be greater than 0.")
+
+    # After RTCP synchronization, tracks can switch places.
+    # For example, a track that was second before synchronization can now be first.
+    # In this case, it will have a negative offset and we will need to correct it to 0.
+    # We also need to correct all other offsets to maintain the correct offsets between tracks.
+    Enum.map(tracks, fn {filename, track} ->
+      {filename, Map.update!(track, :offset, &(&1 - first_offset))}
+    end)
   end
 end
