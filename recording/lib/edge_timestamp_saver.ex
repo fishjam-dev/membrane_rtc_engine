@@ -5,6 +5,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
 
   alias Membrane.Buffer
   alias Membrane.RTC.Engine.Endpoint.Recording
+  alias Membrane.RTCP.SenderReportPacket
+  alias Membrane.RTCPEvent
 
   def_input_pad :input, accepted_format: _accepted_format
 
@@ -29,9 +31,27 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
      %{
        first_buffer_timestamp: nil,
        last_buffer_timestamp: nil,
+       rtcp_sent?: false,
        counter: 0,
        reporter: options.reporter
      }}
+  end
+
+  @impl true
+  def handle_event(
+        _pad,
+        %RTCPEvent{rtcp: %SenderReportPacket{} = rtcp},
+        context,
+        %{rtcp_sent?: false} = state
+      )
+      when not is_nil(state.first_buffer_timestamp) do
+    Recording.Reporter.rtcp_packet(state.reporter, track_id(context), rtcp)
+    {[], %{state | rtcp_sent?: true}}
+  end
+
+  @impl true
+  def handle_event(pad, event, context, state) do
+    super(pad, event, context, state)
   end
 
   @impl true
@@ -75,6 +95,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
     state = %{state | counter: counter, last_buffer_timestamp: timestamp}
 
     {[buffer: {:output, buffer}], state}
+  end
+
+  @impl true
+  def handle_end_of_stream(_pad, _ctx, %{last_buffer_timestamp: nil} = state) do
+    {[end_of_stream: :output], state}
   end
 
   @impl true

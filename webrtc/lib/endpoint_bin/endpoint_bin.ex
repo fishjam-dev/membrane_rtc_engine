@@ -19,7 +19,6 @@ defmodule Membrane.WebRTC.EndpointBin do
   require Membrane.TelemetryMetrics
 
   alias __MODULE__.TracksState
-  alias ExSDP.Media
   alias ExSDP.Attribute.{FMTP, RTPMapping}
   alias Membrane.ICE
   alias Membrane.RTP
@@ -778,8 +777,8 @@ defmodule Membrane.WebRTC.EndpointBin do
         []
 
       media ->
-        {_key, ice_ufrag} = Media.get_attribute(media, :ice_ufrag)
-        {_key, ice_pwd} = Media.get_attribute(media, :ice_pwd)
+        {_key, ice_ufrag} = ExSDP.get_attribute(media, :ice_ufrag)
+        {_key, ice_pwd} = ExSDP.get_attribute(media, :ice_pwd)
         remote_credentials = ice_ufrag <> " " <> ice_pwd
         [notify_child: {:ice, {:set_remote_credentials, remote_credentials}}]
     end

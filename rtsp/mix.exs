@@ -54,12 +54,11 @@ defmodule Membrane.RTC.Engine.Endpoint.RTSP.MixProject do
 
       # Regular deps
       {:membrane_core, "~> 1.0"},
-      {:membrane_rtp_plugin, "~> 0.24.1"},
+      {:membrane_rtp_plugin, "~> 0.28.0"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_rtp_h264_plugin, "~> 0.19.0"},
-      {:ex_sdp, "~> 0.13.1"},
       {:connection, "~> 1.1"},
-      {:membrane_rtsp, "~> 0.5.1"},
+      {:membrane_rtsp, "~> 0.7.0"},
       {:membrane_udp_plugin, "~> 0.13.0"},
       {:membrane_h26x_plugin, "~> 0.10.0"},
       {:credo, "~> 1.6", only: :dev, runtime: false},

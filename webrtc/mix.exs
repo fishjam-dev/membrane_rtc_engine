@@ -58,7 +58,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       {:bunch, "~> 1.5"},
       {:membrane_funnel_plugin, "~> 0.9.0"},
       {:membrane_h26x_plugin, "~> 0.10.0"},
-      {:membrane_rtp_plugin, "~> 0.24.1"},
+      {:membrane_rtp_plugin, "~> 0.28.0"},
       {:membrane_ice_plugin, "~> 0.18.0"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.9.0"},

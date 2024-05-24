@@ -17,6 +17,9 @@ defmodule Membrane.RTC.Engine.Tee do
 
   alias Membrane.RTC.Engine.Exception.TrackVariantStateError
 
+  alias Membrane.RTCP.SenderReportPacket
+  alias Membrane.RTCPEvent
+
   @supported_codecs [:H264, :VP8, :OPUS]
 
   def_options track: [
@@ -233,6 +236,21 @@ defmodule Membrane.RTC.Engine.Tee do
 
       {[], state}
     end
+  end
+
+  @impl true
+  def handle_event(
+        Pad.ref(:input, {_track_id, variant}),
+        %RTCPEvent{rtcp: %SenderReportPacket{}} = event,
+        _context,
+        state
+      ) do
+    actions =
+      state.routes
+      |> Enum.filter(fn {_pad, config} -> config.current_variant == variant end)
+      |> Enum.map(fn {pad, _config} -> {:event, {pad, event}} end)
+
+    {actions, state}
   end
 
   @impl true

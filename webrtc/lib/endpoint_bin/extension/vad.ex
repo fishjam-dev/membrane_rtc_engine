@@ -7,7 +7,6 @@ defmodule Membrane.WebRTC.Extension.VAD do
   @behaviour Membrane.WebRTC.Extension
 
   alias ExSDP.Attribute.Extmap
-  alias ExSDP.Media
   alias Membrane.WebRTC.Extension
 
   @name :vad
@@ -30,7 +29,7 @@ defmodule Membrane.WebRTC.Extension.VAD do
   @impl true
   def add_to_media(media, id, _direction, _pt),
     do:
-      Media.add_attribute(media, %Extmap{
+      ExSDP.add_attribute(media, %Extmap{
         id: id,
         uri: @uri,
         attributes: @attributes

@@ -6,7 +6,6 @@ defmodule Membrane.WebRTC.Track do
 
   alias Membrane.RTP
   alias ExSDP.Attribute.{Extmap, FMTP, RTPMapping}
-  alias ExSDP.Media
   alias Membrane.WebRTC.Extension
 
   @supported_rids ["l", "m", "h"]
@@ -121,8 +120,8 @@ defmodule Membrane.WebRTC.Track do
   def from_sdp_media(sdp_media, id, stream_id) do
     rids = get_rids(sdp_media)
 
-    ssrc_group = Media.get_attribute(sdp_media, :ssrc_group)
-    ssrc_attribute = Media.get_attribute(sdp_media, :ssrc)
+    ssrc_group = ExSDP.get_attribute(sdp_media, :ssrc_group)
+    ssrc_attribute = ExSDP.get_attribute(sdp_media, :ssrc)
 
     [ssrc, rtx_ssrc] =
       cond do
@@ -137,7 +136,7 @@ defmodule Membrane.WebRTC.Track do
       end
 
     status =
-      if Media.get_attribute(sdp_media, :inactive) != nil do
+      if ExSDP.get_attribute(sdp_media, :inactive) != nil do
         :disabled
       else
         :ready
@@ -145,7 +144,7 @@ defmodule Membrane.WebRTC.Track do
 
     rtcp_feedbacks =
       sdp_media
-      |> Media.get_attributes(:rtcp_feedback)
+      |> ExSDP.get_attributes(:rtcp_feedback)
       |> Enum.group_by(& &1.pt)
 
     encodings =
@@ -177,11 +176,11 @@ defmodule Membrane.WebRTC.Track do
       id: id,
       ssrc: ssrc,
       rtx_ssrc: rtx_ssrc,
-      mid: Media.get_attribute(sdp_media, :mid) |> elem(1),
+      mid: ExSDP.get_attribute(sdp_media, :mid) |> elem(1),
       rids: rids,
       offered_encodings: encodings,
       status: status,
-      extmaps: Media.get_attributes(sdp_media, :extmap)
+      extmaps: ExSDP.get_attributes(sdp_media, :extmap)
     ]
 
     new(sdp_media.type, stream_id, opts)
@@ -265,7 +264,7 @@ defmodule Membrane.WebRTC.Track do
   # TODO: This should be handled by ExSDP
   defp get_rids(sdp_media) do
     sdp_media
-    |> Media.get_attributes("rid")
+    |> ExSDP.get_attributes("rid")
     |> Enum.map(fn {_attr, rid} ->
       # example from sdp
       # a=rid:h send
@@ -282,7 +281,7 @@ defmodule Membrane.WebRTC.Track do
     # Separate real codecs from RTX and RED streams
     grouped_rtpmaps =
       sdp_media
-      |> Media.get_attributes(:rtpmap)
+      |> ExSDP.get_attributes(:rtpmap)
       |> Enum.group_by(fn
         %{encoding: "rtx"} -> :rtx
         %{encoding: "red"} -> :red
@@ -291,7 +290,7 @@ defmodule Membrane.WebRTC.Track do
 
     fmtp_by_pt =
       sdp_media
-      |> Media.get_attributes(:fmtp)
+      |> ExSDP.get_attributes(:fmtp)
       |> Map.new(&{&1.pt, &1})
 
     rtx_fmtp_by_apt =

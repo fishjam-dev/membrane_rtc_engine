@@ -1,7 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   @moduledoc false
-  # Module responsible for forwarding RTP packets.
-  # It takes care of rewriting RTP header and parts of RTP payload.
+  # Module responsible for forwarding RTP/RTCP packets.
+  # It takes care of rewriting RTP/RTCP header and parts of RTP/RTCP payload.
 
   require Membrane.Pad
   require Membrane.Logger
@@ -10,6 +10,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
   alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTCP.SenderReportPacket
 
   @opaque t() :: %__MODULE__{
             codec: :H264 | :VP8 | :OPUS,
@@ -103,7 +104,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   @doc """
   Adjusts RTP packet header and payload.
   """
-  @spec align(t(), Buffer.t()) :: {t(), Buffer.t() | nil}
+  @spec align(t(), Buffer.t() | SenderReportPacket.t()) :: {t(), Buffer.t() | nil}
   def align(
         %__MODULE__{started?: false} = forwarder,
         %{metadata: %{is_keyframe: true}} = buffer
@@ -126,10 +127,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
       end
 
     {vp8_munger, buffer} =
-      if vp8_munger != nil and buffer != nil do
-        VP8Munger.munge(vp8_munger, buffer)
-      else
-        {vp8_munger, buffer}
+      case {vp8_munger, buffer} do
+        {nil, _buffer} ->
+          {vp8_munger, buffer}
+
+        {_vp8_munger, nil} ->
+          {vp8_munger, buffer}
+
+        {_vp8_munger, %SenderReportPacket{}} ->
+          {vp8_munger, buffer}
+
+        _else ->
+          VP8Munger.munge(vp8_munger, buffer)
       end
 
     forwarder = %{forwarder | rtp_munger: rtp_munger, vp8_munger: vp8_munger}

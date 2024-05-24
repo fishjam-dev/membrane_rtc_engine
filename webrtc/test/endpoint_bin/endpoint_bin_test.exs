@@ -110,7 +110,7 @@ defmodule Membrane.WebRTC.EndpointBinTest do
     ExSDP.parse!(answer)
     |> then(& &1.media)
     |> Enum.each(fn media ->
-      assert ExSDP.Media.get_attribute(media, expected_media_direction) ==
+      assert ExSDP.get_attribute(media, expected_media_direction) ==
                expected_media_direction
     end)
   end

@@ -121,7 +121,7 @@ defmodule Membrane.WebRTC.SDP do
       Media.new(track.type, 9, "UDP/TLS/RTP/SAVPF", payload_types)
       | connection_data: [%ConnectionData{address: {0, 0, 0, 0}}]
     }
-    |> Media.add_attributes([
+    |> ExSDP.add_attributes([
       if(track.status === :disabled, do: :inactive, else: direction),
       {:ice_ufrag, config.ice_ufrag},
       {:ice_pwd, config.ice_pwd},
@@ -133,13 +133,13 @@ defmodule Membrane.WebRTC.SDP do
       MSID.new(track.stream_id),
       :rtcp_mux
     ])
-    |> Media.add_attributes(
+    |> ExSDP.add_attributes(
       if(encoding.format_params == nil,
         do: [rtp_mapping],
         else: [rtp_mapping, encoding.format_params]
       )
     )
-    |> Media.add_attributes(rtx_attributes)
+    |> ExSDP.add_attributes(rtx_attributes)
     |> add_extensions(config.extensions, track.type, track.extmaps, direction, encoding)
     |> then(fn media ->
       if is_list(track.rids) and direction == :recvonly do
@@ -167,8 +167,8 @@ defmodule Membrane.WebRTC.SDP do
 
     media
     |> Extension.add_to_media(extensions, extmaps, direction, [pt])
-    |> Media.add_attributes(feedbacks)
-    |> Media.add_attribute(:rtcp_rsize)
+    |> ExSDP.add_attributes(feedbacks)
+    |> ExSDP.add_attribute(:rtcp_rsize)
   end
 
   defp add_rids(media, track) do
@@ -176,9 +176,9 @@ defmodule Membrane.WebRTC.SDP do
 
     track.rids
     |> Enum.reduce(media, fn rid, media ->
-      Media.add_attribute(media, "rid:#{rid} recv")
+      ExSDP.add_attribute(media, "rid:#{rid} recv")
     end)
-    |> Media.add_attribute("simulcast:recv #{rids}")
+    |> ExSDP.add_attribute("simulcast:recv #{rids}")
   end
 
   defp add_ssrc(media, track, direction) do
@@ -189,7 +189,7 @@ defmodule Membrane.WebRTC.SDP do
       # we don't have to handle case in which `track.ssrc` is a list of
       # SSRCs as such case means `track` is a simulcast track and we don't add
       # any SSRC for simulcast tracks only RIDs
-      Media.add_attributes(media, [
+      ExSDP.add_attributes(media, [
         %SSRC{id: track.ssrc, attribute: "cname", value: track.name}
       ])
     end
@@ -232,7 +232,7 @@ defmodule Membrane.WebRTC.SDP do
           {new_inbound_tracks :: [Track.t()], removed_inbound_tracks :: [Track.t()],
            inbound_tracks :: [Track.t()], outbound_tracks :: [Track.t()]}
   def get_tracks(sdp, constraints, old_inbound_tracks, outbound_tracks, mid_to_track_id) do
-    if Enum.any?(sdp.media, fn mline -> Media.get_attribute(mline, :sendrecv) != nil end) do
+    if Enum.any?(sdp.media, fn mline -> ExSDP.get_attribute(mline, :sendrecv) != nil end) do
       Membrane.Logger.error("""
       Got offer with :sendrecv tracks: #{inspect(sdp, limit: :infinity, pretty: true)}
       """)
@@ -252,8 +252,8 @@ defmodule Membrane.WebRTC.SDP do
     {new_inbound_tracks, new_inbound_disabled_tracks} =
       send_only_sdp_media
       |> Enum.map(fn sdp_media ->
-        {:mid, mid} = Media.get_attribute(sdp_media, :mid)
-        ssrcs = Media.get_attributes(sdp_media, SSRC)
+        {:mid, mid} = ExSDP.get_attribute(sdp_media, :mid)
+        ssrcs = ExSDP.get_attributes(sdp_media, SSRC)
         stream_id = Enum.find(ssrcs, &(&1.attribute == "mslabel")) || %{value: Track.stream_id()}
         stream_id = stream_id.value
         track_id = mid_to_track_id[mid]

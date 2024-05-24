@@ -38,6 +38,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   }
 
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTCP.SenderReportPacket
+  alias Membrane.RTCPEvent
 
   @typedoc """
   Reason of track variant switch.
@@ -260,6 +262,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   @impl true
   def handle_event(_pad, %Membrane.KeyframeRequestEvent{}, _ctx, state) do
     {maybe_request_keyframe(state.selector.current_variant), state}
+  end
+
+  @impl true
+  def handle_event(
+        _pad,
+        %RTCPEvent{rtcp: %SenderReportPacket{} = rtcp} = event,
+        _ctx,
+        state
+      ) do
+    {forwarder, rtcp} = Forwarder.align(state.forwarder, rtcp)
+    {[event: {:output, Map.put(event, :rtcp, rtcp)}], %{state | forwarder: forwarder}}
   end
 
   @impl true

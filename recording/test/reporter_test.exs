@@ -5,6 +5,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
 
   alias Membrane.RTC.Engine.Endpoint.Recording.Reporter
 
+  @sec_to_ns 10 ** 9
+
+  @video_clock_rate 90_000
+  @audio_clock_rate 48_000
+
   setup do
     id = UUID.uuid4()
     {:ok, pid} = Reporter.start(id)
@@ -165,5 +170,204 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                }
              }
            } = Reporter.get_report(reporter)
+  end
+
+  describe "RTCP synchronization" do
+    # This test verifies that all tracks correctly receive and handle RTCP reports.
+    # It sets up the tracks, assigns initial offsets, and asserts these offsets before applying the RTCP reports.
+    # Then, it creates RTCP reports using predefined wall clock times and a specific clock rate, and then applies them.
+    # After recalculating the offsets, the test checks the updated offsets to ensure that the offsets of all tracks have been correctly updated.
+
+    test "all tracks have RTCP reports", %{reporter: reporter} do
+      [track_1, track_2] =
+        [
+          %{type: :video, filename: "track_1.msr", start_timestamp: 0},
+          %{type: :audio, filename: "track_2.msr", start_timestamp: 10}
+        ]
+        |> Enum.map(&add_track(reporter, &1))
+
+      {offset_1, offset_2} = {track_1.offset, track_2.offset}
+
+      # without rtcp
+      assert %{
+               tracks: %{
+                 "track_1.msr" => %{offset: ^offset_1},
+                 "track_2.msr" => %{offset: ^offset_2}
+               }
+             } = Reporter.get_report(reporter)
+
+      wallclock_1 = 100 * @sec_to_ns
+      wallclock_2 = 120 * @sec_to_ns
+
+      rtcp_1 = create_rtcp_report(track_1.start_timestamp, wallclock_1, @video_clock_rate)
+      rtcp_2 = create_rtcp_report(track_2.start_timestamp, wallclock_2, @audio_clock_rate)
+
+      :ok = Reporter.rtcp_packet(reporter, track_1.id, rtcp_1)
+      :ok = Reporter.rtcp_packet(reporter, track_2.id, rtcp_2)
+
+      wallclock_offset = wallclock_2 - wallclock_1
+
+      # after synchronizing with rtcp
+      assert %{
+               tracks: %{
+                 "track_1.msr" => %{offset: ^offset_1},
+                 "track_2.msr" => %{offset: ^wallclock_offset}
+               }
+             } = Reporter.get_report(reporter)
+    end
+
+    test "only two tracks have RTCP reports", %{reporter: reporter, id: id} do
+      [track_1, track_2, track_3, track_4] =
+        [
+          %{type: :video, filename: "track_1.msr", start_timestamp: 0},
+          %{type: :audio, filename: "track_2.msr", start_timestamp: 10},
+          %{type: :audio, filename: "track_3.msr", start_timestamp: 20},
+          %{type: :audio, filename: "track_4.msr", start_timestamp: 30}
+        ]
+        |> Enum.map(&add_track(reporter, &1))
+
+      {offset_1, offset_2, offset_3, offset_4} =
+        {track_1.offset, track_2.offset, track_3.offset, track_4.offset}
+
+      # without rtcp
+      assert %{
+               recording_id: ^id,
+               tracks: %{
+                 "track_1.msr" => %{offset: ^offset_1},
+                 "track_2.msr" => %{offset: ^offset_2},
+                 "track_3.msr" => %{offset: ^offset_3},
+                 "track_4.msr" => %{offset: ^offset_4}
+               }
+             } = Reporter.get_report(reporter)
+
+      wallclock_3 = 100 * @sec_to_ns
+      wallclock_4 = 120 * @sec_to_ns
+
+      rtcp_3 = create_rtcp_report(track_3.start_timestamp, wallclock_3, @audio_clock_rate)
+      rtcp_4 = create_rtcp_report(track_4.start_timestamp, wallclock_4, @audio_clock_rate)
+
+      :ok = Reporter.rtcp_packet(reporter, track_3.id, rtcp_3)
+      :ok = Reporter.rtcp_packet(reporter, track_4.id, rtcp_4)
+
+      wallclock_offset = wallclock_4 - wallclock_3
+      track_4_offset = wallclock_offset + track_3.start_timestamp
+
+      # after synchronizing with rtcp
+      assert %{
+               recording_id: ^id,
+               tracks: %{
+                 "track_1.msr" => %{offset: ^offset_1},
+                 "track_2.msr" => %{offset: ^offset_2},
+                 "track_3.msr" => %{offset: ^offset_3},
+                 "track_4.msr" => %{offset: ^track_4_offset}
+               }
+             } = Reporter.get_report(reporter)
+    end
+
+    test "two tracks - not in order - have RTCP reports", %{reporter: reporter, id: id} do
+      [track_1, track_2, track_3, track_4] =
+        [
+          %{type: :video, filename: "track_1.msr", start_timestamp: 0},
+          %{type: :audio, filename: "track_2.msr", start_timestamp: 10},
+          %{type: :audio, filename: "track_3.msr", start_timestamp: 20},
+          %{type: :audio, filename: "track_4.msr", start_timestamp: 30}
+        ]
+        |> Enum.map(&add_track(reporter, &1))
+
+      {offset_1, offset_2, offset_3, offset_4} =
+        {track_1.offset, track_2.offset, track_3.offset, track_4.offset}
+
+      # without rtcp
+      assert %{
+               recording_id: ^id,
+               tracks: %{
+                 "track_1.msr" => %{offset: ^offset_1},
+                 "track_2.msr" => %{offset: ^offset_2},
+                 "track_3.msr" => %{offset: ^offset_3},
+                 "track_4.msr" => %{offset: ^offset_4}
+               }
+             } = Reporter.get_report(reporter)
+
+      wallclock_2 = 100 * @sec_to_ns
+      wallclock_4 = 140 * @sec_to_ns
+
+      rtcp_2 = create_rtcp_report(track_2.start_timestamp, wallclock_2, @audio_clock_rate)
+      rtcp_4 = create_rtcp_report(track_4.start_timestamp, wallclock_4, @audio_clock_rate)
+
+      :ok = Reporter.rtcp_packet(reporter, track_2.id, rtcp_2)
+      :ok = Reporter.rtcp_packet(reporter, track_4.id, rtcp_4)
+
+      wallclock_offset = wallclock_4 - wallclock_2
+      track_4_offset = wallclock_offset + track_2.start_timestamp
+
+      # after synchronizing with rtcp
+      assert %{
+               recording_id: ^id,
+               tracks: %{
+                 "track_1.msr" => %{offset: ^offset_1},
+                 "track_2.msr" => %{offset: ^offset_2},
+                 "track_3.msr" => %{offset: ^offset_3},
+                 "track_4.msr" => %{offset: ^track_4_offset}
+               }
+             } = Reporter.get_report(reporter)
+    end
+
+    test "wrong track has offset=0", %{reporter: reporter, id: id} do
+      [track_1, track_2] =
+        [
+          %{type: :video, filename: "track_1.msr", start_timestamp: 0},
+          %{type: :audio, filename: "track_2.msr", start_timestamp: 10}
+        ]
+        |> Enum.map(&add_track(reporter, &1))
+
+      {offset_1, offset_2} = {track_1.offset, track_2.offset}
+
+      # without rtcp
+      assert %{
+               recording_id: ^id,
+               tracks: %{
+                 "track_1.msr" => %{offset: ^offset_1},
+                 "track_2.msr" => %{offset: ^offset_2}
+               }
+             } = Reporter.get_report(reporter)
+
+      wallclock_1 = 100 * @sec_to_ns
+      wallclock_2 = 90 * @sec_to_ns
+
+      rtcp_1 = create_rtcp_report(track_1.start_timestamp, wallclock_1, @video_clock_rate)
+      rtcp_2 = create_rtcp_report(track_2.start_timestamp, wallclock_2, @audio_clock_rate)
+
+      :ok = Reporter.rtcp_packet(reporter, track_1.id, rtcp_1)
+      :ok = Reporter.rtcp_packet(reporter, track_2.id, rtcp_2)
+
+      wallclock_offset = abs(wallclock_2 - wallclock_1)
+
+      # after synchronizing with rtcp
+      assert %{
+               recording_id: ^id,
+               tracks: %{
+                 "track_1.msr" => %{offset: ^wallclock_offset},
+                 "track_2.msr" => %{offset: 0}
+               }
+             } = Reporter.get_report(reporter)
+    end
+  end
+
+  defp add_track(reporter, %{type: type, filename: filename, start_timestamp: start_timestamp}) do
+    track = create_track(type)
+
+    start_timestamp = start_timestamp * track.clock_rate
+    offset = start_timestamp
+
+    :ok = Reporter.add_track(reporter, track, filename, offset)
+    :ok = Reporter.start_timestamp(reporter, track.id, start_timestamp)
+
+    %{
+      type: type,
+      filename: filename,
+      start_timestamp: start_timestamp,
+      offset: offset,
+      id: track.id
+    }
   end
 end

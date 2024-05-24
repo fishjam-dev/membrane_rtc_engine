@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.2.0-dev
+* Synchronize tracks based on RTCP sender reports [#393](https://github.com/fishjam-dev/membrane_rtc_engine/pull/393)
 * Fix setting last buffer timestamp [#394](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/394)
 
 ## 0.1.0
