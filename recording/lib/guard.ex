@@ -20,8 +20,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Guard do
   defp close_stores({file_storage, file_opts}, stores, recording_id) do
     files = file_storage.list_files(file_opts)
 
-    Enum.filter(stores, fn {module, opts} ->
-      module.on_close(files, recording_id, opts) == :ok
-    end)
+    if map_size(files) > 0 do
+      Enum.filter(stores, fn {module, opts} ->
+        module.on_close(files, recording_id, opts) == :ok
+      end)
+    end
   end
 end
