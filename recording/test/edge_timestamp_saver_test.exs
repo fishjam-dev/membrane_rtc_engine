@@ -14,31 +14,31 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaverTest do
     %{
       title: "happy path",
       timestamps: Enum.to_list(1..200),
-      rtcp_events: 0,
+      rtcp_events: 5,
       end_timestamps: [101, 200]
     },
     %{
       title: "edge timestamp not in order",
       timestamps: Enum.to_list(1..98) ++ [100, 99] ++ Enum.to_list(101..200),
-      rtcp_events: 0,
+      rtcp_events: 5,
       end_timestamps: [101, 200]
     },
     %{
       title: "Long sequence not in order",
       timestamps: Enum.to_list(1..50) ++ Enum.to_list(100..10) ++ Enum.to_list(101..150),
-      rtcp_events: 0,
+      rtcp_events: 5,
       end_timestamps: [101, 150]
     },
     %{
       title: "End is not in order",
       timestamps: Enum.to_list(1..50) ++ Enum.to_list(70..50),
-      rtcp_events: 0,
+      rtcp_events: 5,
       end_timestamps: [70]
     },
     %{
       title: "RTCP reports, before buffers",
       timestamps: [],
-      rtcp_events: 0,
+      rtcp_events: 5,
       end_timestamps: []
     }
   ]
