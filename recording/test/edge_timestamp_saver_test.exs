@@ -54,11 +54,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaverTest do
           {:buffer, {:output, %Buffer{payload: <<>>, metadata: %{rtp: %{timestamp: i}}}}}
         end
 
-      rtcp = create_rtcp_report(1, 1, 1)
-
       events =
-        for _idx <- 0..events do
-          {:event, {:output, %RTCPEvent{rtcp: rtcp}}}
+        for idx <- 0..events do
+          {:event, {:output, %RTCPEvent{rtcp: create_rtcp_report(1, 1, idx)}}}
         end
 
       actions = buffers ++ events ++ [{:end_of_stream, :output}]
@@ -78,12 +76,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaverTest do
       end
 
       if events != 0 and length(timestamps) != 0 do
-        assert_receive {_genserver_atom, {:rtcp, :track_id, ^rtcp}}
+        first_rtcp = create_rtcp_report(1, 1, 0)
+        assert_receive {_genserver_atom, {:rtcp, :track_id, ^first_rtcp}}
       end
 
       assert_end_of_stream(pipeline, :sink)
 
-      refute_received {_genserver_atom, {:rtcp, :track_id, ^rtcp}}
+      refute_received {_genserver_atom, {:rtcp, :track_id, _rtcp}}
       refute_received {_genserver_atom, {:end_timestamp, :track_id, _timestamp}}
     end
   end
