@@ -220,7 +220,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   """
   @spec variant_paused(t(), Track.variant(), :inactive | :muted) :: {t(), selector_action_t()}
   def variant_paused(selector, variant, :inactive) do
-    Membrane.Logger.debug("Variant inactive #{variant}")
+    Membrane.Logger.debug("Variant #{variant} has been paused due to inactivity")
 
     selector = %__MODULE__{
       selector
@@ -248,7 +248,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   def variant_paused(selector, variant, :muted) do
-    Membrane.Logger.debug("Variant muted #{variant}")
+    Membrane.Logger.debug("Variant #{variant} has been muted")
 
     selector = %__MODULE__{
       selector

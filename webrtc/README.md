@@ -3,7 +3,7 @@
 [![Hex.pm](https://img.shields.io/hexpm/v/membrane_rtc_engine_webrtc.svg)](https://hex.pm/packages/membrane_rtc_engine_webrtc)
 [![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_rtc_engine_webrtc)
 [![codecov](https://codecov.io/gh/jellyfish-dev/membrane_rtc_engine/branch/master/graph/badge.svg?token=9F1XHHUY2B)](https://codecov.io/gh/jellyfish-dev/membrane_rtc_engine)
-[![CircleCI](https://circleci.com/gh/jellyfish-dev/membrane_rtc_engine.svg?style=svg)](https://circleci.com/gh/jellyfish-dev/membrane_rtc_engine)
+[![CircleCI](https://circleci.com/gh/fishjam-dev/membrane_rtc_engine.svg?style=svg)](https://circleci.com/gh/fishjam-dev/membrane_rtc_engine)
 
 WebRTC Endpoint for the [Membrane RTC Engine](https://github.com/jellyfish-dev/membrane_rtc_engine)
 
