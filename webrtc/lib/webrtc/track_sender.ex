@@ -375,14 +375,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   @impl true
   def handle_parent_notification(:unmute_track, _ctx, state) do
     state.trackers
-    |> Enum.sort_by(fn {variant, _tracker} ->
-      case variant do
-        :high -> 3
-        :medium -> 2
-        :low -> 1
-        :no_variant -> 0
-      end
-    end)
     |> Enum.flat_map_reduce(state, fn {variant, tracker}, state ->
       set_variant_unmuted(variant, tracker, state)
     end)
