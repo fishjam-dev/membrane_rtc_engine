@@ -45,14 +45,18 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   Reason of track variant switch.
 
   * `:low_bandwidth` - bandwidth was too low to maintain current track quality
-  * `:variant_inactive` - variant became inactive
+  * `:variant_inactive` - variant has been paused due to inactivity
   * `:set_bandwidth_allocation` - variant has been directly set
-  * `:variant_active` - variant became active *AND* we have enough bandwidth to support it
+  * `:variant_resumed` - variant became active *AND* we have enough bandwidth to support it
   * `:automatic_selection` - variant became active but no target variant has been set so automatic selection has been performed
   * `:target_variant_selected` - variant has been selected as target and is active at the moment of selection
-  * `:other` - it was hard to determine the exact reason
   """
-  @type variant_switch_reason() :: :low_bandwidth | :variant_inactive | :other
+  @type variant_switch_reason() ::
+          :low_bandwidth
+          | :variant_inactive
+          | :set_bandwidth_allocation
+          | :automatic_selection
+          | :target_variant_selected
 
   @typedoc """
   Messages that can be sent to TrackReceiver to control its behavior.

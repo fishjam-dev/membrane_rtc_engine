@@ -128,15 +128,21 @@ defmodule Membrane.RTC.Engine.TeeTest do
 
     mark_variant_as_paused(pipeline, :high)
 
-    assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
-    refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :medium})
-    refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :low}, 0)
+    assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high, reason: :inactive})
+    refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :medium, reason: :inactive})
+    refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :low, reason: :inactive}, 0)
 
     mark_variant_as_paused(pipeline, :low)
 
-    assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :low})
-    refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
-    refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :medium}, 0)
+    assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :low, reason: :inactive})
+    refute_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high, reason: :inactive})
+
+    refute_sink_event(
+      pipeline,
+      :sink,
+      %TrackVariantPaused{variant: :medium, reason: :inactive},
+      0
+    )
 
     :ok = Pipeline.terminate(pipeline)
   end
@@ -239,7 +245,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     request_and_check_high.(pipeline)
 
     mark_variant_as_paused(pipeline, :high)
-    assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
+    assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high, reason: :inactive})
 
     mark_variant_as_resumed(pipeline, :high)
     assert_sink_event(pipeline, :sink, %TrackVariantResumed{variant: :high})
@@ -258,7 +264,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
     pipeline = build_pipeline(track, [])
 
     mark_variant_as_paused(pipeline, :high)
-    assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high})
+    assert_sink_event(pipeline, :sink, %TrackVariantPaused{variant: :high, reason: :inactive})
 
     Process.flag(:trap_exit, true)
 
@@ -434,7 +440,7 @@ defmodule Membrane.RTC.Engine.TeeTest do
   end
 
   defp mark_variant_as_paused(pipeline, variant) do
-    actions = [event: {:output, %TrackVariantPaused{variant: variant}}]
+    actions = [event: {:output, %TrackVariantPaused{variant: variant, reason: :inactive}}]
 
     Pipeline.execute_actions(pipeline,
       notify_child: {{:source, variant}, {:execute_actions, actions}}

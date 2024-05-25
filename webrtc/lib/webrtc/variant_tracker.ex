@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker do
 
   @type t :: %__MODULE__{
           variant: String.t(),
-          status: :active | :inactive,
+          status: :active | :inactive | :muted,
           samples: non_neg_integer(),
           activity_cycles: non_neg_integer(),
           inactivity_cycles: non_neg_integer(),
