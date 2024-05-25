@@ -19,24 +19,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
              VariantSelector.variant_paused(selector, :medium, :inactive)
   end
 
-  # Skip explanation:
-  # After introducing automatic variant switching, this feature seems to
-  # be a out of date. This behavior will be either achieved
-  # or overwritten by the desire to always send the highest possible or target
-  # variant, that fits the bandwidth allocation
-  @tag :skip
-  test "VariantSelector selects variant being used before it became inactive" do
-    selector = create_selector()
-
-    assert {selector, {:request, :medium, :variant_inactive}} =
-             VariantSelector.variant_paused(selector, :high, :inactive)
-
-    selector = VariantSelector.set_current_variant(selector, :medium)
-
-    assert {_selector, {:request, :high, :automatic_selection}} =
-             VariantSelector.variant_resumed(selector, :high)
-  end
-
   test "target_variant/2 sets target variant and chooses it when it is active" do
     selector = create_selector()
 
@@ -62,12 +44,46 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
              VariantSelector.variant_resumed(selector, :low)
   end
 
-  @tag :skip
   test "VariantSelector doesn't select a new variant when not currently used variant is marked as inactive" do
     selector = create_selector()
 
     assert {selector, :noop} = VariantSelector.variant_paused(selector, :medium, :inactive)
     assert {_selector, :noop} = VariantSelector.variant_paused(selector, :low, :inactive)
+  end
+
+  describe "Muting Track" do
+    test "VariantSelector marks as muted the last active variant" do
+      selector = create_selector()
+      assert selector.muted_variant == :no_variant
+
+      selector = mute_all_variants(selector)
+      assert selector.muted_variant == :high
+      assert Enum.empty?(selector.active_variants)
+    end
+
+    test "VariantSelector selects another variant if the muted variant isn't active yet" do
+      selector =
+        create_selector()
+        |> mute_all_variants()
+
+      {selector, {:request, :medium, :automatic_selection}} =
+        VariantSelector.variant_resumed(selector, :medium)
+
+      assert selector.muted_variant == :high
+      assert selector.active_variants == MapSet.new([:medium])
+    end
+
+    test "VariantSelector selects muted variant once it becomes active again" do
+      selector =
+        create_selector()
+        |> mute_all_variants()
+
+      {selector, {:request, :high, :variant_resumed}} =
+        VariantSelector.variant_resumed(selector, :high)
+
+      assert selector.muted_variant == :no_variant
+      assert selector.active_variants == MapSet.new([:high])
+    end
   end
 
   describe "Automatic variant selection in VariantSelector" do
@@ -226,5 +242,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
   defp assert_allocation_requested(variant) do
     bitrate = @variant_bitrates[variant] * 1.1
     assert_receive {:request_allocation, _pid, ^bitrate}
+  end
+
+  defp mute_all_variants(selector) do
+    Enum.reduce([:low, :medium, :high], selector, fn variant, selector ->
+      {selector, :noop} = VariantSelector.variant_paused(selector, variant, :muted)
+      selector
+    end)
   end
 end
