@@ -78,7 +78,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelectorTest do
         create_selector()
         |> mute_all_variants()
 
-      {selector, {:request, :high, :variant_resumed}} =
+      {selector, {:request, :high, :variant_unmuted}} =
         VariantSelector.variant_resumed(selector, :high)
 
       assert selector.muted_variant == :no_variant
