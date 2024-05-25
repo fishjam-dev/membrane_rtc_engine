@@ -48,3 +48,6 @@ tmp/
 
 # Release script persistence file
 RELEASE_STAGE
+
+# VSCODE
+/.vscode/*

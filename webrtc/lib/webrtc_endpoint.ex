@@ -746,11 +746,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(
+         %{type: :mute_track, data: %{track_id: track_id}},
+         ctx,
+         state
+       ) do
+    {forward({:track_sender, track_id}, :mute_track, ctx), state}
+  end
+
+  defp handle_media_event(
          %{type: :unmute_track, data: %{track_id: track_id}},
          ctx,
          state
        ) do
-    {forward({:track_sender, track_id}, :track_active, ctx), state}
+    {forward({:track_sender, track_id}, :unmute_track, ctx), state}
   end
 
   defp handle_media_event(

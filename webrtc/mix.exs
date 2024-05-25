@@ -95,6 +95,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       extras: extras(),
       formatters: ["html"],
       groups_for_extras: groups_for_extras(),
+      groups_for_modules: groups_for_modules(),
       assets: "internal_docs/assets",
       source_ref: @source_ref,
       source_url_pattern: "#{@engine_github_url}/blob/#{@source_ref}/webrtc/%{path}#L%{line}",
@@ -127,6 +128,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       {"Guides", ~r/guides\/(?!upgrading\/).*/},
       {"Upgrading", ~r/guides\/upgrading\//},
       {"Developer docs", ~r/internal_docs\//}
+    ]
+  end
+
+  defp groups_for_modules() do
+    [
+      {"WebRTC Endpoint",
+       [
+         ~r/^Membrane\.RTC\.Engine\.Endpoint\.WebRTC($|\.)/
+       ]},
+      Extensions: [
+        ~r/^Membrane\.WebRTC\.Extension($|\.)/
+      ],
+      WebRTC: [
+        ~r/^Membrane\.WebRTC($|\.)/
+      ]
     ]
   end
 

@@ -246,21 +246,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(_pad, %TrackVariantPaused{variant: variant} = event, _ctx, state) do
+  def handle_event(
+        _pad,
+        %TrackVariantPaused{variant: variant, reason: reason} = event,
+        _ctx,
+        state
+      ) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, selector_action} = VariantSelector.variant_inactive(state.selector, variant)
+
+    {selector, selector_action} = VariantSelector.variant_paused(state.selector, variant, reason)
     actions = handle_selector_action(selector_action)
-    state = %{state | selector: selector}
-    {actions, state}
+
+    {actions, %{state | selector: selector}}
   end
 
   @impl true
   def handle_event(_pad, %TrackVariantResumed{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, selector_action} = VariantSelector.variant_active(state.selector, variant)
+
+    {selector, selector_action} = VariantSelector.variant_resumed(state.selector, variant)
     actions = handle_selector_action(selector_action)
-    state = %{state | selector: selector}
-    {actions, state}
+
+    {actions, %{state | selector: selector}}
   end
 
   @impl true

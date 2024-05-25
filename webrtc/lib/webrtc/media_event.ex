@@ -227,6 +227,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
        do: {:ok, %{type: :enable_track_variant, data: %{track_id: track_id, encoding: encoding}}}
 
   defp do_decode(%{
+         "type" => "muteTrack",
+         "data" => %{"trackId" => track_id}
+       }),
+       do: {:ok, %{type: :mute_track, data: %{track_id: track_id}}}
+
+  defp do_decode(%{
          "type" => "unmuteTrack",
          "data" => %{"trackId" => track_id}
        }),

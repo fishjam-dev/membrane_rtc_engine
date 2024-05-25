@@ -365,10 +365,19 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   end
 
   @impl true
-  def handle_parent_notification(:track_active, _ctx, state) do
+  def handle_parent_notification(:mute_track, _ctx, state) do
+    state.trackers
+    |> Enum.flat_map_reduce(state, fn {variant, tracker}, state ->
+      set_variant_muted(variant, tracker, state)
+    end)
+  end
+
+  @impl true
+  def handle_parent_notification(:unmute_track, _ctx, state) do
     # TODO: fix this, now we request variant for all activated variants,
     # so we send the notifications from lowest to highest variant
     # so that the actually selected variant is the highest one
+
     state.trackers
     |> Enum.sort_by(fn {variant, _tracker} ->
       case variant do
@@ -379,15 +388,32 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
       end
     end)
     |> Enum.flat_map_reduce(state, fn {variant, tracker}, state ->
-      set_variant_active(variant, tracker, state)
+      set_variant_unmuted(variant, tracker, state)
     end)
   end
 
-  defp set_variant_active(variant, tracker, state) do
+  defp set_variant_muted(variant, tracker, state) do
     pad = Pad.ref(:output, {state.track.id, variant})
 
     {actions, tracker, state} =
-      case VariantTracker.set_variant_active(tracker) do
+      case VariantTracker.set_variant_muted(tracker) do
+        {:ok, tracker} ->
+          {[], tracker, state}
+
+        {:status_changed, tracker, :muted} ->
+          event = %TrackVariantPaused{variant: variant, reason: :muted}
+          {[event: {pad, event}], tracker, state}
+      end
+
+    state = put_in(state, [:trackers, variant], tracker)
+    {actions, state}
+  end
+
+  defp set_variant_unmuted(variant, tracker, state) do
+    pad = Pad.ref(:output, {state.track.id, variant})
+
+    {actions, tracker, state} =
+      case VariantTracker.set_variant_unmuted(tracker) do
         {:ok, tracker} ->
           {[], tracker, state}
 
@@ -412,8 +438,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
           event = %TrackVariantResumed{variant: variant}
           {[event: {pad, event}], tracker, state}
 
-        {:status_changed, tracker, :inactive} ->
-          event = %TrackVariantPaused{variant: variant}
+        {:status_changed, tracker, reason} when reason in [:inactive, :muted] ->
+          event = %TrackVariantPaused{variant: variant, reason: reason}
 
           actions =
             if MapSet.member?(state.requested_keyframes, variant) do

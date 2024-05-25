@@ -1,6 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   @moduledoc false
-  # module responsible for choosing track variant
+  # Module responsible for choosing track variant
+  # received by the `TrackReceiver`
   require Membrane.Logger
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
@@ -59,6 +60,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
             target_variant: Track.variant(),
             current_variant: Track.variant() | :no_variant,
             queued_variant: Track.variant() | :no_variant,
+            muted_variant: Track.variant() | :no_variant,
             active_variants: MapSet.t(Track.variant()),
             current_allocation: float(),
             variant_bitrates: bitrates_t(),
@@ -78,6 +80,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
                 :target_variant,
                 queued_variant: :no_variant,
                 current_variant: :no_variant,
+                muted_variant: :no_variant,
                 active_variants: MapSet.new()
               ]
 
@@ -213,10 +216,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   @doc """
-  Marks given `variant` as inactive.
+  Marks given `variant` as paused.
   """
-  @spec variant_inactive(t(), Track.variant()) :: {t(), selector_action_t()}
-  def variant_inactive(selector, variant) do
+  @spec variant_paused(t(), Track.variant(), :inactive | :muted) :: {t(), selector_action_t()}
+  def variant_paused(selector, variant, :inactive) do
     Membrane.Logger.debug("Variant inactive #{variant}")
 
     selector = %__MODULE__{
@@ -244,12 +247,32 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     {selector, action}
   end
 
+  def variant_paused(selector, variant, :muted) do
+    Membrane.Logger.debug("Variant muted #{variant}")
+
+    selector = %__MODULE__{
+      selector
+      | active_variants: MapSet.delete(selector.active_variants, variant)
+    }
+
+    selector =
+      case selector do
+        %{current_variant: ^variant} ->
+          %__MODULE__{selector | current_variant: :no_variant, muted_variant: variant}
+
+        _else ->
+          selector
+      end
+
+    {selector, :noop}
+  end
+
   @doc """
   Marks given `variant` as active.
   """
-  @spec variant_active(t(), Track.variant()) :: {t(), selector_action_t()}
-  def variant_active(selector, variant) do
-    Membrane.Logger.debug("Variant active #{variant}")
+  @spec variant_resumed(t(), Track.variant()) :: {t(), selector_action_t()}
+  def variant_resumed(selector, variant) do
+    Membrane.Logger.debug("Variant resumed #{variant}")
 
     selector = %__MODULE__{
       selector
@@ -264,7 +287,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       # and we have the bandwidth
       selector.target_variant == variant and fits_in_allocation?(selector, variant) ->
         {selector, action} = select_variant(selector, variant)
-        action = add_reason(action, :variant_active)
+        action = add_reason(action, :variant_resumed)
         selector = manage_allocation(selector)
         {selector, action}
 
@@ -334,6 +357,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     {selector, :stop}
   end
 
+  # TODO: make sure there are no loopholes in this logic here
+  # e.g. the muted variant is not currently selected for some reason
+  defp select_variant(%__MODULE__{muted_variant: variant} = selector, variant) do
+    Membrane.Logger.debug("Enqueing last paused variant #{inspect(variant)}")
+    selector = %__MODULE__{selector | queued_variant: variant, muted_variant: :no_variant}
+    {selector, {:request, variant}}
+  end
+
   defp select_variant(
          %__MODULE__{current_variant: variant, queued_variant: :no_variant} = selector,
          variant
@@ -366,8 +397,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   defp best_active_variant(selector) do
     selector.active_variants
+    |> Enum.filter(fn variant ->
+      fits_in_allocation?(selector, variant) || selector.muted_variant == variant
+    end)
     |> sort_variants()
-    |> Enum.filter(&fits_in_allocation?(selector, &1))
     |> List.first()
     |> then(&(&1 || :no_variant))
   end
