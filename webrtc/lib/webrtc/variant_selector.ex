@@ -283,6 +283,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       selector.target_variant in [selector.current_variant, selector.queued_variant] ->
         {selector, :noop}
 
+      selector.muted_variant == variant ->
+        {selector, action} = select_variant(selector, variant)
+        action = add_reason(action, :variant_unmuted)
+        selector = manage_allocation(selector)
+        {selector, action}
+
       # make sure we're selecting a target variant if it becomes active
       # and we have the bandwidth
       selector.target_variant == variant and fits_in_allocation?(selector, variant) ->
@@ -395,9 +401,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   defp best_active_variant(selector) do
     selector.active_variants
-    |> Enum.filter(fn variant ->
-      fits_in_allocation?(selector, variant) || selector.muted_variant == variant
-    end)
+    |> Enum.filter(&fits_in_allocation?(selector, &1))
     |> sort_variants()
     |> List.first()
     |> then(&(&1 || :no_variant))

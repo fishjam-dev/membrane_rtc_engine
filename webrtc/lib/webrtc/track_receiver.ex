@@ -48,7 +48,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   * `:variant_inactive` - variant has been paused due to inactivity
   * `:set_bandwidth_allocation` - variant has been directly set
   * `:variant_resumed` - variant became active *AND* we have enough bandwidth to support it
-  * `:automatic_selection` - variant became active but no target variant has been set so automatic selection has been performed *OR* the variant that became active is the last paused variant
+  * `:variant_unmuted` - previously muted variant has become active
+  * `:automatic_selection` - variant became active but no target variant has been set so automatic selection has been performed
   * `:target_variant_selected` - variant has been selected as target and is active at the moment of selection
   """
   @type variant_switch_reason() ::
