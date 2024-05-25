@@ -34,14 +34,7 @@ Furthermore, make sure you have Elixir installed on your machine. For installati
 
 ### Running the demo
 
-To run the demo, clone the `membrane_demo` repository and checkout to the demo directory:
-
-```shell
-git clone https://github.com/membraneframework/membrane_demo
-cd membrane_demo/webrtc_videoroom
-```
-
-Then you need to download the dependencies of the mix project:
+First, download the dependencies of the mix project:
 
 ```shell
 mix deps.get
@@ -114,14 +107,7 @@ Furthermore, make sure you have Elixir installed on your machine. For installati
 
 ### Running the demo
 
-To run the demo, clone the `membrane_demo` repository and checkout to the demo directory:
-
-```shell
-git clone https://github.com/membraneframework/membrane_demo
-cd membrane_demo/webrtc_videoroom
-```
-
-Then you need to download the dependencies of the mix project:
+First, download the dependencies of the mix project:
 
 ```shell
 mix deps.get
@@ -184,14 +170,7 @@ On Ubuntu, we recommend installation through `asdf`, see: https://asdf-vm.com/gu
 
 ### Running the demo
 
-To run the demo, clone the `membrane_demo` repository and checkout to the demo directory:
-
-```shell
-git clone https://github.com/membraneframework/membrane_demo
-cd membrane_demo/webrtc_videoroom
-```
-
-Then you need to download the dependencies of the mix project:
+First, download the dependencies of the mix project:
 
 ```shell
 mix deps.get
