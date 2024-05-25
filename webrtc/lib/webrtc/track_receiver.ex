@@ -45,10 +45,21 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   Reason of track variant switch.
 
   * `:low_bandwidth` - bandwidth was too low to maintain current track quality
-  * `:variant_inactive` - variant became inactive
-  * `:other` - it was hard to determine the exact reason
+  * `:variant_inactive` - variant has been paused due to inactivity or it has been muted
+  * `:set_bandwidth_allocation` - variant has been directly set
+  * `:variant_resumed` - variant became active *AND* we have enough bandwidth to support it
+  * `:variant_unmuted` - previously muted variant has become active
+  * `:automatic_selection` - variant became active but no target variant has been set so automatic selection has been performed
+  * `:target_variant_selected` - variant has been selected as target and is active at the moment of selection
   """
-  @type variant_switch_reason() :: :low_bandwidth | :variant_inactive | :other
+  @type variant_switch_reason() ::
+          :low_bandwidth
+          | :variant_inactive
+          | :variant_unmuted
+          | :variant_resumed
+          | :set_bandwidth_allocation
+          | :automatic_selection
+          | :target_variant_selected
 
   @typedoc """
   Messages that can be sent to TrackReceiver to control its behavior.
@@ -242,21 +253,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
   end
 
   @impl true
-  def handle_event(_pad, %TrackVariantPaused{variant: variant} = event, _ctx, state) do
+  def handle_event(
+        _pad,
+        %TrackVariantPaused{variant: variant, reason: reason} = event,
+        _ctx,
+        state
+      ) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, selector_action} = VariantSelector.variant_inactive(state.selector, variant)
+
+    {selector, selector_action} = VariantSelector.variant_paused(state.selector, variant, reason)
     actions = handle_selector_action(selector_action)
-    state = %{state | selector: selector}
-    {actions, state}
+
+    {actions, %{state | selector: selector}}
   end
 
   @impl true
   def handle_event(_pad, %TrackVariantResumed{variant: variant} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
-    {selector, selector_action} = VariantSelector.variant_active(state.selector, variant)
+
+    {selector, selector_action} = VariantSelector.variant_resumed(state.selector, variant)
     actions = handle_selector_action(selector_action)
-    state = %{state | selector: selector}
-    {actions, state}
+
+    {actions, %{state | selector: selector}}
   end
 
   @impl true

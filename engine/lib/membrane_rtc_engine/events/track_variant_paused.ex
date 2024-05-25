@@ -9,9 +9,15 @@ defmodule Membrane.RTC.Engine.Event.TrackVariantPaused do
 
   @typedoc """
   Type describing TrackVariantPaused event.
-  """
-  @type t :: %__MODULE__{variant: Track.variant()}
 
-  @enforce_keys [:variant]
+  * `variant` - variant that has been paused
+  * `reason` - specifies whether the track has been paused automatically due to inactivity or on purpose due to being muted
+  """
+  @type t :: %__MODULE__{
+          variant: Track.variant(),
+          reason: :inactive | :muted
+        }
+
+  @enforce_keys [:variant, :reason]
   defstruct @enforce_keys
 end

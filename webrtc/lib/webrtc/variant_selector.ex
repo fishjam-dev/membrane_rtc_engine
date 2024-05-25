@@ -1,6 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   @moduledoc false
-  # module responsible for choosing track variant
+  # Module responsible for choosing track variant
+  # received by the `TrackReceiver`
   require Membrane.Logger
 
   alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
@@ -59,6 +60,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
             target_variant: Track.variant(),
             current_variant: Track.variant() | :no_variant,
             queued_variant: Track.variant() | :no_variant,
+            muted_variant: Track.variant() | :no_variant,
             active_variants: MapSet.t(Track.variant()),
             current_allocation: float(),
             variant_bitrates: bitrates_t(),
@@ -78,6 +80,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
                 :target_variant,
                 queued_variant: :no_variant,
                 current_variant: :no_variant,
+                muted_variant: :no_variant,
                 active_variants: MapSet.new()
               ]
 
@@ -168,7 +171,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       |> Map.put(:current_allocation, allocation)
       |> perform_automatic_variant_selection()
 
-    action = add_reason(action, :other)
+    action = add_reason(action, :set_bandwidth_allocation)
     {selector, action}
   end
 
@@ -213,11 +216,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   @doc """
-  Marks given `variant` as inactive.
+  Marks given `variant` as paused.
   """
-  @spec variant_inactive(t(), Track.variant()) :: {t(), selector_action_t()}
-  def variant_inactive(selector, variant) do
-    Membrane.Logger.debug("Variant inactive #{variant}")
+  @spec variant_paused(t(), Track.variant(), :inactive | :muted) :: {t(), selector_action_t()}
+  def variant_paused(selector, variant, :inactive) do
+    Membrane.Logger.debug("Variant #{variant} has been paused due to inactivity")
 
     selector = %__MODULE__{
       selector
@@ -244,12 +247,32 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     {selector, action}
   end
 
+  def variant_paused(selector, variant, :muted) do
+    Membrane.Logger.debug("Variant #{variant} has been muted")
+
+    selector = %__MODULE__{
+      selector
+      | active_variants: MapSet.delete(selector.active_variants, variant)
+    }
+
+    selector =
+      case selector do
+        %{current_variant: ^variant} ->
+          %__MODULE__{selector | current_variant: :no_variant, muted_variant: variant}
+
+        _else ->
+          selector
+      end
+
+    {selector, :noop}
+  end
+
   @doc """
   Marks given `variant` as active.
   """
-  @spec variant_active(t(), Track.variant()) :: {t(), selector_action_t()}
-  def variant_active(selector, variant) do
-    Membrane.Logger.debug("Variant active #{variant}")
+  @spec variant_resumed(t(), Track.variant()) :: {t(), selector_action_t()}
+  def variant_resumed(selector, variant) do
+    Membrane.Logger.debug("Variant resumed #{variant}")
 
     selector = %__MODULE__{
       selector
@@ -260,11 +283,17 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       selector.target_variant in [selector.current_variant, selector.queued_variant] ->
         {selector, :noop}
 
+      selector.muted_variant == variant ->
+        {selector, action} = select_variant(selector, variant)
+        action = add_reason(action, :variant_unmuted)
+        selector = manage_allocation(selector)
+        {selector, action}
+
       # make sure we're selecting a target variant if it becomes active
       # and we have the bandwidth
       selector.target_variant == variant and fits_in_allocation?(selector, variant) ->
         {selector, action} = select_variant(selector, variant)
-        action = add_reason(action, :other)
+        action = add_reason(action, :variant_resumed)
         selector = manage_allocation(selector)
         {selector, action}
 
@@ -275,7 +304,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         |> case do
           # TODO: don't ignore stop action when RTC Engine supports it
           {selector, :stop} -> {selector, :noop}
-          {selector, action} -> {selector, add_reason(action, :other)}
+          {selector, action} -> {selector, add_reason(action, :automatic_selection)}
         end
     end
   end
@@ -308,7 +337,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     if variant in selector.active_variants and fits_in_allocation?(selector, variant) do
       {selector, action} = select_variant(selector, variant)
-      action = add_reason(action, :other)
+      action = add_reason(action, :target_variant_selected)
       selector = manage_allocation(selector)
       {selector, action}
     else
@@ -334,6 +363,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     {selector, :stop}
   end
 
+  defp select_variant(%__MODULE__{muted_variant: variant} = selector, variant) do
+    Membrane.Logger.debug("Enqueing last paused variant #{inspect(variant)}")
+    selector = %__MODULE__{selector | queued_variant: variant, muted_variant: :no_variant}
+    {selector, {:request, variant}}
+  end
+
   defp select_variant(
          %__MODULE__{current_variant: variant, queued_variant: :no_variant} = selector,
          variant
@@ -354,7 +389,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   defp select_variant(%__MODULE__{queued_variant: variant} = selector, variant) do
-    Membrane.Logger.debug(" Requested the variant that has already been queued. Ignoring")
+    Membrane.Logger.debug("Requested the variant that has already been queued. Ignoring")
     {selector, :noop}
   end
 
@@ -366,8 +401,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
   defp best_active_variant(selector) do
     selector.active_variants
-    |> sort_variants()
     |> Enum.filter(&fits_in_allocation?(selector, &1))
+    |> sort_variants()
     |> List.first()
     |> then(&(&1 || :no_variant))
   end
