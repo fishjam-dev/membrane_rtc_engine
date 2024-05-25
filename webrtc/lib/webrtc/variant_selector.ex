@@ -357,8 +357,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
     {selector, :stop}
   end
 
-  # TODO: make sure there are no loopholes in this logic here
-  # e.g. the muted variant is not currently selected for some reason
   defp select_variant(%__MODULE__{muted_variant: variant} = selector, variant) do
     Membrane.Logger.debug("Enqueing last paused variant #{inspect(variant)}")
     selector = %__MODULE__{selector | queued_variant: variant, muted_variant: :no_variant}

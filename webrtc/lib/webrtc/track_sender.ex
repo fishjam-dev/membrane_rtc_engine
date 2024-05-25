@@ -374,10 +374,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   @impl true
   def handle_parent_notification(:unmute_track, _ctx, state) do
-    # TODO: fix this, now we request variant for all activated variants,
-    # so we send the notifications from lowest to highest variant
-    # so that the actually selected variant is the highest one
-
     state.trackers
     |> Enum.sort_by(fn {variant, _tracker} ->
       case variant do
