@@ -364,6 +364,42 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
     {actions, state}
   end
 
+  @impl true
+  def handle_parent_notification(:track_active, _ctx, state) do
+    # TODO: fix this, now we request variant for all activated variants,
+    # so we send the notifications from lowest to highest variant
+    # so that the actually selected variant is the highest one
+    state.trackers
+    |> Enum.sort_by(fn {variant, _tracker} ->
+      case variant do
+        :high -> 3
+        :medium -> 2
+        :low -> 1
+        :no_variant -> 0
+      end
+    end)
+    |> Enum.flat_map_reduce(state, fn {variant, tracker}, state ->
+      set_variant_active(variant, tracker, state)
+    end)
+  end
+
+  defp set_variant_active(variant, tracker, state) do
+    pad = Pad.ref(:output, {state.track.id, variant})
+
+    {actions, tracker, state} =
+      case VariantTracker.set_variant_active(tracker) do
+        {:ok, tracker} ->
+          {[], tracker, state}
+
+        {:status_changed, tracker, :active} ->
+          event = %TrackVariantResumed{variant: variant}
+          {[event: {pad, event}], tracker, state}
+      end
+
+    state = put_in(state, [:trackers, variant], tracker)
+    {actions, state}
+  end
+
   defp check_variant_status(variant, tracker, state) do
     pad = Pad.ref(:output, {state.track.id, variant})
 

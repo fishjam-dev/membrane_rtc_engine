@@ -168,7 +168,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       |> Map.put(:current_allocation, allocation)
       |> perform_automatic_variant_selection()
 
-    action = add_reason(action, :other)
+    action = add_reason(action, :set_bandwidth_allocation)
     {selector, action}
   end
 
@@ -264,7 +264,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
       # and we have the bandwidth
       selector.target_variant == variant and fits_in_allocation?(selector, variant) ->
         {selector, action} = select_variant(selector, variant)
-        action = add_reason(action, :other)
+        action = add_reason(action, :variant_active)
         selector = manage_allocation(selector)
         {selector, action}
 
@@ -275,7 +275,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
         |> case do
           # TODO: don't ignore stop action when RTC Engine supports it
           {selector, :stop} -> {selector, :noop}
-          {selector, action} -> {selector, add_reason(action, :other)}
+          {selector, action} -> {selector, add_reason(action, :automatic_selection)}
         end
     end
   end
@@ -308,7 +308,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
 
     if variant in selector.active_variants and fits_in_allocation?(selector, variant) do
       {selector, action} = select_variant(selector, variant)
-      action = add_reason(action, :other)
+      action = add_reason(action, :target_variant_selected)
       selector = manage_allocation(selector)
       {selector, action}
     else
@@ -354,7 +354,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
   end
 
   defp select_variant(%__MODULE__{queued_variant: variant} = selector, variant) do
-    Membrane.Logger.debug(" Requested the variant that has already been queued. Ignoring")
+    Membrane.Logger.debug("Requested the variant that has already been queued. Ignoring")
     {selector, :noop}
   end
 

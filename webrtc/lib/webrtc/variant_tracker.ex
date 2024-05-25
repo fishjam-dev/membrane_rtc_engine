@@ -85,6 +85,16 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker do
     end
   end
 
+  def set_variant_active(tracker) do
+    if tracker.status == :inactive do
+      Membrane.Logger.debug("Variant #{inspect(tracker.variant)} is active.")
+      tracker = %__MODULE__{tracker | status: :active, activity_cycles: 0}
+      {:status_changed, tracker, :active}
+    else
+      {:ok, tracker}
+    end
+  end
+
   @doc """
   Resets VariantTracker state.
   """

@@ -29,6 +29,7 @@ Messages used by any WebRTC Endpoint plugin
 | [updateTrackMetadata](#updatetrackmetadata)       | contains new metadata of a track                                |
 | [disableTrackEncoding](#disabletrackencoding)     | sent when client disables one of the track variants             |
 | [enableTrackEncoding](#enabletrackencoding)       | sent when client enables one of the track variants              |
+| [unmuteTrack](#unmutetrack)                       | sent when track is unmuted
 | [custom](#custom)                                 | message forwarded to the endpoint associated with the client    |
 
 
@@ -137,6 +138,17 @@ Messages used by any WebRTC Endpoint plugin
     "trackMetadata": any
   }
   ```
+
+### `unmuteTrack`
+
+* Sent when a track is unmuted
+
+  ```json
+  {
+    "trackId": track_id,
+  }
+  ```
+
 
 ### `custom`
 
