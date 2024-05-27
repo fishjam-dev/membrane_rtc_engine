@@ -24,6 +24,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Guard do
       Enum.filter(stores, fn {module, opts} ->
         module.on_close(files, recording_id, opts) == :ok
       end)
+    else
+      stores
     end
   end
 end
