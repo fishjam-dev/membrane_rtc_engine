@@ -34,7 +34,7 @@ defmodule VideoRoom.MixProject do
 
       # rtc engine dependencies
       {:membrane_rtc_engine, "~> 0.22.0"},
-       {:membrane_rtc_engine_webrtc, "~> 0.8.0"},
+      {:membrane_rtc_engine_webrtc, "~> 0.8.0"}
     ]
   end
 
