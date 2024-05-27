@@ -12,7 +12,7 @@ import {
   WebRTCEndpoint,
   Endpoint,
   TrackContext,
-} from "@jellyfish-dev/membrane-webrtc-js";
+} from "@fishjam-dev/ts-client";
 import { Push, Socket } from "phoenix";
 import { parse } from "query-string";
 

@@ -5,7 +5,7 @@ defmodule VideoRoom.MixProject do
     [
       app: :membrane_videoroom_demo,
       version: "0.1.0",
-      elixir: "~> 1.13",
+      elixir: "~> 1.14",
       aliases: aliases(),
       start_permanent: Mix.env() == :prod,
       deps: deps()
@@ -33,15 +33,8 @@ defmodule VideoRoom.MixProject do
       {:esbuild, "~> 0.4", runtime: Mix.env() == :dev},
 
       # rtc engine dependencies
-      {:membrane_rtc_engine,
-       github: "jellyfish-dev/membrane_rtc_engine",
-       sparse: "engine",
-       ref: "91499e6958c9243f535d9e7486ae46915f492372",
-       override: true},
-      {:membrane_rtc_engine_webrtc,
-       github: "jellyfish-dev/membrane_rtc_engine",
-       sparse: "webrtc",
-       ref: "91499e6958c9243f535d9e7486ae46915f492372"}
+      {:membrane_rtc_engine, "~> 0.22.0"},
+       {:membrane_rtc_engine_webrtc, "~> 0.8.0"},
     ]
   end
 
