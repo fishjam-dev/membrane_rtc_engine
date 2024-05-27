@@ -1,6 +1,6 @@
 import { Push, Socket } from "phoenix";
 import { setErrorMessage, setPlayerInfo, setPreview } from "./ui";
-import { WebRTCEndpoint } from "@jellyfish-dev/membrane-webrtc-js";
+import { WebRTCEndpoint } from "@fishjam-dev/ts-client";
 
 const awaitPhoenixPush = async (push: Push): Promise<any> => {
   return new Promise((resolve, reject) => {
