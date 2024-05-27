@@ -31,7 +31,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
      %{
        first_buffer_timestamp: nil,
        last_buffer_timestamp: nil,
-       rtcp_sent?: false,
        counter: 0,
        reporter: options.reporter
      }}
@@ -42,11 +41,11 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
         _pad,
         %RTCPEvent{rtcp: %SenderReportPacket{} = rtcp},
         context,
-        %{rtcp_sent?: false} = state
+        state
       )
       when not is_nil(state.first_buffer_timestamp) do
     Recording.Reporter.rtcp_packet(state.reporter, track_id(context), rtcp)
-    {[], %{state | rtcp_sent?: true}}
+    {[], state}
   end
 
   @impl true
