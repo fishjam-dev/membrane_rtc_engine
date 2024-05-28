@@ -4,7 +4,7 @@
 * Synchronize tracks based on RTCP sender reports [#393](https://github.com/fishjam-dev/membrane_rtc_engine/pull/393)
 * Fix setting last buffer timestamp [#394](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/394)
 * Fix rtcp synchronization [#397](https://github.com/fishjam-dev/membrane_rtc_engine/pull/397)
-* Don't list S3 object if no files added in recording [#396](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/396)
+* Don't list S3 object if no files added in recording [#396](https://github.com/fishjam-dev/membrane_rtc_engine/pull/396)
 
 ## 0.1.0
 * Initial release [#356](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/356)
