@@ -1,4 +1,4 @@
-# Membrane WebRTC video room demo
+# RTC Engine WebRTC video room example
 
 This project demonstrates an example usage of the Membrane RTC Engine API.
 

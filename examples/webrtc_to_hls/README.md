@@ -1,4 +1,4 @@
-# Membrane WebRTC To HLS demo
+# RTC Engine WebRTC To HLS example
 
 This demo is responsible for:
 
@@ -36,16 +36,14 @@ and restart your terminal.
 
 Furthermore, make sure you have Elixir installed on your machine. For installation details, see: https://elixir-lang.org/install.html
 
-### Running the demo
+### Running the example
 
-To run the demo, clone the `membrane_demo` repository and checkout to the demo directory:
+First, clone the `membrane_rtc_engine` repository and checkout to the example directory:
 
 ```shell
-git clone https://github.com/membraneframework/membrane_demo
-cd membrane_demo/webrtc_to_hls
+git clone https://github.com/fishjam-dev/membrane_rtc_engine.git
+cd examples/webrtc_to_hls
 ```
-
-Firstly, generate a certificate, as described in the [signaling server readme](https://github.com/membraneframework/membrane_demo/webrtc_simple).
 
 Then you need to download the dependencies of the mix project:
 
@@ -87,7 +85,7 @@ Then add the following environment variables to your shell (`~/.zshrc`):
 
 ```shell
 export C_INCLUDE_PATH="/opt/homebrew/Cellar/libnice/0.1.18/include:/opt/homebrew/Cellar/opus/1.4/include:/opt/homebrew/Cellar/openssl@1.1/1.1.1l_1/include"
-export PKG_CONFIG_PATH="/opt/homebrew/Cellar/openssl@1.1/1.1.1u/lib/pkgconfig
+export PKG_CONFIG_PATH="/opt/homebrew/Cellar/openssl@1.1/1.1.1u/lib/pkgconfig"
 export LDFLAGS="-L/opt/homebrew/Cellar/openssl@1.1/1.1.1u/lib"
 export CFLAGS="-I/opt/homebrew/Cellar/openssl@1.1/1.1.1u/include"
 export CPPFLAGS="-I/opt/homebrew/Cellar/openssl@1.1/1.1.1u/include"
@@ -97,16 +95,14 @@ and restart your terminal.
 
 Furthermore, make sure you have Elixir installed on your machine. For installation details, see: https://elixir-lang.org/install.html
 
-### Running the demo
+### Running the example
 
-To run the demo, clone the `membrane_demo` repository and checkout to the demo directory:
+First, clone the `membrane_rtc_engine` repository and checkout to the example directory:
 
 ```shell
-git clone https://github.com/membraneframework/membrane_demo
-cd membrane_demo/webrtc_to_hls
+git clone https://github.com/fishjam-dev/membrane_rtc_engine.git
+cd examples/webrtc_to_hls
 ```
-
-Firstly, generate a certificate, as described in the [signaling server readme](https://github.com/membraneframework/membrane_demo/webrtc_simple).
 
 Then you need to download the dependencies of the mix project:
 
@@ -148,16 +144,14 @@ Furthermore, make sure you have Elixir installed on your machine. For installati
 
 On Ubuntu, we recommend installation through `asdf`, see: https://asdf-vm.com/guide/getting-started.html
 
-### Running the demo
+### Running the example
 
-To run the demo, clone the `membrane_demo` repository and checkout to the demo directory:
+First, clone the `membrane_rtc_engine` repository and checkout to the example directory:
 
 ```shell
-git clone https://github.com/membraneframework/membrane_demo
-cd membrane_demo/webrtc_to_hls
+git clone https://github.com/fishjam-dev/membrane_rtc_engine.git
+cd examples/webrtc_to_hls
 ```
-
-Firstly, generate a certificate, as described in the [signaling server readme](https://github.com/membraneframework/membrane_demo/webrtc_simple).
 
 Then you need to download the dependencies of the mix project:
 

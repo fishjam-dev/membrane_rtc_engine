@@ -5,7 +5,7 @@ defmodule WebRTCToHLS.MixProject do
     [
       app: :membrane_webrtc_to_hls_demo,
       version: "0.1.0",
-      elixir: "~> 1.12",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -28,18 +28,18 @@ defmodule WebRTCToHLS.MixProject do
       {:phoenix_live_reload, "~> 1.3"},
       {:jason, "~> 1.2"},
       {:phoenix_inline_svg, "~> 1.4"},
-      {:uuid, "~> 1.1"},
+      {:elixir_uuid, "~> 1.2"},
       {:esbuild, "~> 0.4", runtime: Mix.env() == :dev},
       {:cowlib, "~> 2.11.0", override: true},
 
       # rtc engine dependencies
-      {:membrane_rtc_engine, "~> 0.18.0"},
-      {:membrane_rtc_engine_hls, "~> 0.3.0"},
-      {:membrane_rtc_engine_webrtc, "~> 0.4.0"},
+      {:membrane_rtc_engine, "~> 0.22.0"},
+      {:membrane_rtc_engine_hls, "~> 0.7.0"},
+      {:membrane_rtc_engine_webrtc, "~> 0.8.0"},
 
       # hls dependencies
-      {:membrane_audio_mix_plugin, "~> 0.15.2", optional: true},
-      {:membrane_video_compositor_plugin, "~> 0.5.1", optional: true}
+      {:membrane_audio_mix_plugin, "~> 0.16.0", optional: true},
+      {:membrane_video_compositor_plugin, "~> 0.7.0", optional: true}
     ]
   end
 
