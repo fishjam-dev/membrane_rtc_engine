@@ -1,4 +1,4 @@
-# RTC Engine WebRTC To HLS demo
+# RTC Engine WebRTC To HLS example
 
 This demo is responsible for:
 
@@ -95,7 +95,7 @@ and restart your terminal.
 
 Furthermore, make sure you have Elixir installed on your machine. For installation details, see: https://elixir-lang.org/install.html
 
-### Running the demo
+### Running the example
 
 First, clone the `membrane_rtc_engine` repository and checkout to the example directory:
 
@@ -144,7 +144,7 @@ Furthermore, make sure you have Elixir installed on your machine. For installati
 
 On Ubuntu, we recommend installation through `asdf`, see: https://asdf-vm.com/guide/getting-started.html
 
-### Running the demo
+### Running the example
 
 First, clone the `membrane_rtc_engine` repository and checkout to the example directory:
 
