@@ -36,7 +36,7 @@ and restart your terminal.
 
 Furthermore, make sure you have Elixir installed on your machine. For installation details, see: https://elixir-lang.org/install.html
 
-### Running the demo
+### Running the example
 
 First, clone the `membrane_rtc_engine` repository and checkout to the example directory:
 
