@@ -626,7 +626,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     track = Map.fetch!(state.outbound_tracks, track_id)
     initial_target_variant = state.simulcast_config.initial_target_variant.(track)
 
-    spec = {
+    filter = fn %{metadata: %{h264: %{type: type}}} = buffer ->
+      if type in [:sps, :pps, :idr], do: IO.inspect({type, buffer.pts}, label: :buffer)
+    end
+
+    spec = [
+      child(:input_tee, Membrane.Tee.Parallel),
       bin_input(pad)
       |> child({:track_receiver, track_id}, %TrackReceiver{
         track: track,
@@ -635,10 +640,28 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         connection_allocator_module: state.connection_allocator_module,
         telemetry_label: state.telemetry_label
       })
+      |> get_child(:input_tee)
       |> via_in(pad, options: [use_payloader?: false], toilet_capacity: state.toilet_capacity)
       |> get_child(:endpoint_bin),
-      log_metadata: state.log_metadata
-    }
+      get_child(:input_tee)
+      |> child({:input_serializer}, Membrane.Stream.Serializer)
+      |> child({:input_sink}, %Membrane.File.Sink{location: "input.msr"}),
+      get_child(:input_tee)
+      |> child({:rtp, track_id}, %Membrane.RTP.DepayloaderBin{
+        depayloader: Membrane.RTP.H264.Depayloader,
+        clock_rate: 90_000
+      })
+      |> child({:input_parser, track.id}, %Membrane.H264.Parser{
+        output_alignment: :nalu,
+        output_stream_structure: :annexb
+      })
+      |> child(:filter, %Membrane.Debug.Filter{
+        handle_buffer: &filter.(&1),
+        handle_stream_format: &IO.inspect(&1.width, label: :stream)
+      })
+      |> child(:validator, Membrane.RTC.Engine.Endpoint.Validator)
+      |> child(:debug, %Membrane.Debug.Sink{})
+    ]
 
     {[spec: spec], state}
   end
@@ -652,11 +675,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     # assume that tracks with [:high] variants are non-simulcast
     rid = if state.inbound_tracks[track_id].variants == [:high], do: nil, else: to_rid(variant)
 
-    spec = {
+    spec = [
+      child({:tee, variant}, Membrane.Tee.Parallel),
       get_child(:endpoint_bin)
       |> via_out(Pad.ref(:output, {track_id, rid}),
         options: [extensions: extensions, use_depayloader?: false]
       )
+      |> get_child({:tee, variant})
       |> via_in(Pad.ref(:input, {track_id, variant}))
       |> child(
         {:track_sender, track_id},
@@ -668,8 +693,10 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       )
       |> via_out(pad)
       |> bin_output(pad),
-      log_metadata: state.log_metadata
-    }
+      get_child({:tee, variant})
+      |> child({:serializer, variant}, Membrane.Stream.Serializer)
+      |> child({:sink, variant}, %Membrane.File.Sink{location: "#{variant}.msr"})
+    ]
 
     {[spec: spec], state}
   end
@@ -813,6 +840,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(%{type: :set_target_track_variant, data: data}, ctx, state) do
+    IO.inspect(data, label: :target_variant_msg)
     msg = {:set_target_variant, to_track_variant(data.variant)}
     {forward({:track_receiver, data.track_id}, msg, ctx), state}
   end

@@ -238,6 +238,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver do
 
   @impl true
   def handle_event(_pad, %TrackVariantSwitched{} = event, _ctx, state) do
+    IO.inspect(event, label: :track_variant_switched)
     Membrane.Logger.debug("Received event: #{inspect(event)}")
 
     Metrics.emit_variant_switched_event(
