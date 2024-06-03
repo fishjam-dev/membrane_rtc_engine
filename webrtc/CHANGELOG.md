@@ -3,6 +3,7 @@
 ## 0.9.0-dev
 * Add RTCP sender reports [#393](https://github.com/fishjam-dev/membrane_rtc_engine/pull/393)
 * Allow for muting a track without renegotiation [#392](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/392)
+* RTP connection allocator is started without link [#396](https://github.com/fishjam-dev/membrane_rtc_engine/pull/396) 
 
 ## 0.8.0
 * Update deps [#374](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/374)

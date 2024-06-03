@@ -73,7 +73,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPConnectionAllocator do
   @padding_packet_size 8 * 256
 
   @impl true
-  def create(), do: GenServer.start_link(__MODULE__, [], [])
+  def create(), do: GenServer.start(__MODULE__, [], [])
 
   @impl true
   def destroy(pid), do: GenServer.stop(pid)

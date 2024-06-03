@@ -43,7 +43,10 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     options = [id: "test_rtc"]
     {:ok, pid} = Engine.start_link(options, [])
     Engine.register(pid, self())
-    on_exit(fn -> Engine.terminate(pid) end)
+
+    on_exit(fn ->
+      Engine.terminate(pid)
+    end)
 
     [rtc_engine: pid]
   end
@@ -361,7 +364,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     video_file_endpoint_id = "video-file-endpoint"
 
     video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
-    setup_mock_http_request(5)
+    setup_mock_http_request()
 
     recording_endpoint =
       create_recording_endpoint(rtc_engine, [
@@ -396,7 +399,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     video_file_endpoint_id = "video-file-endpoint"
 
     video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
-    setup_mock_http_request(9)
+    setup_mock_http_request()
 
     recording_endpoint =
       create_recording_endpoint(rtc_engine, [
@@ -467,7 +470,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       audio_file_endpoint_id = "audio-file-endpoint"
       video_file_endpoint_id = "video-file-endpoint"
 
-      setup_mock_http_request(10)
+      setup_mock_http_request()
 
       audio_file_path = Path.join(@fixtures_dir, "audio.aac")
       video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
@@ -507,6 +510,10 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       refute_received %EndpointCrashed{endpoint_id: ^recording_endpoint_id}
 
       assert_receive %EndpointRemoved{endpoint_id: ^recording_endpoint_id}
+      Engine.terminate(rtc_engine)
+      assert_receive :get_chunk_list
+      assert_receive :upload_completed
+      assert_receive :report_uploaded
     end
 
     test "ensure the endpoint crashes when a s3 sink crases - file sink is not added", %{
@@ -516,7 +523,7 @@ defmodule Membrane.RTC.RecordingEndpointTest do
       audio_file_endpoint_id = "audio-file-endpoint"
       video_file_endpoint_id = "video-file-endpoint"
 
-      setup_mock_http_request(10)
+      setup_mock_http_request()
 
       audio_file_path = Path.join(@fixtures_dir, "audio.aac")
       video_file_path = Path.join(@fixtures_dir, "recorded_video.h264")
@@ -751,10 +758,10 @@ defmodule Membrane.RTC.RecordingEndpointTest do
     assert report_path |> File.read!() |> byte_size() > 0
   end
 
-  defp setup_mock_http_request(request_no) do
+  defp setup_mock_http_request() do
     pid = self()
 
-    expect(ExAws.Request.HttpMock, :request, request_no, fn method, url, body, _headers, _opts ->
+    stub(ExAws.Request.HttpMock, :request, fn method, url, body, _headers, _opts ->
       case %{method: method, url: url, body: body} do
         %{
           method: :post,
