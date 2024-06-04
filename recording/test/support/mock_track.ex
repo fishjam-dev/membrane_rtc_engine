@@ -34,7 +34,7 @@ defmodule MockTrack do
 
   @spec create_rtcp_report(non_neg_integer(), non_neg_integer(), non_neg_integer()) ::
           SenderReportPacket.t()
-  def create_rtcp_report(rtp_timestamp, wallclock_timestamp, clock_rate) do
+  def create_rtcp_report(rtp_timestamp, wallclock_timestamp, clock_rate \\ 0) do
     %SenderReportPacket{
       ssrc: 1,
       reports: [],
