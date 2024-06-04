@@ -36,6 +36,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   ]
 
   @type filename :: String.t()
+
+  # TODO: create struct
   @type track_report :: %{
           type: Track.t(),
           encoding: Track.encoding(),
@@ -149,8 +151,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
       state.tracks
       |> Map.values()
       |> Enum.reject(fn {_filename, track} ->
-        is_nil(track[:start_timestamp_wallclock]) or
-          is_nil(track[:start_timestamp]) or is_nil(track[:end_timestamp])
+        is_nil(track[:start_timestamp]) or is_nil(track[:end_timestamp])
       end)
       |> Map.new(fn {filename, track} ->
         {filename, Map.take(track, @track_reports_keys)}

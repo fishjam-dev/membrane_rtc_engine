@@ -30,9 +30,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
     :ok = Reporter.add_track(reporter, track, filename, start_timestamp)
     :ok = Reporter.start_timestamp(reporter, track.id, start_timestamp)
 
-    rtcp = create_rtcp_report(start_timestamp, 0)
-    :ok = Reporter.rtcp_packet(reporter, track.id, rtcp)
-
     assert %{
              recording_id: ^id,
              tracks: %{
@@ -41,7 +38,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  encoding: ^encoding,
                  offset: ^start_timestamp,
                  start_timestamp: ^start_timestamp,
-                 start_timestamp_wallclock: 0,
                  end_timestamp: ^start_timestamp,
                  clock_rate: ^clock_rate,
                  metadata: ^metadata,
@@ -61,7 +57,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  encoding: ^encoding,
                  offset: ^start_timestamp,
                  start_timestamp: ^start_timestamp,
-                 start_timestamp_wallclock: 0,
                  end_timestamp: ^end_timestamp,
                  clock_rate: ^clock_rate,
                  metadata: ^metadata,
@@ -88,13 +83,9 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
 
     :ok = Reporter.add_track(reporter, track_1, filename_1, start_timestamp_1)
     :ok = Reporter.start_timestamp(reporter, track_1.id, start_timestamp_1)
-    rtcp_1 = create_rtcp_report(start_timestamp_1, 0)
-    :ok = Reporter.rtcp_packet(reporter, track_1.id, rtcp_1)
 
     :ok = Reporter.add_track(reporter, track_2, filename_2, start_timestamp_2)
     :ok = Reporter.start_timestamp(reporter, track_2.id, start_timestamp_2)
-    rtcp_2 = create_rtcp_report(start_timestamp_2, 0)
-    :ok = Reporter.rtcp_packet(reporter, track_2.id, rtcp_2)
 
     assert %{
              recording_id: ^id,
@@ -104,7 +95,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  encoding: ^encoding_1,
                  offset: ^start_timestamp_1,
                  start_timestamp: ^start_timestamp_1,
-                 start_timestamp_wallclock: 0,
                  end_timestamp: ^start_timestamp_1,
                  clock_rate: ^clock_rate_1,
                  metadata: ^metadata_1,
@@ -115,7 +105,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  encoding: ^encoding_2,
                  offset: ^start_timestamp_2,
                  start_timestamp: ^start_timestamp_2,
-                 start_timestamp_wallclock: 0,
                  end_timestamp: ^start_timestamp_2,
                  clock_rate: ^clock_rate_2,
                  metadata: ^metadata_2,
@@ -135,7 +124,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  encoding: ^encoding_1,
                  offset: ^start_timestamp_1,
                  start_timestamp: ^start_timestamp_1,
-                 start_timestamp_wallclock: 0,
                  end_timestamp: ^end_timestamp_1,
                  clock_rate: ^clock_rate_1,
                  metadata: ^metadata_1,
@@ -146,7 +134,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  encoding: ^encoding_2,
                  offset: ^start_timestamp_2,
                  start_timestamp: ^start_timestamp_2,
-                 start_timestamp_wallclock: 0,
                  end_timestamp: ^start_timestamp_2,
                  clock_rate: ^clock_rate_2,
                  metadata: ^metadata_2,
@@ -166,7 +153,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  encoding: ^encoding_1,
                  offset: ^start_timestamp_1,
                  start_timestamp: ^start_timestamp_1,
-                 start_timestamp_wallclock: 0,
                  end_timestamp: ^end_timestamp_1,
                  clock_rate: ^clock_rate_1,
                  metadata: ^metadata_1,
@@ -177,7 +163,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
                  encoding: ^encoding_2,
                  offset: ^start_timestamp_2,
                  start_timestamp: ^start_timestamp_2,
-                 start_timestamp_wallclock: 0,
                  end_timestamp: ^end_timestamp_2,
                  clock_rate: ^clock_rate_2,
                  metadata: ^metadata_2,
@@ -203,8 +188,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
       wallclock_1 = 100 * @sec_to_ns
       wallclock_2 = 120 * @sec_to_ns
 
-      rtcp_1 = create_rtcp_report(track_1.start_timestamp + @video_clock_rate, wallclock_1)
       rtcp_2 = create_rtcp_report(track_2.start_timestamp + @audio_clock_rate, wallclock_2)
+      rtcp_1 = create_rtcp_report(track_1.start_timestamp + @video_clock_rate, wallclock_1)
 
       :ok = Reporter.rtcp_packet(reporter, track_1.id, rtcp_1)
       :ok = Reporter.rtcp_packet(reporter, track_2.id, rtcp_2)
@@ -231,15 +216,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
         ]
         |> Enum.map(&add_track(reporter, &1))
 
-      # without rtcp
-      assert %{
-               recording_id: ^id,
-               tracks: tracks
-             } = Reporter.get_report(reporter)
-
-      # only tracks that have :start_timestamp_wallclock field are included in reports
-      assert map_size(tracks) == 0
-
       wallclock_3 = 100 * @sec_to_ns
       wallclock_4 = 120 * @sec_to_ns
 
@@ -252,15 +228,22 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.ReporterTest do
       # after sending rtcp
       assert %{
                recording_id: ^id,
-               tracks:
-                 %{
-                   "track_3.msr" => %{start_timestamp_wallclock: ^wallclock_3},
-                   "track_4.msr" => %{start_timestamp_wallclock: ^wallclock_4}
-                 } = tracks
+               tracks: %{
+                 "track_3.msr" => %{start_timestamp_wallclock: ^wallclock_3},
+                 "track_4.msr" => %{start_timestamp_wallclock: ^wallclock_4}
+               }
              } = Reporter.get_report(reporter)
 
-      # only tracks that have :start_timestamp_wallclock field are included in reports
-      assert map_size(tracks) == 2
+      refute match?(
+               %{
+                 recording_id: ^id,
+                 tracks: %{
+                   "track_1.msr" => %{start_timestamp_wallclock: _time_1},
+                   "track_2.msr" => %{start_timestamp_wallclock: _time_2}
+                 }
+               },
+               Reporter.get_report(reporter)
+             )
     end
   end
 

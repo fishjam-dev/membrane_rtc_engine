@@ -56,7 +56,7 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaverTest do
 
       events =
         for idx <- 0..rtcp_events do
-          {:event, {:output, %RTCPEvent{rtcp: create_rtcp_report(1, 1)}}}
+          {:event, {:output, %RTCPEvent{rtcp: create_rtcp_report(1, 1, idx)}}}
         end
 
       actions = buffers ++ events ++ [{:end_of_stream, :output}]
