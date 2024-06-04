@@ -58,10 +58,8 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
         _pad,
         %Buffer{} = buffer,
         ctx,
-        %{first_buffer_timestamp: first_buffer_timestamp} = state
-      )
-      when is_nil(first_buffer_timestamp) or
-             buffer.metadata.rtp.timestamp < first_buffer_timestamp do
+        %{first_buffer_timestamp: nil} = state
+      ) do
     timestamp = buffer.metadata.rtp.timestamp
 
     Recording.Reporter.start_timestamp(
@@ -70,14 +68,27 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
       timestamp
     )
 
-    state =
-      if is_nil(state.last_buffer_timestamp) do
-        %{state | first_buffer_timestamp: timestamp, last_buffer_timestamp: timestamp}
-      else
-        %{state | first_buffer_timestamp: timestamp}
-      end
+    {[buffer: {:output, buffer}],
+     %{state | first_buffer_timestamp: timestamp, last_buffer_timestamp: timestamp}}
+  end
 
-    {[buffer: {:output, buffer}], state}
+  @impl true
+  def handle_buffer(
+        _pad,
+        %Buffer{} = buffer,
+        ctx,
+        %{first_buffer_timestamp: first_buffer_timestamp} = state
+      )
+      when in_order?(first_buffer_timestamp - buffer.metadata.rtp.timestamp) do
+    timestamp = buffer.metadata.rtp.timestamp
+
+    Recording.Reporter.start_timestamp(
+      state.reporter,
+      track_id(ctx),
+      timestamp
+    )
+
+    {[buffer: {:output, buffer}], %{state | first_buffer_timestamp: timestamp}}
   end
 
   @impl true

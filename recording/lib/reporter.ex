@@ -108,12 +108,10 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   def handle_cast({:start_timestamp, track_id, start_timestamp}, state) do
     state =
       update_in(state[:tracks][track_id], fn {filename, track} ->
-        track = Map.put(track, :start_timestamp, start_timestamp)
-
         track =
-          if Map.has_key?(track, :end_timestamp),
-            do: track,
-            else: Map.put(track, :end_timestamp, start_timestamp)
+          track
+          |> Map.put(:start_timestamp, start_timestamp)
+          |> Map.put_new(:end_timestamp, start_timestamp)
 
         {filename, track}
       end)
@@ -133,16 +131,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
 
   @impl true
   def handle_cast({:rtcp, track_id, rtcp}, state) do
-    {filename, track} = get_in(state, [:tracks, track_id])
+    state =
+      update_in(state, [:tracks, track_id], fn {filename, track} ->
+        {filename, Map.put(track, :rtcp, rtcp)}
+      end)
 
-    track =
-      if Map.has_key?(track, :start_timestamp) do
-        add_wallclock_start_time(track, rtcp)
-      else
-        track
-      end
-
-    {:noreply, put_in(state, [:tracks, track_id], {filename, track})}
+    {:noreply, state}
   end
 
   @impl true
@@ -152,6 +146,13 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
       |> Map.values()
       |> Enum.reject(fn {_filename, track} ->
         is_nil(track[:start_timestamp]) or is_nil(track[:end_timestamp])
+      end)
+      |> Enum.map(fn
+        {filename, %{rtcp: rtcp} = track} ->
+          {filename, add_wallclock_start_time(track, rtcp)}
+
+        track_report ->
+          track_report
       end)
       |> Map.new(fn {filename, track} ->
         {filename, Map.take(track, @track_reports_keys)}
