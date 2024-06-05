@@ -22,7 +22,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MixProject do
       {:membrane_rtc_engine, path: "../engine"},
       {:membrane_core, "~> 1.0"},
       {:ex_webrtc, github: "elixir-webrtc/ex_webrtc", branch: "simulcast"},
-      {:ex_sdp, "~> 0.17.0", override: true},
+      {:ex_sdp, "~> 0.17.0", override: true}
     ]
   end
 end
