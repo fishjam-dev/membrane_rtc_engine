@@ -20,7 +20,6 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
               ]
 
   @packets_interval 100
-
   @breakpoint 2 ** 31
 
   defguardp in_order?(delta) when delta < -@breakpoint or (delta > 0 and delta < @breakpoint)
@@ -32,20 +31,21 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
        first_buffer_timestamp: nil,
        last_buffer_timestamp: nil,
        counter: 0,
-       reporter: options.reporter
+       reporter: options.reporter,
+       rtcp_sent?: false
      }}
   end
 
   @impl true
   def handle_event(
         _pad,
-        %RTCPEvent{rtcp: %SenderReportPacket{} = rtcp},
+        %RTCPEvent{rtcp: %SenderReportPacket{} = rtcp} = event,
         context,
-        state
+        %{rtcp_sent?: false} = state
       )
       when not is_nil(state.first_buffer_timestamp) do
     Recording.Reporter.rtcp_packet(state.reporter, track_id(context), rtcp)
-    {[], state}
+    {[event: {:output, event}], %{state | rtcp_sent?: true}}
   end
 
   @impl true
@@ -54,7 +54,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
   end
 
   @impl true
-  def handle_buffer(_pad, %Buffer{} = buffer, ctx, %{first_buffer_timestamp: nil} = state) do
+  def handle_buffer(
+        _pad,
+        %Buffer{} = buffer,
+        ctx,
+        %{first_buffer_timestamp: nil} = state
+      ) do
     timestamp = buffer.metadata.rtp.timestamp
 
     Recording.Reporter.start_timestamp(
@@ -64,11 +69,26 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.EdgeTimestampSaver do
     )
 
     {[buffer: {:output, buffer}],
-     %{
-       state
-       | first_buffer_timestamp: timestamp,
-         last_buffer_timestamp: timestamp
-     }}
+     %{state | first_buffer_timestamp: timestamp, last_buffer_timestamp: timestamp}}
+  end
+
+  @impl true
+  def handle_buffer(
+        _pad,
+        %Buffer{} = buffer,
+        ctx,
+        %{first_buffer_timestamp: first_buffer_timestamp} = state
+      )
+      when in_order?(first_buffer_timestamp - buffer.metadata.rtp.timestamp) do
+    timestamp = buffer.metadata.rtp.timestamp
+
+    Recording.Reporter.start_timestamp(
+      state.reporter,
+      track_id(ctx),
+      timestamp
+    )
+
+    {[buffer: {:output, buffer}], %{state | first_buffer_timestamp: timestamp}}
   end
 
   @impl true
