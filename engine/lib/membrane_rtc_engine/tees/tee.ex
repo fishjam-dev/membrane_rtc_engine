@@ -193,7 +193,7 @@ defmodule Membrane.RTC.Engine.Tee do
       ) do
     cond do
       requested_variant not in state.track.variants ->
-        Membrane.Logger.warning("""
+        Membrane.Logger.debug("""
         Endpoint: #{inspect(endpoint_id)} requested non-existing track variant:
         #{inspect(requested_variant)} for track: #{inspect(state.track)}. Ignoring.
         """)
@@ -230,7 +230,7 @@ defmodule Membrane.RTC.Engine.Tee do
     if current_variant do
       {[event: {Pad.ref(:input, {state.track.id, current_variant}), event}], state}
     else
-      Membrane.Logger.warning("""
+      Membrane.Logger.debug("""
       Endpoint #{endpoint_id} requested keyframe but we don't send any variant to it. Ignoring.
       """)
 
