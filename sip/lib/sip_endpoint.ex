@@ -565,7 +565,7 @@ defmodule Membrane.RTC.Engine.Endpoint.SIP do
 
   @impl true
   def handle_info({:call_info, {:call_ready, _opts}}, _ctx, %{endpoint_state: :in_call} = state) do
-    Logger.warning(
+    Logger.debug(
       "SIP Endpoint: Received `:call_ready` info, but the pipelines are already spawned. Ignoring"
     )
 

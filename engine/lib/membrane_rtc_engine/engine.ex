@@ -564,7 +564,7 @@ defmodule Membrane.RTC.Engine do
       if find_child(ctx, pattern: ^endpoint) != nil do
         [notify_child: {endpoint, message}]
       else
-        Membrane.Logger.warning(
+        Membrane.Logger.debug(
           "Message #{inspect(message)} sent to non exisiting endpoint #{inspect(endpoint)}. Ignoring."
         )
 
@@ -620,7 +620,7 @@ defmodule Membrane.RTC.Engine do
     if handle_notification? do
       handle_endpoint_notification(notification, endpoint_id, ctx, state)
     else
-      Membrane.Logger.warning(
+      Membrane.Logger.debug(
         "Ignoring notification: #{inspect(notification)}, endpoint: #{endpoint_id} is not ready"
       )
 
@@ -721,7 +721,7 @@ defmodule Membrane.RTC.Engine do
 
       {actions, state}
     else
-      Membrane.Logger.warning(
+      Membrane.Logger.debug(
         "Endpoint #{endpoint_id} sent a `:ready` message even though it has been already accepted. Ignoring."
       )
 
