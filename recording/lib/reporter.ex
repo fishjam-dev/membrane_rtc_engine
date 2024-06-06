@@ -164,13 +164,12 @@ defmodule Membrane.RTC.Engine.Endpoint.Recording.Reporter do
   end
 
   defp add_wallclock_start_time(track, rtcp) do
-    delta_t_ns =
+    delta_t =
       if rtcp_overflow?(rtcp.sender_info.rtp_timestamp, track.start_timestamp),
-        do:
-          (rtcp.sender_info.rtp_timestamp - track.start_timestamp + @rtp_timestamp_size) /
-            track.clock_rate * @sec_to_ns,
-        else:
-          (rtcp.sender_info.rtp_timestamp - track.start_timestamp) / track.clock_rate * @sec_to_ns
+        do: rtcp.sender_info.rtp_timestamp - track.start_timestamp + @rtp_timestamp_size,
+        else: rtcp.sender_info.rtp_timestamp - track.start_timestamp
+
+    delta_t_ns = delta_t / track.clock_rate * @sec_to_ns
 
     start_timestamp_wallclock = rtcp.sender_info.wallclock_timestamp - delta_t_ns
 
