@@ -216,6 +216,79 @@ defmodule TestVideoroom.Integration.SimulcastTest do
     end
   end
 
+  @tag timeout: @max_test_duration
+  test "disabling encoding and then joining the room doesn't fail" do
+    browsers_number = 2
+
+    pid = self()
+
+    receiver = Process.spawn(fn -> receive_stats(browsers_number, pid) end, [:link])
+
+    mustang_options = %{
+      target_url: @room_url,
+      warmup_time: @warmup_time,
+      start_button: @start_with_simulcast,
+      receiver: receiver,
+      actions: [],
+      simulcast_inbound_stats_button: @simulcast_inbound_stats,
+      simulcast_outbound_stats_button: @simulcast_outbound_stats,
+      id: -1
+    }
+
+    timeout = @warmup_time
+
+    receiver_actions = [
+      {:get_stats, @simulcast_inbound_stats, @stats_number, @stats_interval, tag: :after_warmup}
+    ]
+
+    sender_actions = [
+      {:click, @change_own_low, @variant_request_time},
+      {:wait, @warmup_time},
+      {:get_stats, @simulcast_outbound_stats, @stats_number, @stats_interval, tag: :after_warmup}
+    ]
+
+    actions_with_id = [sender_actions, receiver_actions] |> Enum.with_index()
+
+    tag_to_expected_encoding = %{
+      after_warmup: "m"
+    }
+
+    for {actions, browser_id} <- actions_with_id, into: [] do
+      specific_mustang = %{
+        mustang_options
+        | id: browser_id,
+          actions: actions
+      }
+
+      task =
+        Task.async(fn ->
+          Stampede.start({TestMustang, specific_mustang}, @browser_options)
+        end)
+
+      Process.sleep(timeout + @variant_request_time)
+      task
+    end
+    |> Task.await_many(:infinity)
+
+    receive do
+      {:stats, stats} ->
+        for tag <- Map.keys(tag_to_expected_encoding),
+            browser_id_to_stats_samples = Map.get(stats, tag) do
+          encoding = tag_to_expected_encoding[tag]
+
+          sender_stats_samples = browser_id_to_stats_samples[0]
+          receiver_stats_samples = browser_id_to_stats_samples[1]
+
+          assert_sender_receiver_stats(
+            tag,
+            encoding,
+            sender_stats_samples,
+            receiver_stats_samples
+          )
+        end
+    end
+  end
+
   # FIXME
   # this test shouldn't pass for the same reason as the
   # "disabling and enabling medium encoding again works correctly"
