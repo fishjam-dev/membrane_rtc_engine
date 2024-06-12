@@ -2,6 +2,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @moduledoc false
   use Membrane.Bin
 
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackSender
+  alias Membrane.RTC.Engine.Notifications.TrackNotification
   alias __MODULE__.PeerConnectionHandler
 
   def_options(
@@ -21,9 +23,16 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     availability: :on_request
   )
 
+  defmacrop bitrate_notification(estimation) do
+    {:bitrate_estimation, estimation}
+  end
+
   @impl true
   def handle_init(ctx, opts) do
-    state = %{rtc_engine: opts.rtc_engine}
+    state = %{
+      rtc_engine: opts.rtc_engine,
+      inbound_tracks: %{},
+    }
 
     {_, endpoint_id} = ctx.name
     spec = [child(:handler, %PeerConnectionHandler{endpoint_id: endpoint_id})]
@@ -32,8 +41,22 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_pad_added(_pad, _ctx, state) do
-    {[], state}
+  def handle_pad_added(Pad.ref(:output, {track_id, rid}) = pad, _ctx, state) do
+    if rid != :high, do: raise("temporary")
+
+    track = Map.fetch!(state.inbound_tracks, track_id)
+    track_sender = %TrackSender{track: track, variant_bitrates: %{high: 1_500_000}}
+
+    spec = [
+      get_child(:handler)
+      |> via_out(pad)
+      |> via_in(Pad.ref(:input, {track_id, rid}))
+      |> child({:track_sender, track_id}, track_sender, get_if_exists: true)
+      |> via_out(pad)
+      |> bin_output(pad)
+    ]
+
+    {[spec: spec], state}
   end
 
   @impl true
@@ -122,6 +145,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         {:notify_parent, {:track_ready, track.id, :high, track.encoding}}
       end)
 
+    inbound_tracks = Map.new(tracks, fn track -> {track.id, track} end)
+    state = %{state | inbound_tracks: inbound_tracks}
+
     new_tracks = [notify_parent: {:publish, {:new_tracks, tracks}}]
     {new_tracks ++ tracks_ready, state}
   end
@@ -136,6 +162,21 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   def handle_child_notification({:candidate, candidate}, :handler, _ctx, state) do
     actions = forward_media_event("candidate", candidate)
     {actions, state}
+  end
+
+  @impl true
+  def handle_child_notification(
+        {:estimation, estimations},
+        {:track_sender, track_id},
+        _ctx,
+        state
+      ) do
+    notification = %TrackNotification{
+      track_id: track_id,
+      notification: bitrate_notification(estimations)
+    }
+
+    {[notify_parent: {:publish, notification}], state}
   end
 
   defp forward_media_event(type, data) do
