@@ -248,7 +248,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         inbound_tracks: %{},
         display_manager: nil,
         connection_prober: nil,
-        connection_allocator_module: connection_allocator_module
+        connection_allocator_module: connection_allocator_module,
+        turns: nil
       })
 
     {:ok, connection_prober} = state.connection_allocator_module.create()
@@ -395,7 +396,14 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         _ctx,
         state
       ) do
-    turns = get_turn_configs(turns, state)
+    turns =
+      if state.turns do
+        state.turns
+      else
+        get_turn_configs(turns, state)
+      end
+
+    state = %{state | turns: turns}
 
     media_event =
       to_media_event({:signal, {:offer_data, media_count, turns}})
