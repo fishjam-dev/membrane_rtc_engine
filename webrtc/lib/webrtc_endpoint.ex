@@ -746,8 +746,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> MediaEvent.encode()
 
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
-
-    {[], state}
   end
 
   defp handle_media_event(%{type: :disconnect}, _ctx, state) do
