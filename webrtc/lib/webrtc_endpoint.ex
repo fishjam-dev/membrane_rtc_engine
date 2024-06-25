@@ -738,7 +738,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp handle_media_event(%{type: :connect}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
-    other_endpoints = Engine.get_other_endpoints(state.engine, endpoint_id)
+    other_endpoints = Engine.get_other_endpoints(state.rtc_engine, endpoint_id)
 
     event =
       endpoint_id
