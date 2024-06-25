@@ -4,6 +4,7 @@
 * Add RTCP sender reports [#393](https://github.com/fishjam-dev/membrane_rtc_engine/pull/393)
 * Add reason to `TrackVariantPaused` event [#392](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/392)
 * Lower log level for some logs [#401](https://github.com/fishjam-dev/membrane_rtc_engine/pull/401)
+* Add `other_endpoints/2` function in Engine[#403](https://github.com/fishjam-dev/membrane_rtc_engine/pull/403)
 
 ## 0.22.0
 * Update deps [#374](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/374)
