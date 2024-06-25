@@ -258,6 +258,29 @@ defmodule Membrane.RTC.EngineTest do
     end
   end
 
+  describe "Engine.get_other_endpoints/2" do
+    test "get list of endpoints", %{rtc_engine: rtc_engine} do
+      endpoint = %TestEndpoint{rtc_engine: rtc_engine, owner: self()}
+      endpoint_id = :test_endpoint
+      :ok = Engine.add_endpoint(rtc_engine, endpoint, id: endpoint_id)
+
+      :ok =
+        Engine.message_endpoint(
+          rtc_engine,
+          endpoint_id,
+          {:execute_actions, notify_parent: :ready}
+        )
+
+      assert_receive %Message.EndpointAdded{endpoint_id: ^endpoint_id}
+      assert_receive %Message.EndpointMetadataUpdated{endpoint_id: ^endpoint_id}
+
+      assert [%Endpoint{id: ^endpoint_id, type: TestEndpoint, inbound_tracks: %{}}] =
+               Engine.get_other_endpoints(rtc_engine, :not_existing)
+
+      assert [] = Engine.get_other_endpoints(rtc_engine, endpoint_id)
+    end
+  end
+
   describe "Engine.get_forwarded_tracks/2" do
     test "get forwarded tracks", %{rtc_engine: rtc_engine} do
       video_endpoint_id = :video1

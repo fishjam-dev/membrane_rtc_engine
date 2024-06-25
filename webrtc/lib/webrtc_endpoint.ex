@@ -248,7 +248,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         inbound_tracks: %{},
         display_manager: nil,
         connection_prober: nil,
-        connection_allocator_module: connection_allocator_module
+        connection_allocator_module: connection_allocator_module,
+        ready?: false
       })
 
     {:ok, connection_prober} = state.connection_allocator_module.create()
@@ -468,7 +469,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> MediaEvent.connected(other_endpoints)
       |> MediaEvent.encode()
 
-    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
+    {[notify_parent: {:forward_to_parent, {:media_event, event}}], %{state | ready?: true}}
   end
 
   @impl true
@@ -729,8 +730,24 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     media_event_actions ++ forward(:endpoint_bin, {:remove_tracks, tracks}, ctx)
   end
 
-  defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
+  defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state)
+       when not state.ready? do
     {[notify_parent: {:ready, metadata}], state}
+  end
+
+  defp handle_media_event(%{type: :connect}, ctx, state) do
+    {:endpoint, endpoint_id} = ctx.name
+
+    other_endpoints = Engine.get_other_endpoints(state.engine, endpoint_id)
+
+    event =
+      endpoint_id
+      |> MediaEvent.connected(other_endpoints)
+      |> MediaEvent.encode()
+
+    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
+
+    {[], state}
   end
 
   defp handle_media_event(%{type: :disconnect}, _ctx, state) do

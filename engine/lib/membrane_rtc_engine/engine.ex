@@ -366,6 +366,14 @@ defmodule Membrane.RTC.Engine do
   end
 
   @doc """
+  Returns list of the RTC Engine's endpoints.
+  """
+  @spec get_other_endpoints(rtc_engine :: pid(), endpoint_id :: Endpoint.id()) :: [Endpoint.t()]
+  def get_other_endpoints(rtc_engine, endpoint_id) do
+    Pipeline.call(rtc_engine, {:get_other_endpoints, endpoint_id})
+  end
+
+  @doc """
   Returns list of the RTC Engine's tracks.
   """
   @spec get_tracks(rtc_engine :: pid()) :: [Track.t()]
@@ -584,6 +592,16 @@ defmodule Membrane.RTC.Engine do
         {:endpoint, id} = endpoint.name
         %{id: id, type: endpoint.module}
       end)
+
+    {[reply: endpoints], state}
+  end
+
+  @impl true
+  def handle_call({:get_other_endpoints, endpoint_id}, _ctx, state) do
+    endpoints =
+      state.endpoints
+      |> Map.values()
+      |> Enum.filter(fn endpoint -> endpoint.id != endpoint_id end)
 
     {[reply: endpoints], state}
   end
