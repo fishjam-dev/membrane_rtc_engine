@@ -887,8 +887,6 @@ defmodule Membrane.WebRTC.EndpointBin do
   end
 
   defp count_tracks(tracks, track_type) do
-    tracks
-    |> Enum.filter(&(&1.type == track_type))
-    |> Enum.count()
+    Enum.count(tracks, &(&1.type == track_type))
   end
 end
