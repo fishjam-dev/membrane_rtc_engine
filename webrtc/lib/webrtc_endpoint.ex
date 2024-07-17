@@ -730,6 +730,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
+    Membrane.Logger.info("Received connect media_event: #{inspect(metadata)}")
     {[notify_parent: {:ready, metadata}], state}
   end
 
@@ -874,8 +875,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   defp to_media_event({:signal, {:offer_data, tracks_types, turns}}),
     do: MediaEvent.offer_data(tracks_types, turns)
 
-  defp to_media_event({:signal, {:candidate, candidate, sdp_m_line_index}}),
-    do: MediaEvent.candidate(candidate, sdp_m_line_index)
+  defp to_media_event({:signal, {:candidate, candidate, sdp_m_line_index}}), do:
+    MediaEvent.candidate(candidate, sdp_m_line_index)
 
   defp to_media_event({:signal, {:sdp_offer, offer}}),
     do: MediaEvent.sdp_offer(offer)
