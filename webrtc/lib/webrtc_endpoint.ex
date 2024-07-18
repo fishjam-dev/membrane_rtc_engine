@@ -468,6 +468,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> MediaEvent.connected(other_endpoints)
       |> MediaEvent.encode()
 
+    Membrane.Logger.info("Sending connected media event")
+
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
