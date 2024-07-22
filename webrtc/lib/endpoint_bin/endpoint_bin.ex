@@ -534,7 +534,7 @@ defmodule Membrane.WebRTC.EndpointBin do
     {new_inbound_tracks, removed_inbound_tracks, inbound_tracks, outbound_tracks} =
       get_tracks_from_sdp(sdp, mid_to_track_id, state)
 
-    Membrane.Logger.info("""
+    Membrane.Logger.debug("""
     Received sdp offer media event with
     new     inbound: #{count_tracks(new_inbound_tracks, :audio)} audio, #{count_tracks(new_inbound_tracks, :video)} video,
     removed inbound: #{count_tracks(removed_inbound_tracks, :audio)} audio, #{count_tracks(removed_inbound_tracks, :video)} video
@@ -561,7 +561,7 @@ defmodule Membrane.WebRTC.EndpointBin do
         ice_lite?: @ice_lite
       )
 
-    Membrane.Logger.info("""
+    Membrane.Logger.debug("""
     Sending sdp answer media event with
     inbound : #{count_tracks(inbound_tracks, :audio)} audio, #{count_tracks(inbound_tracks, :video)} video,
     outbound: #{count_tracks(outbound_tracks, :audio)} audio, #{count_tracks(outbound_tracks, :video)} video
@@ -611,7 +611,7 @@ defmodule Membrane.WebRTC.EndpointBin do
 
   @impl true
   def handle_parent_notification({:signal, :renegotiate_tracks}, _ctx, state) do
-    Membrane.Logger.info("Received signaling renegotiate tracks")
+    Membrane.Logger.debug("Received signaling renegotiate tracks")
 
     cond do
       state.ice.first? and state.ice.pwd != nil ->
@@ -705,7 +705,7 @@ defmodule Membrane.WebRTC.EndpointBin do
       notify_parent: {:signal, {:offer_data, media_count, state.integrated_turn_servers}}
     ]
 
-    Membrane.Logger.info(
+    Membrane.Logger.debug(
       "Sending offer data media event, with #{media_count.audio} audio and #{media_count.video} video"
     )
 
