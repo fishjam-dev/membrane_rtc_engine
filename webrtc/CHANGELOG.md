@@ -5,6 +5,7 @@
 * Allow for muting a track without renegotiation [#392](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/392)
 * RTP connection allocator is started without link [#396](https://github.com/fishjam-dev/membrane_rtc_engine/pull/396) 
 * Fix handling media events regarding track variant enabling/disabling[#400](https://github.com/fishjam-dev/membrane_rtc_engine/pull/400) 
+* Add more logs about signaling [#404](https://github.com/fishjam-dev/membrane_rtc_engine/pull/404)
 
 ## 0.8.0
 * Update deps [#374](https://github.com/jellyfish-dev/membrane_rtc_engine/pull/374)

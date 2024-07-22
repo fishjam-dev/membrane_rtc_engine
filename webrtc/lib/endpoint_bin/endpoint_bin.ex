@@ -534,6 +534,13 @@ defmodule Membrane.WebRTC.EndpointBin do
     {new_inbound_tracks, removed_inbound_tracks, inbound_tracks, outbound_tracks} =
       get_tracks_from_sdp(sdp, mid_to_track_id, state)
 
+    Membrane.Logger.debug("""
+    Received sdp offer media event with
+    new     inbound: #{count_tracks(new_inbound_tracks, :audio)} audio, #{count_tracks(new_inbound_tracks, :video)} video,
+    removed inbound: #{count_tracks(removed_inbound_tracks, :audio)} audio, #{count_tracks(removed_inbound_tracks, :video)} video
+    new outbound: #{count_tracks(outbound_tracks, :audio)} audio, #{count_tracks(outbound_tracks, :video)} video
+    """)
+
     tracks_state =
       state.tracks
       |> TracksState.update(outbound: outbound_tracks, inbound: inbound_tracks)
@@ -553,6 +560,12 @@ defmodule Membrane.WebRTC.EndpointBin do
         extensions: state.extensions,
         ice_lite?: @ice_lite
       )
+
+    Membrane.Logger.debug("""
+    Sending sdp answer media event with
+    inbound : #{count_tracks(inbound_tracks, :audio)} audio, #{count_tracks(inbound_tracks, :video)} video,
+    outbound: #{count_tracks(outbound_tracks, :audio)} audio, #{count_tracks(outbound_tracks, :video)} video
+    """)
 
     {actions, state} =
       withl tracks_check: false <- TracksState.empty?(state.tracks),
@@ -598,6 +611,8 @@ defmodule Membrane.WebRTC.EndpointBin do
 
   @impl true
   def handle_parent_notification({:signal, :renegotiate_tracks}, _ctx, state) do
+    Membrane.Logger.debug("Received signaling renegotiate tracks")
+
     cond do
       state.ice.first? and state.ice.pwd != nil ->
         state = Map.update!(state, :ice, &%{&1 | first?: false})
@@ -689,6 +704,10 @@ defmodule Membrane.WebRTC.EndpointBin do
     actions = [
       notify_parent: {:signal, {:offer_data, media_count, state.integrated_turn_servers}}
     ]
+
+    Membrane.Logger.debug(
+      "Sending offer data media event, with #{media_count.audio} audio and #{media_count.video} video"
+    )
 
     state = Map.update!(state, :ice, &%{&1 | restarting?: true})
 
@@ -865,5 +884,9 @@ defmodule Membrane.WebRTC.EndpointBin do
     extmaps
     |> Enum.map(&Extension.as_rtp_extension(state.extensions, &1, track_type))
     |> Enum.reject(fn {_name, rtp_module} -> rtp_module == :no_rtp_module end)
+  end
+
+  defp count_tracks(tracks, track_type) do
+    Enum.count(tracks, &(&1.type == track_type))
   end
 end

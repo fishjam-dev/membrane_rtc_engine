@@ -468,6 +468,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
       |> MediaEvent.connected(other_endpoints)
       |> MediaEvent.encode()
 
+    Membrane.Logger.debug("Sending connected media event")
+
     {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
   end
 
@@ -730,6 +732,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
+    Membrane.Logger.debug("Received connect media_event: #{inspect(metadata)}")
     {[notify_parent: {:ready, metadata}], state}
   end
 
