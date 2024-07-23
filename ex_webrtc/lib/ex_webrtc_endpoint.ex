@@ -6,22 +6,20 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   alias Membrane.RTC.Engine.Notifications.TrackNotification
   alias __MODULE__.PeerConnectionHandler
 
-  def_options(
-    rtc_engine: [
+  def_options rtc_engine: [
       spec: pid(),
       description: "Pid of parent Engine"
     ]
-  )
 
-  def_input_pad(:input,
+  def_input_pad :input,
     accepted_format: _any,
     availability: :on_request
-  )
 
-  def_output_pad(:output,
+
+  def_output_pad :output,
     accepted_format: _any,
     availability: :on_request
-  )
+
 
   defmacrop bitrate_notification(estimation) do
     {:bitrate_estimation, estimation}
@@ -29,13 +27,15 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_init(ctx, opts) do
-    state = %{
-      rtc_engine: opts.rtc_engine,
-      inbound_tracks: %{},
-    }
-
     {_, endpoint_id} = ctx.name
     spec = [child(:handler, %PeerConnectionHandler{endpoint_id: endpoint_id})]
+
+    state = opts
+      |> Map.from_struct()
+      |> Map.merge(%{
+        outbound_tracks: %{},
+        inbound_tracks: %{},
+      })
 
     {[spec: spec], state}
   end
@@ -61,43 +61,36 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_parent_notification({:ready, _endpoints}, _ctx, state) do
-    # do nothing
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:new_endpoint, _endpoint}, _ctx, state) do
-    # do nothing
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:endpoint_removed, _endpoint_id}, _ctx, state) do
-    # do nothing
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:track_metadata_updated, _track}, _ctx, state) do
-    # do nothing
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:track_variant_enabled, _track, _encoding}, _ctx, state) do
-    # do nothing
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:track_variant_disabled, _track, _encoding}, _ctx, state) do
-    # do nothing
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:endpoint_metadata_updated, _endpoint}, _ctx, state) do
-    # do nothing
     {[], state}
   end
 
@@ -183,5 +176,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     event = Jason.encode!(%{"type" => type, "data" => data})
     msg = {:forward_to_parent, {:media_event, event}}
     [notify_parent: msg]
+  end
+
+  defp deserialize(string) when is_binary(string) do
+    case MediaEvent.decode(string) do
+      {:ok, %{type: :custom, data: data}} -> {:ok, data}
+      {:ok, event} -> {:ok, event}
+      {:error, _reason} = error -> error
+    end
   end
 end

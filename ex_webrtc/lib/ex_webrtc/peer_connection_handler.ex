@@ -15,12 +15,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     PeerConnection
   }
 
-  def_options(
-    endpoint_id: [
+  def_options endpoint_id: [
       spec: String.t(),
       description: "Id of the parent endpoint"
     ]
-  )
+
 
   def_output_pad :output,
     accepted_format: _any,
@@ -138,14 +137,16 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
     actions =
       with {:ok, engine_track_id} <- Map.fetch(state.inbound_tracks, track_id),
-          pad <- Pad.ref(:output, {engine_track_id, rid}),
-          true <- Map.has_key?(ctx.pads, pad) do
+           pad <- Pad.ref(:output, {engine_track_id, rid}),
+           true <- Map.has_key?(ctx.pads, pad) do
         rtp = %{marker: packet.marker}
+
         buffer = %Buffer{
           pts: packet.timestamp,
           payload: packet.payload,
           metadata: %{rtp: rtp}
         }
+
         [buffer: {pad, buffer}]
       else
         _other -> []
