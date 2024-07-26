@@ -6,7 +6,7 @@ defmodule Videoroom.Room do
   require Membrane.Logger
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.WebRTC
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC
   alias Membrane.RTC.Engine.Message.EndpointMessage
 
   @mix_env Mix.env()
@@ -102,31 +102,31 @@ defmodule Videoroom.Room do
     {:noreply, state}
   end
 
-  defp create_webrtc_endpoint(rtc_engine, peer_id, network_options) do
-    handshake_opts =
-      if network_options[:dtls_pkey] &&
-           network_options[:dtls_cert] do
-        [
-          client_mode: false,
-          dtls_srtp: true,
-          pkey: network_options[:dtls_pkey],
-          cert: network_options[:dtls_cert]
-        ]
-      else
-        [
-          client_mode: false,
-          dtls_srtp: true
-        ]
-      end
+  defp create_webrtc_endpoint(rtc_engine, _peer_id, _network_options) do
+    # handshake_opts =
+    #   if network_options[:dtls_pkey] &&
+    #        network_options[:dtls_cert] do
+    #     [
+    #       client_mode: false,
+    #       dtls_srtp: true,
+    #       pkey: network_options[:dtls_pkey],
+    #       cert: network_options[:dtls_cert]
+    #     ]
+    #   else
+    #     [
+    #       client_mode: false,
+    #       dtls_srtp: true
+    #     ]
+    #   end
 
-    %WebRTC{
-      rtc_engine: rtc_engine,
-      ice_name: peer_id,
-      extensions: %{},
-      owner: self(),
-      integrated_turn_options: network_options[:integrated_turn_options],
-      handshake_opts: handshake_opts,
-      log_metadata: [peer_id: peer_id]
+    %ExWebRTC{
+      rtc_engine: rtc_engine
+      # ice_name: peer_id,
+      # extensions: %{},
+      # owner: self(),
+      # integrated_turn_options: network_options[:integrated_turn_options],
+      # handshake_opts: handshake_opts,
+      # log_metadata: [peer_id: peer_id]
     }
   end
 end

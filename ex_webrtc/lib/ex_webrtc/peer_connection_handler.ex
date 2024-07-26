@@ -16,10 +16,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   }
 
   def_options endpoint_id: [
-      spec: String.t(),
-      description: "Id of the parent endpoint"
-    ]
-
+                spec: String.t(),
+                description: "Id of the parent endpoint"
+              ]
 
   def_output_pad :output,
     accepted_format: _any,
