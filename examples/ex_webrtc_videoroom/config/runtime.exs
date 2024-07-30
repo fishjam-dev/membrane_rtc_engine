@@ -41,8 +41,8 @@ config :membrane_videoroom_demo, VideoRoomWeb.Endpoint, [
 ]
 
 engine_applications = [
-  :membrane_rtc_engine,
-  :membrane_rtc_engine_ex_webrtc
+  # :membrane_rtc_engine,
+  # :membrane_rtc_engine_ex_webrtc,
 ]
 
 engine_level = :debug

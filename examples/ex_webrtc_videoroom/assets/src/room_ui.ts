@@ -2,7 +2,7 @@ export function getRoomId(): string {
   return document.getElementById("room")!.dataset.roomId!;
 }
 
-export function setupDisconnectButton(fun) {
+export function setupDisconnectButton(fun: () => void) {
   const disconnectButton = document.getElementById(
     "disconnect"
   )! as HTMLButtonElement;
