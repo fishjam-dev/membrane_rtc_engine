@@ -29,11 +29,12 @@ config :membrane_videoroom_demo, VideoRoomWeb.Endpoint,
     ]
   ]
 
-config :logger, :console, format: "[$level] $message\n"
+# config :logger, :console, format: "[$level] $message\n"
 
-# config :logger, :console,
-#   format: "$time $metadata[$level] $message\n",
-#   metadata: [:room, :peer],
-#   level: :debug
+config :logger, :console,
+  format: "$time $metadata[$level] $message\n",
+  metadata: [:room, :peer]
+
+# level: :debug
 
 # config :logger, level: :debug
