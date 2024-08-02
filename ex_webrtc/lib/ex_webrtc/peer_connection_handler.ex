@@ -85,7 +85,45 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_buffer(_pad, _buffer, _ctx, state) do
+  def handle_pad_added(pad, _ctx, state) do
+    dbg(pad)
+    {[], state}
+  end
+
+  @impl true
+  def handle_buffer(Pad.ref(:input, track_id), buffer, _ctx, state) do
+    %Buffer{
+      # pts: timestamp,
+      payload: packet
+      # metadata: %{rtp: rtp}
+    } = buffer
+
+    :ok = PeerConnection.send_rtp(state.pc, track_id, packet)
+
+    # defp handle_webrtc_msg({:rtp, track_id, rid, packet}, ctx, state) do
+    # # TEMPORARY
+    # rid = if rid == nil, do: :high, else: rid
+
+    # actions =
+    #   with {:ok, engine_track_id} <- Map.fetch(state.inbound_tracks, track_id),
+    #        pad <- Pad.ref(:output, {engine_track_id, rid}),
+    #        true <- Map.has_key?(ctx.pads, pad) do
+    #     rtp = %{marker: packet.marker}
+
+    #     buffer = %Buffer{
+    #       pts: packet.timestamp,
+    #       payload: packet,
+    #       metadata: %{rtp: rtp}
+    #     }
+
+    #     [buffer: {pad, buffer}]
+    #   else
+    #     _other -> []
+    #   end
+
+    #   {actions, state}
+    # end
+
     {[], state}
   end
 
@@ -205,7 +243,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   defp handle_webrtc_msg({:signaling_state_change, :stable}, _ctx, state) do
-    {[], state}
+    {[notify_parent: :negotiation_done], state}
   end
 
   defp handle_webrtc_msg({:rtcp, _packets}, _ctx, state) do
