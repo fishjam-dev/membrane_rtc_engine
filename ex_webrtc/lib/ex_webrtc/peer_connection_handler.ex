@@ -4,6 +4,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
   alias Membrane.Buffer
   alias Membrane.RTC.Engine.Track
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC, as: EndpointExWebRTC
 
   alias ExWebRTC.{
     ICECandidate,
@@ -72,7 +73,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     state = %{
       pc: pc,
       endpoint_id: endpoint_id,
+      # maps engine track_id to rtc track_id
       outbound_tracks: %{},
+      # maps rtc track_id to engine track_id
       inbound_tracks: %{}
     }
 
@@ -85,95 +88,107 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_pad_added(pad, _ctx, state) do
-    dbg(pad)
+  def handle_pad_added(_pad, _ctx, state) do
     {[], state}
   end
 
   @impl true
-  def handle_buffer(Pad.ref(:input, track_id), buffer, _ctx, state) do
+  def handle_buffer(Pad.ref(:input, engine_track_id), buffer, _ctx, state) do
     %Buffer{
-      # pts: timestamp,
-      payload: packet
-      # metadata: %{rtp: rtp}
+      pts: timestamp,
+      payload: payload,
+      metadata: %{rtp: rtp}
     } = buffer
 
+    track_id = Map.fetch!(state.outbound_tracks, engine_track_id)
+
+    packet = ExRTP.Packet.new(
+      payload,
+      payload_type: rtp.payload_type,
+      sequence_number: rtp.sequence_number,
+      timestamp: timestamp,
+      ssrc: rtp.ssrc,
+      csrc: rtp.csrc,
+      marker: rtp.marker,
+      padding: rtp.padding_size
+      )
+
+    packet =
+      Enum.reduce(rtp.extensions, packet, fn extension, packet ->
+        ExRTP.Packet.add_extension(packet, extension)
+      end)
+
+    if Enum.random(0..1000) == 0 do
+      dbg({track_id, packet})
+    end
+
     :ok = PeerConnection.send_rtp(state.pc, track_id, packet)
-
-    # defp handle_webrtc_msg({:rtp, track_id, rid, packet}, ctx, state) do
-    # # TEMPORARY
-    # rid = if rid == nil, do: :high, else: rid
-
-    # actions =
-    #   with {:ok, engine_track_id} <- Map.fetch(state.inbound_tracks, track_id),
-    #        pad <- Pad.ref(:output, {engine_track_id, rid}),
-    #        true <- Map.has_key?(ctx.pads, pad) do
-    #     rtp = %{marker: packet.marker}
-
-    #     buffer = %Buffer{
-    #       pts: packet.timestamp,
-    #       payload: packet,
-    #       metadata: %{rtp: rtp}
-    #     }
-
-    #     [buffer: {pad, buffer}]
-    #   else
-    #     _other -> []
-    #   end
-
-    #   {actions, state}
-    # end
 
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:offer, offer, outbound_tracks}, _ctx, state) do
-    IO.puts(Map.get(offer, "sdp"))
+    new_outbound_tracks =
+      Map.filter(outbound_tracks, fn{track_id, _track} ->
+        not Map.has_key?(state.outbound_tracks, track_id)
+      end)
+
+    PeerConnection.get_transceivers(state.pc)
+    |> Enum.map(fn t ->
+      Map.take(t, [:id, :kind, :direction, :current_direction])
+      |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
+    end)
+    |> IO.inspect(label: :before)
+
+    track_ids =
+      new_outbound_tracks
+      |> Enum.map(fn {engine_track_id, engine_track} ->
+        # TODO: probably don't create new track for an existing track - save already added ones
+        track =
+          MediaStreamTrack.new(engine_track.type, [MediaStreamTrack.generate_stream_id()])
+
+        {:ok, sender} = PeerConnection.add_track(state.pc, track)
+
+        # {:ok, transceiver} = PeerConnection.add_transceiver(state.pc, track, direction: :sendonly)
+
+        {engine_track_id, track.id, sender.id}
+      end)
+
+    PeerConnection.get_transceivers(state.pc)
+    |> Enum.map(fn t ->
+      Map.take(t, [:id, :kind, :direction, :current_direction])
+      |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
+    end)
+    |> IO.inspect(label: :in_between)
 
     offer = SessionDescription.from_json(offer)
     :ok = PeerConnection.set_remote_description(state.pc, offer)
 
-    trans =
-      PeerConnection.get_transceivers(state.pc)
-      |> Enum.map(&Map.take(&1, [:id, :kind, :mid, :direction, :current_direction]))
-
-    dbg(trans)
-
-    track_id_to_sender_id =
-      outbound_tracks
-      |> Enum.map(fn {track_id, engine_track} ->
-        track =
-          MediaStreamTrack.new(engine_track.type, [MediaStreamTrack.generate_stream_id()])
-          |> dbg()
-
-        {:ok, sender} = PeerConnection.add_track(state.pc, track)
-        {track_id, sender.id}
-      end)
-
     transceivers = PeerConnection.get_transceivers(state.pc)
 
     mid_to_track_id =
-      track_id_to_sender_id
-      |> Enum.map(fn {track_id, sender_id} ->
+      track_ids
+      |> Enum.map(fn {track_id, id, sender_id} ->
         mid =
           Enum.find(transceivers, fn transceiver ->
             transceiver.sender.id == sender_id
           end)
           |> then(& &1.mid)
 
+          dbg({track_id, to_string(mid), id})
+
         {to_string(mid), track_id}
       end)
       |> Map.new()
 
-    dbg(mid_to_track_id)
 
-    trans =
-      PeerConnection.get_transceivers(state.pc)
+    outbound_tracks =
+      Map.new(track_ids, fn {engine_id, id, _sender_id} ->
+        {engine_id, id} end)
 
-    # |> Enum.map(&Map.take(&1, [:id, :kind, :mid, :direction, :current_direction]))
-
-    dbg(trans)
+    # dbg(outbound_tracks)
+    # dbg(trans)
 
     {:ok, answer} = PeerConnection.create_answer(state.pc)
     :ok = PeerConnection.set_local_description(state.pc, answer)
@@ -182,11 +197,18 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       receive_new_tracks()
       |> make_tracks(state)
 
+    PeerConnection.get_transceivers(state.pc)
+    |> Enum.map(fn t ->
+      Map.take(t, [:id, :kind, :direction, :current_direction])
+      |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
+    end)
+    |> IO.inspect(label: :after)
+
     actions =
       [notify_parent: {:answer, SessionDescription.to_json(answer), mid_to_track_id}] ++
         if Enum.empty?(tracks), do: [], else: [notify_parent: {:tracks, tracks}]
 
-    {actions, state}
+    {actions, %{state | outbound_tracks: outbound_tracks}}
   end
 
   @impl true
@@ -198,9 +220,21 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_parent_notification(msg, _ctx, state) do
-    dbg(msg)
+  def handle_parent_notification(_msg, _ctx, state) do
     {[], state}
+  end
+
+  @impl true
+  def handle_event(Pad.ref(:output, {engine_track_id, variant}), %Membrane.KeyframeRequestEvent{}, _ctx, state) do
+    {rtc_track_id, _id} =
+      Enum.find(state.inbound_tracks, fn {_rtc_track_id, track_id} ->
+        track_id == engine_track_id
+      end)
+
+    _rid = EndpointExWebRTC.to_rid(variant)
+    PeerConnection.send_pli(state.pc, rtc_track_id, nil)
+
+   {[], state}
   end
 
   @impl true
@@ -226,7 +260,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       with {:ok, engine_track_id} <- Map.fetch(state.inbound_tracks, track_id),
            pad <- Pad.ref(:output, {engine_track_id, rid}),
            true <- Map.has_key?(ctx.pads, pad) do
-        rtp = %{marker: packet.marker}
+        rtp =
+          packet
+          |> Map.from_struct()
+          |> Map.take([:csrc, :extensions, :marker, :padding_size, :payload_type, :sequence_number, :ssrc, :timestamp])
 
         buffer = %Buffer{
           pts: packet.timestamp,
@@ -246,12 +283,16 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     {[notify_parent: :negotiation_done], state}
   end
 
-  defp handle_webrtc_msg({:rtcp, _packets}, _ctx, state) do
+  defp handle_webrtc_msg({:rtcp, packets}, _ctx, state) do
+     Enum.each(packets, fn
+      %ExRTCP.Packet.PayloadFeedback.PLI{} -> dbg(:pli)
+      _other -> :noop
+    end)
+
     {[], state}
   end
 
-  defp handle_webrtc_msg(msg, _ctx, state) do
-    dbg(msg)
+  defp handle_webrtc_msg(_msg, _ctx, state) do
     {[], state}
   end
 
@@ -259,7 +300,19 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
   defp do_receive_new_tracks(acc) do
     receive do
-      {:ex_webrtc, _pc, {:track, track}} -> do_receive_new_tracks([track | acc])
+      {:ex_webrtc, pc, {:track, track}} ->
+        transceiver =
+          PeerConnection.get_transceivers(pc)
+          |> Enum.find(fn transceiver ->
+            transceiver.receiver.track.id == track.id
+          end)
+
+        PeerConnection.set_transceiver_direction(pc, transceiver.id, :sendrecv) |> dbg()
+        PeerConnection.replace_track(pc, transceiver.sender.id, MediaStreamTrack.new(track.kind))
+        |> dbg()
+        PeerConnection.set_transceiver_direction(pc, transceiver.id, :recvonly) |> dbg()
+
+        do_receive_new_tracks([track | acc])
     after
       0 -> Enum.reverse(acc)
     end
