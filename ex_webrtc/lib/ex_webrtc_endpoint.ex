@@ -171,7 +171,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification(%Membrane.RTC.Engine.Notifications.TrackNotification{}, _ctx, state) do
+  def handle_parent_notification(
+        %Membrane.RTC.Engine.Notifications.TrackNotification{},
+        _ctx,
+        state
+      ) do
     {[], state}
   end
 
