@@ -147,10 +147,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
   def sdp_offer(offer) do
     as_custom(%{
       type: "sdpOffer",
-      data: %{
-        type: "offer",
-        sdp: offer
-      }
+      data: offer
     })
   end
 

@@ -8,31 +8,21 @@ import {
   attachStream,
   setupDisconnectButton,
 } from "./room_ui";
-import {
-  WebRTCEndpoint,
-  Endpoint,
-  TrackContext,
-} from "@fishjam-dev/ts-client";
 import { Push, Socket } from "phoenix";
 import { parse } from "query-string";
 
-export type EndpointMetadata = {
-  displayName: string;
-};
-
-export type TrackMetadata = {
-  goodTrack: string;
-};
-
+const pcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 export class Room {
-  private endpoints: Endpoint<EndpointMetadata, TrackMetadata>[] = [];
+  // private endpoints: Endpoint[] = [];
   private displayName: string;
   private localStream: MediaStream | undefined;
-  private webrtc: WebRTCEndpoint;
+  private pc: RTCPeerConnection;
 
   private socket;
   private webrtcSocketRefs: string[] = [];
   private webrtcChannel;
+
+  private localTracksAdded = false;
 
   constructor() {
     this.socket = new Socket("/socket");
@@ -52,57 +42,59 @@ export class Room {
     this.webrtcSocketRefs.push(this.socket.onError(this.leave));
     this.webrtcSocketRefs.push(this.socket.onClose(this.leave));
 
-    this.webrtc = new WebRTCEndpoint();
+    this.pc = new RTCPeerConnection(pcConfig);
 
-    this.webrtc.on("sendMediaEvent", (mediaEvent: string) => {
-      this.webrtcChannel.push("mediaEvent", { data: mediaEvent });
-    })
-
-    this.webrtc.on("connectionError", (e) => setErrorMessage(e.message));
-
-    this.webrtc.on("connected", (endpointId: string, otherEndpoints: Endpoint<EndpointMetadata, TrackMetadata>[]) => {
-      console.log("connected")
-      this.localStream!.getTracks().forEach(async (track) => {
-        console.log("addingTrack...");
-        await this.webrtc.addTrack(track, {}, {
-          enabled: false,
-          activeEncodings: [],
-          disabledEncodings: [],
-        });
-        console.log("room addedTrack", track)
+    this.pc.onicegatheringstatechange = () =>
+      console.log('Gathering state change: ' + this.pc.iceGatheringState);
+    this.pc.onconnectionstatechange = () =>
+      console.log('Connection state change: ' + this.pc.connectionState);
+    this.pc.onicecandidate = (event) => {
+      if (event.candidate == null) {
+        console.log('Gathering candidates complete');
+        return;
       }
-      );
 
-      this.endpoints = otherEndpoints;
-      this.endpoints.forEach((endpoint) => {
-        const metadata = endpoint.metadata!;
-        addVideoElement(endpoint.id, metadata.displayName, false);
-      });
-      this.updateParticipantsList();
-    });
-    this.webrtc.on("connectionError", () => { throw `Endpoint denied.` });
+      const candidate = JSON.stringify(event.candidate);
+      console.log('Sending ICE candidate: ' + candidate);
+      this.sendMediaEvent("custom", { "type": "candidate", "data": candidate });
+    };
 
-    this.webrtc.on("trackReady", (ctx: TrackContext<EndpointMetadata, TrackMetadata>) => {
-      attachStream(ctx.stream!, ctx.endpoint.id)
-    });
+    this.webrtcChannel.on("mediaEvent", async (payload) => {
+      console.log("Media event", payload)
+      const { "type": type, "data": data } = JSON.parse(payload.data);
 
-    this.webrtc.on("endpointAdded", (endpoint: Endpoint<EndpointMetadata, TrackMetadata>) => {
-      this.endpoints.push(endpoint);
-      this.updateParticipantsList();
-      addVideoElement(endpoint.id, endpoint.metadata?.displayName!, false);
-    });
+      switch (type) {
+        case "custom":
+          switch (data.type) {
+            case "sdpOffer":
+              const offer = data.data;
+              this.handle_offer(offer);
 
-    this.webrtc.on("endpointRemoved", (endpoint: Endpoint<EndpointMetadata, TrackMetadata>) => {
-      this.endpoints = this.endpoints.filter((endpoint) => endpoint.id !== endpoint.id);
-      removeVideoElement(endpoint.id);
-      this.updateParticipantsList();
+            case "candidate":
+              const candidate = data.data;
+              this.pc.addIceCandidate(candidate);
+              console.log('Received ICE candidate: ' + candidate);
+          }
+      }
     });
 
-    this.webrtcChannel.on("mediaEvent", (event: any) => {
-      console.log("MediaEvent", event);
-      this.webrtc.receiveMediaEvent(event.data);
-    }
-    );
+    this.pc.ontrack = (event) => {
+      console.log("ontrack", event.track.kind, event);
+
+      const stream = event.streams[0];
+      const peerId = stream.id;
+
+      if (event.track.kind == 'video') {
+        addVideoElement(peerId, "video", false);
+        attachStream(stream, peerId);
+      }
+      else {
+        // addVideoElement(peerId, "video", false);
+        addVideoElement(peerId, "audio", false);
+        attachStream(stream, peerId);
+        console.log("nice cock")
+      }
+    };
   }
 
   public join = async () => {
@@ -112,8 +104,11 @@ export class Room {
         this.leave();
         window.location.replace("");
       });
-      this.webrtc.connect({ displayName: this.displayName });
-      console.log("Connecting");
+
+      this.sendMediaEvent("connect", this.displayName);
+
+      console.log("Joined webrtcChannel");
+
     } catch (error) {
       console.error("Error while joining to the room:", error);
     }
@@ -139,7 +134,7 @@ export class Room {
   };
 
   private leave = () => {
-    this.webrtc.disconnect();
+    this.pc.close();
     this.webrtcChannel.leave();
     this.socketOff();
   };
@@ -160,15 +155,19 @@ export class Room {
     return displayName as string;
   };
 
-  private updateParticipantsList = (): void => {
-    const participantsNames = this.endpoints.map((e) => e.metadata?.displayName!);
+  private sendMediaEvent = (type: string, data: any) => {
+    this.webrtcChannel.push("mediaEvent", { "type": type, "data": data });
+  }
 
-    if (this.displayName) {
-      participantsNames.push(this.displayName);
-    }
+  // private updateParticipantsList = (): void => {
+  //   const participantsNames = this.endpoints.map((e) => e.metadata?.displayName!);
 
-    setParticipantsList(participantsNames);
-  };
+  //   if (this.displayName) {
+  //     participantsNames.push(this.displayName);
+  //   }
+
+  //   setParticipantsList(participantsNames);
+  // };
 
   private phoenixChannelPushResult = async (push: Push): Promise<any> => {
     return new Promise((resolve, reject) => {
@@ -177,4 +176,24 @@ export class Room {
         .receive("error", (response: any) => reject(response));
     });
   };
+
+  private handle_offer = async (offer: RTCSessionDescriptionInit) => {
+    console.log("received offer", offer);
+    await this.pc.setRemoteDescription(offer);
+
+    if (!this.localTracksAdded) {
+      console.log('Adding local tracks to peer connection');
+      this.localStream!.getTracks().forEach((track) => this.pc.addTrack(track));
+      this.localTracksAdded = true;
+
+      console.log("added tracks");
+    }
+
+    const sdpAnswer = await this.pc.createAnswer();
+    await this.pc.setLocalDescription(sdpAnswer);
+
+    const answer = this.pc.localDescription;
+    console.log("SDP offer applied, forwarding SDP answer", sdpAnswer);
+    this.sendMediaEvent("custom", { "type": "sdpAnswer", "data": answer });
+  }
 }
