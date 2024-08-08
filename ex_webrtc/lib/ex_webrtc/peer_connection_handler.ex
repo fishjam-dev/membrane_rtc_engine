@@ -21,6 +21,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   def_options endpoint_id: [
                 spec: String.t(),
                 description: "Id of the parent endpoint"
+              ],
+              ice_port_range: [
+                spec: Enumerable.t(non_neg_integer()),
+                description: "Range of ports that ICE will use for gathering host candidates."
               ]
 
   def_input_pad :input,
@@ -70,7 +74,16 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   def handle_init(_ctx, opts) do
     %{endpoint_id: endpoint_id} = opts
 
-    {:ok, pc} = PeerConnection.start_link(@opts)
+    pc_options =
+      %{
+        ice_port_range: opts.ice_port_range
+      }
+      |> Enum.filter(fn {_k, v} -> not is_nil(v) end)
+      |> Keyword.merge(@opts)
+
+    dbg(pc_options)
+
+    {:ok, pc} = PeerConnection.start_link(pc_options)
 
     state = %{
       pc: pc,

@@ -120,7 +120,8 @@ defmodule Videoroom.Room do
     #   end
 
     %ExWebRTC{
-      rtc_engine: rtc_engine
+      rtc_engine: rtc_engine,
+      ice_port_range: 50_000..50_050
       # ice_name: peer_id,
       # extensions: %{},
       # owner: self(),

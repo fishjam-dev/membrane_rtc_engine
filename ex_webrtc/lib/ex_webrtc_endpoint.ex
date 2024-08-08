@@ -12,6 +12,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   def_options rtc_engine: [
                 spec: pid(),
                 description: "Pid of parent Engine"
+              ],
+              ice_port_range: [
+                spec: Enumerable.t(non_neg_integer()),
+                description: "Range of ports that ICE will use for gathering host candidates.",
+                default: nil
               ]
 
   def_input_pad :input,
@@ -29,7 +34,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_init(ctx, opts) do
     {_, endpoint_id} = ctx.name
-    spec = [child(:handler, %PeerConnectionHandler{endpoint_id: endpoint_id})]
 
     state =
       opts
@@ -39,6 +43,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         inbound_tracks: %{},
         subscribed_tracks: MapSet.new()
       })
+
+    spec = [
+      child(:handler, %PeerConnectionHandler{
+        endpoint_id: endpoint_id,
+        ice_port_range: state.ice_port_range
+      })
+    ]
 
     {[spec: spec], state}
   end
