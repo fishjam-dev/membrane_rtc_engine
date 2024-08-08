@@ -151,7 +151,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   def handle_parent_notification({:media_event, event}, ctx, state) do
     dbg(event, limit: :infinity, printable_limit: :infinity)
 
-    %{"type" => type, "data" => data} = event
+    %{"type" => type, "data" => data} = Jason.decode!(event)
 
     handle_media_event(type, data, ctx, state)
   end

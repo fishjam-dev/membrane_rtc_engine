@@ -156,7 +156,9 @@ export class Room {
   };
 
   private sendMediaEvent = (type: string, data: any) => {
-    this.webrtcChannel.push("mediaEvent", { "type": type, "data": data });
+    const mediaEvent = JSON.stringify({ type, data })
+
+    this.webrtcChannel.push("mediaEvent", mediaEvent);
   }
 
   // private updateParticipantsList = (): void => {
