@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.ConnectionAllocator do
   @moduledoc """
   Behavior defining a set of functions for managing connection allocations for TrackReceivers.
 

@@ -2,7 +2,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
   @moduledoc false
 
   alias Membrane.RTC.Engine.Endpoint
-  # alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
   @type t() :: %{

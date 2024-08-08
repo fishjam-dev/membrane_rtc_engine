@@ -1,5 +1,5 @@
 # credo:disable-for-this-file Credo.Check.Design.TagTODO
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.RTPMunger do
   @moduledoc false
   # Module responsible for rewriting RTP packet's sequence number and timestamp
   # to provide transparent switch between simulcast encodings.

@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.Forwarder do
   @moduledoc false
   # Module responsible for forwarding RTP/RTCP packets.
   # It takes care of rewriting RTP/RTCP header and parts of RTP/RTCP payload.
@@ -7,8 +7,8 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Forwarder do
   require Membrane.Logger
 
   alias Membrane.Buffer
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.RTPMunger
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.VP8Munger
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTCP.SenderReportPacket
 

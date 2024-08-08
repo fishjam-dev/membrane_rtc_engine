@@ -21,7 +21,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver do
 
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.{
     ConnectionAllocator.AllocationGrantedNotification,
     Forwarder,
     VariantSelector
@@ -318,7 +318,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver do
         end
 
         paddings_num = min(state.enqueued_paddings_count, @max_paddings)
-        paddings_bytes = paddings_num * 255
 
         # Metrics.emit_paddings_sent_event(
         #   paddings_num,

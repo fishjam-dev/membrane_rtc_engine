@@ -307,7 +307,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   defp handle_webrtc_msg({:rtcp, packets}, _ctx, state) do
     actions =
       Enum.flat_map(packets, fn
-        {track_id, %ExRTCP.Packet.PayloadFeedback.PLI{}} -> []
+        {_track_id, %ExRTCP.Packet.PayloadFeedback.PLI{}} -> []
         {_track_id, _other} -> []
       end)
 

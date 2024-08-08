@@ -1,12 +1,12 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.NoOpConnectionAllocator do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.NoOpConnectionAllocator do
   @moduledoc """
   Implementation of `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator` that grants all allocations immediately.
 
   It might be useful for non-WebRTC Endpoints
   """
-  @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator
+  @behaviour Membrane.RTC.Engine.Endpoint.ExWebRTC.ConnectionAllocator
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.ConnectionAllocator.AllocationGrantedNotification
 
   @impl true
   def create(), do: {:ok, nil}
