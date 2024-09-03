@@ -601,6 +601,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
   end
 
   @impl true
+  def handle_parent_notification({:update_endpoint_metadata, metadata}, _ctx, state) do
+    {[notify_parent: {:update_endpoint_metadata, metadata}], %{state | metadata: metadata}}
+  end
+
+  @impl true
   def handle_parent_notification(msg, ctx, state) do
     {forward(:endpoint_bin, msg, ctx), state}
   end
@@ -731,9 +736,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     media_event_actions ++ forward(:endpoint_bin, {:remove_tracks, tracks}, ctx)
   end
 
-  defp handle_media_event(%{type: :connect, data: %{metadata: metadata}}, _ctx, state) do
-    Membrane.Logger.debug("Received connect media_event: #{inspect(metadata)}")
-    {[notify_parent: {:ready, metadata}], state}
+  defp handle_media_event(%{type: :connect}, _ctx, state) do
+    Membrane.Logger.debug("Received connect media_event")
+    {[notify_parent: {:ready, state.metadata}], state}
   end
 
   defp handle_media_event(%{type: :disconnect}, _ctx, state) do
@@ -784,14 +789,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
        ) do
     encoding = to_track_variant(rid)
     {[notify_parent: {:disable_track_variant, track_id, encoding}], state}
-  end
-
-  defp handle_media_event(
-         %{type: :update_endpoint_metadata, data: %{metadata: metadata}},
-         _ctx,
-         state
-       ) do
-    {[notify_parent: {:update_endpoint_metadata, metadata}], state}
   end
 
   defp handle_media_event(%{type: :sdp_offer, data: data}, ctx, state) do

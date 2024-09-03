@@ -194,17 +194,13 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEvent do
     with {:ok, event} <- Jason.decode(event_json), do: do_decode(event)
   end
 
-  defp do_decode(%{"type" => "connect", "data" => %{"metadata" => metadata}}),
-    do: {:ok, %{type: :connect, data: %{metadata: metadata}}}
+  defp do_decode(%{"type" => "connect"}), do: {:ok, %{type: :connect}}
 
   defp do_decode(%{"type" => "disconnect"}), do: {:ok, %{type: :disconnect}}
 
   defp do_decode(%{"type" => "custom", "data" => data}) do
     with {:ok, event} <- decode_custom_media_event(data), do: {:ok, %{type: :custom, data: event}}
   end
-
-  defp do_decode(%{"type" => "updateEndpointMetadata", "data" => %{"metadata" => metadata}}),
-    do: {:ok, %{type: :update_endpoint_metadata, data: %{metadata: metadata}}}
 
   defp do_decode(%{
          "type" => "updateTrackMetadata",

@@ -9,18 +9,12 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MediaEventTest do
         %{
           "type" => "connect",
           "data" => %{
-            "receiveMedia" => true,
-            "metadata" => %{"displayName" => "Bob"}
+            "receiveMedia" => true
           }
         }
         |> Jason.encode!()
 
-      expected_media_event = %{
-        type: :connect,
-        data: %{
-          metadata: %{"displayName" => "Bob"}
-        }
-      }
+      expected_media_event = %{type: :connect}
 
       assert {:ok, expected_media_event} == MediaEvent.decode(raw_media_event)
     end
