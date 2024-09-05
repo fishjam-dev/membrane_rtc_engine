@@ -17,7 +17,7 @@ defmodule ConfigParser do
     with [str1, str2] <- String.split(range, "-"),
          from when from in 0..65_535 <- String.to_integer(str1),
          to when to in from..65_535 and from <= to <- String.to_integer(str2) do
-      from..to
+      {from, to}
     else
       _else ->
         raise("""
@@ -43,9 +43,20 @@ defmodule ConfigParser do
 end
 
 config :test_videoroom,
-  ice_port_range:
-    System.get_env("ICE_PORT_RANGE", "50000-50100")
-    |> ConfigParser.parse_integrated_turn_port_range()
+  integrated_turn_ip:
+    System.get_env("INTEGRATED_TURN_IP", "127.0.0.1") |> ConfigParser.parse_integrated_turn_ip(),
+  integrated_turn_port_range:
+    System.get_env("INTEGRATED_TURN_PORT_RANGE", "50000-59999")
+    |> ConfigParser.parse_integrated_turn_port_range(),
+  integrated_tcp_turn_port:
+    System.get_env("INTEGRATED_TCP_TURN_PORT")
+    |> ConfigParser.parse_port_number("INTEGRATED_TCP_TURN_PORT"),
+  integrated_tls_turn_port:
+    System.get_env("INTEGRATED_TLS_TURN_PORT")
+    |> ConfigParser.parse_port_number("INTEGRATED_TLS_TURN_PORT"),
+  integrated_turn_pkey: System.get_env("INTEGRATED_TURN_PKEY"),
+  integrated_turn_cert: System.get_env("INTEGRATED_TURN_CERT"),
+  integrated_turn_domain: System.get_env("VIRTUAL_HOST")
 
 protocol = if System.get_env("USE_TLS") == "true", do: :https, else: :http
 
