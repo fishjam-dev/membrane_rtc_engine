@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VP8Munger do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.VP8Munger do
   @moduledoc false
   # Module responsible for rewriting VP8 RTP payload fields
   # to provide transparent switch between simulcast encodings.

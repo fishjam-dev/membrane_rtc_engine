@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.RTPMunger.Cache do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.RTPMunger.Cache do
   @moduledoc false
 
   # Cache for RTPMunger

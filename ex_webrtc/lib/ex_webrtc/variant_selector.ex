@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantSelector do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.VariantSelector do
   @moduledoc false
   # Module responsible for choosing track variant
   # received by the `TrackReceiver`

@@ -2,7 +2,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
   @moduledoc false
 
   alias Membrane.RTC.Engine.Endpoint
-  # alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
   @type t() :: %{
@@ -147,10 +146,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
   def sdp_offer(offer) do
     as_custom(%{
       type: "sdpOffer",
-      data: %{
-        type: "offer",
-        sdp: offer
-      }
+      data: offer
     })
   end
 

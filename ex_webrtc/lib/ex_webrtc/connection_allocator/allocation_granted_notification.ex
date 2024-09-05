@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator.AllocationGrantedNotification do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.ConnectionAllocator.AllocationGrantedNotification do
   @moduledoc """
   Message sent by ConnectionProber to TrackReceiver whenever new allocation is granted
   """
