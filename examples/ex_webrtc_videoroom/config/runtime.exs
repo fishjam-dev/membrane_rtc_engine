@@ -39,3 +39,12 @@ config :membrane_videoroom_demo, VideoRoomWeb.Endpoint, [
   {:url, [host: "localhost"]},
   {:http, [otp_app: :membrane_videoroom_demo, port: System.get_env("SERVER_PORT") || 4000]}
 ]
+
+engine_applications = [
+  :membrane_rtc_engine,
+  :membrane_rtc_engine_ex_webrtc
+]
+
+engine_level = :debug
+
+engine_applications |> Enum.each(&Logger.put_application_level(&1, engine_level))
