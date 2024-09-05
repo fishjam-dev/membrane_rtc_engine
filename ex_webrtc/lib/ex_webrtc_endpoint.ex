@@ -45,8 +45,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_pad_added(Pad.ref(:output, {track_id, rid}) = pad, _ctx, state) do
-    dbg("output pad added")
-
     if rid != :high, do: raise("temporary")
 
     track = Map.fetch!(state.inbound_tracks, track_id)
@@ -165,11 +163,16 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_parent_notification({:media_event, event}, ctx, state) do
-    dbg(event)
+    dbg(event, limit: :infinity, printable_limit: :infinity)
 
     event
     |> Jason.decode!()
     |> handle_media_event(ctx, state)
+  end
+
+  @impl true
+  def handle_parent_notification(%Membrane.RTC.Engine.Notifications.TrackNotification{}, _ctx, state) do
+    {[], state}
   end
 
   @impl true
