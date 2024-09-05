@@ -27,7 +27,14 @@ defmodule Membrane.RTC.Engine.Support.SinkEndpoint do
 
   @impl true
   def handle_init(_ctx, opts) do
-    {[notify_parent: :ready], Map.from_struct(opts)}
+    state =
+      opts
+      |> Map.from_struct()
+      |> Map.merge(%{
+        subscribing_tracks: %{}
+      })
+
+    {[notify_parent: :ready], state}
   end
 
   @impl true
@@ -49,10 +56,13 @@ defmodule Membrane.RTC.Engine.Support.SinkEndpoint do
   def handle_parent_notification({:new_tracks, tracks}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
-    Enum.each(tracks, fn track ->
-      :ok = Engine.subscribe(state.rtc_engine, endpoint_id, track.id)
-      send(state.owner, endpoint_id)
-    end)
+    new_subscribing_tracks =
+      Map.new(tracks, fn track ->
+        ref = Engine.subscribe_async(state.rtc_engine, endpoint_id, track.id)
+        {ref, endpoint_id}
+      end)
+
+    state = update_in(state.subscribing_tracks, &Map.merge(&1, new_subscribing_tracks))
 
     {[], state}
   end
@@ -60,5 +70,15 @@ defmodule Membrane.RTC.Engine.Support.SinkEndpoint do
   @impl true
   def handle_parent_notification(_msg, _ctx, state) do
     {[], state}
+  end
+
+  @impl true
+  def handle_info({:subscribe_result, subscribe_ref, result}, _ctx, state) do
+    :ok = result
+    {endpoint_id, subscribing_tracks} = Map.pop(state.subscribing_tracks, subscribe_ref)
+
+    send(state.owner, endpoint_id)
+
+    {[], %{state | subscribing_tracks: subscribing_tracks}}
   end
 end
