@@ -13,9 +13,10 @@ workflows:
           base-revision: master
           config-path: .circleci/continue_config.yml
           mapping: |
-            (?!(engine|webrtc|hls|rtsp|integration_test|file|examples|sip|recording)/).* repo-root-changed true
+            (?!(engine|webrtc|ex_webrtc|hls|rtsp|integration_test|file|examples|sip|recording)/).* repo-root-changed true
             engine/.* engine-changed true
             webrtc/.* webrtc-changed true
+            ex_webrtc/.* ex-webrtc-changed true
             hls/.* hls-changed true
             rtsp/.* rtsp-changed true
             file/.* file-changed true

@@ -17,27 +17,23 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     SessionDescription
   }
 
-  def_options(
-    endpoint_id: [
-      spec: String.t(),
-      description: "Id of the parent endpoint"
-    ],
-    ice_port_range: [
-      spec: Enumerable.t(non_neg_integer()),
-      description: "Range of ports that ICE will use for gathering host candidates."
-    ]
-  )
+  def_options endpoint_id: [
+                spec: String.t(),
+                description: "ID of the parent endpoint"
+              ],
+              ice_port_range: [
+                spec: Enumerable.t(non_neg_integer()),
+                description: "Range of ports that ICE will use for gathering host candidates."
+              ]
 
-  def_input_pad(:input,
+  def_input_pad :input,
     accepted_format: _any,
     availability: :on_request
-  )
 
-  def_output_pad(:output,
+  def_output_pad :output,
     accepted_format: _any,
     availability: :on_request,
     flow_control: :push
-  )
 
   @ice_servers [
     %{urls: "stun:stun.l.google.com:19302"}
@@ -65,7 +61,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       outbound_tracks: %{},
       # maps rtc track_id to engine track_id
       inbound_tracks: %{},
-      queued_tracks: %{},
       media_stream_ids: %{},
       # TODO: update this map when mid's are reused
       mid_to_track_id: %{}

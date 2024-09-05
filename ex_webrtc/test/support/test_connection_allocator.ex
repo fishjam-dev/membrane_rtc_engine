@@ -1,6 +1,6 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TestConnectionAllocator do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TestConnectionAllocator do
   @moduledoc false
-  @behaviour Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator
+  @behaviour Membrane.RTC.Engine.Endpoint.ExWebRTC.ConnectionAllocator
 
   @impl true
   def create(), do: {:ok, self()}

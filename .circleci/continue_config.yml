@@ -13,6 +13,9 @@ parameters:
   webrtc-changed:
     type: boolean
     default: false
+  ex-webrtc-changed:
+    type: boolean
+    default: false
   hls-changed:
     type: boolean
     default: false
@@ -186,6 +189,18 @@ workflows:
           codecov_flag: webrtc
       - test_webrtc_integration
 
+  test-ex-webrtc:
+    when:
+      or:
+        - << pipeline.parameters.repo-root-changed >>
+        - << pipeline.parameters.engine-changed >>
+        - << pipeline.parameters.ex-webrtc-changed >>
+    jobs:
+      - test_package:
+          name: test_ex_webrtc
+          workdir: ~/app/ex_webrtc
+          codecov_flag: ex_webrtc
+
   test-hls:
     when:
       or:
@@ -290,6 +305,16 @@ workflows:
     jobs:
       - lint_package:
           name: lint_webrtc
+          workdir: ~/app/webrtc
+      - check_changelog_update:
+          name: check_changelog_update_webrtc
+          workdir: ~/app/webrtc
+
+  lint-ex-webrtc:
+    when: << pipeline.parameters.webrtc-changed >>
+    jobs:
+      - lint_package:
+          name: lint_ex_webrtc
           workdir: ~/app/webrtc
       - check_changelog_update:
           name: check_changelog_update_webrtc
