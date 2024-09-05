@@ -12,7 +12,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     ICECandidate,
     MediaStreamTrack,
     PeerConnection,
-    RTPCodecParameters,
     RTPReceiver,
     RTPTransceiver,
     SessionDescription
@@ -49,13 +48,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     %{endpoint_id: endpoint_id} = opts
 
     pc_options =
-      %{
-        ice_port_range: opts.ice_port_range
-      }
+      %{ice_port_range: opts.ice_port_range}
       |> Enum.filter(fn {_k, v} -> not is_nil(v) end)
       |> Keyword.merge(@opts)
-
-    dbg(pc_options)
 
     {:ok, pc} = PeerConnection.start_link(pc_options)
 
@@ -67,8 +62,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       # maps rtc track_id to engine track_id
       inbound_tracks: %{},
       queued_tracks: %{},
-      during_negotiation?: false,
-      media_stream_ids: %{}
+      media_stream_ids: %{},
+      # TODO: update this map when mid's are reused
+      mid_to_track_id: %{},
     }
 
     {[], state}
@@ -129,27 +125,33 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   def handle_parent_notification({:offer, event, outbound_tracks}, _ctx, state) do
     %{"sdpOffer" => offer, "midToTrackId" => mid_to_track_id} = event
 
+    IO.inspect(mid_to_track_id, label: "#{Logger.metadata()[:peer]} remote mid_to_track_id")
+    mid_to_track_id = Map.merge(state.mid_to_track_id, mid_to_track_id)
+    IO.inspect(mid_to_track_id, label: "#{Logger.metadata()[:peer]} mid_to_track_id")
+
     new_outbound_tracks =
       Map.filter(outbound_tracks, fn {track_id, _track} ->
         not Map.has_key?(state.outbound_tracks, track_id)
       end)
 
+    IO.inspect(new_outbound_tracks, label: "#{Logger.metadata()[:peer]} new_outbound_tracks")
+
     PeerConnection.get_transceivers(state.pc)
     |> Enum.map(fn t ->
-      Map.take(t, [:id, :kind, :direction, :current_direction])
+      Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
       |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
     end)
-    |> IO.inspect(label: :before)
+    |> IO.inspect(label: "#{Logger.metadata()[:peer]} before")
 
     offer = SessionDescription.from_json(offer)
     :ok = PeerConnection.set_remote_description(state.pc, offer)
 
     PeerConnection.get_transceivers(state.pc)
     |> Enum.map(fn t ->
-      Map.take(t, [:id, :kind, :direction, :current_direction])
+      Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
       |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
     end)
-    |> IO.inspect(label: :in_between)
+    |> IO.inspect(label: "#{Logger.metadata()[:peer]} middle")
 
     outbound_transceivers =
       state.pc
@@ -160,13 +162,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
     {track_ids, {media_stream_ids, _out_trans}} =
       new_outbound_tracks
-      |> Enum.map_reduce(
+      |> Enum.flat_map_reduce(
         {state.media_stream_ids, outbound_transceivers},
         fn {engine_track_id, engine_track}, {media_stream_ids, outbound_transceivers} ->
           stream_id =
             Map.get(media_stream_ids, engine_track.origin, MediaStreamTrack.generate_stream_id())
-
-          media_stream_ids = Map.put_new(media_stream_ids, engine_track.origin, stream_id)
 
           track =
             MediaStreamTrack.new(engine_track.type, [stream_id])
@@ -176,44 +176,46 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
               transceiver.kind == track.kind
             end)
 
-          outbound_transceivers = List.delete(outbound_transceivers, transceiver)
+          if transceiver do
+            PeerConnection.set_transceiver_direction(state.pc, transceiver.id, :sendonly)
+            PeerConnection.replace_track(state.pc, transceiver.sender.id, track)
 
-          # {:ok, sender} = PeerConnection.add_track(state.pc, track)
-          # {:ok, transceiver} = PeerConnection.add_transceiver(state.pc, track, direction: :sendonly)
+            media_stream_ids = Map.put_new(media_stream_ids, engine_track.origin, stream_id)
+            outbound_transceivers = List.delete(outbound_transceivers, transceiver)
 
-          PeerConnection.set_transceiver_direction(state.pc, transceiver.id, :sendonly)
-          PeerConnection.replace_track(state.pc, transceiver.sender.id, track)
+            Logger.info("track #{track.id}, #{track.kind} added on transceiver #{transceiver.id}")
 
-          {{engine_track_id, track.id, transceiver.sender.id},
-           {media_stream_ids, outbound_transceivers}}
+            {[{engine_track_id, track.id, transceiver.sender.id}],
+             {media_stream_ids, outbound_transceivers}}
+          else
+            Logger.error("Couldn't find transceiver for track #{engine_track_id}")
+            {[], {media_stream_ids, outbound_transceivers}}
+          end
         end
       )
 
     transceivers = PeerConnection.get_transceivers(state.pc)
 
-    mid_to_track_id =
+    new_mid_to_track_id =
       track_ids
-      |> Enum.map(fn {track_id, id, sender_id} ->
+      |> Enum.map(fn {track_id, _id, sender_id} ->
         mid =
           Enum.find(transceivers, fn transceiver ->
             transceiver.sender.id == sender_id
           end)
           |> then(& &1.mid)
 
-        dbg({track_id, to_string(mid), id})
-
         {to_string(mid), track_id}
       end)
       |> Map.new()
+
+    Logger.debug("new_mid_to_track_id: #{inspect(new_mid_to_track_id)}")
 
     outbound_tracks =
       Map.new(track_ids, fn {engine_id, id, _sender_id} ->
         {engine_id, id}
       end)
       |> Map.merge(state.outbound_tracks)
-
-    # dbg(outbound_tracks)
-    # dbg(trans)
 
     {:ok, answer} = PeerConnection.create_answer(state.pc)
     :ok = PeerConnection.set_local_description(state.pc, answer)
@@ -224,25 +226,36 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
     PeerConnection.get_transceivers(state.pc)
     |> Enum.map(fn t ->
-      Map.take(t, [:id, :kind, :direction, :current_direction])
+      Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
       |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
     end)
-    |> IO.inspect(label: :after)
+    |> IO.inspect(label: "#{Logger.metadata()[:peer]} after")
+
+    mid_to_track_id = Map.merge(mid_to_track_id, new_mid_to_track_id)
 
     actions =
-      [notify_parent: {:answer, SessionDescription.to_json(answer), mid_to_track_id}] ++
+      [notify_parent: {:answer, SessionDescription.to_json(answer), new_mid_to_track_id}] ++
         if Enum.empty?(tracks), do: [], else: [notify_parent: {:tracks, tracks}]
 
-    {actions, %{state | outbound_tracks: outbound_tracks, media_stream_ids: media_stream_ids}}
+    {actions,
+     %{
+       state
+       | outbound_tracks: outbound_tracks,
+         media_stream_ids: media_stream_ids,
+         mid_to_track_id: mid_to_track_id
+     }}
   end
 
   @impl true
   def handle_parent_notification({:candidate, candidate}, _ctx, state) do
-    # dbg(candidate)
-    dbg(candidate)
     candidate = ICECandidate.from_json(candidate)
     :ok = PeerConnection.add_ice_candidate(state.pc, candidate)
 
+    {[], state}
+  end
+
+  def handle_parent_notification({:set_metadata, display_name}, _ctx, state) do
+    Logger.metadata(peer: display_name)
     {[], state}
   end
 
@@ -349,14 +362,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
             transceiver.receiver.track.id == track.id
           end)
 
-        dbg(track)
+        Logger.info("new track #{track.id}, #{track.kind}")
 
-        PeerConnection.set_transceiver_direction(pc, transceiver.id, :sendrecv) |> dbg()
+        PeerConnection.set_transceiver_direction(pc, transceiver.id, :sendrecv)
 
         PeerConnection.replace_track(pc, transceiver.sender.id, MediaStreamTrack.new(track.kind))
-        |> dbg()
 
-        PeerConnection.set_transceiver_direction(pc, transceiver.id, :recvonly) |> dbg()
+        PeerConnection.set_transceiver_direction(pc, transceiver.id, :recvonly)
 
         do_receive_new_tracks([track | acc])
     after

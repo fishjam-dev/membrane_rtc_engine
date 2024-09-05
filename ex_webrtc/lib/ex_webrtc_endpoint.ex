@@ -2,6 +2,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @moduledoc false
   use Membrane.Bin
 
+  require Logger
+
   alias __MODULE__.MediaEvent
   alias __MODULE__.PeerConnectionHandler
 
@@ -34,6 +36,15 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_init(ctx, opts) do
     {_, endpoint_id} = ctx.name
+    endpoint_pid = self()
+
+    subscriber_fun = fn ->
+      subscriber(%{
+        endpoint_id: endpoint_id,
+        rtc_engine: opts.rtc_engine,
+        endpoint_pid: endpoint_pid
+      })
+    end
 
     state =
       opts
@@ -41,9 +52,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       |> Map.merge(%{
         outbound_tracks: %{},
         inbound_tracks: %{},
+        # Tracks for which the endpoint has subscribed
         subscribed_tracks: MapSet.new(),
+        pending_tracks: MapSet.new(),
         negotiation?: false,
-        queued_new_tracks: []
+        # Outbound tracks, that have been added during negotation, and are queued for negotiation
+        queued_new_tracks: [],
+        subscriber: spawn(subscriber_fun)
       })
 
     spec = [
@@ -97,8 +112,20 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
+  def handle_pad_removed(Pad.ref(:input, track_id), _ctx, state) do
+    {[remove_children: {:track_receiver, track_id}], state}
+  end
+
+  @impl true
+  def handle_pad_removed(Pad.ref(:output, {_track_id, _rid}), _ctx, state) do
+    {[], state}
+  end
+
+  @impl true
   def handle_parent_notification({:ready, endpoints}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
+
+    Logger.info("endpoint ready, endpoints: #{inspect(endpoints)}")
 
     action = MediaEvent.connected(endpoint_id, endpoints) |> MediaEvent.to_action()
     {action, state}
@@ -107,6 +134,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_parent_notification({:new_endpoint, endpoint}, _ctx, state) do
     action = MediaEvent.endpoint_added(endpoint) |> MediaEvent.to_action()
+    Logger.info("endpoint added: #{inspect(endpoint.metadata)}")
     {action, state}
   end
 
@@ -122,14 +150,12 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:track_variant_enabled, track, _encoding}, _ctx, state) do
-    dbg(track)
+  def handle_parent_notification({:track_variant_enabled, _track, _encoding}, _ctx, state) do
     {[], state}
   end
 
   @impl true
-  def handle_parent_notification({:track_variant_disabled, track, _encoding}, _ctx, state) do
-    dbg({:track_variant_disabled, track})
+  def handle_parent_notification({:track_variant_disabled, _track, _encoding}, _ctx, state) do
     # rid = to_rid(encoding)
 
     # actions = forward("trackEncodingDisabled", %{endpointId: track.origin, trackId: track.id, encoding: rid})
@@ -145,13 +171,14 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_parent_notification({:new_tracks, new_tracks}, _ctx, %{negotiation?: true} = state) do
+    Logger.debug("new parent queued tracks: #{log_tracks(new_tracks)}")
     queued_new_tracks = state.queued_new_tracks ++ new_tracks
     {[], %{state | queued_new_tracks: queued_new_tracks}}
   end
 
   @impl true
   def handle_parent_notification({:new_tracks, new_tracks}, _ctx, state) do
-    dbg(new_tracks)
+    Logger.debug("new parent tracks: #{log_tracks(new_tracks)}")
 
     new_tracks = state.queued_new_tracks ++ new_tracks
 
@@ -164,13 +191,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_parent_notification({:remove_tracks, tracks}, _ctx, state) do
     # TODO: remove tracks from queued track
-    dbg(tracks)
+    Logger.info("remove tracks event for #{inspect(tracks)}")
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:media_event, event}, ctx, state) do
-    dbg(event, limit: :infinity, printable_limit: :infinity)
+    dbg(event, printable_limit: 1024)
 
     %{"type" => type, "data" => data} = Jason.decode!(event)
 
@@ -192,13 +219,24 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[], state}
   end
 
+  defp log_tracks(tracks) do
+    Enum.map(tracks, &Map.take(&1, [:type, :stream_id, :id, :origin, :encoding]))
+    |> inspect()
+  end
+
   defp handle_media_event("custom", data, ctx, state) do
     handle_custom(data, ctx, state)
   end
 
   defp handle_media_event("connect", data, _ctx, state) do
-    metadata = if is_map(data), do: Map.get(data, :metadata), else: nil
-    {[notify_parent: {:ready, metadata}], state}
+    metadata = if is_map(data), do: Map.get(data, "metadata"), else: nil
+
+    display_name = String.to_atom(metadata["displayName"])
+
+    Logger.metadata(peer: display_name)
+
+    {[notify_parent: {:ready, metadata}, notify_child: {:handler, {:set_metadata, display_name}}],
+     state}
   end
 
   defp handle_media_event(
@@ -212,18 +250,19 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   defp handle_media_event(type, event, _ctx, state) do
-    dbg({:unexpected_event, type, event})
+    Logger.warning("unexpected media event: #{type}, #{event}")
     {[], state}
   end
 
   defp handle_custom(%{"type" => "sdpOffer", "data" => event}, _ctx, state) do
-    dbg(event)
+    IO.inspect({Map.values(state.outbound_tracks) |> log_tracks(), Map.drop(event, ["sdpOffer"])},
+      label: "#{Logger.metadata()[:peer]} received sdp"
+    )
+
     {[notify_child: {:handler, {:offer, event, state.outbound_tracks}}], state}
   end
 
   defp handle_custom(%{"type" => "candidate", "data" => candidate}, _ctx, state) do
-    dbg(candidate)
-
     {[notify_child: {:handler, {:candidate, candidate}}], state}
   end
 
@@ -234,12 +273,12 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   defp handle_custom(%{"type" => "renegotiateTracks"}, _ctx, state) do
     actions = get_offer_data(state.outbound_tracks)
 
-    {actions, state}
+    {actions, %{state | negotiation?: true}}
   end
 
   @impl true
   def handle_child_notification({:tracks, tracks}, :handler, _ctx, state) do
-    dbg(tracks)
+    Logger.debug("new child tracks: #{log_tracks(tracks)}")
 
     tracks_ready =
       Enum.map(tracks, fn track ->
@@ -255,8 +294,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_child_notification({:answer, answer, mid_to_track_id}, :handler, _ctx, state) do
-    dbg(answer)
-
     actions = MediaEvent.sdp_answer(answer, mid_to_track_id) |> MediaEvent.to_action()
 
     {actions, state}
@@ -264,54 +301,33 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_child_notification({:candidate, candidate}, :handler, _ctx, state) do
-    dbg(candidate)
-
     actions = MediaEvent.candidate(candidate) |> MediaEvent.to_action()
     {actions, state}
   end
 
   @impl true
-  def handle_child_notification(:negotiation_done, :handler, ctx, state) do
+  def handle_child_notification(:negotiation_done, :handler, _ctx, %{negotiation?: true} = state) do
     new_outbound_tracks =
       Enum.filter(state.outbound_tracks, fn {track_id, _track} ->
-        not MapSet.member?(state.subscribed_tracks, track_id)
+        not MapSet.member?(state.subscribed_tracks, track_id) and
+          not MapSet.member?(state.pending_tracks, track_id)
       end)
       |> Enum.map(fn {track_id, _track} -> track_id end)
 
-    {:endpoint, endpoint_id} = ctx.name
+    pending_tracks = MapSet.union(state.pending_tracks, MapSet.new(new_outbound_tracks))
 
-    {valid_tracks, invalid_tracks} =
-      Enum.split_with(new_outbound_tracks, fn track_id ->
-        case Engine.subscribe(state.rtc_engine, endpoint_id, track_id) do
-          :ok ->
-            true
-
-          :ignored ->
-            false
-        end
-      end)
-      |> dbg()
-
-    subscribed_tracks =
-      state.subscribed_tracks
-      |> then(&MapSet.union(&1, MapSet.new(valid_tracks)))
-      |> then(&MapSet.difference(&1, MapSet.new(invalid_tracks)))
-
-    dbg(subscribed_tracks)
-    state = %{state | subscribed_tracks: subscribed_tracks}
-
-    # TODO: build_track_removed_actions
+    send(state.subscriber, {:subscribe, new_outbound_tracks})
 
     {state, actions} =
       if not Enum.empty?(state.queued_new_tracks) do
         {state, tracks_added} = new_tracks_added(state, state.queued_new_tracks)
         offer_data = get_offer_data(state.outbound_tracks)
-        {%{state | negotiation?: true}, tracks_added ++ offer_data}
+        {%{state | negotiation?: true, queued_new_tracks: []}, tracks_added ++ offer_data}
       else
         {%{state | negotiation?: false}, []}
       end
 
-    {actions, state}
+    {actions, %{state | pending_tracks: pending_tracks}}
   end
 
   @impl true
@@ -336,6 +352,26 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[], state}
   end
 
+  @impl true
+  def handle_info({:subscription_result, valid_tracks, invalid_tracks}, _ctx, state) do
+    valid_tracks = MapSet.new(valid_tracks)
+    invalid_tracks = MapSet.new(invalid_tracks)
+
+    subscribed_tracks =
+      state.subscribed_tracks
+      |> MapSet.union(valid_tracks)
+      |> MapSet.difference(invalid_tracks)
+
+    pending_tracks =
+      state.pending_tracks
+      |> MapSet.difference(valid_tracks)
+      |> MapSet.difference(invalid_tracks)
+
+    IO.inspect(subscribed_tracks, label: "#{Logger.metadata()[:peer]} subscribed tracks")
+
+    {[], %{state | subscribed_tracks: subscribed_tracks, pending_tracks: pending_tracks}}
+  end
+
   @spec to_rid(atom()) :: String.t()
   def to_rid(:high), do: "h"
   def to_rid(:medium), do: "m"
@@ -349,7 +385,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     tracks_types =
       tracks
       |> Map.values()
-      # |> Enum.filter(&(&1.status != :pending))
       |> Enum.map(& &1.type)
 
     %{
@@ -368,7 +403,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   defp new_tracks_added(state, new_tracks) do
     outbound_tracks =
       new_tracks
-      |> Map.new(&({&1.id, &1}))
+      |> Map.new(&{&1.id, &1})
+      |> IO.inspect(label: "#{Logger.metadata()[:peer]} new outbound tracks")
       |> Map.merge(state.outbound_tracks)
 
     tracks_added =
@@ -380,5 +416,27 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       end)
 
     {%{state | outbound_tracks: outbound_tracks}, tracks_added}
+  end
+
+  defp subscriber(state) do
+    receive do
+      {:subscribe, new_outbound_tracks} ->
+        {valid_tracks, invalid_tracks} =
+          Enum.split_with(new_outbound_tracks, fn track_id ->
+            Logger.debug("#{state.endpoint_id} subscribing for track #{track_id}")
+
+            case Engine.subscribe(state.rtc_engine, state.endpoint_id, track_id) do
+              :ok ->
+                true
+
+              :ignored ->
+                false
+            end
+          end)
+
+        send(state.endpoint_pid, {:subscription_result, valid_tracks, invalid_tracks})
+    end
+
+    subscriber(state)
   end
 end

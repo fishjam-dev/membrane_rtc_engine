@@ -60,17 +60,15 @@ export class Room {
 
     this.webrtc.on("connectionError", (e) => setErrorMessage(e.message));
 
-    this.webrtc.on("connected", (endpointId: string, otherEndpoints: Endpoint<EndpointMetadata, TrackMetadata>[]) => {
+    this.webrtc.on("connected", async (endpointId: string, otherEndpoints: Endpoint<EndpointMetadata, TrackMetadata>[]) => {
       console.log("connected")
 
-      if (this.displayName === "a") {
-        this.localStream!.getTracks().forEach(async (track) => {
-          console.log("addingTrack...");
-          await this.webrtc.addTrack(track);
-          console.log("room addedTrack", track)
-        }
-        );
+      for (const track of this.localStream!.getTracks()) {
+        console.log("addingTrack...");
+        await this.webrtc.addTrack(track, { peer: this.displayName, kind: track.kind });
+        console.log("room addedTrack", track)
       }
+
 
       this.endpoints = otherEndpoints;
       this.endpoints.forEach((endpoint) => {
