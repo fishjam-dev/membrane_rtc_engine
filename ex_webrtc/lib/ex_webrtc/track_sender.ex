@@ -1,4 +1,4 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackSender do
   @moduledoc false
 
   # TrackSender:
@@ -12,7 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
 
   alias Membrane.{Buffer, Time}
   alias Membrane.RTC.Engine.BitrateEstimator
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.{Metrics, VariantTracker}
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.VariantTracker
 
   alias Membrane.RTC.Engine.Event.{
     TrackVariantBitrate,
@@ -44,14 +44,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
                 spec: %{optional(Track.variant()) => non_neg_integer()},
                 description: "Bitrate of each variant of track maintained by this sender"
               ],
-              telemetry_label: [
-                spec: Membrane.TelemetryMetrics.label(),
-                default: [],
-                description: "Label passed to Membrane.TelemetryMetrics functions"
-              ],
               is_keyframe_fun: [
                 spec: (Membrane.Buffer.t(), Track.encoding() -> boolean()),
-                default: &Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender.keyframe?/2,
+                default: &Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackSender.keyframe?/2,
                 description:
                   "Function checking whether a given buffer contains a keyframe in its payload."
               ]
@@ -68,7 +63,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   def handle_init(_ctx, %__MODULE__{
         track: track,
         variant_bitrates: variant_bitrates,
-        telemetry_label: telemetry_label,
         is_keyframe_fun: is_keyframe_fun
       }) do
     {[],
@@ -78,7 +72,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
        bitrate_estimators: %{},
        requested_keyframes: MapSet.new(),
        variant_bitrates: variant_bitrates,
-       telemetry_label: telemetry_label,
        is_keyframe_fun: is_keyframe_fun
      }}
   end
@@ -86,8 +79,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
   @impl true
   def handle_pad_added(Pad.ref(:input, id), %{playback: playback}, state) do
     {_track_id, variant} = id
-    telemetry_label = state.telemetry_label ++ [track_id: "#{state.track.id}:#{variant}"]
-    Metrics.telemetry_register(telemetry_label)
 
     {actions, state} =
       if playback == :playing and Track.simulcast?(state.track) do
@@ -287,12 +278,6 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.TrackSender do
         ctx,
         %{track: track} = state
       ) do
-    Metrics.emit_packet_arrival_event(
-      buffer.payload,
-      state.track.encoding,
-      state.telemetry_label
-    )
-
     state =
       if Track.simulcast?(track) do
         update_in(state, [:trackers, variant], &VariantTracker.increment_samples(&1))

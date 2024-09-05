@@ -2,6 +2,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   @moduledoc false
   use Membrane.Endpoint
 
+  alias Membrane.Buffer
   alias Membrane.RTC.Engine.Track
 
   alias ExWebRTC.{
@@ -20,6 +21,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       description: "Id of the parent endpoint"
     ]
   )
+
+  def_output_pad :output,
+    accepted_format: _any,
+    availability: :on_request,
+    flow_control: :push
 
   @ice_servers [
     %{urls: "stun:stun.l.google.com:19302"}
@@ -71,8 +77,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_pad_added(_pad, _ctx, state) do
-    {[], state}
+  def handle_pad_added(Pad.ref(:output, {_track_id, _rid}) = pad, _ctx, state) do
+    {[stream_format: {pad, %Membrane.RTP{}}], state}
   end
 
   @impl true
@@ -112,26 +118,48 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_info({:ex_webrtc, _from, msg}, _ctx, state) do
-    handle_webrtc_msg(msg, state)
+  def handle_info({:ex_webrtc, _from, msg}, ctx, state) do
+    handle_webrtc_msg(msg, ctx, state)
   end
 
-  defp handle_webrtc_msg({:ice_candidate, candidate}, state) do
+  defp handle_webrtc_msg({:ice_candidate, candidate}, _ctx, state) do
     msg = {:candidate, ICECandidate.to_json(candidate)}
     {[notify_parent: msg], state}
   end
 
-  defp handle_webrtc_msg({:track, _track}, state) do
+  defp handle_webrtc_msg({:track, _track}, _ctx, state) do
     raise("We do not expect to receive any tracks")
     {[], state}
   end
 
-  defp handle_webrtc_msg({:connection_state_change, :connected}, state) do
-    # TODO
+  defp handle_webrtc_msg({:rtp, track_id, rid, packet}, ctx, state) do
+    # TEMPORARY
+    rid = if rid == nil, do: :high, else: rid
+
+    actions =
+      with {:ok, engine_track_id} <- Map.fetch(state.inbound_tracks, track_id),
+          pad <- Pad.ref(:output, {engine_track_id, rid}),
+          true <- Map.has_key?(ctx.pads, pad) do
+        rtp = %{marker: packet.marker}
+        buffer = %Buffer{
+          pts: packet.timestamp,
+          payload: packet.payload,
+          metadata: %{rtp: rtp}
+        }
+        [buffer: {pad, buffer}]
+      else
+        _other -> []
+      end
+
+    {actions, state}
+  end
+
+  defp handle_webrtc_msg({:rtcp, _packets}, _ctx, state) do
     {[], state}
   end
 
-  defp handle_webrtc_msg(_msg, state) do
+  defp handle_webrtc_msg(msg, _ctx, state) do
+    dbg(msg)
     {[], state}
   end
 

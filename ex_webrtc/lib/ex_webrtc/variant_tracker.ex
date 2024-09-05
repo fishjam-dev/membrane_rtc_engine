@@ -1,4 +1,6 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.VariantTracker do
+# TODO: THIS IS A COPIED TRACK SENDER
+
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.VariantTracker do
   @moduledoc false
   # Module responsible for tracking variant activity.
   #
