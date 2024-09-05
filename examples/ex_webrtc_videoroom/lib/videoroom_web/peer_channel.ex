@@ -38,7 +38,7 @@ defmodule VideoRoomWeb.PeerChannel do
   end
 
   @impl true
-  def handle_in("mediaEvent", event, socket) do
+  def handle_in("mediaEvent", %{"data" => event}, socket) do
     send(socket.assigns.room_pid, {:media_event, socket.assigns.peer_id, event})
 
     {:noreply, socket}

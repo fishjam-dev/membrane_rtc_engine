@@ -142,14 +142,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
     as_custom(%{type: "candidate", data: candidate})
   end
 
-  @spec sdp_offer(String.t()) :: t()
-  def sdp_offer(offer) do
-    as_custom(%{
-      type: "sdpOffer",
-      data: offer
-    })
-  end
-
   @spec voice_activity(Track.id(), :speech | :silence) :: t()
   def voice_activity(track_id, vad),
     do:
