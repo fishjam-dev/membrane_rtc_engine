@@ -49,11 +49,10 @@ export class Room {
     this.webrtc.on("sendMediaEvent", (mediaEvent: string) => {
       this.webrtcChannel.push("mediaEvent", { data: mediaEvent });
     })
-
+    
     this.webrtc.on("connectionError", setErrorMessage);
-
+    
     this.webrtc.on("connected", (endpointId: string, otherEndpoints: Endpoint[]) => {
-      console.log("connected")
       this.localStream!.getTracks().forEach((track) =>
         this.webrtc.addTrack(track, this.localStream!, {})
       );
@@ -69,23 +68,21 @@ export class Room {
     this.webrtc.on("trackReady", (ctx: TrackContext) => {
       attachStream(ctx.stream!, ctx.endpoint.id)
     });
-
+    
     this.webrtc.on("endpointAdded", (endpoint: Endpoint) => {
       this.endpoints.push(endpoint);
       this.updateParticipantsList();
       addVideoElement(endpoint.id, endpoint.metadata.display_name, false);
     });
-
+    
     this.webrtc.on("endpointRemoved", (endpoint: Endpoint) => {
       this.endpoints = this.endpoints.filter((endpoint) => endpoint.id !== endpoint.id);
       removeVideoElement(endpoint.id);
       this.updateParticipantsList();
     });
-
-    this.webrtcChannel.on("mediaEvent", (event: any) => {
-      console.log(event);
-      this.webrtc.receiveMediaEvent(event.data);
-    }
+    
+    this.webrtcChannel.on("mediaEvent", (event: any) =>
+      this.webrtc.receiveMediaEvent(event.data)
     );
   }
 
@@ -97,7 +94,6 @@ export class Room {
         window.location.replace("");
       });
       this.webrtc.connect({ displayName: this.displayName });
-      console.log("Connecting");
     } catch (error) {
       console.error("Error while joining to the room:", error);
     }
