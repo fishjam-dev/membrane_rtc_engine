@@ -20,6 +20,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
                 description: "Id of the parent endpoint"
               ]
 
+  def_input_pad :input,
+    accepted_format: _any,
+    availability: :on_request
+
   def_output_pad :output,
     accepted_format: _any,
     availability: :on_request,
@@ -86,9 +90,52 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_parent_notification({:offer, offer}, _ctx, state) do
+  def handle_parent_notification({:offer, offer, outbound_tracks}, _ctx, state) do
+    IO.puts(Map.get(offer, "sdp"))
+
     offer = SessionDescription.from_json(offer)
     :ok = PeerConnection.set_remote_description(state.pc, offer)
+
+    trans =
+      PeerConnection.get_transceivers(state.pc)
+      |> Enum.map(&Map.take(&1, [:id, :kind, :mid, :direction, :current_direction]))
+
+    dbg(trans)
+
+    track_id_to_sender_id =
+      outbound_tracks
+      |> Enum.map(fn {track_id, engine_track} ->
+        track =
+          MediaStreamTrack.new(engine_track.type, [MediaStreamTrack.generate_stream_id()])
+          |> dbg()
+
+        {:ok, sender} = PeerConnection.add_track(state.pc, track)
+        {track_id, sender.id}
+      end)
+
+    transceivers = PeerConnection.get_transceivers(state.pc)
+
+    mid_to_track_id =
+      track_id_to_sender_id
+      |> Enum.map(fn {track_id, sender_id} ->
+        mid =
+          Enum.find(transceivers, fn transceiver ->
+            transceiver.sender.id == sender_id
+          end)
+          |> then(& &1.mid)
+
+        {to_string(mid), track_id}
+      end)
+      |> Map.new()
+
+    dbg(mid_to_track_id)
+
+    trans =
+      PeerConnection.get_transceivers(state.pc)
+
+    # |> Enum.map(&Map.take(&1, [:id, :kind, :mid, :direction, :current_direction]))
+
+    dbg(trans)
 
     {:ok, answer} = PeerConnection.create_answer(state.pc)
     :ok = PeerConnection.set_local_description(state.pc, answer)
@@ -97,9 +144,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       receive_new_tracks()
       |> make_tracks(state)
 
-    answer = {:answer, SessionDescription.to_json(answer)}
-    tracks = {:tracks, tracks}
-    {[notify_parent: answer, notify_parent: tracks], state}
+    actions =
+      [notify_parent: {:answer, SessionDescription.to_json(answer), mid_to_track_id}] ++
+        if Enum.empty?(tracks), do: [], else: [notify_parent: {:tracks, tracks}]
+
+    {actions, state}
   end
 
   @impl true
@@ -153,6 +202,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       end
 
     {actions, state}
+  end
+
+  defp handle_webrtc_msg({:signaling_state_change, :stable}, _ctx, state) do
+    {[], state}
   end
 
   defp handle_webrtc_msg({:rtcp, _packets}, _ctx, state) do

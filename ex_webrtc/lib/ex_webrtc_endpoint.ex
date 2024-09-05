@@ -2,7 +2,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @moduledoc false
   use Membrane.Bin
 
+  alias __MODULE__.MediaEvent
   alias __MODULE__.PeerConnectionHandler
+
   alias Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackSender
   alias Membrane.RTC.Engine.Notifications.TrackNotification
 
@@ -59,37 +61,23 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:ready, _endpoints}, ctx, state) do
+  def handle_parent_notification({:ready, endpoints}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
-    # other_endpoints =
-    #   endpoints
-    #   |> Enum.map(
-    #     &%{
-    #       id: &1.id,
-    #       type: to_type_string(&1.type),
-    #       metadata: &1.metadata,
-    #       # Deprecated Field, use tracks field instead. It will be removed in the future.
-    #       trackIdToMetadata: Endpoint.get_active_track_metadata(&1),
-    #       tracks: &1 |> Endpoint.get_active_tracks() |> to_tracks_info()
-    #     }
-    #   )
-
-    event =
-      %{type: "connected", data: %{id: endpoint_id, otherEndpoints: []}}
-      |> Jason.encode!()
-
-    {[notify_parent: {:forward_to_parent, {:media_event, event}}], state}
+    actions = MediaEvent.connected(endpoint_id, endpoints) |> MediaEvent.to_action()
+    {actions, state}
   end
 
   @impl true
-  def handle_parent_notification({:new_endpoint, _endpoint}, _ctx, state) do
-    {[], state}
+  def handle_parent_notification({:new_endpoint, endpoint}, _ctx, state) do
+    action = MediaEvent.endpoint_added(endpoint) |> MediaEvent.to_action()
+    {action, state}
   end
 
   @impl true
-  def handle_parent_notification({:endpoint_removed, _endpoint_id}, _ctx, state) do
-    {[], state}
+  def handle_parent_notification({:endpoint_removed, endpoint_id}, _ctx, state) do
+    action = MediaEvent.endpoint_removed(endpoint_id) |> MediaEvent.to_action()
+    {action, state}
   end
 
   @impl true
@@ -104,12 +92,14 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:track_variant_disabled, track, encoding}, _ctx, state) do
+  def handle_parent_notification({:track_variant_disabled, track, _encoding}, _ctx, state) do
     dbg({:track_variant_disabled, track})
-    rid = to_rid(encoding)
+    # rid = to_rid(encoding)
 
-    actions = forward("trackEncodingDisabled", %{endpointId: track.origin, trackId: track.id, encoding: rid})
-    {actions, state}
+    # actions = forward("trackEncodingDisabled", %{endpointId: track.origin, trackId: track.id, encoding: rid})
+    # actions = MediaEvent.track_variant_disabled()
+
+    {[], state}
   end
 
   @impl true
@@ -122,11 +112,25 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     dbg(tracks)
 
     outbound_tracks =
-    Enum.reduce(tracks, state.outbound_tracks, fn track, acc ->
+      Enum.reduce(tracks, state.outbound_tracks, fn track, acc ->
         Map.put(acc, track.id, track)
       end)
 
-    {[], %{state | outbound_tracks: outbound_tracks}}
+    tracks_added =
+      tracks
+      |> Enum.group_by(& &1.origin)
+      |> Enum.flat_map(fn {origin, tracks} ->
+        MediaEvent.tracks_added(origin, tracks)
+        |> MediaEvent.to_action()
+      end)
+
+    offer_data =
+      outbound_tracks
+      |> get_media_count()
+      |> MediaEvent.offer_data([])
+      |> MediaEvent.to_action()
+
+    {tracks_added ++ offer_data, %{state | outbound_tracks: outbound_tracks}}
   end
 
   @impl true
@@ -163,7 +167,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   defp handle_media_event(
-         %{"type" => "disableTrackEncoding", "data" => %{"trackId" => track_id, "encoding" => rid}},
+         %{
+           "type" => "disableTrackEncoding",
+           "data" => %{"trackId" => track_id, "encoding" => rid}
+         },
          _ctx,
          state
        ) do
@@ -177,7 +184,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   defp handle_custom(%{"type" => "sdpOffer", "data" => %{"sdpOffer" => offer}}, _ctx, state) do
-    {[notify_child: {:handler, {:offer, offer}}], state}
+    {[notify_child: {:handler, {:offer, offer, state.outbound_tracks}}], state}
   end
 
   defp handle_custom(%{"type" => "candidate", "data" => candidate}, _ctx, state) do
@@ -186,25 +193,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   defp handle_custom(%{"type" => "renegotiateTracks"}, _ctx, state) do
-    tracks_types =
+    actions =
       state.outbound_tracks
-      |> Map.values()
-      |> Enum.filter(&(&1.status != :pending))
-      |> Enum.map(& &1.type)
+      |> get_media_count()
+      |> MediaEvent.offer_data([])
+      |> MediaEvent.to_action()
 
-    media_count = %{
-      audio: Enum.count(tracks_types, &(&1 == :audio)),
-      video: Enum.count(tracks_types, &(&1 == :video))
-    }
-
-    media_event =
-      %{
-        type: "custom",
-        data: %{type: "offerData", data: %{tracksTypes: media_count, integratedTurnServers: []}}
-      }
-      |> Jason.encode!()
-
-    {[notify_parent: {:forward_to_parent, {:media_event, media_event}}], state}
+    {actions, state}
   end
 
   @impl true
@@ -224,23 +219,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_child_notification({:answer, answer}, :handler, _ctx, state) do
+  def handle_child_notification({:answer, answer, mid_to_track_id}, :handler, _ctx, state) do
     dbg(answer)
-    %{"sdp" => sdp} = answer
 
-    mid_to_track_id =
-    # state.inbound_tracks
-    # |> Map.merge(state.outbound_tracks)
-    # |> Map.values()
-    # |> Map.new(&{&1.mid, &1.id})
-    %{}
+    actions = MediaEvent.sdp_answer(answer, mid_to_track_id) |> MediaEvent.to_action()
 
-
-    actions = forward("custom", %{type: :sdpAnswer, data: %{
-        type: "answer",
-        sdp: sdp,
-        midToTrackId: mid_to_track_id
-      }})
     {actions, state}
   end
 
@@ -248,7 +231,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   def handle_child_notification({:candidate, candidate}, :handler, _ctx, state) do
     dbg(candidate)
 
-    actions = forward("custom", %{type: "candidate", data: candidate})
+    actions = MediaEvent.candidate(candidate) |> MediaEvent.to_action()
     {actions, state}
   end
 
@@ -267,17 +250,25 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[notify_parent: {:publish, notification}], state}
   end
 
-  defp forward(type, data) do
-    event = Jason.encode!(%{"type" => type, "data" => data})
-    msg = {:forward_to_parent, {:media_event, event}}
-    [notify_parent: msg]
-  end
+  @spec to_rid(atom()) :: String.t()
+  def to_rid(:high), do: "h"
+  def to_rid(:medium), do: "m"
+  def to_rid(:low), do: "l"
 
   defp to_track_variant(rid) when rid in ["h", nil], do: :high
   defp to_track_variant("m"), do: :medium
   defp to_track_variant("l"), do: :low
 
-  defp to_rid(:high), do: "h"
-  defp to_rid(:medium), do: "m"
-  defp to_rid(:low), do: "l"
+  defp get_media_count(tracks) do
+    tracks_types =
+      tracks
+      |> Map.values()
+      # |> Enum.filter(&(&1.status != :pending))
+      |> Enum.map(& &1.type)
+
+    %{
+      audio: Enum.count(tracks_types, &(&1 == :audio)),
+      video: Enum.count(tracks_types, &(&1 == :video))
+    }
+  end
 end
