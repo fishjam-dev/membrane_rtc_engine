@@ -21,6 +21,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
                 spec: Enumerable.t(non_neg_integer()),
                 description: "Range of ports that ICE will use for gathering host candidates.",
                 default: nil
+              ],
+              metadata: [
+                spec: any(),
+                default: nil,
+                description: "Endpoint metadata"
               ]
 
   def_input_pad :input,

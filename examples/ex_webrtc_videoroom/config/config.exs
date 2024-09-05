@@ -16,11 +16,6 @@ config :membrane_videoroom_demo, VideoRoomWeb.Endpoint, pubsub_server: VideoRoom
 
 config :membrane_videoroom_demo, version: System.get_env("VERSION", "unknown")
 
-# Configures Elixir's Logger
-config :logger, :console,
-  format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
-
 config :logger, :console, metadata: [:room, :peer]
 
 import_config("#{config_env()}.exs")
