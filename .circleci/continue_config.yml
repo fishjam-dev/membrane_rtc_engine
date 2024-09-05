@@ -311,7 +311,7 @@ workflows:
           workdir: ~/app/webrtc
 
   lint-ex-webrtc:
-    when: << pipeline.parameters.webrtc-changed >>
+    when: << pipeline.parameters.ex-webrtc-changed >>
     jobs:
       - lint_package:
           name: lint_ex_webrtc

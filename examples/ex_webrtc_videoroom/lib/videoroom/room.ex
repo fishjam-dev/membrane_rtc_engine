@@ -23,41 +23,24 @@ defmodule Videoroom.Room do
   def init(room_id) do
     Membrane.Logger.info("Spawning room proces: #{inspect(self())}")
 
-    # When running via docker without using host network we
-    # have to listen at 0.0.0.0 but our packets still need
-    # valid IP address in their headers. We store it under `mock_ip`.
-    mock_ip = Application.fetch_env!(:membrane_videoroom_demo, :external_ip)
-    external_ip = if @mix_env == :prod, do: {0, 0, 0, 0}, else: mock_ip
-    port_range = Application.fetch_env!(:membrane_videoroom_demo, :port_range)
-
-    rtc_engine_options = [
-      id: room_id
-    ]
-
-    integrated_turn_options = [
-      ip: external_ip,
-      mock_ip: mock_ip,
-      ports_range: port_range
-    ]
-
-    network_options = [
-      integrated_turn_options: integrated_turn_options,
-      dtls_pkey: Application.get_env(:membrane_videoroom_demo, :dtls_pkey),
-      dtls_cert: Application.get_env(:membrane_videoroom_demo, :dtls_cert)
-    ]
+    rtc_engine_options = [id: room_id]
+    ice_port_range = Application.fetch_env!(:membrane_videoroom_demo, :ice_port_range)
 
     {:ok, pid} = Membrane.RTC.Engine.start(rtc_engine_options, [])
     Engine.register(pid, self())
     Process.monitor(pid)
 
-    {:ok, %{rtc_engine: pid, peer_channels: %{}, network_options: network_options}}
+    {:ok, %{rtc_engine: pid, peer_channels: %{}, ice_port_range: ice_port_range}}
   end
 
   @impl true
   def handle_info({:add_peer_channel, peer_channel_pid, peer_id}, state) do
     Process.monitor(peer_channel_pid)
 
-    webrtc_endpoint = create_webrtc_endpoint(state.rtc_engine, peer_id, state.network_options)
+    webrtc_endpoint = %ExWebRTC{
+      rtc_engine: rtc_engine,
+      ice_port_range: state.ice_port_range
+    }
 
     :ok = Engine.add_endpoint(state.rtc_engine, webrtc_endpoint, id: peer_id)
 
@@ -100,34 +83,5 @@ defmodule Videoroom.Room do
   @impl true
   def handle_info(_msg, state) do
     {:noreply, state}
-  end
-
-  defp create_webrtc_endpoint(rtc_engine, _peer_id, _network_options) do
-    # handshake_opts =
-    #   if network_options[:dtls_pkey] &&
-    #        network_options[:dtls_cert] do
-    #     [
-    #       client_mode: false,
-    #       dtls_srtp: true,
-    #       pkey: network_options[:dtls_pkey],
-    #       cert: network_options[:dtls_cert]
-    #     ]
-    #   else
-    #     [
-    #       client_mode: false,
-    #       dtls_srtp: true
-    #     ]
-    #   end
-
-    %ExWebRTC{
-      rtc_engine: rtc_engine,
-      ice_port_range: 50_000..50_050
-      # ice_name: peer_id,
-      # extensions: %{},
-      # owner: self(),
-      # integrated_turn_options: network_options[:integrated_turn_options],
-      # handshake_opts: handshake_opts,
-      # log_metadata: [peer_id: peer_id]
-    }
   end
 end
