@@ -2,6 +2,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   @moduledoc false
   use Membrane.Endpoint
 
+  require Logger
+
   alias Membrane.Buffer
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTC.Engine.Endpoint.ExWebRTC, as: EndpointExWebRTC
@@ -93,7 +95,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_buffer(Pad.ref(:input, engine_track_id), buffer, _ctx, state) do
+  def handle_buffer(Pad.ref(:input, engine_track_id), buffer, _ctx, state)
+      when is_map_key(state.outbound_tracks, engine_track_id) do
     %Buffer{
       pts: timestamp,
       payload: payload,
@@ -102,15 +105,16 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
     track_id = Map.fetch!(state.outbound_tracks, engine_track_id)
 
-    packet = ExRTP.Packet.new(
-      payload,
-      payload_type: rtp.payload_type,
-      sequence_number: rtp.sequence_number,
-      timestamp: timestamp,
-      ssrc: rtp.ssrc,
-      csrc: rtp.csrc,
-      marker: rtp.marker,
-      padding: rtp.padding_size
+    packet =
+      ExRTP.Packet.new(
+        payload,
+        payload_type: rtp.payload_type,
+        sequence_number: rtp.sequence_number,
+        timestamp: timestamp,
+        ssrc: rtp.ssrc,
+        csrc: rtp.csrc,
+        marker: rtp.marker,
+        padding: rtp.padding_size
       )
 
     packet =
@@ -119,7 +123,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       end)
 
     if Enum.random(0..1000) == 0 do
-      dbg({track_id, packet})
+      [sender] = PeerConnection.get_transceivers(state.pc)
+      |> Enum.filter(&(&1.sender.track.id == track_id))
+
+      dbg({track_id, packet, sender})
     end
 
     :ok = PeerConnection.send_rtp(state.pc, track_id, packet)
@@ -128,9 +135,15 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
+  def handle_buffer(Pad.ref(:input, track_id), _buffer, _ctx, state) do
+    Logger.warning("Received buffer from unknown track #{track_id}")
+    {[], state}
+  end
+
+  @impl true
   def handle_parent_notification({:offer, offer, outbound_tracks}, _ctx, state) do
     new_outbound_tracks =
-      Map.filter(outbound_tracks, fn{track_id, _track} ->
+      Map.filter(outbound_tracks, fn {track_id, _track} ->
         not Map.has_key?(state.outbound_tracks, track_id)
       end)
 
@@ -176,16 +189,17 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
           end)
           |> then(& &1.mid)
 
-          dbg({track_id, to_string(mid), id})
+        dbg({track_id, to_string(mid), id})
 
         {to_string(mid), track_id}
       end)
       |> Map.new()
 
-
     outbound_tracks =
       Map.new(track_ids, fn {engine_id, id, _sender_id} ->
-        {engine_id, id} end)
+        {engine_id, id}
+      end)
+      |> Map.merge(state.outbound_tracks)
 
     # dbg(outbound_tracks)
     # dbg(trans)
@@ -225,7 +239,12 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_event(Pad.ref(:output, {engine_track_id, variant}), %Membrane.KeyframeRequestEvent{}, _ctx, state) do
+  def handle_event(
+        Pad.ref(:output, {engine_track_id, variant}),
+        %Membrane.KeyframeRequestEvent{},
+        _ctx,
+        state
+      ) do
     {rtc_track_id, _id} =
       Enum.find(state.inbound_tracks, fn {_rtc_track_id, track_id} ->
         track_id == engine_track_id
@@ -234,7 +253,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     _rid = EndpointExWebRTC.to_rid(variant)
     PeerConnection.send_pli(state.pc, rtc_track_id, nil)
 
-   {[], state}
+    {[], state}
   end
 
   @impl true
@@ -263,7 +282,16 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
         rtp =
           packet
           |> Map.from_struct()
-          |> Map.take([:csrc, :extensions, :marker, :padding_size, :payload_type, :sequence_number, :ssrc, :timestamp])
+          |> Map.take([
+            :csrc,
+            :extensions,
+            :marker,
+            :padding_size,
+            :payload_type,
+            :sequence_number,
+            :ssrc,
+            :timestamp
+          ])
 
         buffer = %Buffer{
           pts: packet.timestamp,
@@ -284,7 +312,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   defp handle_webrtc_msg({:rtcp, packets}, _ctx, state) do
-     Enum.each(packets, fn
+    Enum.each(packets, fn
       %ExRTCP.Packet.PayloadFeedback.PLI{} -> dbg(:pli)
       _other -> :noop
     end)
@@ -308,8 +336,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
           end)
 
         PeerConnection.set_transceiver_direction(pc, transceiver.id, :sendrecv) |> dbg()
+
         PeerConnection.replace_track(pc, transceiver.sender.id, MediaStreamTrack.new(track.kind))
         |> dbg()
+
         PeerConnection.set_transceiver_direction(pc, transceiver.id, :recvonly) |> dbg()
 
         do_receive_new_tracks([track | acc])
