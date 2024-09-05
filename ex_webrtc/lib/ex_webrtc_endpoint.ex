@@ -41,7 +41,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       |> Map.merge(%{
         outbound_tracks: %{},
         inbound_tracks: %{},
-        subscribed_tracks: MapSet.new()
+        subscribed_tracks: MapSet.new(),
+        negotiation?: false,
+        queued_new_tracks: []
       })
 
     spec = [
@@ -142,33 +144,26 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
-    dbg(tracks)
+  def handle_parent_notification({:new_tracks, new_tracks}, _ctx, %{negotiation?: true} = state) do
+    queued_new_tracks = state.queued_new_tracks ++ new_tracks
+    {[], %{state | queued_new_tracks: queued_new_tracks}}
+  end
 
-    outbound_tracks =
-      Enum.reduce(tracks, state.outbound_tracks, fn track, acc ->
-        Map.put(acc, track.id, track)
-      end)
+  @impl true
+  def handle_parent_notification({:new_tracks, new_tracks}, _ctx, state) do
+    dbg(new_tracks)
 
-    tracks_added =
-      tracks
-      |> Enum.group_by(& &1.origin)
-      |> Enum.flat_map(fn {origin, tracks} ->
-        MediaEvent.tracks_added(origin, tracks)
-        |> MediaEvent.to_action()
-      end)
+    new_tracks = state.queued_new_tracks ++ new_tracks
 
-    offer_data =
-      outbound_tracks
-      |> get_media_count()
-      |> MediaEvent.offer_data([])
-      |> MediaEvent.to_action()
+    {state, tracks_added} = new_tracks_added(state, new_tracks)
+    offer_data = get_offer_data(state.outbound_tracks)
 
-    {tracks_added ++ offer_data, %{state | outbound_tracks: outbound_tracks}}
+    {tracks_added ++ offer_data, %{state | queued_new_tracks: [], negotiation?: true}}
   end
 
   @impl true
   def handle_parent_notification({:remove_tracks, tracks}, _ctx, state) do
+    # TODO: remove tracks from queued track
     dbg(tracks)
     {[], state}
   end
@@ -232,12 +227,12 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[notify_child: {:handler, {:candidate, candidate}}], state}
   end
 
+  defp handle_custom(%{"type" => "renegotiateTracks"}, _ctx, %{negotiation?: true} = state) do
+    {[], state}
+  end
+
   defp handle_custom(%{"type" => "renegotiateTracks"}, _ctx, state) do
-    actions =
-      state.outbound_tracks
-      |> get_media_count()
-      |> MediaEvent.offer_data([])
-      |> MediaEvent.to_action()
+    actions = get_offer_data(state.outbound_tracks)
 
     {actions, state}
   end
@@ -302,11 +297,21 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       |> then(&MapSet.union(&1, MapSet.new(valid_tracks)))
       |> then(&MapSet.difference(&1, MapSet.new(invalid_tracks)))
 
+    dbg(subscribed_tracks)
+    state = %{state | subscribed_tracks: subscribed_tracks}
+
     # TODO: build_track_removed_actions
 
-    dbg(subscribed_tracks)
+    {state, actions} =
+      if not Enum.empty?(state.queued_new_tracks) do
+        {state, tracks_added} = new_tracks_added(state, state.queued_new_tracks)
+        offer_data = get_offer_data(state.outbound_tracks)
+        {%{state | negotiation?: true}, tracks_added ++ offer_data}
+      else
+        {%{state | negotiation?: false}, []}
+      end
 
-    {[], %{state | subscribed_tracks: subscribed_tracks}}
+    {actions, state}
   end
 
   @impl true
@@ -351,5 +356,29 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       audio: Enum.count(tracks_types, &(&1 == :audio)),
       video: Enum.count(tracks_types, &(&1 == :video))
     }
+  end
+
+  defp get_offer_data(outbound_tracks) do
+    outbound_tracks
+    |> get_media_count()
+    |> MediaEvent.offer_data([])
+    |> MediaEvent.to_action()
+  end
+
+  defp new_tracks_added(state, new_tracks) do
+    outbound_tracks =
+      new_tracks
+      |> Map.new(&({&1.id, &1}))
+      |> Map.merge(state.outbound_tracks)
+
+    tracks_added =
+      new_tracks
+      |> Enum.group_by(& &1.origin)
+      |> Enum.flat_map(fn {origin, tracks} ->
+        MediaEvent.tracks_added(origin, tracks)
+        |> MediaEvent.to_action()
+      end)
+
+    {%{state | outbound_tracks: outbound_tracks}, tracks_added}
   end
 end
