@@ -458,14 +458,10 @@ defmodule Membrane.RTC.Engine do
     caller_pid = self()
     subscribe_ref = make_ref()
 
-    Process.spawn(
-      fn ->
-        result = subscribe(rtc_engine, endpoint_id, track_id, opts)
-
-        send(caller_pid, {:subscribe_result, subscribe_ref, result})
-      end,
-      [:link]
-    )
+    Kernel.spawn_link(fn ->
+      result = subscribe(rtc_engine, endpoint_id, track_id, opts)
+      send(caller_pid, {:subscribe_result, subscribe_ref, result})
+    end)
 
     subscribe_ref
   end
