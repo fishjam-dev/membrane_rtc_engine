@@ -5,8 +5,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   require Logger
 
   alias Membrane.Buffer
-  alias Membrane.RTC.Engine.Track
   alias Membrane.RTC.Engine.Endpoint.ExWebRTC, as: EndpointExWebRTC
+  alias Membrane.RTC.Engine.Track
 
   alias ExWebRTC.{
     ICECandidate,
@@ -17,23 +17,27 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     SessionDescription
   }
 
-  def_options endpoint_id: [
-                spec: String.t(),
-                description: "Id of the parent endpoint"
-              ],
-              ice_port_range: [
-                spec: Enumerable.t(non_neg_integer()),
-                description: "Range of ports that ICE will use for gathering host candidates."
-              ]
+  def_options(
+    endpoint_id: [
+      spec: String.t(),
+      description: "Id of the parent endpoint"
+    ],
+    ice_port_range: [
+      spec: Enumerable.t(non_neg_integer()),
+      description: "Range of ports that ICE will use for gathering host candidates."
+    ]
+  )
 
-  def_input_pad :input,
+  def_input_pad(:input,
     accepted_format: _any,
     availability: :on_request
+  )
 
-  def_output_pad :output,
+  def_output_pad(:output,
     accepted_format: _any,
     availability: :on_request,
     flow_control: :push
+  )
 
   @ice_servers [
     %{urls: "stun:stun.l.google.com:19302"}
@@ -64,7 +68,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       queued_tracks: %{},
       media_stream_ids: %{},
       # TODO: update this map when mid's are reused
-      mid_to_track_id: %{},
+      mid_to_track_id: %{}
     }
 
     {[], state}
@@ -125,23 +129,18 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   def handle_parent_notification({:offer, event, outbound_tracks}, _ctx, state) do
     %{"sdpOffer" => offer, "midToTrackId" => mid_to_track_id} = event
 
-    IO.inspect(mid_to_track_id, label: "#{Logger.metadata()[:peer]} remote mid_to_track_id")
     mid_to_track_id = Map.merge(state.mid_to_track_id, mid_to_track_id)
-    IO.inspect(mid_to_track_id, label: "#{Logger.metadata()[:peer]} mid_to_track_id")
 
     new_outbound_tracks =
       Map.filter(outbound_tracks, fn {track_id, _track} ->
         not Map.has_key?(state.outbound_tracks, track_id)
       end)
 
-    IO.inspect(new_outbound_tracks, label: "#{Logger.metadata()[:peer]} new_outbound_tracks")
-
     PeerConnection.get_transceivers(state.pc)
     |> Enum.map(fn t ->
       Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
       |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
     end)
-    |> IO.inspect(label: "#{Logger.metadata()[:peer]} before")
 
     offer = SessionDescription.from_json(offer)
     :ok = PeerConnection.set_remote_description(state.pc, offer)
@@ -151,7 +150,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
       |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
     end)
-    |> IO.inspect(label: "#{Logger.metadata()[:peer]} middle")
 
     outbound_transceivers =
       state.pc
@@ -229,7 +227,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
       |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
     end)
-    |> IO.inspect(label: "#{Logger.metadata()[:peer]} after")
 
     mid_to_track_id = Map.merge(mid_to_track_id, new_mid_to_track_id)
 

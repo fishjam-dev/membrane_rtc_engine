@@ -98,70 +98,74 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver do
 
   @max_paddings 30
 
-  def_options track: [
-                type: :struct,
-                spec: Track.t(),
-                description: "Track this adapter will maintain"
-              ],
-              initial_target_variant: [
-                spec: Membrane.RTC.Engine.Track.variant(),
-                description: """
-                Track variant that will be forwarded whenever it is active.
-                Can be changed with `t:set_target_variant_msg/0`.
-                """
-              ],
-              keyframe_request_interval: [
-                spec: Membrane.Time.t() | nil,
-                default: nil,
-                description: """
-                Defines how often keyframe requests should be sent for
-                currently used track variant.
+  def_options(
+    track: [
+      type: :struct,
+      spec: Track.t(),
+      description: "Track this adapter will maintain"
+    ],
+    initial_target_variant: [
+      spec: Membrane.RTC.Engine.Track.variant(),
+      description: """
+      Track variant that will be forwarded whenever it is active.
+      Can be changed with `t:set_target_variant_msg/0`.
+      """
+    ],
+    keyframe_request_interval: [
+      spec: Membrane.Time.t() | nil,
+      default: nil,
+      description: """
+      Defines how often keyframe requests should be sent for
+      currently used track variant.
 
-                This option should be used in very specific cases (e.g. see HLS endpoint)
-                as generating keyframes increases track bitrate and might introduce
-                additional delay.
-                """
-              ],
-              connection_allocator_module: [
-                spec: module(),
-                default: Membrane.RTC.Engine.Endpoint.ExWebRTC.NoOpConnectionAllocator,
-                description: """
-                Module implementing `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator` behavior
-                that should be used by the TrackReceiver.
-                """
-              ],
-              connection_allocator: [
-                spec: pid() | nil,
-                default: nil,
-                description: """
-                PID of the instance of the ConnectionAllocator that should be used by the TrackReceiver
-                """
-              ],
-              allocation_negotiable?: [
-                spec: boolean(),
-                default: false,
-                description: """
-                Option defining whether allocation for this Track Receiver should be negotiable.
+      This option should be used in very specific cases (e.g. see HLS endpoint)
+      as generating keyframes increases track bitrate and might introduce
+      additional delay.
+      """
+    ],
+    connection_allocator_module: [
+      spec: module(),
+      default: Membrane.RTC.Engine.Endpoint.ExWebRTC.NoOpConnectionAllocator,
+      description: """
+      Module implementing `Membrane.RTC.Engine.Endpoint.WebRTC.ConnectionAllocator` behavior
+      that should be used by the TrackReceiver.
+      """
+    ],
+    connection_allocator: [
+      spec: pid() | nil,
+      default: nil,
+      description: """
+      PID of the instance of the ConnectionAllocator that should be used by the TrackReceiver
+      """
+    ],
+    allocation_negotiable?: [
+      spec: boolean(),
+      default: false,
+      description: """
+      Option defining whether allocation for this Track Receiver should be negotiable.
 
-                Trying to enable negotiability for tracks that are inherently non-negotiable, also
-                known as non-simulcast tracks, will result in a crash.
+      Trying to enable negotiability for tracks that are inherently non-negotiable, also
+      known as non-simulcast tracks, will result in a crash.
 
-                This value can later be changed by sending a `set_negotiable?/0` control message to this Element.
-                """
-              ],
-              telemetry_label: [
-                spec: Membrane.TelemetryMetrics.label(),
-                default: [],
-                description: "Label passed to Membrane.TelemetryMetrics functions"
-              ]
+      This value can later be changed by sending a `set_negotiable?/0` control message to this Element.
+      """
+    ],
+    telemetry_label: [
+      spec: Membrane.TelemetryMetrics.label(),
+      default: [],
+      description: "Label passed to Membrane.TelemetryMetrics functions"
+    ]
+  )
 
-  def_input_pad :input,
+  def_input_pad(:input,
     flow_control: :push,
     accepted_format: Membrane.RTP
+  )
 
-  def_output_pad :output,
+  def_output_pad(:output,
     flow_control: :push,
     accepted_format: Membrane.RTP
+  )
 
   @impl true
   def handle_init(_ctx, %__MODULE__{

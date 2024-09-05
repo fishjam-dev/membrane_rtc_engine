@@ -21,7 +21,7 @@ defmodule WebRTCRoom.MixProject do
   defp deps do
     [
       {:membrane_rtc_engine, path: "../../engine"},
-      {:membrane_rtc_engine_ex_webrtc, path: "../../ex_webrtc"},
+      {:membrane_rtc_engine_webrtc, path: "../../webrtc"},
       {:plug, "~> 1.15.0"},
       {:bandit, "~> 1.2.0"},
       {:websock_adapter, "~> 0.5.0"},

@@ -8,7 +8,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   alias __MODULE__.PeerConnectionHandler
 
   alias Membrane.RTC.Engine
-  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.{TrackSender, TrackReceiver}
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.{TrackReceiver, TrackSender}
   alias Membrane.RTC.Engine.Notifications.TrackNotification
 
   def_options rtc_engine: [
@@ -36,15 +36,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_init(ctx, opts) do
     {_, endpoint_id} = ctx.name
-    endpoint_pid = self()
-
-    subscriber_fun = fn ->
-      subscriber(%{
-        endpoint_id: endpoint_id,
-        rtc_engine: opts.rtc_engine,
-        endpoint_pid: endpoint_pid
-      })
-    end
 
     state =
       opts
@@ -54,11 +45,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         inbound_tracks: %{},
         # Tracks for which the endpoint has subscribed
         subscribed_tracks: MapSet.new(),
-        pending_tracks: MapSet.new(),
+        # Maps track_id's pending subscription to subscribe_ref
+        pending_tracks: %{},
         negotiation?: false,
         # Outbound tracks, that have been added during negotation, and are queued for negotiation
-        queued_new_tracks: [],
-        subscriber: spawn(subscriber_fun)
+        queued_new_tracks: []
       })
 
     spec = [
@@ -197,10 +188,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_parent_notification({:media_event, event}, ctx, state) do
-    dbg(event, printable_limit: 1024)
-
     %{"type" => type, "data" => data} = Jason.decode!(event)
-
     handle_media_event(type, data, ctx, state)
   end
 
@@ -214,8 +202,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification(msg, _ctx, state) do
-    dbg(msg)
+  def handle_parent_notification(_msg, _ctx, state) do
     {[], state}
   end
 
@@ -255,10 +242,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   defp handle_custom(%{"type" => "sdpOffer", "data" => event}, _ctx, state) do
-    IO.inspect({Map.values(state.outbound_tracks) |> log_tracks(), Map.drop(event, ["sdpOffer"])},
-      label: "#{Logger.metadata()[:peer]} received sdp"
-    )
-
     {[notify_child: {:handler, {:offer, event, state.outbound_tracks}}], state}
   end
 
@@ -306,25 +289,33 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_child_notification(:negotiation_done, :handler, _ctx, %{negotiation?: true} = state) do
+  def handle_child_notification(
+        :negotiation_done,
+        :handler,
+        %{name: {_, endpoint_id}},
+        %{negotiation?: true} = state
+      ) do
     new_outbound_tracks =
       Enum.filter(state.outbound_tracks, fn {track_id, _track} ->
         not MapSet.member?(state.subscribed_tracks, track_id) and
-          not MapSet.member?(state.pending_tracks, track_id)
+          not Map.has_key?(state.pending_tracks, track_id)
       end)
       |> Enum.map(fn {track_id, _track} -> track_id end)
 
-    pending_tracks = MapSet.union(state.pending_tracks, MapSet.new(new_outbound_tracks))
-
-    send(state.subscriber, {:subscribe, new_outbound_tracks})
+    pending_tracks =
+      Map.new(new_outbound_tracks, fn track_id ->
+        ref = Engine.subscribe_async(state.rtc_engine, endpoint_id, track_id)
+        {track_id, ref}
+      end)
+      |> Map.merge(state.pending_tracks)
 
     {state, actions} =
-      if not Enum.empty?(state.queued_new_tracks) do
+      if Enum.empty?(state.queued_new_tracks) do
+        {%{state | negotiation?: false}, []}
+      else
         {state, tracks_added} = new_tracks_added(state, state.queued_new_tracks)
         offer_data = get_offer_data(state.outbound_tracks)
         {%{state | negotiation?: true, queued_new_tracks: []}, tracks_added ++ offer_data}
-      else
-        {%{state | negotiation?: false}, []}
       end
 
     {actions, %{state | pending_tracks: pending_tracks}}
@@ -346,28 +337,21 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_child_notification(msg, _child, _ctx, state) do
-    dbg(msg)
-
+  def handle_child_notification(_msg, _child, _ctx, state) do
     {[], state}
   end
 
   @impl true
-  def handle_info({:subscription_result, valid_tracks, invalid_tracks}, _ctx, state) do
-    valid_tracks = MapSet.new(valid_tracks)
-    invalid_tracks = MapSet.new(invalid_tracks)
+  def handle_info({:subscribe_result, subscribe_ref, result}, _ctx, state) do
+    {track_id, _ref} = Enum.find(state.pending_tracks, fn {_id, ref} -> ref == subscribe_ref end)
+
+    {_, pending_tracks} = Map.pop(state.pending_tracks, track_id)
 
     subscribed_tracks =
-      state.subscribed_tracks
-      |> MapSet.union(valid_tracks)
-      |> MapSet.difference(invalid_tracks)
-
-    pending_tracks =
-      state.pending_tracks
-      |> MapSet.difference(valid_tracks)
-      |> MapSet.difference(invalid_tracks)
-
-    IO.inspect(subscribed_tracks, label: "#{Logger.metadata()[:peer]} subscribed tracks")
+      case result do
+        :ok -> MapSet.put(state.subscribed_tracks, track_id)
+        :ignored -> state.subscribed_tracks
+      end
 
     {[], %{state | subscribed_tracks: subscribed_tracks, pending_tracks: pending_tracks}}
   end
@@ -404,7 +388,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     outbound_tracks =
       new_tracks
       |> Map.new(&{&1.id, &1})
-      |> IO.inspect(label: "#{Logger.metadata()[:peer]} new outbound tracks")
       |> Map.merge(state.outbound_tracks)
 
     tracks_added =
@@ -416,27 +399,5 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       end)
 
     {%{state | outbound_tracks: outbound_tracks}, tracks_added}
-  end
-
-  defp subscriber(state) do
-    receive do
-      {:subscribe, new_outbound_tracks} ->
-        {valid_tracks, invalid_tracks} =
-          Enum.split_with(new_outbound_tracks, fn track_id ->
-            Logger.debug("#{state.endpoint_id} subscribing for track #{track_id}")
-
-            case Engine.subscribe(state.rtc_engine, state.endpoint_id, track_id) do
-              :ok ->
-                true
-
-              :ignored ->
-                false
-            end
-          end)
-
-        send(state.endpoint_pid, {:subscription_result, valid_tracks, invalid_tracks})
-    end
-
-    subscriber(state)
   end
 end
