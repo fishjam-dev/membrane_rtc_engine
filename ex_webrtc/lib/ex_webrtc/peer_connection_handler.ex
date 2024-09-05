@@ -8,11 +8,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   alias ExWebRTC.{
     ICECandidate,
     MediaStreamTrack,
+    PeerConnection,
     RTPCodecParameters,
     RTPReceiver,
     RTPTransceiver,
-    SessionDescription,
-    PeerConnection
+    SessionDescription
   }
 
   def_options endpoint_id: [
@@ -53,16 +53,17 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     }
   ]
 
+  @opts [
+    ice_servers: @ice_servers,
+    audio_codecs: @audio_codecs,
+    video_codecs: @video_codecs
+  ]
+
   @impl true
   def handle_init(_ctx, opts) do
     %{endpoint_id: endpoint_id} = opts
 
-    {:ok, pc} =
-      PeerConnection.start_link(
-        ice_servers: @ice_servers,
-        audio_codecs: @audio_codecs,
-        video_codecs: @video_codecs
-      )
+    {:ok, pc} = PeerConnection.start_link(@opts)
 
     state = %{
       pc: pc,
@@ -193,6 +194,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       case codec.mime_type do
         "audio/opus" -> :OPUS
         "video/VP8" -> :VP8
+        "video/H264" -> :H264
       end
 
     # TODO stream id

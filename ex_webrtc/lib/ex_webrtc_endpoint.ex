@@ -2,9 +2,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @moduledoc false
   use Membrane.Bin
 
+  alias __MODULE__.PeerConnectionHandler
   alias Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackSender
   alias Membrane.RTC.Engine.Notifications.TrackNotification
-  alias __MODULE__.PeerConnectionHandler
 
   def_options rtc_engine: [
                 spec: pid(),
@@ -98,13 +98,18 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:track_variant_enabled, _track, _encoding}, _ctx, state) do
+  def handle_parent_notification({:track_variant_enabled, track, _encoding}, _ctx, state) do
+    dbg(track)
     {[], state}
   end
 
   @impl true
-  def handle_parent_notification({:track_variant_disabled, _track, _encoding}, _ctx, state) do
-    {[], state}
+  def handle_parent_notification({:track_variant_disabled, track, encoding}, _ctx, state) do
+    dbg({:track_variant_disabled, track})
+    rid = to_rid(encoding)
+
+    actions = forward("trackEncodingDisabled", %{endpointId: track.origin, trackId: track.id, encoding: rid})
+    {actions, state}
   end
 
   @impl true
@@ -115,7 +120,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_parent_notification({:new_tracks, tracks}, _ctx, state) do
     dbg(tracks)
-    {[], state}
+
+    outbound_tracks =
+    Enum.reduce(tracks, state.outbound_tracks, fn track, acc ->
+        Map.put(acc, track.id, track)
+      end)
+
+    {[], %{state | outbound_tracks: outbound_tracks}}
   end
 
   @impl true
@@ -151,6 +162,15 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[notify_parent: {:ready, metadata}], state}
   end
 
+  defp handle_media_event(
+         %{"type" => "disableTrackEncoding", "data" => %{"trackId" => track_id, "encoding" => rid}},
+         _ctx,
+         state
+       ) do
+    encoding = to_track_variant(rid)
+    {[notify_parent: {:disable_track_variant, track_id, encoding}], state}
+  end
+
   defp handle_media_event(event, _ctx, state) do
     dbg({:unexpected_event, event})
     {[], state}
@@ -160,7 +180,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[notify_child: {:handler, {:offer, offer}}], state}
   end
 
-  defp handle_custom(%{"type" => "candidate", "data" => %{"candidate" => candidate}}, _ctx, state) do
+  defp handle_custom(%{"type" => "candidate", "data" => candidate}, _ctx, state) do
+    dbg(candidate)
     {[notify_child: {:handler, {:candidate, candidate}}], state}
   end
 
@@ -188,7 +209,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_child_notification({:tracks, tracks}, :handler, _ctx, state) do
-    dbg({:tracks, tracks})
+    dbg(tracks)
 
     tracks_ready =
       Enum.map(tracks, fn track ->
@@ -204,22 +225,30 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_child_notification({:answer, answer}, :handler, _ctx, state) do
-    data = %{
-      type: "sdpAnswer",
-      data:
-        answer
-        |> Map.merge(%{midToTrackId: %{}})
-    }
+    dbg(answer)
+    %{"sdp" => sdp} = answer
 
-    dbg({:sdp_answer, answer})
+    mid_to_track_id =
+    # state.inbound_tracks
+    # |> Map.merge(state.outbound_tracks)
+    # |> Map.values()
+    # |> Map.new(&{&1.mid, &1.id})
+    %{}
 
-    actions = forward_media_event("custom", data)
+
+    actions = forward("custom", %{type: :sdpAnswer, data: %{
+        type: "answer",
+        sdp: sdp,
+        midToTrackId: mid_to_track_id
+      }})
     {actions, state}
   end
 
   @impl true
   def handle_child_notification({:candidate, candidate}, :handler, _ctx, state) do
-    actions = forward_media_event("candidate", candidate)
+    dbg(candidate)
+
+    actions = forward("custom", %{type: "candidate", data: candidate})
     {actions, state}
   end
 
@@ -238,9 +267,17 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[notify_parent: {:publish, notification}], state}
   end
 
-  defp forward_media_event(type, data) do
+  defp forward(type, data) do
     event = Jason.encode!(%{"type" => type, "data" => data})
     msg = {:forward_to_parent, {:media_event, event}}
     [notify_parent: msg]
   end
+
+  defp to_track_variant(rid) when rid in ["h", nil], do: :high
+  defp to_track_variant("m"), do: :medium
+  defp to_track_variant("l"), do: :low
+
+  defp to_rid(:high), do: "h"
+  defp to_rid(:medium), do: "m"
+  defp to_rid(:low), do: "l"
 end
