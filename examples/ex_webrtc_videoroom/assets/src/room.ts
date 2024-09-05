@@ -61,21 +61,18 @@ export class Room {
     this.webrtc.on("connectionError", (e) => setErrorMessage(e.message));
 
     this.webrtc.on("connected", async (endpointId: string, otherEndpoints: Endpoint<EndpointMetadata, TrackMetadata>[]) => {
-      console.log("connected")
-
-      for (const track of this.localStream!.getTracks()) {
-        console.log("addingTrack...");
-        await this.webrtc.addTrack(track, { peer: this.displayName, kind: track.kind });
-        console.log("room addedTrack", track)
-      }
-
-
       this.endpoints = otherEndpoints;
       this.endpoints.forEach((endpoint) => {
         const metadata = endpoint.metadata!;
         addVideoElement(endpoint.id, metadata.displayName, false);
       });
       this.updateParticipantsList();
+
+      for (const track of this.localStream!.getTracks()) {
+        console.log("addingTrack...");
+        await this.webrtc.addTrack(track, { peer: this.displayName, kind: track.kind });
+        console.log("room addedTrack", track)
+      }
     });
     this.webrtc.on("connectionError", () => { throw `Endpoint denied.` });
 
@@ -91,7 +88,7 @@ export class Room {
     });
 
     this.webrtc.on("endpointRemoved", (endpoint: Endpoint<EndpointMetadata, TrackMetadata>) => {
-      this.endpoints = this.endpoints.filter((endpoint) => endpoint.id !== endpoint.id);
+      this.endpoints = this.endpoints.filter((e) => e.id !== endpoint.id);
       removeVideoElement(endpoint.id);
       this.updateParticipantsList();
     });
