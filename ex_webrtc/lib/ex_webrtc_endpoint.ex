@@ -221,7 +221,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[], state}
   end
 
-  defp handle_custom(%{"type" => "sdpOffer", "data" =>  event}, _ctx, state) do
+  defp handle_custom(%{"type" => "sdpOffer", "data" => event}, _ctx, state) do
     dbg(event)
     {[notify_child: {:handler, {:offer, event, state.outbound_tracks}}], state}
   end

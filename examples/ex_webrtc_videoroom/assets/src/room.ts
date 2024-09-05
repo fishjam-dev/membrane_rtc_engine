@@ -72,7 +72,6 @@ export class Room {
         );
       }
 
-
       this.endpoints = otherEndpoints;
       this.endpoints.forEach((endpoint) => {
         const metadata = endpoint.metadata!;
@@ -83,6 +82,7 @@ export class Room {
     this.webrtc.on("connectionError", () => { throw `Endpoint denied.` });
 
     this.webrtc.on("trackReady", (ctx: TrackContext<EndpointMetadata, TrackMetadata>) => {
+      console.log("trackReady", ctx);
       attachStream(ctx.stream!, ctx.endpoint.id)
     });
 
