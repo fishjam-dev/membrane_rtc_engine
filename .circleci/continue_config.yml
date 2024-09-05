@@ -163,6 +163,24 @@ jobs:
       - run: npm install npm@9.2.0 -g
       - run: mix test.webrtc.integration
 
+  test_ex_webrtc_integration:
+    resource_class: large
+    docker:
+      - image: membraneframeworklabs/docker_membrane:v1.8.2
+        environment:
+          MIX_ENV: test
+          NODE_ENV: development
+        user: root
+
+    working_directory: ~/app/engine
+
+    steps:
+      - checkout:
+          path: ~/app
+      # TODO remove this after updating Node in out docker_membrane repository
+      - run: npm install npm@9.2.0 -g
+      - run: mix test.ex_webrtc.integration
+
 
 workflows:
   test-engine:
@@ -200,6 +218,7 @@ workflows:
           name: test_ex_webrtc
           workdir: ~/app/ex_webrtc
           codecov_flag: ex_webrtc
+      - test_ex_webrtc_integration
 
   test-hls:
     when:
@@ -315,10 +334,10 @@ workflows:
     jobs:
       - lint_package:
           name: lint_ex_webrtc
-          workdir: ~/app/webrtc
+          workdir: ~/app/ex_webrtc
       - check_changelog_update:
-          name: check_changelog_update_webrtc
-          workdir: ~/app/webrtc
+          name: check_changelog_update_ex_webrtc
+          workdir: ~/app/ex_webrtc
 
   lint-hls:
     when: << pipeline.parameters.hls-changed >>

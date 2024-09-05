@@ -36,13 +36,13 @@ __metadata:
 
 "@fishjam-dev/ts-client@file:/Users/roznawsk/fjc/web-client-sdk/packages/ts-client::locator=root-workspace-0b6124%40workspace%3A.":
   version: 0.6.0
-  resolution: "@fishjam-dev/ts-client@file:/Users/roznawsk/fjc/web-client-sdk/packages/ts-client#/Users/roznawsk/fjc/web-client-sdk/packages/ts-client::hash=83f026&locator=root-workspace-0b6124%40workspace%3A."
+  resolution: "@fishjam-dev/ts-client@file:/Users/roznawsk/fjc/web-client-sdk/packages/ts-client#/Users/roznawsk/fjc/web-client-sdk/packages/ts-client::hash=ebcba9&locator=root-workspace-0b6124%40workspace%3A."
   dependencies:
     events: "npm:^3.3.0"
     protobufjs: "npm:^7.3.0"
     typed-emitter: "npm:^2.1.0"
     uuid: "npm:^10.0.0"
-  checksum: 10c0/3bebc531aadabd328a55a9263e2c744a66656a3a1ab0f884428419036f449e9c6203ca393d4204435f841095541ed1a92a3ee793a978d1c502e5e284876d7cac
+  checksum: 10c0/28481633bdccf796fad9bf13b79f961157f6d3cb1453b5da26328819bf8481b930004da2d78f56bcb355ccf738d9c69a2bf30789604db19c61f588132140601d
   languageName: node
   linkType: hard
 

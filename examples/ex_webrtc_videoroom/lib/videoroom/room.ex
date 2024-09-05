@@ -9,8 +9,6 @@ defmodule Videoroom.Room do
   alias Membrane.RTC.Engine.Endpoint.ExWebRTC
   alias Membrane.RTC.Engine.Message.EndpointMessage
 
-  @mix_env Mix.env()
-
   def start(init_arg, opts) do
     GenServer.start(__MODULE__, init_arg, opts)
   end
@@ -38,7 +36,7 @@ defmodule Videoroom.Room do
     Process.monitor(peer_channel_pid)
 
     webrtc_endpoint = %ExWebRTC{
-      rtc_engine: rtc_engine,
+      rtc_engine: state.rtc_engine,
       ice_port_range: state.ice_port_range
     }
 
