@@ -1,0 +1,8 @@
+{
+    "license": "MIT",
+    "dependencies": {
+        "@jellyfish-dev/membrane-webrtc-js": "github:jellyfish-dev/membrane-webrtc-js",
+        "phoenix": "file:../deps/phoenix",
+        "playwright": "1.18.1"
+    }
+}
