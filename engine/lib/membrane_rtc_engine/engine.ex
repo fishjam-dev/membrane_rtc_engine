@@ -441,6 +441,35 @@ defmodule Membrane.RTC.Engine do
     end
   end
 
+  @doc """
+  Subscribes an endpoint for a track asynchronously.
+
+  Sends a message to the calling process in the form of `{:subscribe_result, subscribe_ref, result}`
+  after the subscription is completed, where the `subscribe_ref` is the reference returned
+  upon subscription and `result` is the same as returned by `subscribe/3`.
+  """
+  @spec subscribe_async(
+          rtc_engine :: pid(),
+          endpoint_id :: String.t(),
+          track_id :: Track.id(),
+          opts :: subscription_opts_t
+        ) :: reference()
+  def subscribe_async(rtc_engine, endpoint_id, track_id, opts \\ []) do
+    caller_pid = self()
+    subscribe_ref = make_ref()
+
+    Process.spawn(
+      fn ->
+        result = subscribe(rtc_engine, endpoint_id, track_id, opts)
+
+        send(caller_pid, {:subscribe_result, subscribe_ref, result})
+      end,
+      [:link]
+    )
+
+    subscribe_ref
+  end
+
   @impl true
   def handle_init(_ctx, options) do
     Logger.metadata(rtc_engine: options[:id])
