@@ -95,10 +95,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:ready, _endpoints}, ctx, state) do
+  def handle_parent_notification({:ready, endpoints}, ctx, state) do
     {:endpoint, endpoint_id} = ctx.name
 
-    action = MediaEvent.connected(endpoint_id, []) |> MediaEvent.to_action()
+    action = MediaEvent.connected(endpoint_id, endpoints) |> MediaEvent.to_action()
     {action, state}
   end
 
@@ -221,9 +221,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[], state}
   end
 
-  defp handle_custom(%{"type" => "sdpOffer", "data" => %{"sdpOffer" => offer}}, _ctx, state) do
-    dbg(offer)
-    {[notify_child: {:handler, {:offer, offer, state.outbound_tracks}}], state}
+  defp handle_custom(%{"type" => "sdpOffer", "data" =>  event}, _ctx, state) do
+    dbg(event)
+    {[notify_child: {:handler, {:offer, event, state.outbound_tracks}}], state}
   end
 
   defp handle_custom(%{"type" => "candidate", "data" => candidate}, _ctx, state) do

@@ -18,6 +18,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     SessionDescription
   }
 
+  # alias ExWebRTC.Media.Ogg
+  # alias ExWebRTC.RTP.Depayloader
+
   def_options endpoint_id: [
                 spec: String.t(),
                 description: "Id of the parent endpoint"
@@ -40,34 +43,36 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     %{urls: "stun:stun.l.google.com:19302"}
   ]
 
-  @video_codecs [
-    %RTPCodecParameters{
-      payload_type: 96,
-      mime_type: "video/VP8",
-      clock_rate: 90_000,
-      rtcp_fbs: [%ExSDP.Attribute.RTCPFeedback{pt: 96, feedback_type: :nack}]
-    },
-    %RTPCodecParameters{
-      payload_type: 97,
-      mime_type: "video/rtx",
-      clock_rate: 90_000,
-      sdp_fmtp_line: %ExSDP.Attribute.FMTP{pt: 97, apt: 96}
-    }
-  ]
+  # @video_codecs [
+  #   %RTPCodecParameters{
+  #     payload_type: 96,
+  #     mime_type: "video/VP8",
+  #     clock_rate: 90_000,
+  #     rtcp_fbs: [%ExSDP.Attribute.RTCPFeedback{pt: 96, feedback_type: :nack}]
+  #   },
+  #   %RTPCodecParameters{
+  #     payload_type: 97,
+  #     mime_type: "video/rtx",
+  #     clock_rate: 90_000,
+  #     sdp_fmtp_line: %ExSDP.Attribute.FMTP{pt: 97, apt: 96}
+  #   }
+  # ]
 
-  @audio_codecs [
-    %RTPCodecParameters{
-      payload_type: 111,
-      mime_type: "audio/opus",
-      clock_rate: 48_000,
-      channels: 2
-    }
-  ]
+  # @audio_file "/Users/roznawsk/fj/membrane_rtc_engine/audio.ogg"
+
+  # @audio_codecs [
+  #   %RTPCodecParameters{
+  #     payload_type: 111,
+  #     mime_type: "audio/opus",
+  #     clock_rate: 48_000,
+  #     channels: 2
+  #   }
+  # ]
 
   @opts [
-    ice_servers: @ice_servers,
-    audio_codecs: @audio_codecs,
-    video_codecs: @video_codecs
+    ice_servers: @ice_servers
+    # audio_codecs: @audio_codecs,
+    # video_codecs: @video_codecs
   ]
 
   @impl true
@@ -85,13 +90,20 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
     {:ok, pc} = PeerConnection.start_link(pc_options)
 
+    # {:ok, audio_writer} = Ogg.Writer.open(@audio_file)
+    # {:ok, audio_depayloader} = @audio_codecs |> hd() |> Depayloader.new()
+
     state = %{
       pc: pc,
       endpoint_id: endpoint_id,
       # maps engine track_id to rtc track_id
       outbound_tracks: %{},
       # maps rtc track_id to engine track_id
-      inbound_tracks: %{}
+      inbound_tracks: %{},
+      queued_tracks: %{},
+      during_negotiation?: false
+      # audio_depayloader: audio_depayloader,
+      # audio_writer: audio_writer,
     }
 
     {[], state}
@@ -130,16 +142,15 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
         padding: rtp.padding_size
       )
 
+    extensions = if is_list(rtp.extensions), do: rtp.extensions, else: []
+
     packet =
-      Enum.reduce(rtp.extensions, packet, fn extension, packet ->
+      Enum.reduce(extensions, packet, fn extension, packet ->
         ExRTP.Packet.add_extension(packet, extension)
       end)
 
     if Enum.random(0..1000) == 0 do
-      [sender] = PeerConnection.get_transceivers(state.pc)
-      |> Enum.filter(&(&1.sender.track.id == track_id))
-
-      dbg({track_id, packet, sender})
+      dbg({track_id, packet})
     end
 
     :ok = PeerConnection.send_rtp(state.pc, track_id, packet)
@@ -154,7 +165,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   end
 
   @impl true
-  def handle_parent_notification({:offer, offer, outbound_tracks}, _ctx, state) do
+  def handle_parent_notification({:offer, event, outbound_tracks}, _ctx, state) do
+    %{"sdpOffer" => offer, "midToTrackId" => mid_to_track_id} = event
+
     new_outbound_tracks =
       Map.filter(outbound_tracks, fn {track_id, _track} ->
         not Map.has_key?(state.outbound_tracks, track_id)
@@ -167,19 +180,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     end)
     |> IO.inspect(label: :before)
 
-    track_ids =
-      new_outbound_tracks
-      |> Enum.map(fn {engine_track_id, engine_track} ->
-        # TODO: probably don't create new track for an existing track - save already added ones
-        track =
-          MediaStreamTrack.new(engine_track.type, [MediaStreamTrack.generate_stream_id()])
-
-        {:ok, sender} = PeerConnection.add_track(state.pc, track)
-
-        # {:ok, transceiver} = PeerConnection.add_transceiver(state.pc, track, direction: :sendonly)
-
-        {engine_track_id, track.id, sender.id}
-      end)
+    offer = SessionDescription.from_json(offer)
+    :ok = PeerConnection.set_remote_description(state.pc, offer)
 
     PeerConnection.get_transceivers(state.pc)
     |> Enum.map(fn t ->
@@ -188,8 +190,33 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     end)
     |> IO.inspect(label: :in_between)
 
-    offer = SessionDescription.from_json(offer)
-    :ok = PeerConnection.set_remote_description(state.pc, offer)
+    outbound_transceivers =
+      state.pc
+      |> PeerConnection.get_transceivers()
+      |> Enum.filter(fn transceiver ->
+        not Map.has_key?(mid_to_track_id, transceiver.mid)
+      end)
+
+    {track_ids, _out_trans} =
+      new_outbound_tracks
+      |> Enum.map_reduce(outbound_transceivers, fn {engine_track_id, engine_track}, outbound_transceivers ->
+        track =
+          MediaStreamTrack.new(engine_track.type, [MediaStreamTrack.generate_stream_id()])
+
+        transceiver = Enum.find(outbound_transceivers, fn transceiver ->
+          transceiver.kind == track.kind
+        end)
+
+        outbound_transceivers = List.delete(outbound_transceivers, transceiver)
+
+        # {:ok, sender} = PeerConnection.add_track(state.pc, track)
+        # {:ok, transceiver} = PeerConnection.add_transceiver(state.pc, track, direction: :sendonly)
+
+        PeerConnection.set_transceiver_direction(state.pc, transceiver.id, :sendonly)
+        PeerConnection.replace_track(state.pc, transceiver.sender.id, track)
+
+        {{engine_track_id, track.id, transceiver.sender.id}, outbound_transceivers}
+      end)
 
     transceivers = PeerConnection.get_transceivers(state.pc)
 
@@ -225,10 +252,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       |> make_tracks(state)
 
     PeerConnection.get_transceivers(state.pc)
-    |> Enum.map(fn t ->
-      Map.take(t, [:id, :kind, :direction, :current_direction])
-      |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
-    end)
+    # |> Enum.map(fn t ->
+    #   Map.take(t, [:id, :kind, :direction, :current_direction])
+    #   |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
+    # end)
     |> IO.inspect(label: :after)
 
     actions =
@@ -240,6 +267,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
   @impl true
   def handle_parent_notification({:candidate, candidate}, _ctx, state) do
+    # dbg(candidate)
+    dbg(candidate)
     candidate = ICECandidate.from_json(candidate)
     :ok = PeerConnection.add_ice_candidate(state.pc, candidate)
 
@@ -287,6 +316,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   defp handle_webrtc_msg({:rtp, track_id, rid, packet}, ctx, state) do
     # TEMPORARY
     rid = if rid == nil, do: :high, else: rid
+
+    # {opus_packet, depayloader} = Depayloader.depayload(state.audio_depayloader, packet)
+    # {:ok, audio_writer} = Ogg.Writer.write_packet(state.audio_writer, opus_packet)
+    # audio_writer = state.audio_writer
 
     actions =
       with {:ok, engine_track_id} <- Map.fetch(state.inbound_tracks, track_id),
