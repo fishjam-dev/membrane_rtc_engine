@@ -12,6 +12,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   def_options rtc_engine: [
                 spec: pid(),
                 description: "Pid of parent Engine"
+              ],
+              ice_port_range: [
+                spec: Enumerable.t(non_neg_integer()),
+                description: "Range of ports that ICE will use for gathering host candidates.",
+                default: nil
               ]
 
   def_input_pad :input,
@@ -29,7 +34,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_init(ctx, opts) do
     {_, endpoint_id} = ctx.name
-    spec = [child(:handler, %PeerConnectionHandler{endpoint_id: endpoint_id})]
 
     state =
       opts
@@ -39,6 +43,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         inbound_tracks: %{},
         subscribed_tracks: MapSet.new()
       })
+
+    spec = [
+      child(:handler, %PeerConnectionHandler{
+        endpoint_id: endpoint_id,
+        ice_port_range: state.ice_port_range
+      })
+    ]
 
     {[spec: spec], state}
   end
@@ -71,7 +82,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       bin_input(pad)
       |> child({:track_receiver, track_id}, %TrackReceiver{
         track: track,
-        initial_target_variant: :h
+        initial_target_variant: :h,
+        keyframe_request_interval: Membrane.Time.seconds(5)
         # connection_allocator: state.connection_prober,
         # connection_allocator_module: state.connection_allocator_module,
         # telemetry_label: state.telemetry_label
@@ -83,11 +95,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:ready, endpoints}, ctx, state) do
-    {:endpoint, endpoint_id} = ctx.name
-
-    actions = MediaEvent.connected(endpoint_id, endpoints) |> MediaEvent.to_action()
-    {actions, state}
+  def handle_parent_notification({:ready, _endpoints}, _ctx, state) do
+    {[notify_child: {:handler, :add_peer_tracks}], state}
   end
 
   @impl true
@@ -165,9 +174,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   def handle_parent_notification({:media_event, event}, ctx, state) do
     dbg(event, limit: :infinity, printable_limit: :infinity)
 
-    event
-    |> Jason.decode!()
-    |> handle_media_event(ctx, state)
+    %{"type" => type, "data" => data} = Jason.decode!(event)
+
+    handle_media_event(type, data, ctx, state)
   end
 
   @impl true
@@ -185,23 +194,18 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[], state}
   end
 
-  defp handle_media_event(%{"type" => "custom", "data" => data}, ctx, state) do
+  defp handle_media_event("custom", data, ctx, state) do
     handle_custom(data, ctx, state)
   end
 
-  defp handle_media_event(
-         %{"type" => "connect", "data" => %{"metadata" => metadata}},
-         _ctx,
-         state
-       ) do
+  defp handle_media_event("connect", data, _ctx, state) do
+    metadata = if is_map(data), do: Map.get(data, :metadata), else: nil
     {[notify_parent: {:ready, metadata}], state}
   end
 
   defp handle_media_event(
-         %{
-           "type" => "disableTrackEncoding",
-           "data" => %{"trackId" => track_id, "encoding" => rid}
-         },
+         "disableTrackEncoding",
+         %{"trackId" => track_id, "encoding" => rid},
          _ctx,
          state
        ) do
@@ -209,17 +213,18 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     {[notify_parent: {:disable_track_variant, track_id, encoding}], state}
   end
 
-  defp handle_media_event(event, _ctx, state) do
-    dbg({:unexpected_event, event})
+  defp handle_media_event(type, event, _ctx, state) do
+    dbg({:unexpected_event, type, event})
     {[], state}
   end
 
-  defp handle_custom(%{"type" => "sdpOffer", "data" => %{"sdpOffer" => offer}}, _ctx, state) do
-    {[notify_child: {:handler, {:offer, offer, state.outbound_tracks}}], state}
+  defp handle_custom(%{"type" => "sdpOffer", "data" => offer}, _ctx, state) do
+    {[notify_child: {:handler, {:offer, offer}}], state}
   end
 
   defp handle_custom(%{"type" => "candidate", "data" => candidate}, _ctx, state) do
     dbg(candidate)
+
     {[notify_child: {:handler, {:candidate, candidate}}], state}
   end
 
@@ -293,7 +298,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       |> then(&MapSet.union(&1, MapSet.new(valid_tracks)))
       |> then(&MapSet.difference(&1, MapSet.new(invalid_tracks)))
 
-    # build_track_removed_actions
+    # TODO: build_track_removed_actions
 
     dbg(subscribed_tracks)
 
