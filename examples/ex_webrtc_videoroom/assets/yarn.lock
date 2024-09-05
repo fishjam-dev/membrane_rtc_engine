@@ -34,15 +34,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@fishjam-dev/ts-client@file:/Users/roznawsk/fjc/web-client-sdk/packages/ts-client::locator=root-workspace-0b6124%40workspace%3A.":
+"@fishjam-dev/ts-client@https://github.com/fishjam-cloud/web-client-sdk.git#workspace=@fishjam-cloud/ts-client&head=ex_webrtc_poc":
   version: 0.6.0
-  resolution: "@fishjam-dev/ts-client@file:/Users/roznawsk/fjc/web-client-sdk/packages/ts-client#/Users/roznawsk/fjc/web-client-sdk/packages/ts-client::hash=ebcba9&locator=root-workspace-0b6124%40workspace%3A."
+  resolution: "@fishjam-dev/ts-client@https://github.com/fishjam-cloud/web-client-sdk.git#workspace=%40fishjam-cloud%2Fts-client&commit=a5a50ffce0fdea6b8303fd36ac4122c68fc881b0"
   dependencies:
     events: "npm:^3.3.0"
     protobufjs: "npm:^7.3.0"
     typed-emitter: "npm:^2.1.0"
     uuid: "npm:^10.0.0"
-  checksum: 10c0/28481633bdccf796fad9bf13b79f961157f6d3cb1453b5da26328819bf8481b930004da2d78f56bcb355ccf738d9c69a2bf30789604db19c61f588132140601d
+  checksum: 10c0/ca0dc387b1a854bef46b5e66a6285caa7ebc01d9d00cb34d7bb9554e97f5a6dfc999352244b3dba2f681bb9887174cda57e128a16edae3a4936adef98a2a164a
   languageName: node
   linkType: hard
 
@@ -1901,7 +1901,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
-    "@fishjam-dev/ts-client": "file:/Users/roznawsk/fjc/web-client-sdk/packages/ts-client"
+    "@fishjam-dev/ts-client": "https://github.com/fishjam-cloud/web-client-sdk.git#workspace=@fishjam-cloud/ts-client&head=ex_webrtc_poc"
     "@tailwindcss/aspect-ratio": "npm:^0.3.0"
     "@types/phoenix": "npm:^1.6.4"
     autoprefixer: "npm:^10.2.0"

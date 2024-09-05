@@ -36,6 +36,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver do
     VoiceActivityChanged
   }
 
+  alias Membrane.RTC.Engine.Endpoint.WebRTC.Metrics
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTCP.SenderReportPacket
   alias Membrane.RTCPEvent
@@ -174,8 +175,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver do
         telemetry_label: telemetry_label
       }) do
     telemetry_label = telemetry_label ++ [track_id: "#{track.id}"]
-    # Metrics.register_variant_switched_event(telemetry_label)
-    # Metrics.register_paddings_sent_event(telemetry_label)
+    Metrics.register_variant_switched_event(telemetry_label)
+    Metrics.register_paddings_sent_event(telemetry_label)
 
     forwarder = Forwarder.new(track.encoding, track.clock_rate)
 
@@ -239,11 +240,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver do
   def handle_event(_pad, %TrackVariantSwitched{} = event, _ctx, state) do
     Membrane.Logger.debug("Received event: #{inspect(event)}")
 
-    # Metrics.emit_variant_switched_event(
-    #   event.new_variant,
-    #   event.reason,
-    #   state.telemetry_label
-    # )
+    Metrics.emit_variant_switched_event(
+      event.new_variant,
+      event.reason,
+      state.telemetry_label
+    )
 
     selector = VariantSelector.set_current_variant(state.selector, event.new_variant)
     actions = [notify_parent: {:variant_switched, event.new_variant, event.reason}]
@@ -318,12 +319,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver do
         end
 
         paddings_num = min(state.enqueued_paddings_count, @max_paddings)
+        paddings_bytes = paddings_num * 255
 
-        # Metrics.emit_paddings_sent_event(
-        #   paddings_num,
-        #   paddings_bytes,
-        #   state.telemetry_label
-        # )
+        Metrics.emit_paddings_sent_event(
+          paddings_num,
+          paddings_bytes,
+          state.telemetry_label
+        )
 
         Enum.map_reduce(
           # `//1` to prevent 1..0 from generating paddings

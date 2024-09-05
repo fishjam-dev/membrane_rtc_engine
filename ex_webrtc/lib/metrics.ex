@@ -11,7 +11,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Metrics do
 
   require Membrane.TelemetryMetrics
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
   alias Membrane.RTP.PayloadFormatResolver
 
@@ -24,9 +24,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.Metrics do
   def metrics() do
     Enum.concat([
       endpoint_metrics(),
-      Membrane.RTP.Metrics.metrics(),
-      Membrane.ICE.Metrics.metrics(),
-      Membrane.WebRTC.Metrics.metrics()
+      Membrane.RTP.Metrics.metrics()
     ])
   end
 

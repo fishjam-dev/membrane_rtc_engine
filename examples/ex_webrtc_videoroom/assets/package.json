@@ -6,7 +6,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@fishjam-dev/ts-client": "file:/Users/roznawsk/fjc/web-client-sdk/packages/ts-client",
+    "@fishjam-dev/ts-client": "https://github.com/fishjam-cloud/web-client-sdk.git#workspace=@fishjam-cloud/ts-client&head=ex_webrtc_poc",
     "phoenix": "file:../deps/phoenix",
     "phoenix_html": "file:../deps/phoenix_html",
     "query-string": "^7.0.0",

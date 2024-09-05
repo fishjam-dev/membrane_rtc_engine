@@ -138,7 +138,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
     })
   end
 
-  @spec candidate(ExWebRTC.IceCandidate.t()) :: t()
+  @spec candidate(ExWebRTC.ICECandidate.t()) :: t()
   def candidate(candidate) do
     as_custom(%{type: "candidate", data: candidate})
   end

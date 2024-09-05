@@ -1,5 +1,7 @@
 defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
-  @moduledoc false
+  @moduledoc """
+  An Endpoint responsible for communicatiing with WebRTC client.
+  """
   use Membrane.Bin
 
   require Logger
@@ -352,8 +354,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     state = update_in(state.outbound_tracks, &Map.merge(&1, negotiated_tracks))
     pending_tracks = Map.filter(state.outbound_tracks, fn {_id, t} -> t.status == :pending end)
 
-    IO.inspect(state.outbound_tracks, label: "#{inspect(Logger.metadata())}, negotiated")
-
     if Enum.empty?(pending_tracks) do
       {[], %{state | negotiation?: false}}
     else
@@ -402,8 +402,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         # TODO: build remove actions and notify handler
         :ignored -> Map.delete(state.outbound_tracks, track_id)
       end
-
-    IO.inspect(outbound_tracks, label: "#{inspect(Logger.metadata())}, subscribed")
 
     {[], %{state | outbound_tracks: outbound_tracks}}
   end
