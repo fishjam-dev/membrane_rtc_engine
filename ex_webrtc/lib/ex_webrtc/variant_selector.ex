@@ -4,7 +4,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.VariantSelector do
   # received by the `TrackReceiver`
   require Membrane.Logger
 
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.TrackReceiver
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
   @default_bitrates_video %{

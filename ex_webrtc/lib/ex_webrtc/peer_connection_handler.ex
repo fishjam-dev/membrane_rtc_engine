@@ -136,20 +136,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
         not Map.has_key?(state.outbound_tracks, track_id)
       end)
 
-    PeerConnection.get_transceivers(state.pc)
-    |> Enum.map(fn t ->
-      Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
-      |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
-    end)
-
     offer = SessionDescription.from_json(offer)
     :ok = PeerConnection.set_remote_description(state.pc, offer)
-
-    PeerConnection.get_transceivers(state.pc)
-    |> Enum.map(fn t ->
-      Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
-      |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
-    end)
 
     outbound_transceivers =
       state.pc
@@ -221,12 +209,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     {tracks, state} =
       receive_new_tracks()
       |> make_tracks(state)
-
-    PeerConnection.get_transceivers(state.pc)
-    |> Enum.map(fn t ->
-      Map.take(t, [:id, :kind, :direction, :current_direction, :mid])
-      |> Map.merge(%{sender_track: t.sender.track, receiver_track: t.receiver.track})
-    end)
 
     mid_to_track_id = Map.merge(mid_to_track_id, new_mid_to_track_id)
 
