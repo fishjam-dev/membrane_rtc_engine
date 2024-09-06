@@ -384,8 +384,11 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
         end
       end)
 
+    {update_track_actions, state} = maybe_update_tracks_metadata(valid_tracks, state)
+
     send_if_not_nil(state.display_manager, {:subscribe_tracks, ctx.name, valid_tracks})
-    {build_track_removed_actions(invalid_tracks, ctx), state}
+
+    {update_track_actions ++ build_track_removed_actions(invalid_tracks, ctx), state}
   end
 
   @impl true
@@ -927,6 +930,25 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC do
     extmaps = Map.get(track.ctx, WebRTC.Extension, [])
     track = Map.put(track, :extmaps, extmaps)
     WebRTC.Track.new(track.type, track.stream_id, to_keyword_list(track))
+  end
+
+  defp maybe_update_tracks_metadata(valid_tracks, state) do
+    valid_tracks = Map.new(valid_tracks, &{&1.id, &1})
+    valid_tracks_id = Map.keys(valid_tracks)
+
+    Engine.get_tracks(state.rtc_engine)
+    |> Enum.filter(&(&1.id in valid_tracks_id and &1.metadata != valid_tracks[&1.id].metadata))
+    |> Enum.map_reduce(state, fn track, state -> track_updated(track, state) end)
+  end
+
+  defp track_updated(track, state) do
+    event =
+      MediaEvent.track_updated(track.origin, track.id, track.metadata)
+      |> MediaEvent.encode()
+
+    state = put_in(state, [:outbound_tracks, track.id, :metadata], track.metadata)
+
+    {{:notify_parent, {:forward_to_parent, {:media_event, event}}}, state}
   end
 
   defp to_keyword_list(%Engine.Track{} = struct),
