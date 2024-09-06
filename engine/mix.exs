@@ -86,7 +86,6 @@ defmodule Membrane.RTC.Engine.MixProject do
       "test.engine": ["test"],
       "test.webrtc": fn _args -> test_package("webrtc") end,
       "test.webrtc.integration": &run_webrtc_integration_tests/1,
-      "test.ex_webrtc.integration": &run_ex_webrtc_integration_tests/1,
       "test.hls": fn _args -> test_package("hls") end,
       "test.rtsp": fn _args -> test_package("rtsp") end,
       "test.file": fn _args -> test_package("file") end,
@@ -204,14 +203,8 @@ defmodule Membrane.RTC.Engine.MixProject do
   end
 
   defp run_webrtc_integration_tests(_cli_args) do
-    run_integration_tests("../webrtc/integration_test/test_videoroom")
-  end
+    path = "../webrtc/integration_test/test_videoroom"
 
-  defp run_ex_webrtc_integration_tests(_cli_args) do
-    run_integration_tests("../ex_webrtc/integration_test/test_videoroom")
-  end
-
-  defp run_integration_tests(path) do
     assert_execute("mix", ["deps.get"],
       cd: path,
       log_str: "Getting mix dependencies in test_videoroom"
