@@ -34,15 +34,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@fishjam-dev/ts-client@https://github.com/fishjam-cloud/web-client-sdk.git#workspace=@fishjam-cloud/ts-client&head=ex_webrtc_poc":
+"@fishjam-cloud/ts-client@https://github.com/fishjam-cloud/web-client-sdk.git#workspace=@fishjam-cloud/ts-client&head=ex_webrtc_poc":
   version: 0.6.0
-  resolution: "@fishjam-dev/ts-client@https://github.com/fishjam-cloud/web-client-sdk.git#workspace=%40fishjam-cloud%2Fts-client&commit=a5a50ffce0fdea6b8303fd36ac4122c68fc881b0"
+  resolution: "@fishjam-cloud/ts-client@https://github.com/fishjam-cloud/web-client-sdk.git#workspace=%40fishjam-cloud%2Fts-client&commit=492d929daea1acb3cea07cabe35a94ea336c8a01"
   dependencies:
     events: "npm:^3.3.0"
     protobufjs: "npm:^7.3.0"
     typed-emitter: "npm:^2.1.0"
     uuid: "npm:^10.0.0"
-  checksum: 10c0/ca0dc387b1a854bef46b5e66a6285caa7ebc01d9d00cb34d7bb9554e97f5a6dfc999352244b3dba2f681bb9887174cda57e128a16edae3a4936adef98a2a164a
+  checksum: 10c0/7831c35d1b9bafa3e5f0f32240a99792457140d150239914f3c091d13291abd32e21ba61e2b1ea2e9f3283d2c166fe34508e2b0a5d02b48ecfc48a708d913b55
   languageName: node
   linkType: hard
 
@@ -1601,9 +1601,9 @@ __metadata:
   linkType: hard
 
 "phoenix_html@file:../deps/phoenix_html::locator=root-workspace-0b6124%40workspace%3A.":
-  version: 3.3.3
-  resolution: "phoenix_html@file:../deps/phoenix_html#../deps/phoenix_html::hash=38fc74&locator=root-workspace-0b6124%40workspace%3A."
-  checksum: 10c0/8ecb0e66bfc9ec052b4ebbccb2c808fa2243ede14c44143860040e1cfe1f05e251d75f390c6c6a454b84cef7bfa451bcad9e8e71d15aed0e4c683af40a18f7b9
+  version: 3.3.4
+  resolution: "phoenix_html@file:../deps/phoenix_html#../deps/phoenix_html::hash=630260&locator=root-workspace-0b6124%40workspace%3A."
+  checksum: 10c0/e6ea56b069634bf6e9bd6b49f1553b08e98d40764604edc8f694916740f64fbedf81df10a5decdc49fefac710d1206d4fc4c287544c9e212397d5a9efccc7e48
   languageName: node
   linkType: hard
 
@@ -1901,7 +1901,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
-    "@fishjam-dev/ts-client": "https://github.com/fishjam-cloud/web-client-sdk.git#workspace=@fishjam-cloud/ts-client&head=ex_webrtc_poc"
+    "@fishjam-cloud/ts-client": "https://github.com/fishjam-cloud/web-client-sdk.git#workspace=@fishjam-cloud/ts-client&head=ex_webrtc_poc"
     "@tailwindcss/aspect-ratio": "npm:^0.3.0"
     "@types/phoenix": "npm:^1.6.4"
     autoprefixer: "npm:^10.2.0"

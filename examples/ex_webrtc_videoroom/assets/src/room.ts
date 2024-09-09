@@ -12,7 +12,7 @@ import {
   WebRTCEndpoint,
   Endpoint,
   TrackContext,
-} from "@fishjam-dev/ts-client";
+} from "@fishjam-cloud/ts-client";
 import { Push, Socket } from "phoenix";
 import { parse } from "query-string";
 
