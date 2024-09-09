@@ -107,7 +107,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_pad_added(Pad.ref(:input, track_id) = pad, _ctx, state) do
     track = Map.fetch!(state.outbound_tracks, track_id)
-    # initial_target_variant = state.simulcast_config.initial_target_variant.(track)
 
     spec =
       bin_input(pad)
@@ -115,9 +114,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         track: track.engine_track,
         initial_target_variant: :h,
         keyframe_request_interval: Membrane.Time.seconds(5)
-        # connection_allocator: state.connection_prober,
-        # connection_allocator_module: state.connection_allocator_module,
-        # telemetry_label: state.telemetry_label
       })
       |> via_in(pad)
       |> get_child(:handler)
@@ -170,11 +166,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_parent_notification({:track_variant_disabled, _track, _encoding}, _ctx, state) do
-    # rid = to_rid(encoding)
-
-    # actions = forward("trackEncodingDisabled", %{endpointId: track.origin, trackId: track.id, encoding: rid})
-    # actions = MediaEvent.track_variant_disabled()
-
     {[], state}
   end
 
