@@ -146,8 +146,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     ]
 
     tracks_action = if Enum.empty?(tracks), do: [], else: [notify_parent: {:tracks, tracks}]
+    {tracks_removed_actions, state} = get_tracks_removed_actions(state)
 
-    {answer_action ++ tracks_action, state}
+    {answer_action ++ tracks_action ++ tracks_removed_actions, state}
   end
 
   @impl true
@@ -243,6 +244,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   defp handle_webrtc_msg({:rtcp, packets}, _ctx, state) do
     actions =
       Enum.flat_map(packets, fn
+        # TODO: handle PLI
         {_track_id, %ExRTCP.Packet.PayloadFeedback.PLI{}} -> []
         {_track_id, _other} -> []
       end)
@@ -304,6 +306,27 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     else
       Logger.error("Couldn't find transceiver for track #{engine_track.id}")
       {[], outbound_transceivers}
+    end
+  end
+
+  defp get_tracks_removed_actions(state) do
+    transceivers = PeerConnection.get_transceivers(state.pc)
+
+    removed_tracks =
+      transceivers
+      |> Enum.filter(fn transceiver ->
+        transceiver.current_direction == :inactive and
+          Map.has_key?(state.inbound_tracks, transceiver.receiver.track.id)
+      end)
+      |> Enum.map(&Map.get(state.inbound_tracks, &1.receiver.track.id))
+
+    if Enum.empty?(removed_tracks) do
+      {[], state}
+    else
+      inbound_tracks = Map.drop(state.inbound_tracks, removed_tracks)
+
+      {[notify_parent: {:tracks_removed, removed_tracks}],
+       %{state | inbound_tracks: inbound_tracks}}
     end
   end
 

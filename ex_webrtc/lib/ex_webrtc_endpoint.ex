@@ -223,8 +223,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
     Logger.info("remove tracks event for #{inspect(tracks)}")
 
-    # TODO:  notify handler
-    actions =
+    media_events =
       tracks
       |> Enum.group_by(& &1.origin)
       |> Enum.flat_map(fn {endpoint_id, tracks} ->
@@ -232,7 +231,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         MediaEvent.tracks_removed(endpoint_id, track_ids) |> MediaEvent.to_action()
       end)
 
-    {actions, %{state | outbound_tracks: outbound_tracks}}
+    notify_handler = [notify_child: {:handler, {:tracks_removed, track_ids}}]
+
+    {media_events ++ notify_handler, %{state | outbound_tracks: outbound_tracks}}
   end
 
   @impl true
@@ -315,7 +316,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   @impl true
   def handle_child_notification({:tracks, tracks}, :handler, _ctx, state) do
-    Logger.debug("new child tracks: #{log_tracks(tracks)}")
+    Logger.debug("new webrtc tracks: #{log_tracks(tracks)}")
 
     tracks_ready =
       Enum.map(tracks, fn track ->
@@ -327,6 +328,26 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
     new_tracks = [notify_parent: {:publish, {:new_tracks, tracks}}]
     {new_tracks ++ tracks_ready, state}
+  end
+
+  @impl true
+  def handle_child_notification({:tracks_removed, track_ids}, :handler, ctx, state) do
+    Logger.debug("webrtc tracks removed")
+
+    tracks = Map.take(state.inbound_tracks, track_ids)
+    inbound_tracks = Map.drop(state.inbound_tracks, track_ids)
+
+    track_senders =
+      track_ids
+      |> Enum.map(&{:track_sender, &1})
+      |> Enum.filter(&Map.has_key?(ctx.children, &1))
+
+    actions = [
+      remove_children: track_senders,
+      notify_parent: {:publish, {:removed_tracks, tracks}}
+    ]
+
+    {actions, %{state | inbound_tracks: inbound_tracks}}
   end
 
   @impl true

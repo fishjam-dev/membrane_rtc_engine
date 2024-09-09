@@ -1601,9 +1601,9 @@ __metadata:
   linkType: hard
 
 "phoenix_html@file:../deps/phoenix_html::locator=root-workspace-0b6124%40workspace%3A.":
-  version: 3.3.4
-  resolution: "phoenix_html@file:../deps/phoenix_html#../deps/phoenix_html::hash=630260&locator=root-workspace-0b6124%40workspace%3A."
-  checksum: 10c0/e6ea56b069634bf6e9bd6b49f1553b08e98d40764604edc8f694916740f64fbedf81df10a5decdc49fefac710d1206d4fc4c287544c9e212397d5a9efccc7e48
+  version: 3.3.3
+  resolution: "phoenix_html@file:../deps/phoenix_html#../deps/phoenix_html::hash=38fc74&locator=root-workspace-0b6124%40workspace%3A."
+  checksum: 10c0/8ecb0e66bfc9ec052b4ebbccb2c808fa2243ede14c44143860040e1cfe1f05e251d75f390c6c6a454b84cef7bfa451bcad9e8e71d15aed0e4c683af40a18f7b9
   languageName: node
   linkType: hard
 

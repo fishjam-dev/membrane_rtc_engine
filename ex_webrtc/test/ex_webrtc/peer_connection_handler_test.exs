@@ -4,7 +4,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
   import Membrane.ChildrenSpec
   import Membrane.Testing.Assertions
 
-  alias ExWebRTC.{PeerConnection, SessionDescription}
+  alias ExWebRTC.{MediaStreamTrack, PeerConnection, SessionDescription}
 
   alias Membrane.Testing.Pipeline
 
@@ -21,12 +21,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
     %{pc: pc, pipeline: pipeline}
   end
 
-  test "peer adds single track", %{pc: pc, pipeline: pipeline} do
-    {:ok, _transceiver} = PeerConnection.add_transceiver(pc, :video, direction: :sendonly)
+  test "peer adds single video track", %{pc: pc, pipeline: pipeline} do
+    track = MediaStreamTrack.new(:video, [MediaStreamTrack.generate_stream_id()])
+    {:ok, _transceiver} = PeerConnection.add_transceiver(pc, track, direction: :sendonly)
     {:ok, offer} = PeerConnection.create_offer(pc)
     :ok = PeerConnection.set_local_description(pc, offer)
 
-    media_event = %{"sdpOffer" => SessionDescription.to_json(offer), "midToTrackId" => %{}}
+    media_event = sdp_offer(offer)
 
     outbound_tracks = %{}
     Pipeline.notify_child(pipeline, :handler, {:offer, media_event, outbound_tracks})
@@ -57,7 +58,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
     {:ok, offer} = PeerConnection.create_offer(pc)
     :ok = PeerConnection.set_local_description(pc, offer)
 
-    media_event = %{"sdpOffer" => SessionDescription.to_json(offer), "midToTrackId" => %{}}
+    media_event = sdp_offer(offer)
 
     track = engine_video_track()
     outbound_tracks = %{track.id => track}
@@ -85,15 +86,14 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
   end
 
   test "peer adds audio and video tracks", %{pc: pc, pipeline: pipeline} do
-    {:ok, _transceiver} = PeerConnection.add_transceiver(pc, :video, direction: :sendonly)
-    {:ok, _transceiver} = PeerConnection.add_transceiver(pc, :audio, direction: :sendonly)
+    video_track = MediaStreamTrack.new(:video, [MediaStreamTrack.generate_stream_id()])
+    {:ok, _transceiver} = PeerConnection.add_transceiver(pc, video_track, direction: :sendonly)
+    audio_track = MediaStreamTrack.new(:audio, [MediaStreamTrack.generate_stream_id()])
+    {:ok, _transceiver} = PeerConnection.add_transceiver(pc, audio_track, direction: :sendonly)
     {:ok, offer} = PeerConnection.create_offer(pc)
     :ok = PeerConnection.set_local_description(pc, offer)
 
-    media_event = %{"sdpOffer" => SessionDescription.to_json(offer), "midToTrackId" => %{}}
-
-    outbound_tracks = %{}
-    Pipeline.notify_child(pipeline, :handler, {:offer, media_event, outbound_tracks})
+    Pipeline.notify_child(pipeline, :handler, {:offer, sdp_offer(offer), %{}})
 
     assert_pipeline_notified(
       pipeline,
@@ -104,8 +104,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
     assert_pipeline_notified(pipeline, :handler, {:tracks, tracks})
 
     assert length(tracks) == 2
-    audio_track = Enum.find(tracks, &(&1.type == :audio))
-    video_track = Enum.find(tracks, &(&1.type == :video))
+    engine_audio_track = Enum.find(tracks, &(&1.type == :audio))
+    engine_video_track = Enum.find(tracks, &(&1.type == :video))
 
     assert %{
              type: :audio,
@@ -113,7 +113,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
              origin: @endpoint_id,
              encoding: :OPUS,
              variants: [:high]
-           } = audio_track
+           } = engine_audio_track
 
     assert %{
              type: :video,
@@ -121,7 +121,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
              origin: @endpoint_id,
              encoding: :VP8,
              variants: [:high]
-           } = video_track
+           } = engine_video_track
 
     answer = SessionDescription.from_json(answer)
     PeerConnection.set_remote_description(pc, answer)
@@ -133,6 +133,33 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
     assert Enum.all?(transceivers, &(&1.current_direction == :sendonly))
   end
 
+  test "peer removes track", %{pc: pc, pipeline: pipeline} do
+    {engine_track, track} = add_peer_video_track(pc, pipeline)
+
+    transceiver =
+      pc |> PeerConnection.get_transceivers() |> Enum.find(&(&1.sender.track.id == track.id))
+
+    PeerConnection.remove_track(pc, transceiver.sender.id)
+    {:ok, offer} = PeerConnection.create_offer(pc)
+    :ok = PeerConnection.set_local_description(pc, offer)
+
+    Pipeline.notify_child(pipeline, :handler, {:offer, sdp_offer(offer), %{}})
+
+    assert_pipeline_notified(
+      pipeline,
+      :handler,
+      {:answer, %{"type" => "answer", "sdp" => _sdp} = answer, _new_mid_to_track_id}
+    )
+
+    answer = SessionDescription.from_json(answer)
+    PeerConnection.set_remote_description(pc, answer)
+
+    assert_pipeline_notified(pipeline, :handler, :negotiation_done)
+
+    assert_pipeline_notified(pipeline, :handler, {:tracks_removed, removed_tracks}, 20_000)
+    assert removed_tracks |> List.first() == engine_track.id
+  end
+
   defp get_pc_handler() do
     [
       child(:handler, %PeerConnectionHandler{
@@ -140,6 +167,10 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
         ice_port_range: 50_000..50_050
       })
     ]
+  end
+
+  defp sdp_offer(offer, mid_to_track_id \\ %{}) do
+    %{"sdpOffer" => SessionDescription.to_json(offer), "midToTrackId" => mid_to_track_id}
   end
 
   defp engine_video_track() do
@@ -156,5 +187,27 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
       codec.clock_rate,
       codec.sdp_fmtp_line
     )
+  end
+
+  defp add_peer_video_track(pc, pipeline) do
+    track = MediaStreamTrack.new(:video, [MediaStreamTrack.generate_stream_id()])
+    {:ok, _transceiver} = PeerConnection.add_transceiver(pc, track, direction: :sendonly)
+    {:ok, offer} = PeerConnection.create_offer(pc)
+    :ok = PeerConnection.set_local_description(pc, offer)
+
+    media_event = sdp_offer(offer)
+
+    Pipeline.notify_child(pipeline, :handler, {:offer, media_event, %{}})
+
+    assert_pipeline_notified(pipeline, :handler, {:answer, %{"type" => "answer"} = answer, _mids})
+    assert_pipeline_notified(pipeline, :handler, {:tracks, tracks})
+    [engine_track] = tracks
+
+    answer = SessionDescription.from_json(answer)
+    PeerConnection.set_remote_description(pc, answer)
+
+    assert_pipeline_notified(pipeline, :handler, :negotiation_done)
+
+    {engine_track, track}
   end
 end
