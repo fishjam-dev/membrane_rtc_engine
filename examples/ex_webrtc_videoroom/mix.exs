@@ -46,7 +46,7 @@ defmodule VideoRoom.MixProject do
       setup: ["deps.get", "cmd --cd assets npm ci"],
       "assets.deploy": [
         "cmd --cd assets yarn install",
-        "cmd --cd assets npm run deploy",
+        "cmd --cd assets yarn deploy",
         "esbuild default --minify",
         "phx.digest"
       ]
