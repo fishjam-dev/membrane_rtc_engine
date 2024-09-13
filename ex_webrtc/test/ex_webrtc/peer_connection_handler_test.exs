@@ -22,12 +22,14 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
   end
 
   test "peer adds single video track", %{pc: pc, pipeline: pipeline} do
+    track_id = UUID.uuid4()
+    mid_to_track_id = %{"0" => track_id}
     track = MediaStreamTrack.new(:video, [MediaStreamTrack.generate_stream_id()])
     {:ok, _transceiver} = PeerConnection.add_transceiver(pc, track, direction: :sendonly)
     {:ok, offer} = PeerConnection.create_offer(pc)
     :ok = PeerConnection.set_local_description(pc, offer)
 
-    media_event = sdp_offer(offer)
+    media_event = sdp_offer(offer, mid_to_track_id)
 
     outbound_tracks = %{}
     Pipeline.notify_child(pipeline, :handler, {:offer, media_event, outbound_tracks})
@@ -42,7 +44,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
 
     assert length(tracks) == 1
     track = List.first(tracks)
-    assert %{type: :video, origin: @endpoint_id, encoding: :VP8, variants: [:high]} = track
+
+    assert %{id: ^track_id, type: :video, origin: @endpoint_id, encoding: :VP8, variants: [:high]} =
+             track
 
     answer = SessionDescription.from_json(answer)
     PeerConnection.set_remote_description(pc, answer)
@@ -86,6 +90,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
   end
 
   test "peer adds audio and video tracks", %{pc: pc, pipeline: pipeline} do
+    video_track_id = UUID.uuid4()
+    audio_track_id = UUID.uuid4()
     video_track = MediaStreamTrack.new(:video, [MediaStreamTrack.generate_stream_id()])
     {:ok, _transceiver} = PeerConnection.add_transceiver(pc, video_track, direction: :sendonly)
     audio_track = MediaStreamTrack.new(:audio, [MediaStreamTrack.generate_stream_id()])
@@ -93,7 +99,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
     {:ok, offer} = PeerConnection.create_offer(pc)
     :ok = PeerConnection.set_local_description(pc, offer)
 
-    Pipeline.notify_child(pipeline, :handler, {:offer, sdp_offer(offer), %{}})
+    mid_to_track_id = %{"0" => video_track_id, "1" => audio_track_id}
+    Pipeline.notify_child(pipeline, :handler, {:offer, sdp_offer(offer, mid_to_track_id), %{}})
 
     assert_pipeline_notified(
       pipeline,
@@ -108,20 +115,20 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
     engine_video_track = Enum.find(tracks, &(&1.type == :video))
 
     assert %{
-             type: :audio,
-             stream_id: stream_id,
-             origin: @endpoint_id,
-             encoding: :OPUS,
-             variants: [:high]
-           } = engine_audio_track
-
-    assert %{
+             id: ^video_track_id,
              type: :video,
-             stream_id: ^stream_id,
              origin: @endpoint_id,
              encoding: :VP8,
              variants: [:high]
            } = engine_video_track
+
+    assert %{
+             id: ^audio_track_id,
+             type: :audio,
+             origin: @endpoint_id,
+             encoding: :OPUS,
+             variants: [:high]
+           } = engine_audio_track
 
     answer = SessionDescription.from_json(answer)
     PeerConnection.set_remote_description(pc, answer)
@@ -190,18 +197,22 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
   end
 
   defp add_peer_video_track(pc, pipeline) do
+    track_id = UUID.uuid4()
     track = MediaStreamTrack.new(:video, [MediaStreamTrack.generate_stream_id()])
     {:ok, _transceiver} = PeerConnection.add_transceiver(pc, track, direction: :sendonly)
     {:ok, offer} = PeerConnection.create_offer(pc)
     :ok = PeerConnection.set_local_description(pc, offer)
 
-    media_event = sdp_offer(offer)
+    mid_to_track_id = %{"0" => track_id}
+    media_event = sdp_offer(offer, mid_to_track_id)
 
     Pipeline.notify_child(pipeline, :handler, {:offer, media_event, %{}})
 
     assert_pipeline_notified(pipeline, :handler, {:answer, %{"type" => "answer"} = answer, _mids})
     assert_pipeline_notified(pipeline, :handler, {:tracks, tracks})
     [engine_track] = tracks
+
+    assert engine_track.id == track_id
 
     answer = SessionDescription.from_json(answer)
     PeerConnection.set_remote_description(pc, answer)

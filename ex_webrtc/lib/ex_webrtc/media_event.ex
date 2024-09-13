@@ -5,10 +5,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
   alias Membrane.RTC.Engine.Endpoint.ExWebRTC.TrackReceiver
   alias Membrane.RTC.Engine.Track
 
-  @type t() :: %{
-          type: String.t(),
-          data: map()
-        }
+  @type t() :: map()
 
   @spec connected(Endpoint.id(), list()) :: t()
   def connected(endpoint_id, other_endpoints) do
@@ -275,18 +272,12 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
     case event do
       %{
         "type" => "candidate",
-        "data" => %{
-          "candidate" => candidate,
-          "sdpMLineIndex" => sdp_m_line_index
-        }
+        "data" => candidate
       } ->
         {:ok,
          %{
            type: :candidate,
-           data: %{
-             candidate: candidate,
-             sdp_m_line_index: sdp_m_line_index
-           }
+           data: candidate
          }}
 
       _other ->

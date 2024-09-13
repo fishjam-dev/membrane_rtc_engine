@@ -158,8 +158,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:track_metadata_updated, _track}, _ctx, state) do
-    {[], state}
+  def handle_parent_notification({:track_metadata_updated, track}, _ctx, state) do
+    event =
+      MediaEvent.track_updated(track.origin, track.id, track.metadata) |> MediaEvent.to_action()
+
+    {event, state}
   end
 
   @impl true
@@ -173,8 +176,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   end
 
   @impl true
-  def handle_parent_notification({:endpoint_metadata_updated, _endpoint}, _ctx, state) do
-    {[], state}
+  def handle_parent_notification({:endpoint_metadata_updated, endpoint}, _ctx, state) do
+    event = MediaEvent.endpoint_updated(endpoint) |> MediaEvent.to_action()
+    {event, state}
   end
 
   @impl true
@@ -239,9 +243,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         Membrane.Logger.warning("Invalid media event #{inspect(event)}. Ignoring.")
         {[], state}
     end
-
-    %{"type" => type, "data" => data} = Jason.decode!(event)
-    handle_media_event(type, data, ctx, state)
   end
 
   @impl true
@@ -264,19 +265,51 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     metadata = if is_map(data), do: Map.get(data, "metadata"), else: nil
 
     actions =
-      if Map.has_key?(metadata, "displayName") do
+      if is_map(metadata) and Map.has_key?(metadata, "displayName") do
         Logger.metadata(peer: metadata["displayName"])
         [notify_child: {:connection_handler, {:set_metadata, metadata["displayName"]}}]
       else
         []
       end
 
-    {actions + [notify_parent: {:ready, metadata}], state}
+    {actions ++ [notify_parent: {:ready, metadata}], state}
   end
 
-  defp handle_media_event(:disableTrackEncoding, %{trackId: track_id, encoding: rid}, _ctx, state) do
+  defp handle_media_event(:disconnect, _data, _ctx, state) do
+    {[notify_parent: :finished], state}
+  end
+
+  defp handle_media_event(
+         :disable_track_variant,
+         %{track_id: track_id, encoding: rid},
+         _ctx,
+         state
+       ) do
     encoding = to_track_variant(rid)
     {[notify_parent: {:disable_track_variant, track_id, encoding}], state}
+  end
+
+  defp handle_media_event(
+         :enable_track_variant,
+         %{track_id: track_id, encoding: rid},
+         _ctx,
+         state
+       ) do
+    encoding = to_track_variant(rid)
+    {[notify_parent: {:enable_track_variant, track_id, encoding}], state}
+  end
+
+  defp handle_media_event(:update_endpoint_metadata, %{metadata: metadata}, _ctx, state) do
+    {[notify_parent: {:update_endpoint_metadata, metadata}], state}
+  end
+
+  defp handle_media_event(
+         :update_track_metadata,
+         %{track_id: track_id, track_metadata: metadata},
+         _ctx,
+         state
+       ) do
+    {[notify_parent: {:update_track_metadata, track_id, metadata}], state}
   end
 
   defp handle_media_event(:sdp_offer, event, _ctx, state) do
@@ -285,25 +318,25 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       |> Map.filter(fn {_id, t} -> t.status != :pending end)
       |> Map.new(fn {id, t} -> {id, t.engine_track} end)
 
-    state = put_in(state.track_id_to_bitrates, event.track_id_to_bitrates)
-    {[notify_child: {:connection_handler, {:offer, event.sdp_offer, tracks}}], state}
+    state = put_in(state.track_id_to_bitrates, event.track_id_to_track_bitrates)
+    {[notify_child: {:connection_handler, {:offer, event, tracks}}], state}
   end
 
   defp handle_media_event(:candidate, candidate, _ctx, state) do
     {[notify_child: {:connection_handler, {:candidate, candidate}}], state}
   end
 
-  defp handle_media_event(:renegotiatiate_tracks, _data, _ctx, %{negotiation?: true} = state) do
+  defp handle_media_event(:renegotiate_tracks, _data, _ctx, %{negotiation?: true} = state) do
     {[], state}
   end
 
-  defp handle_media_event(:renegotiatiate_tracks, _data, _ctx, state) do
+  defp handle_media_event(:renegotiate_tracks, _data, _ctx, state) do
     actions = get_offer_data(state.outbound_tracks)
 
     {actions, %{state | negotiation?: true}}
   end
 
-  defp handle_media_event(:track_variant_bitrates, data, ctx, state) do
+  defp handle_media_event(:track_variant_bitrates, data, _ctx, state) do
     state = put_in(state, [:track_id_to_bitrates, data.track_id], data.variant_bitrates)
     msg = {:variant_bitrates, data.variant_bitrates}
 
@@ -482,8 +515,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
 
   defp deserialize(event) when is_binary(event) do
     case MediaEvent.decode(event) do
-      {:ok, %{type: :custom, data: %{type: type, data: data}}} -> {:ok, type, data}
-      {:ok, %{type: type, data: data}} -> {:ok, type, data}
+      {:ok, %{type: :custom, data: %{type: type} = event}} -> {:ok, type, Map.get(event, :data)}
+      {:ok, %{type: type} = event} -> {:ok, type, Map.get(event, :data)}
       {:error, _reason} = error -> error
     end
   end

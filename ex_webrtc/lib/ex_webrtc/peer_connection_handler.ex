@@ -61,7 +61,6 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       outbound_tracks: %{},
       # maps rtc track_id to engine track_id
       inbound_tracks: %{},
-      stream_id: MediaStreamTrack.generate_stream_id(),
       # TODO: update this map when mid's are reused
       mid_to_track_id: %{}
     }
@@ -363,10 +362,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
   defp do_make_tracks([], _transceivers, state, acc), do: {Enum.reverse(acc), state}
 
   defp do_make_tracks([track | tracks], transceivers, state, acc) do
-    codec =
+    {codec, mid} =
       Enum.find_value(transceivers, fn
-        %RTPTransceiver{receiver: %RTPReceiver{track: ^track, codec: codec}} -> codec
-        _other -> nil
+        %RTPTransceiver{receiver: %RTPReceiver{track: ^track, codec: codec}, mid: mid} ->
+          {codec, mid}
+
+        _other ->
+          nil
       end)
 
     %MediaStreamTrack{id: id, kind: kind} = track
@@ -381,11 +383,12 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     engine_track =
       Track.new(
         kind,
-        state.stream_id,
+        MediaStreamTrack.generate_stream_id(),
         state.endpoint_id,
         encoding,
         codec.clock_rate,
-        codec.sdp_fmtp_line
+        codec.sdp_fmtp_line,
+        id: Map.fetch!(state.mid_to_track_id, mid)
       )
 
     state = update_in(state.inbound_tracks, &Map.put(&1, id, engine_track.id))

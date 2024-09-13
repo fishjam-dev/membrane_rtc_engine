@@ -37,7 +37,7 @@ export class Room {
   constructor() {
     this.socket = new Socket("/socket");
     this.socket.connect();
-    this.displayName = this.parseUrl();
+    this.displayName = this.parseUrl() || "undefined";
     this.webrtcChannel = this.socket.channel(`room:${getRoomId()}`);
 
     this.webrtcChannel.onError(() => {
@@ -63,8 +63,8 @@ export class Room {
     this.webrtc.on("connected", async (endpointId: string, otherEndpoints: Endpoint<EndpointMetadata, TrackMetadata>[]) => {
       this.endpoints = otherEndpoints;
       this.endpoints.forEach((endpoint) => {
-        const metadata = endpoint.metadata!;
-        addVideoElement(endpoint.id, metadata.displayName, false);
+        const displayName = endpoint.metadata?.displayName || "undefined";
+        addVideoElement(endpoint.id, displayName, false);
       });
       this.updateParticipantsList();
 
@@ -146,13 +146,13 @@ export class Room {
     }
   };
 
-  private parseUrl = (): string => {
+  private parseUrl = (): string | undefined => {
     const { display_name: displayName } = parse(document.location.search);
 
     // remove query params without reloading the page
     window.history.replaceState(null, "", window.location.pathname);
 
-    return displayName as string;
+    return displayName as string | undefined;
   };
 
   private updateParticipantsList = (): void => {

@@ -49,13 +49,14 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MixProject do
   defp deps do
     [
       {:membrane_rtc_engine, path: "../engine"},
-      {:membrane_core, "~> 1.0"},
+      {:membrane_core, "~> 1.1.1"},
       {:ex_webrtc, github: "elixir-webrtc/ex_webrtc"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.9.0"},
       {:membrane_rtp_h264_plugin, "~> 0.19.0"},
       {:ex_sdp, "~> 0.17.0", override: true},
       {:jason, "~> 1.2"},
+      {:elixir_uuid, "~> 1.2"},
 
       # Dev and test
       {:credo, "~> 1.6", only: :dev, runtime: false},
