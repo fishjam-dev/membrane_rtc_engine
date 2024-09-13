@@ -72,8 +72,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEventTest do
           type: :sdp_offer,
           data: %{
             sdp_offer: %{
-              type: :offer,
-              sdp: sdp
+              "type" => "offer",
+              "sdp" => sdp
             },
             track_id_to_track_metadata: metadata,
             track_id_to_track_bitrates: decoded_bitrates,

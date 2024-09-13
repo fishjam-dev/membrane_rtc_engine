@@ -70,6 +70,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       |> Map.merge(%{
         outbound_tracks: %{},
         inbound_tracks: %{},
+        track_id_to_bitrates: %{},
         negotiation?: false
       })
 
@@ -88,7 +89,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     if rid != :high, do: raise("ExWebrtcEndpoint handles only the high variant of tracks.")
 
     track = Map.fetch!(state.inbound_tracks, track_id)
-    track_sender = %TrackSender{track: track, variant_bitrates: %{high: 1_500_000}}
+
+    track_sender = %TrackSender{
+      track: track,
+      variant_bitrates: Map.fetch!(state.track_id_to_bitrates, track_id)
+    }
 
     spec = [
       get_child(:connection_handler)
@@ -176,12 +181,11 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   def handle_parent_notification({:new_tracks, new_tracks}, _ctx, %{negotiation?: true} = state) do
     Membrane.Logger.debug("new parent queued tracks: #{log_tracks(new_tracks)}")
 
-    outbound_tracks =
-      new_tracks
-      |> Map.new(&{&1.id, %Track{status: :pending, engine_track: &1}})
-      |> Map.merge(state.outbound_tracks)
+    new_tracks = Map.new(new_tracks, &{&1.id, %Track{status: :pending, engine_track: &1}})
+    outbound_tracks = Map.merge(state.outbound_tracks, new_tracks)
 
-    {[], %{state | outbound_tracks: outbound_tracks}}
+    tracks_added = get_new_tracks_actions(new_tracks)
+    {tracks_added, %{state | outbound_tracks: outbound_tracks}}
   end
 
   @impl true
@@ -281,7 +285,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
       |> Map.filter(fn {_id, t} -> t.status != :pending end)
       |> Map.new(fn {id, t} -> {id, t.engine_track} end)
 
-    {[notify_child: {:connection_handler, {:offer, event, tracks}}], state}
+    state = put_in(state.track_id_to_bitrates, event.track_id_to_bitrates)
+    {[notify_child: {:connection_handler, {:offer, event.sdp_offer, tracks}}], state}
   end
 
   defp handle_media_event(:candidate, candidate, _ctx, state) do
@@ -296,6 +301,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     actions = get_offer_data(state.outbound_tracks)
 
     {actions, %{state | negotiation?: true}}
+  end
+
+  defp handle_media_event(:track_variant_bitrates, data, ctx, state) do
+    state = put_in(state, [:track_id_to_bitrates, data.track_id], data.variant_bitrates)
+    msg = {:variant_bitrates, data.variant_bitrates}
+
+    {[notify_child: {{:track_sender, data.track_id}, msg}], state}
   end
 
   defp handle_media_event(type, event, _ctx, state) do
@@ -378,15 +390,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
     if Enum.empty?(pending_tracks) do
       {[], %{state | negotiation?: false}}
     else
-      tracks_added = get_new_tracks_actions(pending_tracks)
-
       new_tracks =
         Map.new(pending_tracks, fn {id, track} -> {id, %{track | status: :negotiating}} end)
 
       state = update_in(state.outbound_tracks, &Map.merge(&1, new_tracks))
 
       offer_data = get_offer_data(state.outbound_tracks)
-      {tracks_added ++ offer_data, %{state | negotiation?: true}}
+      {offer_data, %{state | negotiation?: true}}
     end
   end
 

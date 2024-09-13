@@ -170,7 +170,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
   end
 
   defp sdp_offer(offer, mid_to_track_id \\ %{}) do
-    %{"sdpOffer" => SessionDescription.to_json(offer), "midToTrackId" => mid_to_track_id}
+    %{sdp_offer: SessionDescription.to_json(offer), mid_to_track_id: mid_to_track_id}
   end
 
   defp engine_video_track() do

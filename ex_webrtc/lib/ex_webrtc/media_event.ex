@@ -323,10 +323,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
         "type" => "sdpOffer",
         "data" =>
           %{
-            "sdpOffer" => %{
-              "type" => "offer",
-              "sdp" => sdp
-            },
+            "sdpOffer" => offer,
             "trackIdToTrackMetadata" => track_id_to_track_metadata,
             "midToTrackId" => mid_to_track_id
           } = data
@@ -344,10 +341,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MediaEvent do
          %{
            type: :sdp_offer,
            data: %{
-             sdp_offer: %{
-               type: :offer,
-               sdp: sdp
-             },
+             sdp_offer: offer,
              track_id_to_track_metadata: track_id_to_track_metadata,
              track_id_to_track_bitrates: track_id_to_track_bitrate,
              mid_to_track_id: mid_to_track_id

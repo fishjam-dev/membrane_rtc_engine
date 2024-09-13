@@ -122,7 +122,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
 
   @impl true
   def handle_parent_notification({:offer, event, outbound_tracks}, _ctx, state) do
-    %{"sdpOffer" => offer, "midToTrackId" => mid_to_track_id} = event
+    %{sdp_offer: offer, mid_to_track_id: mid_to_track_id} = event
 
     state = update_in(state.mid_to_track_id, &Map.merge(&1, mid_to_track_id))
 
