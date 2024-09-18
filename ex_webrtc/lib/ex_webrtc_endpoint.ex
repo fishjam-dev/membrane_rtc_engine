@@ -23,6 +23,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
                 description: "Range of ports that ICE will use for gathering host candidates.",
                 default: nil
               ],
+              # TODO: metadata unused
               metadata: [
                 spec: any(),
                 default: nil,
@@ -160,24 +161,26 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
   @impl true
   def handle_parent_notification({:track_metadata_updated, track}, _ctx, state) do
     event =
-      MediaEvent.track_updated(track.origin, track.id, track.metadata) |> MediaEvent.to_action()
+      track.origin |> MediaEvent.track_updated(track.id, track.metadata) |> MediaEvent.to_action()
 
     {event, state}
   end
 
   @impl true
   def handle_parent_notification({:track_variant_enabled, _track, _encoding}, _ctx, state) do
+    # TODO: implement
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:track_variant_disabled, _track, _encoding}, _ctx, state) do
+    # TODO: implement
     {[], state}
   end
 
   @impl true
   def handle_parent_notification({:endpoint_metadata_updated, endpoint}, _ctx, state) do
-    event = MediaEvent.endpoint_updated(endpoint) |> MediaEvent.to_action()
+    event = endpoint |> MediaEvent.endpoint_updated() |> MediaEvent.to_action()
     {event, state}
   end
 
@@ -409,6 +412,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC do
         %{name: {_, endpoint_id}},
         %{negotiation?: true} = state
       ) do
+    # TODO: fix bug like in https://github.com/fishjam-dev/membrane_rtc_engine/pull/408
+    # TODO: add only tracks that have actually been negotiated
     negotiated_tracks =
       state.outbound_tracks
       |> Map.filter(fn {_id, t} -> t.status == :negotiating end)
