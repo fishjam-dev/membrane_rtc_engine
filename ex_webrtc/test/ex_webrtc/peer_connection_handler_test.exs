@@ -12,6 +12,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
   alias Membrane.RTC.Engine.Track
 
   @endpoint_id "ex_webrtc_endpoint"
+  @track_metadata %{"server" => %{"displayName" => "mrwebrtc"}, "peer" => %{}}
 
   setup do
     {:ok, pc} = PeerConnection.start_link()
@@ -24,12 +25,13 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
   test "peer adds single video track", %{pc: pc, pipeline: pipeline} do
     track_id = UUID.uuid4()
     mid_to_track_id = %{"0" => track_id}
+    track_id_to_metadata = %{track_id => @track_metadata}
     track = MediaStreamTrack.new(:video, [MediaStreamTrack.generate_stream_id()])
     {:ok, _transceiver} = PeerConnection.add_transceiver(pc, track, direction: :sendonly)
     {:ok, offer} = PeerConnection.create_offer(pc)
     :ok = PeerConnection.set_local_description(pc, offer)
 
-    media_event = sdp_offer(offer, mid_to_track_id)
+    media_event = sdp_offer(offer, mid_to_track_id, track_id_to_metadata)
 
     outbound_tracks = %{}
     Pipeline.notify_child(pipeline, :handler, {:offer, media_event, outbound_tracks})
@@ -42,11 +44,17 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
 
     assert_pipeline_notified(pipeline, :handler, {:tracks, tracks})
 
-    assert length(tracks) == 1
-    track = List.first(tracks)
+    [engine_track] = tracks
 
-    assert %{id: ^track_id, type: :video, origin: @endpoint_id, encoding: :VP8, variants: [:high]} =
-             track
+    assert %{
+             id: ^track_id,
+             type: :video,
+             origin: @endpoint_id,
+             encoding: :VP8,
+             variants: [:high],
+             metadata: @track_metadata
+           } =
+             engine_track
 
     answer = SessionDescription.from_json(answer)
     PeerConnection.set_remote_description(pc, answer)
@@ -176,8 +184,12 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandlerTest do
     ]
   end
 
-  defp sdp_offer(offer, mid_to_track_id \\ %{}) do
-    %{sdp_offer: SessionDescription.to_json(offer), mid_to_track_id: mid_to_track_id}
+  defp sdp_offer(offer, mid_to_track_id \\ %{}, track_id_to_metadata \\ %{}) do
+    %{
+      sdp_offer: SessionDescription.to_json(offer),
+      mid_to_track_id: mid_to_track_id,
+      track_id_to_track_metadata: track_id_to_metadata
+    }
   end
 
   defp engine_video_track() do

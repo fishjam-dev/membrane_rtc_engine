@@ -10,7 +10,7 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MixProject do
     [
       app: :membrane_rtc_engine_ex_webrtc,
       version: @version,
-      elixir: "~> 1.14",
+      elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),

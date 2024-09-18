@@ -62,7 +62,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
       # maps rtc track_id to engine track_id
       inbound_tracks: %{},
       # TODO: update this map when mid's are reused
-      mid_to_track_id: %{}
+      mid_to_track_id: %{},
+      track_id_to_metadata: %{}
     }
 
     {[], state}
@@ -124,6 +125,9 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
     %{sdp_offer: offer, mid_to_track_id: mid_to_track_id} = event
 
     state = update_in(state.mid_to_track_id, &Map.merge(&1, mid_to_track_id))
+
+    track_id_to_metadata = Map.get(event, :track_id_to_track_metadata, %{})
+    state = Map.put(state, :track_id_to_metadata, track_id_to_metadata)
 
     new_outbound_tracks =
       Map.filter(outbound_tracks, fn {track_id, _track} ->
@@ -380,6 +384,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
         "video/H264" -> :H264
       end
 
+    track_id = Map.fetch!(state.mid_to_track_id, mid)
+
     engine_track =
       Track.new(
         kind,
@@ -388,7 +394,8 @@ defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.PeerConnectionHandler do
         encoding,
         codec.clock_rate,
         codec.sdp_fmtp_line,
-        id: Map.fetch!(state.mid_to_track_id, mid)
+        id: track_id,
+        metadata: Map.get(state.track_id_to_metadata, track_id)
       )
 
     state = update_in(state.inbound_tracks, &Map.put(&1, id, engine_track.id))
