@@ -1,3 +1,9 @@
+# This Repository Has Been Archived
+
+Please visit the new repository under the [Fishjam Cloud](https://fishjam.io/) organization for the latest updates and contributions:
+
+[![New Repository](https://img.shields.io/badge/Repository-New%20Location-blue)](https://github.com/fishjam-cloud/membrane_rtc_engine)
+
 # Membrane RTC Engine
 
 Customizable Real-time Communication Engine/SFU library focused on WebRTC.
