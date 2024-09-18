@@ -1,8 +1,9 @@
 {
-    "license": "MIT",
-    "dependencies": {
-        "@jellyfish-dev/membrane-webrtc-js": "github:jellyfish-dev/membrane-webrtc-js",
-        "phoenix": "file:../deps/phoenix",
-        "playwright": "1.18.1"
-    }
+  "license": "MIT",
+  "dependencies": {
+    "@fishjam-cloud/ts-client": "https://github.com/fishjam-cloud/web-client-sdk.git#workspace=@fishjam-cloud/ts-client&head=ex_webrtc_poc",
+    "phoenix": "file:../deps/phoenix",
+    "playwright": "1.18.1"
+  },
+  "packageManager": "yarn@4.3.1"
 }

@@ -68,7 +68,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       {:ex_libsrtp, ">= 0.0.0"},
       {:qex, "~> 0.5"},
       {:jason, "~> 1.2"},
-      {:credo, "~> 1.6", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 

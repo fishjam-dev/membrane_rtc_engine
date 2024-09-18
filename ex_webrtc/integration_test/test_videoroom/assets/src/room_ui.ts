@@ -2,13 +2,6 @@ export function getRoomId(): string {
   return document.getElementById("room")!.dataset.roomId!;
 }
 
-export function setupDisconnectButton(fun: () => void) {
-  const disconnectButton = document.getElementById(
-    "disconnect"
-  )! as HTMLButtonElement;
-  disconnectButton.onclick = fun;
-}
-
 function elementId(peerId: string, type: "video" | "audio" | "feed") {
   return `${type}-${peerId}`;
 }
@@ -56,14 +49,6 @@ export function addVideoElement(
   if (isLocalVideo) {
     audio.muted = true;
   }
-}
-
-export function setParticipantsList(participants: Array<string>): void {
-  const participantsNamesEl = document.getElementById(
-    "participants-list"
-  ) as HTMLDivElement;
-  participantsNamesEl.innerHTML =
-    "<b>Participants</b>: " + participants.join(", ");
 }
 
 function resizeVideosGrid() {

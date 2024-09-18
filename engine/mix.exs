@@ -61,7 +61,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       {:statistics, "~> 0.6.0"},
       # for colouring diffs in upgrade guides
       {:makeup_diff, "~> 0.1", only: :dev, runtime: false},
-      {:credo, "~> 1.6", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: :dev, runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
 
@@ -86,6 +86,7 @@ defmodule Membrane.RTC.Engine.MixProject do
       "test.engine": ["test"],
       "test.webrtc": fn _args -> test_package("webrtc") end,
       "test.webrtc.integration": &run_webrtc_integration_tests/1,
+      "test.ex_webrtc.integration": &run_ex_webrtc_integration_tests/1,
       "test.hls": fn _args -> test_package("hls") end,
       "test.rtsp": fn _args -> test_package("rtsp") end,
       "test.file": fn _args -> test_package("file") end,
@@ -203,8 +204,14 @@ defmodule Membrane.RTC.Engine.MixProject do
   end
 
   defp run_webrtc_integration_tests(_cli_args) do
-    path = "../webrtc/integration_test/test_videoroom"
+    run_integration_tests("../webrtc/integration_test/test_videoroom")
+  end
 
+  defp run_ex_webrtc_integration_tests(_cli_args) do
+    run_integration_tests("../ex_webrtc/integration_test/test_videoroom")
+  end
+
+  defp run_integration_tests(path) do
     assert_execute("mix", ["deps.get"],
       cd: path,
       log_str: "Getting mix dependencies in test_videoroom"
@@ -222,7 +229,7 @@ defmodule Membrane.RTC.Engine.MixProject do
         "Skipping installation of npm dependencies in test_videoroom: already installed"
       )
     else
-      assert_execute("npm", ["ci"],
+      assert_execute("yarn", ["install"],
         cd: assets_path,
         log_str: "Installing npm dependencies in test_videoroom"
       )

@@ -33,3 +33,4 @@ test_videoroom-*.tar
 npm-debug.log
 /assets/node_modules/
 
+.yarn

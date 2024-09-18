@@ -45,8 +45,8 @@ defmodule TestVideoroom.Integration.MetadataTest do
     ]
 
     stage_to_text = %{
-      peer_metadata: "test",
-      track_metadata: "trackMetadata"
+      peer_metadata: "newMeta",
+      track_metadata: "newTrackMeta"
     }
 
     actions_with_id = [actions1, actions2] |> Enum.with_index()

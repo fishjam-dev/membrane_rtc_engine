@@ -5,9 +5,7 @@ defmodule TestVideoroom.Room do
 
   alias Membrane.RTC.Engine
   alias Membrane.RTC.Engine.Message
-  alias Membrane.RTC.Engine.Endpoint.WebRTC
-  alias Membrane.RTC.Engine.Endpoint.WebRTC.SimulcastConfig
-  alias Membrane.WebRTC.Extension.{Mid, RepairedRid, Rid, TWCC}
+  alias Membrane.RTC.Engine.Endpoint.ExWebRTC
   require Logger
 
   def start(opts) do
@@ -30,32 +28,8 @@ defmodule TestVideoroom.Room do
   def init(room_id) do
     Logger.info("Spawning room process: #{inspect(self())}")
 
-    turn_mock_ip = Application.fetch_env!(:test_videoroom, :integrated_turn_ip)
-    turn_ip = if Mix.env() == :prod, do: {0, 0, 0, 0}, else: turn_mock_ip
-
-    turn_cert_file =
-      case Application.fetch_env(:test_videoroom, :integrated_turn_cert_pkey) do
-        {:ok, val} -> val
-        :error -> nil
-      end
-
-    integrated_turn_options = [
-      ip: turn_ip,
-      mock_ip: turn_mock_ip,
-      ports_range: Application.fetch_env!(:test_videoroom, :integrated_turn_port_range),
-      cert_file: turn_cert_file
-    ]
-
-    network_options = [
-      integrated_turn_options: integrated_turn_options,
-      integrated_turn_domain: Application.fetch_env!(:test_videoroom, :integrated_turn_domain),
-      dtls_pkey: Application.get_env(:test_videoroom, :dtls_pkey),
-      dtls_cert: Application.get_env(:test_videoroom, :dtls_cert)
-    ]
-
-    rtc_engine_options = [
-      id: room_id
-    ]
+    ice_port_range = Application.fetch_env!(:test_videoroom, :ice_port_range)
+    rtc_engine_options = [id: room_id]
 
     {:ok, pid} = Membrane.RTC.Engine.start(rtc_engine_options, [])
     Process.monitor(pid)
@@ -65,7 +39,7 @@ defmodule TestVideoroom.Room do
      %{
        rtc_engine: pid,
        peer_channels: %{},
-       network_options: network_options,
+       ice_port_range: ice_port_range,
        listeners: [],
        room_id: room_id
      }}
@@ -81,37 +55,9 @@ defmodule TestVideoroom.Room do
     state = put_in(state, [:peer_channels, peer_id], peer_channel_pid)
     Process.monitor(peer_channel_pid)
 
-    handshake_opts =
-      if state.network_options[:dtls_pkey] &&
-           state.network_options[:dtls_cert] do
-        [
-          client_mode: false,
-          dtls_srtp: true,
-          pkey: state.network_options[:dtls_pkey],
-          cert: state.network_options[:dtls_cert]
-        ]
-      else
-        [
-          client_mode: false,
-          dtls_srtp: true
-        ]
-      end
-
-    endpoint = %WebRTC{
+    endpoint = %ExWebRTC{
       rtc_engine: state.rtc_engine,
-      ice_name: peer_id,
-      extensions: %{},
-      owner: self(),
-      integrated_turn_options: state.network_options[:integrated_turn_options],
-      integrated_turn_domain: state.network_options[:integrated_turn_domain],
-      handshake_opts: handshake_opts,
-      log_metadata: [endpoint_id: peer_id],
-      telemetry_label: [room_id: state.room_id, endpoint_id: peer_id],
-      webrtc_extensions: [Mid, Rid, RepairedRid, TWCC],
-      simulcast_config: %SimulcastConfig{
-        enabled: true,
-        initial_target_variant: fn _track -> :medium end
-      }
+      ice_port_range: state.ice_port_range
     }
 
     :ok = Engine.add_endpoint(state.rtc_engine, endpoint, id: peer_id)

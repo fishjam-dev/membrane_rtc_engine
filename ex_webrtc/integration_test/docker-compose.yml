@@ -14,7 +14,7 @@ services:
   server:
     build:
       context: ../..
-      dockerfile: webrtc/integration_test/test_videoroom/Dockerfile
+      dockerfile: ex_webrtc/integration_test/test_videoroom/Dockerfile
     container_name: mediaserver
     hostname: mediaserver
     environment:

@@ -15,8 +15,18 @@
 
 <div id="container">
     <div id="videos">
-        <video id="local-video" playsinline autoplay muted></video>
+        <div class="flex flex-col justify-center items-center">
+            <div id="videos-grid" class="grid grid-cols-2 grid-flow-row gap-4 justify-items-center"></div>
+        </div>
     </div>
+
+    <template id="video-feed-template">
+        <div name="video-feed" class="relative bg-gray-900 shadow rounded-md overflow-hidden h-full w-full ratio-video">
+            <audio></audio>
+            <video class="w-full"></video>
+            <div name="video-label" class="absolute text-white text-shadow-lg bottom-0 left-0 p-2">Placeholder</div>
+        </div>
+    </template>
 
     <div id="buttons">
         <button id="start-simulcast">Start with simulcast</button>
@@ -45,7 +55,6 @@
         <button id="metadata-peer">Peer metadata</button>
         <button id="metadata-track">Track metadata</button>
     </div>
-    
 
     Stats
     <div id="data" data-version="0" style="">uninitialized</div>

@@ -36,7 +36,8 @@ defmodule TestVideoroom.MixProject do
       {:plug_cowboy, "~> 2.5"},
       {:cowlib, "~> 2.11", override: true},
       {:membrane_rtc_engine, path: rtc_engine_path(), override: true},
-      {:membrane_rtc_engine_webrtc, path: Path.join(rtc_engine_path(), "../webrtc/")},
+      {:membrane_rtc_engine_ex_webrtc, path: Path.join(rtc_engine_path(), "../ex_webrtc/")},
+      {:ex_sdp, "~> 0.17.0", override: true},
       {:stampede, github: "membraneframework-labs/stampede-elixir"}
     ]
   end
@@ -46,7 +47,7 @@ defmodule TestVideoroom.MixProject do
   defp aliases() do
     [
       test: ["assets.deploy", "test --exclude containerised"],
-      "assets.deploy": ["esbuild default --minify", "phx.digest"],
+      "assets.deploy": ["cmd --cd assets yarn install", "esbuild default --minify", "phx.digest"],
       "test.containerised": ["test --only containerised"]
     ]
   end

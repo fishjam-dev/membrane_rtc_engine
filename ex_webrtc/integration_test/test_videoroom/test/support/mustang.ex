@@ -7,6 +7,12 @@ defmodule TestMustang do
     page = browser |> Playwright.Browser.new_page()
     _response = Playwright.Page.goto(page, options.target_url)
 
+    Playwright.Page.on(page, :console, fn _e ->
+      # useful for debugging
+      # IO.inspect(e.params.message, label: options.id)
+      :ok
+    end)
+
     page
     |> Playwright.Page.locator("[id=#{options.start_button}]")
     |> Playwright.Locator.click()
