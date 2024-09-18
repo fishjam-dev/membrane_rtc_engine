@@ -33,8 +33,11 @@ defmodule VideoRoom.MixProject do
       {:esbuild, "~> 0.4", runtime: Mix.env() == :dev},
 
       # rtc engine dependencies
-      {:membrane_rtc_engine, "~> 0.22.0"},
-      {:membrane_rtc_engine_webrtc, "~> 0.8.0"}
+      {:membrane_rtc_engine, path: "../../engine"},
+      {:membrane_rtc_engine_ex_webrtc, path: "../../ex_webrtc"},
+
+      # Required for ex_webrtc
+      {:ex_sdp, "~> 0.17.0", override: true}
     ]
   end
 
@@ -42,7 +45,8 @@ defmodule VideoRoom.MixProject do
     [
       setup: ["deps.get", "cmd --cd assets npm ci"],
       "assets.deploy": [
-        "cmd --cd assets npm run deploy",
+        "cmd --cd assets yarn install",
+        "cmd --cd assets yarn deploy",
         "esbuild default --minify",
         "phx.digest"
       ]

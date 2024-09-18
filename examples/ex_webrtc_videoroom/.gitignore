@@ -3,6 +3,7 @@
 priv/certs/*.pem
 priv/static/assets
 priv/static/js
+priv/static/cache_manifest.json
 
 # The directory Mix will write compiled artifacts to.
 /_build/
@@ -34,3 +35,5 @@ node_modules
 
 # macOS
 .DS_Store
+
+.yarn

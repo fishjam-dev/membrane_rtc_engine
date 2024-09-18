@@ -17,7 +17,7 @@ defmodule ConfigParser do
     with [str1, str2] <- String.split(range, "-"),
          from when from in 0..65_535 <- String.to_integer(str1),
          to when to in from..65_535 and from <= to <- String.to_integer(str2) do
-      {from, to}
+      from..to
     else
       _else ->
         raise("""
@@ -31,7 +31,7 @@ end
 
 config :membrane_videoroom_demo,
   external_ip: System.get_env("EXTERNAL_IP", "127.0.0.1") |> ConfigParser.parse_external_ip(),
-  port_range:
+  ice_port_range:
     System.get_env("PORT_RANGE", "50000-59999")
     |> ConfigParser.parse_port_range()
 

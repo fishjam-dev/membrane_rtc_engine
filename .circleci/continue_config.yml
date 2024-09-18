@@ -13,6 +13,9 @@ parameters:
   webrtc-changed:
     type: boolean
     default: false
+  ex-webrtc-changed:
+    type: boolean
+    default: false
   hls-changed:
     type: boolean
     default: false
@@ -39,13 +42,12 @@ parameters:
     default: false
 
 executors:
- machine_executor_amd64:
-   machine:
-     image: ubuntu-2204:2024.01.1
-   environment:
-     architecture: "amd64"
-     platform: "linux/amd64"
-
+  machine_executor_amd64:
+    machine:
+      image: ubuntu-2204:2024.01.1
+    environment:
+      architecture: "amd64"
+      platform: "linux/amd64"
 
 jobs:
   test_integration:
@@ -65,8 +67,6 @@ jobs:
       - run: echo "EXTERNAL_IP=$(ifconfig ens5 | grep "inet " | awk '{print $2}')" > ./integration_test/.env
       - run: cd integration_test && docker compose -f docker-compose-test.yaml --env-file .env up --remove-orphans test --exit-code-from test
       - codecov/upload
-
-
 
   test_package:
     parameters:
@@ -136,7 +136,7 @@ jobs:
     steps:
       - checkout:
           path: ~/app
-      - run: 
+      - run:
           name: Check "CHANGELOG.md" Update
           command: |
             git rebase master && [[ "$(git branch --show-current)" == "master" ]] ||
@@ -159,7 +159,6 @@ jobs:
       # TODO remove this after updating Node in out docker_membrane repository
       - run: npm install npm@9.2.0 -g
       - run: mix test.webrtc.integration
-
 
 workflows:
   test-engine:
@@ -185,6 +184,18 @@ workflows:
           workdir: ~/app/webrtc
           codecov_flag: webrtc
       - test_webrtc_integration
+
+  test-ex-webrtc:
+    when:
+      or:
+        - << pipeline.parameters.repo-root-changed >>
+        - << pipeline.parameters.engine-changed >>
+        - << pipeline.parameters.ex-webrtc-changed >>
+    jobs:
+      - test_package:
+          name: test_ex_webrtc
+          workdir: ~/app/ex_webrtc
+          codecov_flag: ex_webrtc
 
   test-hls:
     when:
@@ -243,7 +254,7 @@ workflows:
           name: test_sip
           workdir: ~/app/sip
           codecov_flag: sip
-  
+
   test-recording:
     when:
       or:
@@ -294,6 +305,16 @@ workflows:
       - check_changelog_update:
           name: check_changelog_update_webrtc
           workdir: ~/app/webrtc
+
+  lint-ex-webrtc:
+    when: << pipeline.parameters.ex-webrtc-changed >>
+    jobs:
+      - lint_package:
+          name: lint_ex_webrtc
+          workdir: ~/app/ex_webrtc
+      - check_changelog_update:
+          name: check_changelog_update_ex_webrtc
+          workdir: ~/app/ex_webrtc
 
   lint-hls:
     when: << pipeline.parameters.hls-changed >>
@@ -351,7 +372,7 @@ workflows:
           name: lint_integration
           workdir: ~/app/integration_test
           disable_dev_checks: true
-  
+
   lint-example-webrtc-to-hls:
     when: << pipeline.parameters.webrtc-to-hls-changed >>
     jobs:
@@ -359,7 +380,7 @@ workflows:
           name: lint_webrtc_to_hls
           workdir: ~/app/examples/webrtc_to_hls
           disable_dev_checks: true
-  
+
   lint-webrtc-videoroom:
     when: << pipeline.parameters.webrtc-videoroom-changed >>
     jobs:

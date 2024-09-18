@@ -12,12 +12,20 @@ import {
   WebRTCEndpoint,
   Endpoint,
   TrackContext,
-} from "@fishjam-dev/ts-client";
+} from "@fishjam-cloud/ts-client";
 import { Push, Socket } from "phoenix";
 import { parse } from "query-string";
 
+export type EndpointMetadata = {
+  displayName: string;
+};
+
+export type TrackMetadata = {
+  goodTrack: string;
+};
+
 export class Room {
-  private endpoints: Endpoint[] = [];
+  private endpoints: Endpoint<EndpointMetadata, TrackMetadata>[] = [];
   private displayName: string;
   private localStream: MediaStream | undefined;
   private webrtc: WebRTCEndpoint;
@@ -29,7 +37,7 @@ export class Room {
   constructor() {
     this.socket = new Socket("/socket");
     this.socket.connect();
-    this.displayName = this.parseUrl();
+    this.displayName = this.parseUrl() || "undefined";
     this.webrtcChannel = this.socket.channel(`room:${getRoomId()}`);
 
     this.webrtcChannel.onError(() => {
@@ -49,40 +57,46 @@ export class Room {
     this.webrtc.on("sendMediaEvent", (mediaEvent: string) => {
       this.webrtcChannel.push("mediaEvent", { data: mediaEvent });
     })
-    
-    this.webrtc.on("connectionError", setErrorMessage);
-    
-    this.webrtc.on("connected", (endpointId: string, otherEndpoints: Endpoint[]) => {
-      this.localStream!.getTracks().forEach((track) =>
-        this.webrtc.addTrack(track, this.localStream!, {})
-      );
 
+    this.webrtc.on("connectionError", (e) => setErrorMessage(e.message));
+
+    this.webrtc.on("connected", async (endpointId: string, otherEndpoints: Endpoint<EndpointMetadata, TrackMetadata>[]) => {
       this.endpoints = otherEndpoints;
       this.endpoints.forEach((endpoint) => {
-        addVideoElement(endpoint.id, endpoint.metadata.displayName, false);
+        const displayName = endpoint.metadata?.displayName || "undefined";
+        addVideoElement(endpoint.id, displayName, false);
       });
       this.updateParticipantsList();
-    });
-    this.webrtc.on("connectionError", (message: string) => { throw `Endpoint denied.` });
 
-    this.webrtc.on("trackReady", (ctx: TrackContext) => {
+      for (const track of this.localStream!.getTracks()) {
+        console.log("addingTrack...");
+        await this.webrtc.addTrack(track, { peer: this.displayName, kind: track.kind });
+        console.log("room addedTrack", track)
+      }
+    });
+    this.webrtc.on("connectionError", () => { throw `Endpoint denied.` });
+
+    this.webrtc.on("trackReady", (ctx: TrackContext<EndpointMetadata, TrackMetadata>) => {
+      console.log("trackReady", ctx);
       attachStream(ctx.stream!, ctx.endpoint.id)
     });
-    
-    this.webrtc.on("endpointAdded", (endpoint: Endpoint) => {
+
+    this.webrtc.on("endpointAdded", (endpoint: Endpoint<EndpointMetadata, TrackMetadata>) => {
       this.endpoints.push(endpoint);
       this.updateParticipantsList();
-      addVideoElement(endpoint.id, endpoint.metadata.display_name, false);
+      addVideoElement(endpoint.id, endpoint.metadata?.displayName!, false);
     });
-    
-    this.webrtc.on("endpointRemoved", (endpoint: Endpoint) => {
-      this.endpoints = this.endpoints.filter((endpoint) => endpoint.id !== endpoint.id);
+
+    this.webrtc.on("endpointRemoved", (endpoint: Endpoint<EndpointMetadata, TrackMetadata>) => {
+      this.endpoints = this.endpoints.filter((e) => e.id !== endpoint.id);
       removeVideoElement(endpoint.id);
       this.updateParticipantsList();
     });
-    
-    this.webrtcChannel.on("mediaEvent", (event: any) =>
-      this.webrtc.receiveMediaEvent(event.data)
+
+    this.webrtcChannel.on("mediaEvent", (event: any) => {
+      console.log("MediaEvent", event);
+      this.webrtc.receiveMediaEvent(event.data);
+    }
     );
   }
 
@@ -94,6 +108,7 @@ export class Room {
         window.location.replace("");
       });
       this.webrtc.connect({ displayName: this.displayName });
+      console.log("Connecting");
     } catch (error) {
       console.error("Error while joining to the room:", error);
     }
@@ -131,17 +146,17 @@ export class Room {
     }
   };
 
-  private parseUrl = (): string => {
+  private parseUrl = (): string | undefined => {
     const { display_name: displayName } = parse(document.location.search);
 
     // remove query params without reloading the page
     window.history.replaceState(null, "", window.location.pathname);
 
-    return displayName as string;
+    return displayName as string | undefined;
   };
 
   private updateParticipantsList = (): void => {
-    const participantsNames = this.endpoints.map((e) => e.metadata.displayName);
+    const participantsNames = this.endpoints.map((e) => e.metadata?.displayName!);
 
     if (this.displayName) {
       participantsNames.push(this.displayName);

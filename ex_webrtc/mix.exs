@@ -1,14 +1,14 @@
-defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
+defmodule Membrane.RTC.Engine.Endpoint.ExWebRTC.MixProject do
   use Mix.Project
 
-  @version "0.9.0-dev"
+  @version "0.1.0-dev"
   @engine_github_url "https://github.com/jellyfish-dev/membrane_rtc_engine"
-  @github_url "#{@engine_github_url}/tree/master/webrtc"
-  @source_ref "webrtc-v#{@version}"
+  @github_url "#{@engine_github_url}/tree/master/ex_webrtc"
+  @source_ref "exwebrtc-v#{@version}"
 
   def project do
     [
-      app: :membrane_rtc_engine_webrtc,
+      app: :membrane_rtc_engine_ex_webrtc,
       version: @version,
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -39,7 +39,7 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
 
   def application do
     [
-      extra_applications: []
+      extra_applications: [:logger]
     ]
   end
 
@@ -48,32 +48,20 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
 
   defp deps do
     [
-      # Engine deps
       {:membrane_rtc_engine, path: "../engine"},
-
-      # Regular deps
-      {:membrane_core, "~> 1.0"},
-      {:bundlex, "1.4.6"},
-      {:unifex, "1.1.1"},
-      {:bunch, "~> 1.5"},
-      {:membrane_funnel_plugin, "~> 0.9.0"},
-      {:membrane_h26x_plugin, "~> 0.10.0"},
-      {:membrane_rtp_plugin, "~> 0.28.0"},
-      {:membrane_ice_plugin, "~> 0.18.0"},
+      {:membrane_core, "~> 1.1.1"},
+      {:ex_webrtc, github: "elixir-webrtc/ex_webrtc"},
       {:membrane_rtp_format, "~> 0.8.0"},
       {:membrane_rtp_vp8_plugin, "~> 0.9.0"},
       {:membrane_rtp_h264_plugin, "~> 0.19.0"},
-      {:membrane_rtp_opus_plugin, ">= 0.9.0"},
-      {:membrane_telemetry_metrics, "~> 0.1.0"},
-      {:ex_libsrtp, ">= 0.0.0"},
-      {:qex, "~> 0.5"},
+      {:ex_sdp, "~> 0.17.0", override: true},
       {:jason, "~> 1.2"},
-      {:credo, "~> 1.6", only: :dev, runtime: false},
-      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.1", only: :dev, runtime: false},
+      {:elixir_uuid, "~> 1.2"},
 
-      # Test deps
-      {:membrane_file_plugin, "~> 0.16.0"},
+      # Dev and test
+      {:credo, "~> 1.6", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.4", only: :dev, runtime: false},
       {:excoveralls, "~> 0.16.0", only: :test, runtime: false}
     ]
   end
@@ -96,9 +84,9 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       formatters: ["html"],
       groups_for_extras: groups_for_extras(),
       groups_for_modules: groups_for_modules(),
-      assets: "internal_docs/assets",
+      assets: %{"internal_docs/assets" => "assets"},
       source_ref: @source_ref,
-      source_url_pattern: "#{@engine_github_url}/blob/#{@source_ref}/webrtc/%{path}#L%{line}",
+      source_url_pattern: "#{@engine_github_url}/blob/#{@source_ref}/ex_webrtc/%{path}#L%{line}",
       nest_modules_by_prefix: [Membrane.WebRTC, Membrane.RTC.Engine.Endpoint],
       before_closing_body_tag: &before_closing_body_tag/1
     ]
@@ -109,40 +97,27 @@ defmodule Membrane.RTC.Engine.Endpoint.WebRTC.MixProject do
       "README.md",
       "CHANGELOG.md",
       "LICENSE",
-      # guides
-      "guides/simulcast.md",
-      "guides/metrics.md",
 
       # internal docs
       "internal_docs/webrtc_media_events.md",
       "internal_docs/protocol.md",
-      "internal_docs/webrtc_endpoint.md",
+      "internal_docs/ex_webrtc_endpoint.md",
       "internal_docs/simulcast.md": [filename: "internal_simulcast"]
     ]
   end
 
   defp groups_for_extras() do
     [
-      # negative lookahead to match everything
-      # except upgrading directory
-      {"Guides", ~r/guides\/(?!upgrading\/).*/},
-      {"Upgrading", ~r/guides\/upgrading\//},
       {"Developer docs", ~r/internal_docs\//}
     ]
   end
 
   defp groups_for_modules() do
     [
-      {"WebRTC Endpoint",
+      {"ExWebRTC Endpoint",
        [
-         ~r/^Membrane\.RTC\.Engine\.Endpoint\.WebRTC($|\.)/
-       ]},
-      Extensions: [
-        ~r/^Membrane\.WebRTC\.Extension($|\.)/
-      ],
-      WebRTC: [
-        ~r/^Membrane\.WebRTC($|\.)/
-      ]
+         ~r/^Membrane\.RTC\.Engine\.Endpoint\.ExWebRTC($|\.)/
+       ]}
     ]
   end
 
