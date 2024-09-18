@@ -1,21 +1,3 @@
-# Engine
-engine/ @mickel8 @sgfn
-
-# WebRTC
-webrtc/ @mickel8
-*webrtc* @mickel8
-
 # HLS
 hls/ @Karolk99
 *hls* @Karolk99
-
-# RTSP
-rtsp/ @sgfn
-*rtsp* @sgfn
-
-# File
-file/ @Rados13
-
-# Sip
-sip/ @sgfn @Rados13
-*sip* @sgfn @Rados13 
